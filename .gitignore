@@ -1,0 +1,10 @@
+# Ignore generated images
+images/
+
+# PowerShell stuff
+*.ps1xml
+*.psd1
+*.psm1
+
+# VS Code
+.vscode/
