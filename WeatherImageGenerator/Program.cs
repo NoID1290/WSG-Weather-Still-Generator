@@ -1,0 +1,287 @@
+#nullable enable
+using System;
+using System.Drawing;
+using System.IO;
+using System.Threading.Tasks;
+using OpenMeteo;
+
+namespace WeatherImageGenerator
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            RunAsync().GetAwaiter().GetResult();
+        }
+
+        static async Task RunAsync()
+        {
+            try
+            {
+                OpenMeteoClient client = new OpenMeteoClient();
+
+                // Query weather for a city
+                string location = "London";
+                Console.WriteLine($"Fetching weather data for {location}...");
+                
+                WeatherForecast? weatherData = await client.QueryAsync(location);
+                
+                if (weatherData == null)
+                {
+                    Console.WriteLine("Failed to fetch weather data.");
+                    return;
+                }
+
+                // Create output directory
+                string outputDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
+                if (!Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+
+                Console.WriteLine("Generating still images...");
+
+                // Generate 3 still images
+                GenerateCurrentWeatherImage(weatherData, outputDir);
+                GenerateForecastSummaryImage(weatherData, outputDir);
+                GenerateDetailedWeatherImage(weatherData, outputDir);
+
+                Console.WriteLine($"\n✓ Successfully generated 3 weather images in: {outputDir}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+
+        static void GenerateCurrentWeatherImage(WeatherForecast weatherData, string outputDir)
+        {
+            int width = 800;
+            int height = 600;
+            Bitmap bitmap = new Bitmap(width, height);
+            Graphics graphics = Graphics.FromImage(bitmap);
+
+            try
+            {
+                // Fill background with gradient
+                using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new Point(0, 0), new Point(0, height),
+                    Color.FromArgb(70, 130, 180), Color.FromArgb(100, 150, 200)))
+                {
+                    graphics.FillRectangle(brush, 0, 0, width, height);
+                }
+
+                Font titleFont = new Font("Arial", 48, FontStyle.Bold);
+                Font labelFont = new Font("Arial", 24, FontStyle.Regular);
+                Font dataFont = new Font("Arial", 32, FontStyle.Bold);
+                Brush whiteBrush = Brushes.White;
+
+                // Title
+                graphics.DrawString("Current Weather", titleFont, whiteBrush, new PointF(50, 50));
+
+                // Current temperature
+                string tempText = weatherData.Current?.Temperature != null 
+                    ? $"{weatherData.Current.Temperature}°{weatherData.CurrentUnits?.Temperature}"
+                    : "N/A";
+                graphics.DrawString("Temperature:", labelFont, whiteBrush, new PointF(50, 150));
+                graphics.DrawString(tempText, dataFont, whiteBrush, new PointF(50, 200));
+
+                // Weather condition
+                string conditionText = weatherData.Current?.Weathercode != null
+                    ? GetWeatherDescription((int)weatherData.Current.Weathercode)
+                    : "N/A";
+                graphics.DrawString("Condition:", labelFont, whiteBrush, new PointF(50, 280));
+                graphics.DrawString(conditionText, dataFont, whiteBrush, new PointF(50, 330));
+
+                // Wind speed
+                string windText = weatherData.Current?.Windspeed_10m != null
+                    ? $"{weatherData.Current.Windspeed_10m} {weatherData.CurrentUnits?.Windspeed_10m}"
+                    : "N/A";
+                graphics.DrawString("Wind Speed:", labelFont, whiteBrush, new PointF(50, 410));
+                graphics.DrawString(windText, dataFont, whiteBrush, new PointF(50, 460));
+
+                string filename = Path.Combine(outputDir, "1_CurrentWeather.png");
+                bitmap.Save(filename);
+                Console.WriteLine($"✓ Generated: {filename}");
+
+                titleFont.Dispose();
+                labelFont.Dispose();
+                dataFont.Dispose();
+            }
+            finally
+            {
+                graphics.Dispose();
+                bitmap.Dispose();
+            }
+        }
+
+        static void GenerateForecastSummaryImage(WeatherForecast weatherData, string outputDir)
+        {
+            int width = 800;
+            int height = 600;
+            Bitmap bitmap = new Bitmap(width, height);
+            Graphics graphics = Graphics.FromImage(bitmap);
+
+            try
+            {
+                // Fill background with gradient
+                using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new Point(0, 0), new Point(0, height),
+                    Color.FromArgb(60, 120, 150), Color.FromArgb(90, 140, 180)))
+                {
+                    graphics.FillRectangle(brush, 0, 0, width, height);
+                }
+
+                Font titleFont = new Font("Arial", 48, FontStyle.Bold);
+                Font labelFont = new Font("Arial", 20, FontStyle.Regular);
+                Font dataFont = new Font("Arial", 24, FontStyle.Bold);
+                Brush whiteBrush = Brushes.White;
+
+                graphics.DrawString("Daily Forecast Summary", titleFont, whiteBrush, new PointF(50, 50));
+
+                if (weatherData.Daily != null && weatherData.Daily.Time != null && weatherData.Daily.Time.Length > 0)
+                {
+                    int yPosition = 150;
+                    int daysToShow = Math.Min(3, weatherData.Daily.Time.Length);
+
+                    for (int i = 0; i < daysToShow; i++)
+                    {
+                        DateTime dateTime = DateTime.Parse(weatherData.Daily.Time[i]);
+                        string date = dateTime.ToString("ddd, MMM d");
+                        string maxTemp = weatherData.Daily.Temperature_2m_max != null ? weatherData.Daily.Temperature_2m_max[i].ToString() : "N/A";
+                        string minTemp = weatherData.Daily.Temperature_2m_min != null ? weatherData.Daily.Temperature_2m_min[i].ToString() : "N/A";
+                        string condition = weatherData.Daily.Weathercode != null && weatherData.Daily.Weathercode[i] != null
+                            ? GetWeatherDescription((int)weatherData.Daily.Weathercode[i])
+                            : "N/A";
+
+                        graphics.DrawString($"{date}", labelFont, whiteBrush, new PointF(50, yPosition));
+                        graphics.DrawString($"High: {maxTemp}° | Low: {minTemp}° | {condition}", dataFont, whiteBrush, 
+                            new PointF(50, yPosition + 35));
+
+                        yPosition += 120;
+                    }
+                }
+                else
+                {
+                    graphics.DrawString("No forecast data available", labelFont, whiteBrush, new PointF(50, 200));
+                }
+
+                string filename = Path.Combine(outputDir, "2_DailyForecast.png");
+                bitmap.Save(filename);
+                Console.WriteLine($"✓ Generated: {filename}");
+
+                titleFont.Dispose();
+                labelFont.Dispose();
+                dataFont.Dispose();
+            }
+            finally
+            {
+                graphics.Dispose();
+                bitmap.Dispose();
+            }
+        }
+
+        static void GenerateDetailedWeatherImage(WeatherForecast weatherData, string outputDir)
+        {
+            int width = 800;
+            int height = 600;
+            Bitmap bitmap = new Bitmap(width, height);
+            Graphics graphics = Graphics.FromImage(bitmap);
+
+            try
+            {
+                // Fill background with gradient
+                using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new Point(0, 0), new Point(0, height),
+                    Color.FromArgb(80, 140, 160), Color.FromArgb(110, 160, 190)))
+                {
+                    graphics.FillRectangle(brush, 0, 0, width, height);
+                }
+
+                Font titleFont = new Font("Arial", 48, FontStyle.Bold);
+                Font labelFont = new Font("Arial", 18, FontStyle.Regular);
+                Font dataFont = new Font("Arial", 22, FontStyle.Bold);
+                Brush whiteBrush = Brushes.White;
+
+                graphics.DrawString("Detailed Weather", titleFont, whiteBrush, new PointF(50, 30));
+
+                int yPosition = 120;
+                int lineHeight = 50;
+
+                // Display various weather details
+                if (weatherData.Current != null)
+                {
+                    graphics.DrawString("Temperature:", labelFont, whiteBrush, new PointF(50, yPosition));
+                    graphics.DrawString($"{weatherData.Current.Temperature}°{weatherData.CurrentUnits?.Temperature}", 
+                        dataFont, whiteBrush, new PointF(300, yPosition));
+                    yPosition += lineHeight;
+
+                    graphics.DrawString("Humidity:", labelFont, whiteBrush, new PointF(50, yPosition));
+                    graphics.DrawString($"{weatherData.Current.Relativehumidity_2m}%", dataFont, whiteBrush, new PointF(300, yPosition));
+                    yPosition += lineHeight;
+
+                    graphics.DrawString("Wind Speed:", labelFont, whiteBrush, new PointF(50, yPosition));
+                    graphics.DrawString($"{weatherData.Current.Windspeed_10m} {weatherData.CurrentUnits?.Windspeed_10m}", 
+                        dataFont, whiteBrush, new PointF(300, yPosition));
+                    yPosition += lineHeight;
+
+                    graphics.DrawString("Wind Direction:", labelFont, whiteBrush, new PointF(50, yPosition));
+                    graphics.DrawString($"{weatherData.Current.Winddirection_10m}°", dataFont, whiteBrush, new PointF(300, yPosition));
+                    yPosition += lineHeight;
+
+                    graphics.DrawString("Pressure:", labelFont, whiteBrush, new PointF(50, yPosition));
+                    graphics.DrawString($"{weatherData.Current.Surface_pressure} hPa", dataFont, whiteBrush, new PointF(300, yPosition));
+                }
+
+                string filename = Path.Combine(outputDir, "3_DetailedWeather.png");
+                bitmap.Save(filename);
+                Console.WriteLine($"✓ Generated: {filename}");
+
+                titleFont.Dispose();
+                labelFont.Dispose();
+                dataFont.Dispose();
+            }
+            finally
+            {
+                graphics.Dispose();
+                bitmap.Dispose();
+            }
+        }
+
+        static string GetWeatherDescription(int weatherCode)
+        {
+            return weatherCode switch
+            {
+                0 => "Clear sky",
+                1 => "Mainly clear",
+                2 => "Partly cloudy",
+                3 => "Overcast",
+                45 => "Fog",
+                48 => "Depositing rime Fog",
+                51 => "Light drizzle",
+                53 => "Moderate drizzle",
+                55 => "Dense drizzle",
+                56 => "Light freezing drizzle",
+                57 => "Dense freezing drizzle",
+                61 => "Slight rain",
+                63 => "Moderate rain",
+                65 => "Heavy rain",
+                66 => "Light freezing rain",
+                67 => "Heavy freezing rain",
+                71 => "Slight snow fall",
+                73 => "Moderate snow fall",
+                75 => "Heavy snow fall",
+                77 => "Snow grains",
+                80 => "Slight rain showers",
+                81 => "Moderate rain showers",
+                82 => "Violent rain showers",
+                85 => "Slight snow showers",
+                86 => "Heavy snow showers",
+                95 => "Thunderstorm",
+                96 => "Thunderstorm with light hail",
+                99 => "Thunderstorm with heavy hail",
+                _ => "Unknown"
+            };
+        }
+    }
+}
