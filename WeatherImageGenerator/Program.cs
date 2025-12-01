@@ -21,7 +21,7 @@ namespace WeatherImageGenerator
                 OpenMeteoClient client = new OpenMeteoClient();
 
                 // Query weather for a city
-                string location = "Delson";
+                string location = "Amos";
                 Console.WriteLine($"Fetching weather data for {location}...");
                 
                 WeatherForecast? weatherData = await client.QueryAsync(location);
