@@ -21,7 +21,7 @@ namespace WeatherImageGenerator
                 OpenMeteoClient client = new OpenMeteoClient();
 
                 // Query weather for a city
-                string location = "Montreal";
+                string location = "Montreal"; // You can change this to any location, need to be editable in the future
                 Console.WriteLine($"Fetching weather data for {location}...");
                 
                 WeatherForecast? weatherData = await client.QueryAsync(location);
@@ -56,8 +56,8 @@ namespace WeatherImageGenerator
 
         static void GenerateCurrentWeatherImage(WeatherForecast weatherData, string outputDir)
         {
-            int width = 800;
-            int height = 600;
+            int width = 1920;
+            int height = 1080;
             Bitmap bitmap = new Bitmap(width, height);
             Graphics graphics = Graphics.FromImage(bitmap);
 
@@ -117,8 +117,8 @@ namespace WeatherImageGenerator
 
         static void GenerateForecastSummaryImage(WeatherForecast weatherData, string outputDir)
         {
-            int width = 800;
-            int height = 600;
+            int width = 1920;
+            int height = 1080;
             Bitmap bitmap = new Bitmap(width, height);
             Graphics graphics = Graphics.FromImage(bitmap);
 
@@ -163,7 +163,7 @@ namespace WeatherImageGenerator
                 }
                 else
                 {
-                    graphics.DrawString("No forecast data available", labelFont, whiteBrush, new PointF(50, 200));
+                    graphics.DrawString("No forecast data available", labelFont, whiteBrush, new PointF(50, 200)); // NO DATA FOR CANADA, NEED TO CHANGE FORCAST INFO
                 }
 
                 string filename = Path.Combine(outputDir, "2_DailyForecast.png");
@@ -183,8 +183,8 @@ namespace WeatherImageGenerator
 
         static void GenerateDetailedWeatherImage(WeatherForecast weatherData, string outputDir)
         {
-            int width = 800;
-            int height = 600;
+            int width = 1920;
+            int height = 1080;
             Bitmap bitmap = new Bitmap(width, height);
             Graphics graphics = Graphics.FromImage(bitmap);
 
@@ -203,7 +203,7 @@ namespace WeatherImageGenerator
                 Font dataFont = new Font("Arial", 22, FontStyle.Bold);
                 Brush whiteBrush = Brushes.White;
 
-                graphics.DrawString("Detailed Weather", titleFont, whiteBrush, new PointF(50, 30));
+                graphics.DrawString("DÉTAILS POUR ", titleFont, whiteBrush, new PointF(50, 30));
 
                 int yPosition = 120;
                 int lineHeight = 50;
