@@ -48,6 +48,9 @@ namespace WeatherImageGenerator
                 GenerateCurrentWeatherImage(weatherData, outputDir);
                 GenerateForecastSummaryImage(weatherData, outputDir);
                 GenerateDetailedWeatherImage(weatherData, outputDir);
+                // Generate alpha PNG for current temperature
+                GenerateAPNGcurrentTemperature(weatherData, outputDir);
+
 
                 Console.WriteLine($"\n✓ Successfully generated 3 weather images in: {outputDir}");
             }
@@ -84,7 +87,7 @@ namespace WeatherImageGenerator
 
                 // Current temperature
                 string tempText = weatherData.Current?.Temperature != null 
-                    ? $"{weatherData.Current.Temperature}°{weatherData.CurrentUnits?.Temperature}"
+                    ? $"{weatherData.Current.Temperature}{weatherData.CurrentUnits?.Temperature}"
                     : "N/A";
                 graphics.DrawString("Temperature:", labelFont, whiteBrush, new PointF(50, 150));
                 graphics.DrawString(tempText, dataFont, whiteBrush, new PointF(50, 200));
@@ -206,7 +209,7 @@ namespace WeatherImageGenerator
                 Font dataFont = new Font("Arial", 22, FontStyle.Bold);
                 Brush whiteBrush = Brushes.White;
 
-                graphics.DrawString("DÉTAILS POUR ", titleFont, whiteBrush, new PointF(50, 30));
+                graphics.DrawString($"Détail pour {CommonSettings.LOCATION0}", titleFont, whiteBrush, new PointF(50, 30));
 
                 int yPosition = 120;
                 int lineHeight = 50;
@@ -215,7 +218,7 @@ namespace WeatherImageGenerator
                 if (weatherData.Current != null)
                 {
                     graphics.DrawString("Temperature:", labelFont, whiteBrush, new PointF(50, yPosition));
-                    graphics.DrawString($"{weatherData.Current.Temperature}°{weatherData.CurrentUnits?.Temperature}", 
+                    graphics.DrawString($"{weatherData.Current.Temperature}{weatherData.CurrentUnits?.Temperature}", 
                         dataFont, whiteBrush, new PointF(300, yPosition));
                     yPosition += lineHeight;
 
@@ -253,6 +256,54 @@ namespace WeatherImageGenerator
 
         static void GenerateAPNGcurrentTemperature(WeatherForecast weatherData, string outputDir)
         {
+            int width = 400; // leave higher buffer for high temp
+            int height = 100;
+            Bitmap bitmap = new Bitmap(width, height);
+            Graphics graphics = Graphics.FromImage(bitmap);
+
+            try
+            {
+                // Not needed for APNG
+
+                // Fill background with gradient
+                /*
+                using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new Point(0, 0), new Point(0, height),
+                    Color.FromArgb(0, 0, 0), Color.FromArgb(0, 0, 0))) 
+                {
+                    graphics.FillRectangle(brush, 0, 0, width, height);
+                }
+                */
+
+                 graphics.Clear(Color.Transparent);
+
+
+                Font titleFont = new Font("Arial", 48, FontStyle.Bold);
+                Font dataFont = new Font("Arial", 72, FontStyle.Bold);
+                Brush whiteBrush = Brushes.White;
+
+                // Title
+                //graphics.DrawString("Current Temperature", titleFont, whiteBrush, new PointF(50, 50)); // Removed title for APNG
+
+                // Current temperature
+                string tempText = weatherData.Current?.Temperature != null 
+                    ? $"{weatherData.Current.Temperature}{weatherData.CurrentUnits?.Temperature}"
+                    : "N/A";
+                graphics.DrawString(tempText, dataFont, whiteBrush, new PointF(0, 0)); // Centered in APNG
+
+                string filename = Path.Combine(outputDir, "temp_watermark_alpha.png");
+                // Save as APNG - Placeholder function
+                bitmap.Save(filename);
+                Console.WriteLine($"✓ Generated: {filename}");
+
+                titleFont.Dispose();
+                dataFont.Dispose();
+            }
+            finally
+            {
+                graphics.Dispose();
+                bitmap.Dispose();
+            }
             // Placeholder for APNG generation logic
             // This would involve creating multiple frames and compiling them into an APNG file
             // For simplicity, this function is left unimplemented
