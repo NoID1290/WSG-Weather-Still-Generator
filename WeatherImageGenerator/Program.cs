@@ -251,6 +251,13 @@ namespace WeatherImageGenerator
             }
         }
 
+        static void GenerateAPNGcurrentTemperature(WeatherForecast weatherData, string outputDir)
+        {
+            // Placeholder for APNG generation logic
+            // This would involve creating multiple frames and compiling them into an APNG file
+            // For simplicity, this function is left unimplemented
+        }
+
         static string GetWeatherDescription(int weatherCode)
         {
             return weatherCode switch
