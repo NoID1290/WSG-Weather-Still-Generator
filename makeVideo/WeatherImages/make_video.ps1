@@ -2,10 +2,8 @@
 #   1. SETTINGS & PATHING
 # ============================================
 
-# Force "Dot" decimals (Fixes 5,0 vs 5.0 issues on French/EU systems)
 $Cult = [System.Globalization.CultureInfo]::InvariantCulture
 
-# AUTO-DETECT SCRIPT FOLDER
 if ($PSScriptRoot) { 
     $WorkingDir = $PSScriptRoot 
 } else { 
@@ -15,16 +13,19 @@ if ($PSScriptRoot) {
 # File settings
 $ImageFolder = $WorkingDir
 $Extensions = "*.png","*.jpg","*.jpeg","*.bmp","*.webp"
-$OUTPUT = "$WorkingDir\slideshow_fixed.mp4"
+$OUTPUT = "$WorkingDir\slideshow_v3.mp4"
 $MUSIC = "$WorkingDir\music.mp3"
 
 # Video Timing Settings
-$DUR = 8      # Time image is STATIC (fully visible)
-$FADE = 0.5     # Time spent TRANSITIONING (fading)
+$DUR = 8        # Time image is STATIC
+$FADE = 0.5     # Time spent TRANSITIONING
 $FPS = 30       # Output framerate
 
 # Resolution: "1080p", "4k", or "vertical"
 $RES_MODE = "1080p"
+
+# Enable/disable fade transitions
+$ENABLE_FADE = $false
 
 # ============================================
 #   2. LOAD IMAGES
@@ -38,7 +39,6 @@ $Images = Get-ChildItem -Path "$ImageFolder\*" -Include $Extensions -File | Sort
 
 if ($Images.Count -lt 2) {
     Write-Host "[ERROR] Found $($Images.Count) images." -ForegroundColor Red
-    Write-Host "Please ensure at least 2 images are in this folder."
     exit
 }
 
@@ -55,13 +55,12 @@ switch ($RES_MODE.ToLower()) {
     default    { $W=1920; $H=1080 }
 }
 
-# Calculate exact duration (Static + Fade)
 $ClipDuration = $DUR + $FADE
-# Convert to string with dot decimal for FFmpeg
 $ClipDurStr = $ClipDuration.ToString($Cult)
 
-# Pre-Scale Filter
-$PreScale = "scale=$($W):$($H):force_original_aspect_ratio=decrease,pad=$($W):$($H):(ow-iw)/2:(oh-ih)/2,setsar=1"
+# --- FIX 1: FORCE PIXEL FORMAT EARLY ---
+# We added "format=yuv420p" to ensure every image has the same color space immediately
+$PreScale = "scale=$($W):$($H):force_original_aspect_ratio=decrease,pad=$($W):$($H):(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p"
 
 # ============================================
 #   4. BUILD FILTER COMPLEX
@@ -71,57 +70,58 @@ $FilterParts = @()
 $Inputs = ""
 $Index = 0
 
-# A. INPUT CHAIN
 foreach ($Img in $Images) {
-    # -loop 1 inputs the image, -t sets the duration
-    $Inputs += "-loop 1 -t $ClipDurStr -i `"$($Img.FullName)`" "
+    # Keep the framerate input option, it helps the demuxer
+    $Inputs += "-framerate $FPS -loop 1 -t $ClipDurStr -i `"$($Img.FullName)`" "
     
-    # Scale and reset timestamps
-    $FilterParts += "[${Index}:v]$PreScale,framerate=$FPS,setpts=PTS-STARTPTS[v$Index];"
+    # --- FIX 2: USE 'fps' INSTEAD OF 'framerate' ---
+    # We replaced 'framerate=$FPS' with 'fps=$FPS' which is more robust for static loops
+    $FilterParts += "[${Index}:v]$PreScale,fps=$FPS,setpts=PTS-STARTPTS[v$Index];"
     
     $Index++
 }
 
-# B. TRANSITION CHAIN (XFADE)
 $LastLabel = "[v0]" 
 $CurrentOffset = 0
-
-# Convert FADE to safe string
 $FadeStr = $FADE.ToString($Cult)
+
+
 
 for ($i=0; $i -lt $Images.Count-1; $i++) {
     $NextInput = "[v$($i+1)]"
     $OutputLabel = "[f$i]"
     
-    # Calculate offset (Accumulate Static time only)
     $CurrentOffset += $DUR
     $OffStr = $CurrentOffset.ToString($Cult)
     
-    # FIX: Use Format Operator (-f) to build the string safely
-    # This guarantees the syntax "duration=5" instead of accidental "duration==5"
+
+    
     $XFadeString = "{0}{1}xfade=transition=fade:duration={2}:offset={3}{4};" -f $LastLabel, $NextInput, $FadeStr, $OffStr, $OutputLabel
     
-    $FilterParts += $XFadeString
-    
+    if ($ENABLE_FADE) {
+        $FilterParts += $XFadeString
+    } else { 
+        # If fades are disabled, use a simple concat instead
+        $ConcatString = "{0}{1}concat=n=2:v=1:a=0{2};" -f $LastLabel, $NextInput, $OutputLabel
+        $FilterParts += $ConcatString
+    }
     $LastLabel = $OutputLabel
 }
 
-# Final mapping
 if ($Images.Count -eq 1) { $FinalMap = "[v0]" } else { $FinalMap = $LastLabel }
 
+# We don't need format=yuv420p at the end anymore because we did it at the start, 
+# but keeping it ensures safety for the encoder.
 $FilterParts += "$FinalMap" + "format=yuv420p[outv]"
 
-# Join all parts into one long string
 $FilterComplex = [string]::Join("", $FilterParts)
 
 # ============================================
 #   5. EXECUTE FFMPEG
 # ============================================
 
-# We assemble the command carefully to avoid quote issues
 $FFMPEG_CMD = "ffmpeg -y $Inputs -filter_complex `"$FilterComplex`" -map `"[outv]`""
 
-# Add Audio if found
 if (Test-Path $MUSIC) {
     Write-Host "[AUDIO] Adding Audio: $MUSIC" -ForegroundColor Magenta
     $FFMPEG_CMD += " -i `"$MUSIC`" -map `"$($Images.Count):a`" -shortest "
@@ -131,7 +131,6 @@ $FFMPEG_CMD += " -c:v libx264 -preset medium -crf 23 `"$OUTPUT`""
 
 Write-Host "[RUNNING] Starting FFmpeg..." -ForegroundColor Green
 
-# Use cmd /c to execute the string
 cmd /c $FFMPEG_CMD
 
 Write-Host ""
