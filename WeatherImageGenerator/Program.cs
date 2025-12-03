@@ -4,6 +4,9 @@ using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using OpenMeteo;
+using CommonStrings;
+
+    
 
 namespace WeatherImageGenerator
 {
@@ -21,7 +24,7 @@ namespace WeatherImageGenerator
                 OpenMeteoClient client = new OpenMeteoClient();
 
                 // Query weather for a city
-                string location = "Montreal"; // You can change this to any location, need to be editable in the future
+                string location = CommonSettings.LOCATION0; // You can change this to any location, need to be editable in the future
                 Console.WriteLine($"Fetching weather data for {location}...");
                 
                 WeatherForecast? weatherData = await client.QueryAsync(location);
