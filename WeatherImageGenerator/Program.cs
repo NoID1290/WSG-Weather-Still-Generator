@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
@@ -50,6 +51,9 @@ namespace WeatherImageGenerator
                 GenerateDetailedWeatherImage(weatherData, outputDir);
                 // Generate alpha PNG for current temperature
                 GenerateAPNGcurrentTemperature(weatherData, outputDir);
+                // Prepare video generation script
+                StartMakeVideo(outputDir);
+                WaitAndRefresh();
 
 
                 Console.WriteLine($"\n✓ Successfully generated 3 weather images in: {outputDir}");
@@ -291,7 +295,7 @@ namespace WeatherImageGenerator
                     : "N/A";
                 graphics.DrawString(tempText, dataFont, whiteBrush, new PointF(0, 0)); // Centered in APNG
 
-                string filename = Path.Combine(outputDir, "temp_watermark_alpha.png");
+                string filename = Path.Combine(outputDir, "temp_watermark_alpha.png.IGNORE"); // Marked to be ignored for now
                 // Save as APNG - Placeholder function
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
@@ -308,6 +312,52 @@ namespace WeatherImageGenerator
             // This would involve creating multiple frames and compiling them into an APNG file
             // For simplicity, this function is left unimplemented
         }
+
+        static void StartMakeVideo(string outputDir)
+        {
+            string scriptPath = Path.Combine(outputDir, "make_video.ps1");
+
+            // Check if script exists before trying to run it
+            if (!File.Exists(scriptPath))
+            {
+                Console.WriteLine($"Error: Script not found at {scriptPath}");
+                return;
+            }
+
+            // Prepare the process to run PowerShell.exe
+            ProcessStartInfo startInfo = new ProcessStartInfo()
+            {
+                FileName = "powershell.exe",
+                // Arguments explained:
+                // -NoProfile: Loads faster by not loading user profile
+                // -ExecutionPolicy Bypass: Temporarily allows the script to run even if restricted
+                // -File: Specifies the script to run (wrapped in quotes for paths with spaces)
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                UseShellExecute = false,
+                CreateNoWindow = false // Set to true if you want it to run invisibly
+            };
+
+            try 
+            {
+                using (Process process = Process.Start(startInfo))
+                {
+                    // Optional: Wait for the script to finish before continuing C# code
+                    process.WaitForExit(); 
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to execute script: {ex.Message}");
+            }
+        }
+        // wait fot 5 minutes before and repeat
+        static void WaitAndRefresh()
+        {    
+            Console.WriteLine("Waiting for 5 minutes before refresh...");
+            System.Threading.Thread.Sleep(int.Parse(CommonStrings.CommonSettings.REFRESHTIME) * 60000); 
+            RunAsync().GetAwaiter().GetResult();
+        }   
+
 
         static string GetWeatherDescription(int weatherCode)
         {

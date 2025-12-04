@@ -7,6 +7,9 @@ namespace CommonStrings
         public const string LOCATION2 = "St-Jean-sur-Richelieu";
 
 
+        public const string REFRESHTIME = "5"; // in minutes
+
+
 
     }
 }
