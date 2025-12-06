@@ -24,12 +24,33 @@ namespace WeatherImageGenerator
             {
                 OpenMeteoClient client = new OpenMeteoClient();
 
-                // Query weather for a city
-                string location = CommonSettings.LOCATION0; // You can change this to any location, need to be editable in the future
-                Console.WriteLine($"Fetching weather data for {location}...");
+                // Query weathers from COMMONSTRINGS
+                string location0 = CommonSettings.LOCATION0;
+                string location1 = CommonSettings.LOCATION1;
+                string location2 = CommonSettings.LOCATION2;
+                string location3 = CommonSettings.LOCATION3;
+                string location4 = CommonSettings.LOCATION4;
+                string location5 = CommonSettings.LOCATION5;
+                string location6 = CommonSettings.LOCATION6;
+            
+
+
+
+                Console.WriteLine($"Fetching weathers data...");
                 
-                WeatherForecast? weatherData = await client.QueryAsync(location);
+                // Fetch weathers data asynchronously
+                WeatherForecast? weatherData0 = await client.QueryAsync(location0);
+                WeatherForecast? weatherData1 = await client.QueryAsync(location1);
+                WeatherForecast? weatherData2 = await client.QueryAsync(location2);
+                WeatherForecast? weatherData3 = await client.QueryAsync(location3);
+                WeatherForecast? weatherData4 = await client.QueryAsync(location4);
+                WeatherForecast? weatherData5 = await client.QueryAsync(location5);
+                WeatherForecast? weatherData6 = await client.QueryAsync(location6);
+                WeatherForecast? weatherData = weatherData0; // Currently only using LOCATION0 for image generation
+
+            
                 
+             
                 if (weatherData == null)
                 {
                     Console.WriteLine("Failed to fetch weather data.");
@@ -43,17 +64,18 @@ namespace WeatherImageGenerator
                     Directory.CreateDirectory(outputDir);
                 }
 
-                Console.WriteLine("Generating still images...");
+                Console.WriteLine("Generating still images..."); 
 
-                // Generate 3 still images
-                GenerateCurrentWeatherImage(weatherData, outputDir);
-                GenerateForecastSummaryImage(weatherData, outputDir);
-                GenerateDetailedWeatherImage(weatherData, outputDir);
-                // Generate alpha PNG for current temperature
-                GenerateAPNGcurrentTemperature(weatherData, outputDir);
-                // Prepare video generation script
-                StartMakeVideo(outputDir);
-                WaitAndRefresh();
+                // MAIN IMAGE GENERATION CALLS, ENABLE OR DISABLE AS NEEDED
+
+                // Generate still images
+                //GenerateCurrentWeatherImage(weatherData, outputDir); 
+                //GenerateForecastSummaryImage(weatherData, outputDir); 
+                //GenerateDetailedWeatherImage(weatherData, outputDir); 
+                GenerateMapsImage(weatherData, outputDir);
+                //GenerateAPNGcurrentTemperature(weatherData, outputDir);
+                //StartMakeVideo(outputDir);    
+               // WaitAndRefresh(); 
 
 
                 Console.WriteLine($"\n✓ Successfully generated 3 weather images in: {outputDir}");
@@ -64,6 +86,73 @@ namespace WeatherImageGenerator
             }
         }
 
+
+        static void GenerateMapsImage(WeatherForecast weatherData, string outputDir)
+        {
+            int width = 1920;
+            int height = 1080;
+            Bitmap bitmap = new Bitmap(width, height);
+            Graphics graphics = Graphics.FromImage(bitmap);
+
+            try
+            {
+                // Import map images and draw temperature results
+                // Placeholder implementation - in real code, you would load actual map images and overlay data
+
+
+                Font cityFont = new Font("Arial", 24, FontStyle.Bold);
+                Font tempFont = new Font("Arial", 48, FontStyle.Bold);
+                Font titleFont = new Font("Arial", 48, FontStyle.Bold);
+                Brush whiteBrush = Brushes.White;
+
+                for (int i = 0; i < 5; i++)
+                {
+                    // Placeholder positions and data
+                    PointF cityPosition = new PointF(100 + i * 300, 200);
+                    PointF tempPosition = new PointF(100 + i * 300, 250);
+
+                    //need to handle all the location
+                    
+                   // string cityName = $"City {i + 1}"; // need to handle all the location
+
+                    string cityName = i switch
+                    {
+                        0 => CommonSettings.LOCATION0,
+                        1 => CommonSettings.LOCATION1,
+                        2 => CommonSettings.LOCATION2,
+                        3 => CommonSettings.LOCATION3,
+                        4 => CommonSettings.LOCATION4,
+                        _ => "Unknown"
+                    };
+
+
+
+                    string tempText = weatherData.Current?.Temperature != null 
+                        ? $"{weatherData.Current.Temperature + i * 2}{weatherData.CurrentUnits?.Temperature}"
+                        : "N/A";
+
+                    graphics.DrawString(cityName, cityFont, whiteBrush, cityPosition);
+                    graphics.DrawString(tempText, tempFont, whiteBrush, tempPosition);
+                }
+
+
+
+
+                // Title
+                graphics.DrawString("Weather Maps Placeholder", titleFont, whiteBrush, new PointF(50, 50));
+
+                string filename = Path.Combine(outputDir, "4_WeatherMaps.png");
+                bitmap.Save(filename);
+                Console.WriteLine($"✓ Generated: {filename}");
+
+                titleFont.Dispose();
+            }
+            finally
+            {
+                graphics.Dispose();
+                bitmap.Dispose();
+            }
+        }
         static void GenerateCurrentWeatherImage(WeatherForecast weatherData, string outputDir)
         {
             int width = 1920;
