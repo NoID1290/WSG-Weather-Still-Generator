@@ -99,6 +99,19 @@ namespace WeatherImageGenerator
                 // Import map images and draw temperature results
                 // Placeholder implementation - in real code, you would load actual map images and overlay data
 
+                // Fill background with imported PNG static pictures
+                using (var importedMap = Image.FromFile(Path.Combine(outputDir, "STATIC_MAP.png")))
+                {
+                    graphics.DrawImage(importedMap, 0, 0, width, height);
+                }   
+
+
+              
+                
+
+
+                
+
 
                 Font cityFont = new Font("Arial", 24, FontStyle.Bold);
                 Font tempFont = new Font("Arial", 48, FontStyle.Bold);
@@ -122,6 +135,8 @@ namespace WeatherImageGenerator
                         2 => CommonSettings.LOCATION2,
                         3 => CommonSettings.LOCATION3,
                         4 => CommonSettings.LOCATION4,
+                        5 => CommonSettings.LOCATION5,
+                        6 => CommonSettings.LOCATION6,
                         _ => "Unknown"
                     };
 
