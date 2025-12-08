@@ -154,18 +154,43 @@ namespace WeatherImageGenerator
                 using (Font cityFont = new Font("Arial", 24, FontStyle.Bold))
                 using (Font tempFont = new Font("Arial", 48, FontStyle.Bold))
                 using (Font titleFont = new Font("Arial", 48, FontStyle.Bold))
+                using (Font labelFont = new Font("Arial", 20, FontStyle.Regular))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    // Loop through up to 5 locations for the map
-                    for (int i = 0; i < 5 && i < allData.Length; i++)
+                    // Loop through locations for the map
+                    for (int i = 0; i < 7 && i < allData.Length; i++)
                     {
                         var data = allData[i];
                         string locName = locationNames[i];
 
-                        // Calculate positions (You may need to tweak these coordinates)
-                        PointF cityPosition = new PointF(100 + i * 350, 200);
-                        PointF tempPosition = new PointF(100 + i * 350, 250);
+                        // City Name and Temperature positions
 
+
+                        PointF cityPosition = i switch
+                        {
+                            0 => new PointF(1131, 900), 
+                            //1 => new PointF(1500, 250),
+                            2 => new PointF(1475, 666),
+                            3 => new PointF(623, 233),
+                            //4 => new PointF(900, 150),
+                            //5 => new PointF(1000, 900),
+                            6 => new PointF(847, 847),
+                            _ => new PointF(0, 0)
+                        };
+
+                        PointF tempPosition = i switch
+                        {
+                            0 => new PointF(1131, 950),
+                           //1 => new PointF(1500, 300),
+                            2 => new PointF(1475, 716),
+                            3 => new PointF(623, 283),
+                            //4 => new PointF(900, 200),
+                            // 5 => new PointF(1000, 950),
+                            6 => new PointF(847, 897),
+                            _ => new PointF(0, 0)
+                        };
+
+                        
                         string tempText = "N/A";
 
                         if (data?.Current != null)
@@ -173,12 +198,23 @@ namespace WeatherImageGenerator
                             tempText = $"{data.Current.Temperature}{data.CurrentUnits?.Temperature}";
                         }
 
+                        if (cityPosition.X == 0 && cityPosition.Y == 0)
+                            continue; // Skip undefined positions
+
+                        if (tempPosition.X == 0 && tempPosition.Y == 0)
+                            continue; // Skip undefined positions
+
+
                         graphics.DrawString(locName, cityFont, whiteBrush, cityPosition);
                         graphics.DrawString(tempText, tempFont, whiteBrush, tempPosition);
                     }
 
                     // Title
-                    graphics.DrawString("Regional Overview", titleFont, whiteBrush, new PointF(50, 50));
+                    //graphics.DrawString("Regional Overview", titleFont, whiteBrush, new PointF(50, 50));
+
+                    // Timestamp
+                    string timestamp = $"Updated: {DateTime.Now}";
+                    graphics.DrawString(timestamp, labelFont, whiteBrush, new PointF(50, 100));
                 }
 
                 string filename = Path.Combine(outputDir, "4_WeatherMaps.png");
