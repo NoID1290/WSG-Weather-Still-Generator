@@ -121,9 +121,9 @@ namespace WeatherAlertMonitor
             if (!alertFound)
             {
                 // Optional: Print green "OK" if you want to see status for clear cities
-                // Console.ForegroundColor = ConsoleColor.Green;
-                // Console.WriteLine($"[{cityName}] All Clear");
-                // Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"[{cityName}] All Clear");
+                Console.ResetColor();
             }
         }
 
