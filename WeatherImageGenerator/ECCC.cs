@@ -5,9 +5,9 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace WeatherAlertMonitor
+namespace WeatherImageGenerator
 {
-    class Program
+    class ECCC
     {
         // DICTIONARY OF CITIES & CODES
         // We use the 'City' specific feeds (qc-XX) because they exist for every town.
