@@ -1,11 +1,15 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing; // NuGet: System.Drawing.Common
 using System.IO;
+using System.Linq; 
+using System.Net.Http; 
 using System.Threading.Tasks;
 using OpenMeteo; // NuGet: OpenMeteo
-using CommonStrings; // Your custom namespace
+using CommonStrings; 
+using QuebecWeatherAlertMonitor;
 
 namespace WeatherImageGenerator
 {
@@ -22,109 +26,211 @@ namespace WeatherImageGenerator
             // Initialize the API client
             OpenMeteoClient client = new OpenMeteoClient();
 
-            // Load locations into an array for easier handling
-            string[] locations = new string[] 
+            // Initialize HttpClient for ECCC Alerts
+            using (HttpClient httpClient = new HttpClient())
             {
-                CommonSettings.LOCATION0, 
-                CommonSettings.LOCATION1, 
-                CommonSettings.LOCATION2,
-                CommonSettings.LOCATION3, 
-                CommonSettings.LOCATION4, 
-                CommonSettings.LOCATION5,
-                CommonSettings.LOCATION6
-            };
-
-            // Infinite loop to keep the program running
-            while (true)
-            {
-                try
+                // Load locations into an array for easier handling
+                string[] locations = new string[] 
                 {
-                    Console.WriteLine($"\n--- Starting Update Cycle: {DateTime.Now} ---");
-                    Console.WriteLine($"Fetching weather data...");
-                    
-                    // Array to store results for all 7 locations
-                    WeatherForecast?[] allForecasts = new WeatherForecast?[7];
-                    bool dataFetchSuccess = true;
+                    CommonSettings.LOCATION0, 
+                    CommonSettings.LOCATION1, 
+                    CommonSettings.LOCATION2,
+                    CommonSettings.LOCATION3, 
+                    CommonSettings.LOCATION4, 
+                    CommonSettings.LOCATION5,
+                    CommonSettings.LOCATION6
+                };
 
-                    // Fetch weather data for each location
-                    for (int i = 0; i < locations.Length; i++)
+                // Infinite loop to keep the program running
+                while (true)
+                {
+                    try
                     {
-                        string loc = locations[i];
-                        try 
+                        Console.WriteLine($"\n--- Starting Update Cycle: {DateTime.Now} ---");
+                        Console.WriteLine($"Fetching weather data...");
+                        
+                        // Array to store results for all 7 locations
+                        WeatherForecast?[] allForecasts = new WeatherForecast?[7];
+                        bool dataFetchSuccess = true;
+
+                        // Fetch weather data for each location
+                        for (int i = 0; i < locations.Length; i++)
                         {
-                            // CORRECTED METHOD: Uses QueryAsync
-                            allForecasts[i] = await client.QueryAsync(loc);
-                            Console.WriteLine($"✓ Fetched weather data for {loc}");
+                            string loc = locations[i];
+                            try 
+                            {
+                                allForecasts[i] = await client.QueryAsync(loc);
+                                Console.WriteLine($"✓ Fetched weather data for {loc}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"X Failed to fetch for {loc}: {ex.Message}");
+                                dataFetchSuccess = false; 
+                            }
+                        }
+
+                        // Check if we have at least the primary location data to proceed
+                        if (allForecasts[0] == null) 
+                        {
+                            Console.WriteLine("Primary location data missing. Retrying in 1 minute...");
+                            await Task.Delay(60000);
+                            continue;
+                        }
+
+                        // Create output directory
+                        string outputDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
+                        if (!Directory.Exists(outputDir))
+                        {
+                            Directory.CreateDirectory(outputDir);
+                        }
+
+                        Console.WriteLine("Generating still images...");
+
+                        // --- IMAGE GENERATION ---
+                        
+                        // 1. Current Weather
+                        if(allForecasts[0] != null)
+                            GenerateCurrentWeatherImage(allForecasts[0]!, outputDir);
+
+                        // 2. Forecast Summary
+                        if (allForecasts[0] != null)
+                            GenerateForecastSummaryImage(allForecasts[0]!, outputDir);
+
+                        // 3. Detailed Weather
+                        if (allForecasts[0] != null)
+                            GenerateDetailedWeatherImage(allForecasts[0]!, outputDir);
+
+                        // 4. Maps Image
+                        GenerateMapsImage(allForecasts, locations, outputDir);
+
+                        // 5. APNG Helper
+                        if (allForecasts[0] != null)
+                            GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
+
+                        // 6. WEATHER ALERTS from ECCC
+                        Console.WriteLine("Checking ECCC weather alerts...");
+                        try
+                        {
+                            List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
+                            Console.WriteLine($"✓ Found {alerts.Count} active alerts.");
+                            GenerateAlertsImage(alerts, outputDir);
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"X Failed to fetch for {loc}: {ex.Message}");
-                            dataFetchSuccess = false; 
+                            Console.WriteLine($"X Failed to generate alerts image: {ex.Message}");
+                        }
+
+                        // 7. Video Generation (Optional)
+                        StartMakeVideo(outputDir);    
+
+                        Console.WriteLine($"✓ Cycle Complete. Images saved to: {outputDir}");
+
+                        // Wait Logic
+                        if (int.TryParse(CommonSettings.REFRESHTIME, out int minutes))
+                        {
+                            Console.WriteLine($"Sleeping for {minutes} minutes...");
+                            await Task.Delay(minutes * 60000);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid refresh time setting. Defaulting to 15 minutes.");
+                            await Task.Delay(15 * 60000);
                         }
                     }
-
-                    // Check if we have at least the primary location data to proceed
-                    if (allForecasts[0] == null) 
+                    catch (Exception ex)
                     {
-                        Console.WriteLine("Primary location data missing. Retrying in 1 minute...");
+                        Console.WriteLine($"Critical Global Error: {ex.Message}");
+                        Console.WriteLine("Retrying in 1 minute...");
                         await Task.Delay(60000);
-                        continue;
                     }
+                }
+            }
+        }
 
-                    // Create output directory
-                    string outputDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
-                    if (!Directory.Exists(outputDir))
+        static void GenerateAlertsImage(List<AlertEntry> alerts, string outputDir)
+        {
+            int width = 1920;
+            int height = 1080;
+            float margin = 50f;
+            float contentWidth = width - (margin * 2);
+            
+            using (Bitmap bitmap = new Bitmap(width, height))
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                // 1. Background
+                using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new Point(0, 0), new Point(0, height),
+                    Color.FromArgb(30, 30, 30), Color.FromArgb(10, 10, 10)))
+                {
+                    graphics.FillRectangle(brush, 0, 0, width, height);
+                }
+
+                using (Font headerFont = new Font("Arial", 48, FontStyle.Bold))
+                using (Font cityFont = new Font("Arial", 28, FontStyle.Bold))
+                using (Font typeFont = new Font("Arial", 28, FontStyle.Bold))
+                using (Font detailFont = new Font("Arial", 22, FontStyle.Regular)) // Slightly larger for readability
+                using (Brush whiteBrush = new SolidBrush(Color.White))
+                {
+                    // Main Header
+                    graphics.DrawString("⚠️ Environment Canada Alerts", headerFont, whiteBrush, new PointF(margin, margin));
+
+                    float currentY = 150f; // Start position for alerts
+
+                    if (alerts.Count == 0)
                     {
-                        Directory.CreateDirectory(outputDir);
-                    }
-
-                    Console.WriteLine("Generating still images...");
-
-                    // --- IMAGE GENERATION ---
-                    
-                    // 1. Current Weather (Uses Location 0)
-                    if(allForecasts[0] != null)
-                        GenerateCurrentWeatherImage(allForecasts[0]!, outputDir);
-
-                    // 2. Forecast Summary (Uses Location 0)
-                    if (allForecasts[0] != null)
-                        GenerateForecastSummaryImage(allForecasts[0]!, outputDir);
-
-                    // 3. Detailed Weather (Uses Location 0)
-                    if (allForecasts[0] != null)
-                        GenerateDetailedWeatherImage(allForecasts[0]!, outputDir);
-
-                    // 4. Maps Image (Uses ALL locations)
-                    GenerateMapsImage(allForecasts, locations, outputDir);
-
-                    // 5. APNG Helper (Uses Location 0)
-                    if (allForecasts[0] != null)
-                        GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
-
-                    // 6. Video Generation (Optional)
-                    StartMakeVideo(outputDir);    
-
-                    Console.WriteLine($"✓ Cycle Complete. Images saved to: {outputDir}");
-
-                    // Wait Logic
-                    if (int.TryParse(CommonSettings.REFRESHTIME, out int minutes))
-                    {
-                        Console.WriteLine($"Sleeping for {minutes} minutes...");
-                        await Task.Delay(minutes * 60000);
+                        using(Brush greenBrush = new SolidBrush(Color.LightGreen))
+                        {
+                             graphics.DrawString("No Active Warnings or Watches", cityFont, greenBrush, new PointF(margin, currentY));
+                        }
                     }
                     else
                     {
-                        // Fallback if setting is invalid
-                        Console.WriteLine("Invalid refresh time setting. Defaulting to 15 minutes.");
-                        await Task.Delay(15 * 60000);
+                        foreach (var alert in alerts) 
+                        {
+                            // 1. Determine Color
+                            Color alertColor = Color.LightGray;
+                            if (alert.SeverityColor == "Red") alertColor = Color.Red;
+                            if (alert.SeverityColor == "Yellow") alertColor = Color.Yellow;
+
+                            using (Brush alertBrush = new SolidBrush(alertColor))
+                            {
+                                // 2. Draw Alert Header (City - Type)
+                                string headerLine = $"> {alert.City.ToUpper()} : {alert.Type}";
+                                graphics.DrawString(headerLine, cityFont, alertBrush, new PointF(margin, currentY));
+                                currentY += 45; // Move down
+
+                                // 3. Draw Title (Wrapped)
+                                // Measure height required for the title
+                                SizeF titleSize = graphics.MeasureString(alert.Title, typeFont, (int)contentWidth);
+                                RectangleF titleRect = new RectangleF(margin, currentY, contentWidth, titleSize.Height);
+                                
+                                graphics.DrawString(alert.Title, typeFont, whiteBrush, titleRect);
+                                currentY += titleSize.Height + 10; // Move down + padding
+                            }
+
+                            // 4. Draw Full Summary (Wrapped)
+                            // Measure height required for the summary
+                            SizeF summarySize = graphics.MeasureString(alert.Summary, detailFont, (int)contentWidth);
+                            RectangleF summaryRect = new RectangleF(margin, currentY, contentWidth, summarySize.Height);
+
+                            graphics.DrawString(alert.Summary, detailFont, whiteBrush, summaryRect);
+                            
+                            // 5. Update Y Position for next alert
+                            currentY += summarySize.Height + 60; // Extra padding between separate alerts
+
+                            // Check if we ran out of space on the image
+                            if (currentY > height - 50) 
+                            {
+                                Console.WriteLine("Warning: Not all alerts fit on the screen.");
+                                break; 
+                            }
+                        }
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Critical Global Error: {ex.Message}");
-                    Console.WriteLine("Retrying in 1 minute...");
-                    await Task.Delay(60000);
-                }
+
+                string filename = Path.Combine(outputDir, "6_WeatherAlerts.png");
+                bitmap.Save(filename);
+                Console.WriteLine($"✓ Generated: {filename}");
             }
         }
 
@@ -136,7 +242,7 @@ namespace WeatherImageGenerator
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
             {
-                // 1. Background / Map Layer
+                // Background
                 string staticMapPath = Path.Combine(outputDir, "STATIC_MAP.IGNORE");
                 if (File.Exists(staticMapPath))
                 {
@@ -147,33 +253,24 @@ namespace WeatherImageGenerator
                 }
                 else
                 {
-                    graphics.Clear(Color.DarkBlue); // Fallback if map image missing
+                    graphics.Clear(Color.DarkBlue); 
                 }
 
-                // 2. Overlay Data
                 using (Font cityFont = new Font("Arial", 24, FontStyle.Bold))
                 using (Font tempFont = new Font("Arial", 48, FontStyle.Bold))
-                using (Font titleFont = new Font("Arial", 48, FontStyle.Bold))
                 using (Font labelFont = new Font("Arial", 20, FontStyle.Regular))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    // Loop through locations for the map
                     for (int i = 0; i < 7 && i < allData.Length; i++)
                     {
                         var data = allData[i];
                         string locName = locationNames[i];
 
-                        // City Name and Temperature positions
-
-
                         PointF cityPosition = i switch
                         {
                             0 => new PointF(1131, 900), 
-                            //1 => new PointF(1500, 250),
                             2 => new PointF(1475, 666),
                             3 => new PointF(623, 233),
-                            //4 => new PointF(900, 150),
-                            //5 => new PointF(1000, 900),
                             6 => new PointF(847, 847),
                             _ => new PointF(0, 0)
                         };
@@ -181,15 +278,11 @@ namespace WeatherImageGenerator
                         PointF tempPosition = i switch
                         {
                             0 => new PointF(1131, 950),
-                           //1 => new PointF(1500, 300),
                             2 => new PointF(1475, 716),
                             3 => new PointF(623, 283),
-                            //4 => new PointF(900, 200),
-                            // 5 => new PointF(1000, 950),
                             6 => new PointF(847, 897),
                             _ => new PointF(0, 0)
                         };
-
                         
                         string tempText = "N/A";
 
@@ -198,21 +291,13 @@ namespace WeatherImageGenerator
                             tempText = $"{data.Current.Temperature}{data.CurrentUnits?.Temperature}";
                         }
 
-                        if (cityPosition.X == 0 && cityPosition.Y == 0)
-                            continue; // Skip undefined positions
-
-                        if (tempPosition.X == 0 && tempPosition.Y == 0)
-                            continue; // Skip undefined positions
-
+                        if (cityPosition.X == 0 && cityPosition.Y == 0) continue; 
+                        if (tempPosition.X == 0 && tempPosition.Y == 0) continue; 
 
                         graphics.DrawString(locName, cityFont, whiteBrush, cityPosition);
                         graphics.DrawString(tempText, tempFont, whiteBrush, tempPosition);
                     }
 
-                    // Title
-                    //graphics.DrawString("Regional Overview", titleFont, whiteBrush, new PointF(50, 50));
-
-                    // Timestamp
                     string timestamp = $"Updated: {DateTime.Now}";
                     graphics.DrawString(timestamp, labelFont, whiteBrush, new PointF(50, 100));
                 }
@@ -231,7 +316,6 @@ namespace WeatherImageGenerator
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
             {
-                // Gradient Background
                 using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
                     new Point(0, 0), new Point(0, height),
                     Color.FromArgb(70, 130, 180), Color.FromArgb(100, 150, 200)))
@@ -244,10 +328,8 @@ namespace WeatherImageGenerator
                 using (Font dataFont = new Font("Arial", 32, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    // Title
                     graphics.DrawString("Current Weather", titleFont, whiteBrush, new PointF(50, 50));
 
-                    // Data Extraction
                     string tempText = weatherData.Current?.Temperature != null
                         ? $"{weatherData.Current.Temperature}{weatherData.CurrentUnits?.Temperature}"
                         : "N/A";
@@ -260,7 +342,6 @@ namespace WeatherImageGenerator
                         ? $"{weatherData.Current.Windspeed_10m} {weatherData.CurrentUnits?.Windspeed_10m}"
                         : "N/A";
 
-                    // Draw Text
                     graphics.DrawString("Temperature:", labelFont, whiteBrush, new PointF(50, 150));
                     graphics.DrawString(tempText, dataFont, whiteBrush, new PointF(50, 200));
 
@@ -306,7 +387,6 @@ namespace WeatherImageGenerator
 
                         for (int i = 0; i < daysToShow; i++)
                         {
-                            // Safe parsing
                             if(DateTime.TryParse(weatherData.Daily.Time[i], out DateTime dateTime))
                             {
                                 string date = dateTime.ToString("ddd, MMM d");
@@ -409,11 +489,9 @@ namespace WeatherImageGenerator
                         ? $"{weatherData.Current.Temperature}{weatherData.CurrentUnits?.Temperature}"
                         : "N/A";
                     
-                    // Draw at 0,0 for simple watermark use
                     graphics.DrawString(tempText, dataFont, whiteBrush, new PointF(0, 0));
                 }
 
-                // .IGNORE extension preserved per your original code
                 string filename = Path.Combine(outputDir, "temp_watermark_alpha.png.IGNORE");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
