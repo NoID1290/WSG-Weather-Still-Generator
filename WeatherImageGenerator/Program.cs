@@ -68,6 +68,22 @@ namespace WeatherImageGenerator
                                 dataFetchSuccess = false; 
                             }
                         }
+                        // Fetch Weather Alert Data from ECCC
+                        Console.WriteLine("Checking ECCC weather alerts...");
+                        try
+                        {
+                            List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
+                            Console.WriteLine($"✓ Found {alerts.Count} active alerts.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"X Failed to generate alerts image: {ex.Message}");
+                        }
+                       
+                        
+                        
+
+
 
                         // Check if we have at least the primary location data to proceed
                         if (allForecasts[0] == null) 
@@ -89,12 +105,12 @@ namespace WeatherImageGenerator
                         // --- IMAGE GENERATION ---
                         
                         // 1. Current Weather
-                        if(allForecasts[0] != null)
-                            GenerateCurrentWeatherImage(allForecasts[0]!, outputDir);
+                        //if(allForecasts[0] != null)
+                        //    GenerateCurrentWeatherImage(allForecasts[0]!, outputDir);
 
                         // 2. Forecast Summary
-                        if (allForecasts[0] != null)
-                            GenerateForecastSummaryImage(allForecasts[0]!, outputDir);
+                        //if (allForecasts[0] != null)
+                        //    GenerateForecastSummaryImage(allForecasts[0]!, outputDir);
 
                         // 3. Detailed Weather
                         if (allForecasts[0] != null)
@@ -108,17 +124,7 @@ namespace WeatherImageGenerator
                             GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
 
                         // 6. WEATHER ALERTS from ECCC
-                        Console.WriteLine("Checking ECCC weather alerts...");
-                        try
-                        {
-                            List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
-                            Console.WriteLine($"✓ Found {alerts.Count} active alerts.");
-                            GenerateAlertsImage(alerts, outputDir);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"X Failed to generate alerts image: {ex.Message}");
-                        }
+                        GenerateAlertsImage(await ECCC.FetchAllAlerts(httpClient), outputDir);
 
                         // 7. Video Generation (Optional)
                         StartMakeVideo(outputDir);    
