@@ -114,14 +114,14 @@ namespace WeatherImageGenerator
 
                         // 3. Detailed Weather
                         if (allForecasts[0] != null)
-                            GenerateDetailedWeatherImage(allForecasts[0]!, outputDir);
+                        GenerateDetailedWeatherImage(allForecasts[0]!, outputDir);
 
                         // 4. Maps Image
                         GenerateMapsImage(allForecasts, locations, outputDir);
 
                         // 5. APNG Helper
                         if (allForecasts[0] != null)
-                            GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
+                        GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
 
                         // 6. WEATHER ALERTS from ECCC
                         GenerateAlertsImage(await ECCC.FetchAllAlerts(httpClient), outputDir);

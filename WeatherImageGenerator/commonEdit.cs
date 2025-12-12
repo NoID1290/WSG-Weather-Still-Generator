@@ -3,7 +3,7 @@ namespace CommonStrings
     public static class CommonSettings
     {
         public const string LOCATION0 = "Montréal"; // 1131,900
-        public const string LOCATION1 = "Saint-Rémi"; //
+        public const string LOCATION1 = "Saint-Rémi"; // 45.263 -73.620
         public const string LOCATION2 = "Québec"; // 1475,666
         public const string LOCATION3 = "Amos"; // 623,233
         public const string LOCATION4 = "Sherbrooke"; //
