@@ -24,7 +24,10 @@ namespace QuebecWeatherAlertMonitor
             { "Montreal",    "https://weather.gc.ca/rss/city/qc-147_f.xml" },
             { "Quebec City", "https://weather.gc.ca/rss/city/qc-133_f.xml" },
             { "Gatineau",    "https://weather.gc.ca/rss/city/qc-59_f.xml" },
-            { "Amos",        "https://weather.gc.ca/rss/alerts/48.574_-78.116_f.xml" }
+            { "Amos",        "https://weather.gc.ca/rss/alerts/48.574_-78.116_f.xml" },
+            { "Saint-Rémi",  "https://weather.gc.ca/rss/alerts/45.263_-73.620_f.xml" }, 
+       
+            
         };
 
         // Call this method from Program.cs
