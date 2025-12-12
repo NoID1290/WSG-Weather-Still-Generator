@@ -1,0 +1,265 @@
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace WeatherImageGenerator
+{
+    /// <summary>
+    /// Manages application configuration loaded from appsettings.json
+    /// </summary>
+    public static class ConfigManager
+    {
+        private static AppSettings? _settings;
+        private static readonly string ConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+
+        /// <summary>
+        /// Loads configuration from appsettings.json. Caches the result after first load.
+        /// </summary>
+        public static AppSettings LoadConfig()
+        {
+            if (_settings != null)
+            {
+                return _settings;
+            }
+
+            if (!File.Exists(ConfigFilePath))
+            {
+                throw new FileNotFoundException($"Configuration file not found: {ConfigFilePath}");
+            }
+
+            try
+            {
+                string jsonContent = File.ReadAllText(ConfigFilePath);
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    WriteIndented = true
+                };
+
+                _settings = JsonSerializer.Deserialize<AppSettings>(jsonContent, options)
+                    ?? throw new InvalidOperationException("Failed to deserialize configuration");
+
+                Console.WriteLine($"✓ Configuration loaded from: {ConfigFilePath}");
+                return _settings;
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException($"Invalid JSON in configuration file: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error loading configuration: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Reloads configuration from file (clears cache)
+        /// </summary>
+        public static AppSettings ReloadConfig()
+        {
+            _settings = null;
+            return LoadConfig();
+        }
+    }
+
+    /// <summary>
+    /// Root configuration object
+    /// </summary>
+    public class AppSettings
+    {
+        [JsonPropertyName("Locations")]
+        public LocationSettings? Locations { get; set; }
+
+        [JsonPropertyName("RefreshTimeMinutes")]
+        public int RefreshTimeMinutes { get; set; } = 10;
+
+        [JsonPropertyName("ImageGeneration")]
+        public ImageGenerationSettings? ImageGeneration { get; set; }
+
+        [JsonPropertyName("Video")]
+        public VideoSettings? Video { get; set; }
+
+        [JsonPropertyName("Alerts")]
+        public AlertsSettings? Alerts { get; set; }
+
+        [JsonPropertyName("WeatherImages")]
+        public WeatherImagesSettings? WeatherImages { get; set; }
+
+        [JsonPropertyName("MapLocations")]
+        public Dictionary<string, MapLocationSettings>? MapLocations { get; set; }
+
+        [JsonPropertyName("ECCC")]
+        public ECCCSettings? ECCC { get; set; }
+    }
+
+    /// <summary>
+    /// Location configuration
+    /// </summary>
+    public class LocationSettings
+    {
+        [JsonPropertyName("Location0")]
+        public string? Location0 { get; set; }
+
+        [JsonPropertyName("Location1")]
+        public string? Location1 { get; set; }
+
+        [JsonPropertyName("Location2")]
+        public string? Location2 { get; set; }
+
+        [JsonPropertyName("Location3")]
+        public string? Location3 { get; set; }
+
+        [JsonPropertyName("Location4")]
+        public string? Location4 { get; set; }
+
+        [JsonPropertyName("Location5")]
+        public string? Location5 { get; set; }
+
+        [JsonPropertyName("Location6")]
+        public string? Location6 { get; set; }
+
+        /// <summary>
+        /// Returns all locations as an array
+        /// </summary>
+        public string[] GetLocationsArray()
+        {
+            return new[] { Location0, Location1, Location2, Location3, Location4, Location5, Location6 };
+        }
+    }
+
+    /// <summary>
+    /// Image generation settings
+    /// </summary>
+    public class ImageGenerationSettings
+    {
+        [JsonPropertyName("OutputDirectory")]
+        public string? OutputDirectory { get; set; }
+
+        [JsonPropertyName("ImageWidth")]
+        public int ImageWidth { get; set; } = 1920;
+
+        [JsonPropertyName("ImageHeight")]
+        public int ImageHeight { get; set; } = 1080;
+
+        [JsonPropertyName("MarginPixels")]
+        public float MarginPixels { get; set; } = 50f;
+
+        [JsonPropertyName("FontFamily")]
+        public string? FontFamily { get; set; } = "Arial";
+    }
+
+    /// <summary>
+    /// Video generation settings
+    /// </summary>
+    public class VideoSettings
+    {
+        [JsonPropertyName("OutputFileName")]
+        public string? OutputFileName { get; set; }
+
+        [JsonPropertyName("MusicFileName")]
+        public string? MusicFileName { get; set; }
+
+        [JsonPropertyName("StaticDurationSeconds")]
+        public double StaticDurationSeconds { get; set; } = 8;
+
+        [JsonPropertyName("FadeDurationSeconds")]
+        public double FadeDurationSeconds { get; set; } = 0.5;
+
+        [JsonPropertyName("FrameRate")]
+        public int FrameRate { get; set; } = 30;
+
+        [JsonPropertyName("ResolutionMode")]
+        public string? ResolutionMode { get; set; } = "Mode1080p";
+
+        [JsonPropertyName("EnableFadeTransitions")]
+        public bool EnableFadeTransitions { get; set; } = false;
+    }
+
+    /// <summary>
+    /// Alerts display settings
+    /// </summary>
+    public class AlertsSettings
+    {
+        [JsonPropertyName("HeaderText")]
+        public string? HeaderText { get; set; }
+
+        [JsonPropertyName("NoAlertsText")]
+        public string? NoAlertsText { get; set; }
+
+        [JsonPropertyName("HeaderFontSize")]
+        public float HeaderFontSize { get; set; } = 48;
+
+        [JsonPropertyName("CityFontSize")]
+        public float CityFontSize { get; set; } = 28;
+
+        [JsonPropertyName("TypeFontSize")]
+        public float TypeFontSize { get; set; } = 28;
+
+        [JsonPropertyName("DetailsFontSize")]
+        public float DetailsFontSize { get; set; } = 22;
+
+        [JsonPropertyName("AlertFilename")]
+        public string? AlertFilename { get; set; }
+    }
+
+    /// <summary>
+    /// Weather image filenames
+    /// </summary>
+    public class WeatherImagesSettings
+    {
+        [JsonPropertyName("CurrentWeatherFilename")]
+        public string? CurrentWeatherFilename { get; set; }
+
+        [JsonPropertyName("DailyForecastFilename")]
+        public string? DailyForecastFilename { get; set; }
+
+        [JsonPropertyName("DetailedWeatherFilename")]
+        public string? DetailedWeatherFilename { get; set; }
+
+        [JsonPropertyName("WeatherMapsFilename")]
+        public string? WeatherMapsFilename { get; set; }
+
+        [JsonPropertyName("TemperatureWatermarkFilename")]
+        public string? TemperatureWatermarkFilename { get; set; }
+
+        [JsonPropertyName("StaticMapFilename")]
+        public string? StaticMapFilename { get; set; }
+    }
+
+    /// <summary>
+    /// Map location coordinates for a specific location
+    /// </summary>
+    public class MapLocationSettings
+    {
+        [JsonPropertyName("CityPositionX")]
+        public float CityPositionX { get; set; }
+
+        [JsonPropertyName("CityPositionY")]
+        public float CityPositionY { get; set; }
+
+        [JsonPropertyName("TemperaturePositionX")]
+        public float TemperaturePositionX { get; set; }
+
+        [JsonPropertyName("TemperaturePositionY")]
+        public float TemperaturePositionY { get; set; }
+    }
+
+    /// <summary>
+    /// ECCC (Environment and Climate Change Canada) settings
+    /// </summary>
+    public class ECCCSettings
+    {
+        [JsonPropertyName("CityFeeds")]
+        public Dictionary<string, string>? CityFeeds { get; set; }
+
+        [JsonPropertyName("DelayBetweenRequestsMs")]
+        public int DelayBetweenRequestsMs { get; set; } = 200;
+
+        [JsonPropertyName("UserAgent")]
+        public string? UserAgent { get; set; }
+    }
+}

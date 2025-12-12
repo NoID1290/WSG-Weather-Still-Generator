@@ -23,6 +23,9 @@ namespace WeatherImageGenerator
 
         static async Task RunAsync()
         {
+            // Load configuration
+            var config = ConfigManager.LoadConfig();
+
             // Initialize the API client
             OpenMeteoClient client = new OpenMeteoClient();
 
@@ -30,16 +33,7 @@ namespace WeatherImageGenerator
             using (HttpClient httpClient = new HttpClient())
             {
                 // Load locations into an array for easier handling
-                string[] locations = new string[] 
-                {
-                    CommonSettings.LOCATION0, 
-                    CommonSettings.LOCATION1, 
-                    CommonSettings.LOCATION2,
-                    CommonSettings.LOCATION3, 
-                    CommonSettings.LOCATION4, 
-                    CommonSettings.LOCATION5,
-                    CommonSettings.LOCATION6
-                };
+                string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
 
                 // Infinite loop to keep the program running
                 while (true)
@@ -94,7 +88,7 @@ namespace WeatherImageGenerator
                         }
 
                         // Create output directory
-                        string outputDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
+                        string outputDir = Path.Combine(Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
                         if (!Directory.Exists(outputDir))
                         {
                             Directory.CreateDirectory(outputDir);
@@ -132,10 +126,10 @@ namespace WeatherImageGenerator
                         Console.WriteLine($"✓ Cycle Complete. Images saved to: {outputDir}");
 
                         // Wait Logic
-                        if (int.TryParse(CommonSettings.REFRESHTIME, out int minutes))
+                        if (config.RefreshTimeMinutes > 0)
                         {
-                            Console.WriteLine($"Sleeping for {minutes} minutes...");
-                            await Task.Delay(minutes * 60000);
+                            Console.WriteLine($"Sleeping for {config.RefreshTimeMinutes} minutes...");
+                            await Task.Delay(config.RefreshTimeMinutes * 60000);
                         }
                         else
                         {
@@ -155,9 +149,13 @@ namespace WeatherImageGenerator
 
         static void GenerateAlertsImage(List<AlertEntry> alerts, string outputDir)
         {
-            int width = 1920;
-            int height = 1080;
-            float margin = 50f;
+            var config = ConfigManager.LoadConfig();
+            var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
+            var alertConfig = config.Alerts ?? new AlertsSettings();
+
+            int width = imgConfig.ImageWidth;
+            int height = imgConfig.ImageHeight;
+            float margin = imgConfig.MarginPixels;
             float contentWidth = width - (margin * 2);
             
             using (Bitmap bitmap = new Bitmap(width, height))
@@ -171,14 +169,14 @@ namespace WeatherImageGenerator
                     graphics.FillRectangle(brush, 0, 0, width, height);
                 }
 
-                using (Font headerFont = new Font("Arial", 48, FontStyle.Bold))
-                using (Font cityFont = new Font("Arial", 28, FontStyle.Bold))
-                using (Font typeFont = new Font("Arial", 28, FontStyle.Bold))
-                using (Font detailFont = new Font("Arial", 22, FontStyle.Regular)) // Slightly larger for readability
+                using (Font headerFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.HeaderFontSize, FontStyle.Bold))
+                using (Font cityFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.CityFontSize, FontStyle.Bold))
+                using (Font typeFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.TypeFontSize, FontStyle.Bold))
+                using (Font detailFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.DetailsFontSize, FontStyle.Regular))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
                     // Main Header
-                    graphics.DrawString("⚠️ Environment Canada Alerts", headerFont, whiteBrush, new PointF(margin, margin));
+                    graphics.DrawString(alertConfig.HeaderText ?? "⚠️ Environment Canada Alerts", headerFont, whiteBrush, new PointF(margin, margin));
 
                     float currentY = 150f; // Start position for alerts
 
@@ -186,7 +184,7 @@ namespace WeatherImageGenerator
                     {
                         using(Brush greenBrush = new SolidBrush(Color.LightGreen))
                         {
-                             graphics.DrawString("No Active Warnings or Watches", cityFont, greenBrush, new PointF(margin, currentY));
+                             graphics.DrawString(alertConfig.NoAlertsText ?? "No Active Warnings or Watches", cityFont, greenBrush, new PointF(margin, currentY));
                         }
                     }
                     else
@@ -234,7 +232,7 @@ namespace WeatherImageGenerator
                     }
                 }
 
-                string filename = Path.Combine(outputDir, "6_WeatherAlerts.png");
+                string filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "6_WeatherAlerts.png");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
             }
@@ -242,14 +240,17 @@ namespace WeatherImageGenerator
 
         static void GenerateMapsImage(WeatherForecast?[] allData, string[] locationNames, string outputDir)
         {
-            int width = 1920;
-            int height = 1080;
+            var config = ConfigManager.LoadConfig();
+            var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
+
+            int width = imgConfig.ImageWidth;
+            int height = imgConfig.ImageHeight;
             
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
             {
                 // Background
-                string staticMapPath = Path.Combine(outputDir, "STATIC_MAP.IGNORE");
+                string staticMapPath = Path.Combine(outputDir, config.WeatherImages?.StaticMapFilename ?? "STATIC_MAP.IGNORE");
                 if (File.Exists(staticMapPath))
                 {
                     using (var importedMap = Image.FromFile(staticMapPath))
@@ -262,9 +263,9 @@ namespace WeatherImageGenerator
                     graphics.Clear(Color.DarkBlue); 
                 }
 
-                using (Font cityFont = new Font("Arial", 24, FontStyle.Bold))
-                using (Font tempFont = new Font("Arial", 48, FontStyle.Bold))
-                using (Font labelFont = new Font("Arial", 20, FontStyle.Regular))
+                using (Font cityFont = new Font(imgConfig.FontFamily ?? "Arial", 24, FontStyle.Bold))
+                using (Font tempFont = new Font(imgConfig.FontFamily ?? "Arial", 48, FontStyle.Bold))
+                using (Font labelFont = new Font(imgConfig.FontFamily ?? "Arial", 20, FontStyle.Regular))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
                     for (int i = 0; i < 7 && i < allData.Length; i++)
@@ -272,23 +273,15 @@ namespace WeatherImageGenerator
                         var data = allData[i];
                         string locName = locationNames[i];
 
-                        PointF cityPosition = i switch
-                        {
-                            0 => new PointF(1131, 900), 
-                            2 => new PointF(1475, 666),
-                            3 => new PointF(623, 233),
-                            6 => new PointF(847, 847),
-                            _ => new PointF(0, 0)
-                        };
+                        // Get position from config if available
+                        PointF cityPosition = new PointF(0, 0);
+                        PointF tempPosition = new PointF(0, 0);
 
-                        PointF tempPosition = i switch
+                        if (config.MapLocations != null && config.MapLocations.TryGetValue($"Location{i}", out var mapLoc))
                         {
-                            0 => new PointF(1131, 950),
-                            2 => new PointF(1475, 716),
-                            3 => new PointF(623, 283),
-                            6 => new PointF(847, 897),
-                            _ => new PointF(0, 0)
-                        };
+                            cityPosition = new PointF(mapLoc.CityPositionX, mapLoc.CityPositionY);
+                            tempPosition = new PointF(mapLoc.TemperaturePositionX, mapLoc.TemperaturePositionY);
+                        }
                         
                         string tempText = "N/A";
 
@@ -308,7 +301,7 @@ namespace WeatherImageGenerator
                     graphics.DrawString(timestamp, labelFont, whiteBrush, new PointF(50, 100));
                 }
 
-                string filename = Path.Combine(outputDir, "4_WeatherMaps.png");
+                string filename = Path.Combine(outputDir, config.WeatherImages?.WeatherMapsFilename ?? "4_WeatherMaps.png");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
             }
@@ -424,8 +417,11 @@ namespace WeatherImageGenerator
 
         static void GenerateDetailedWeatherImage(WeatherForecast weatherData, string outputDir)
         {
-            int width = 1920;
-            int height = 1080;
+            var config = ConfigManager.LoadConfig();
+            var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
+
+            int width = imgConfig.ImageWidth;
+            int height = imgConfig.ImageHeight;
             
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -437,12 +433,13 @@ namespace WeatherImageGenerator
                     graphics.FillRectangle(brush, 0, 0, width, height);
                 }
 
-                using (Font titleFont = new Font("Arial", 48, FontStyle.Bold))
-                using (Font labelFont = new Font("Arial", 18, FontStyle.Regular))
-                using (Font dataFont = new Font("Arial", 22, FontStyle.Bold))
+                using (Font titleFont = new Font(imgConfig.FontFamily ?? "Arial", 48, FontStyle.Bold))
+                using (Font labelFont = new Font(imgConfig.FontFamily ?? "Arial", 18, FontStyle.Regular))
+                using (Font dataFont = new Font(imgConfig.FontFamily ?? "Arial", 22, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    graphics.DrawString($"Détail pour {CommonSettings.LOCATION0}", titleFont, whiteBrush, new PointF(50, 30));
+                    string primaryLocation = config.Locations?.Location0 ?? "Montreal";
+                    graphics.DrawString($"Détail pour {primaryLocation}", titleFont, whiteBrush, new PointF(50, 30));
 
                     int yPosition = 120;
                     int lineHeight = 50;
@@ -472,7 +469,7 @@ namespace WeatherImageGenerator
                     }
                 }
 
-                string filename = Path.Combine(outputDir, "3_DetailedWeather.png");
+                string filename = Path.Combine(outputDir, config.WeatherImages?.DetailedWeatherFilename ?? "3_DetailedWeather.png");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
             }
@@ -480,6 +477,8 @@ namespace WeatherImageGenerator
 
         static void GenerateAPNGcurrentTemperature(WeatherForecast weatherData, string outputDir)
         {
+            var config = ConfigManager.LoadConfig();
+            
             int width = 400;
             int height = 100;
             
@@ -488,7 +487,7 @@ namespace WeatherImageGenerator
             {
                 graphics.Clear(Color.Transparent);
 
-                using (Font dataFont = new Font("Arial", 72, FontStyle.Bold))
+                using (Font dataFont = new Font(config.ImageGeneration?.FontFamily ?? "Arial", 72, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
                     string tempText = weatherData.Current?.Temperature != null
@@ -498,7 +497,7 @@ namespace WeatherImageGenerator
                     graphics.DrawString(tempText, dataFont, whiteBrush, new PointF(0, 0));
                 }
 
-                string filename = Path.Combine(outputDir, "temp_watermark_alpha.png.IGNORE");
+                string filename = Path.Combine(outputDir, config.WeatherImages?.TemperatureWatermarkFilename ?? "temp_watermark_alpha.png.IGNORE");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
             }
@@ -508,13 +507,16 @@ namespace WeatherImageGenerator
         {
             try
             {
+                var config = ConfigManager.LoadConfig();
+                var videoConfig = config.Video ?? new VideoSettings();
+
                 Console.WriteLine("Starting video generation...");
                 var videoGenerator = new VideoGenerator(outputDir)
                 {
-                    StaticDuration = 8,
-                    FadeDuration = 0.5,
-                    ResolutionMode = ResolutionMode.Mode1080p,
-                    EnableFadeTransitions = false
+                    StaticDuration = videoConfig.StaticDurationSeconds,
+                    FadeDuration = videoConfig.FadeDurationSeconds,
+                    ResolutionMode = Enum.Parse<ResolutionMode>(videoConfig.ResolutionMode ?? "Mode1080p"),
+                    EnableFadeTransitions = videoConfig.EnableFadeTransitions
                 };
                 
                 if (videoGenerator.GenerateVideo())

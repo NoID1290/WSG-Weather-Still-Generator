@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using WeatherImageGenerator;
 
 namespace QuebecWeatherAlertMonitor
 {
@@ -19,29 +20,22 @@ namespace QuebecWeatherAlertMonitor
 
     public static class ECCC
     {
-        private static readonly Dictionary<string, string> CityFeeds = new Dictionary<string, string>
-        {
-            { "Montreal",    "https://weather.gc.ca/rss/city/qc-147_f.xml" },
-            { "Quebec City", "https://weather.gc.ca/rss/city/qc-133_f.xml" },
-            { "Gatineau",    "https://weather.gc.ca/rss/city/qc-59_f.xml" },
-            { "Amos",        "https://weather.gc.ca/rss/alerts/48.574_-78.116_f.xml" },
-            { "Saint-Rémi",  "https://weather.gc.ca/rss/alerts/45.263_-73.620_f.xml" }, 
-       
-            
-        };
-
         // Call this method from Program.cs
         public static async Task<List<AlertEntry>> FetchAllAlerts(HttpClient client)
         {
+            var config = ConfigManager.LoadConfig();
+            var ecccConfig = config.ECCC ?? new ECCCSettings();
+            var cityFeeds = ecccConfig.CityFeeds ?? new Dictionary<string, string>();
+
             List<AlertEntry> allAlerts = new List<AlertEntry>();
 
             // Ensure we have a User-Agent or ECCC will block the request
             if (!client.DefaultRequestHeaders.Contains("User-Agent"))
             {
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                client.DefaultRequestHeaders.Add("User-Agent", ecccConfig.UserAgent ?? "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
             }
 
-            foreach (var city in CityFeeds)
+            foreach (var city in cityFeeds)
             {
                 try
                 {
@@ -54,7 +48,7 @@ namespace QuebecWeatherAlertMonitor
                 }
                 
                 // Be polite to the server
-                await Task.Delay(200); 
+                await Task.Delay(ecccConfig.DelayBetweenRequestsMs); 
             }
 
             return allAlerts;
