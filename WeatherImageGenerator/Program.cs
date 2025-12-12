@@ -506,32 +506,29 @@ namespace WeatherImageGenerator
 
         static void StartMakeVideo(string outputDir)
         {
-            string scriptPath = Path.Combine(outputDir, "make_video.ps1");
-
-            if (!File.Exists(scriptPath))
-            {
-                Console.WriteLine($"Error: Script not found at {scriptPath}");
-                return;
-            }
-
-            ProcessStartInfo startInfo = new ProcessStartInfo()
-            {
-                FileName = "powershell.exe",
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
-                UseShellExecute = false,
-                CreateNoWindow = false
-            };
-
             try
             {
-                using (Process? process = Process.Start(startInfo))
+                Console.WriteLine("Starting video generation...");
+                var videoGenerator = new VideoGenerator(outputDir)
                 {
-                    process?.WaitForExit();
+                    StaticDuration = 8,
+                    FadeDuration = 0.5,
+                    ResolutionMode = ResolutionMode.Mode1080p,
+                    EnableFadeTransitions = false
+                };
+                
+                if (videoGenerator.GenerateVideo())
+                {
+                    Console.WriteLine("✓ Video generation completed successfully.");
+                }
+                else
+                {
+                    Console.WriteLine("✗ Video generation failed.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to execute script: {ex.Message}");
+                Console.WriteLine($"Failed to generate video: {ex.Message}");
             }
         }
 
