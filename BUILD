@@ -1,1 +1,0 @@
-dotnet build WeatherImageGenerator\WeatherImageGenerator.csproj -c Release -v normal
