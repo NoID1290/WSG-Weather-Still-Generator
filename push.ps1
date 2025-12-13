@@ -18,7 +18,7 @@ param(
 )
 
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
-$repoRoot = git rev-parse --show-toplevel
+#$repoRoot = git rev-parse --show-toplevel
 
 if (-not $?) {
     Write-Host "❌ Error: Not in a Git repository!" -ForegroundColor Red
