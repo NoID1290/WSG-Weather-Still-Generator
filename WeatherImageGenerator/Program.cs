@@ -106,9 +106,14 @@ namespace WeatherImageGenerator
                         //if (allForecasts[0] != null)
                         //    GenerateForecastSummaryImage(allForecasts[0]!, outputDir);
 
-                        // 3. Detailed Weather
-                        if (allForecasts[0] != null)
-                        GenerateDetailedWeatherImage(allForecasts[0]!, outputDir);
+                        // 3. Detailed Weather Location 0 to 6
+                        for (int i = 0; i < locations.Length; i++)
+                        {
+                            if (allForecasts[i] != null)
+                                GenerateDetailedWeatherImage(allForecasts[i]!, outputDir, i, locations[i]);
+                        }   
+
+
 
                         // 4. Maps Image
                         GenerateMapsImage(allForecasts, locations, outputDir);
@@ -232,7 +237,8 @@ namespace WeatherImageGenerator
                     }
                 }
 
-                string filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "6_WeatherAlerts.png");
+                // Default alert filename set to 10_ so it sorts / displays after primary images
+                string filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
             }
@@ -301,7 +307,8 @@ namespace WeatherImageGenerator
                     graphics.DrawString(timestamp, labelFont, whiteBrush, new PointF(50, 100));
                 }
 
-                string filename = Path.Combine(outputDir, config.WeatherImages?.WeatherMapsFilename ?? "4_WeatherMaps.png");
+                // Default maps filename uses 00_ prefix so it's easily readable/first in listings
+                string filename = Path.Combine(outputDir, config.WeatherImages?.WeatherMapsFilename ?? "00_WeatherMaps.png");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
             }
@@ -415,7 +422,7 @@ namespace WeatherImageGenerator
             }
         }
 
-        static void GenerateDetailedWeatherImage(WeatherForecast weatherData, string outputDir)
+        static void GenerateDetailedWeatherImage(WeatherForecast weatherData, string outputDir, int cityIndex, string locationName)
         {
             var config = ConfigManager.LoadConfig();
             var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
@@ -438,7 +445,7 @@ namespace WeatherImageGenerator
                 using (Font dataFont = new Font(imgConfig.FontFamily ?? "Arial", 22, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    string primaryLocation = config.Locations?.Location0 ?? "Montreal";
+                    string primaryLocation = locationName ?? (config.Locations?.Location0 ?? "Montreal");
                     graphics.DrawString($"Détail pour {primaryLocation}", titleFont, whiteBrush, new PointF(50, 30));
 
                     int yPosition = 120;
@@ -446,30 +453,50 @@ namespace WeatherImageGenerator
 
                     if (weatherData.Current != null)
                     {
-                        graphics.DrawString("Temperature:", labelFont, whiteBrush, new PointF(50, yPosition));
+                        graphics.DrawString("Température:", labelFont, whiteBrush, new PointF(50, yPosition));
                         graphics.DrawString($"{weatherData.Current.Temperature}{weatherData.CurrentUnits?.Temperature}",
                             dataFont, whiteBrush, new PointF(300, yPosition));
                         yPosition += lineHeight;
 
-                        graphics.DrawString("Humidity:", labelFont, whiteBrush, new PointF(50, yPosition));
+                        graphics.DrawString("Humidité:", labelFont, whiteBrush, new PointF(50, yPosition));
                         graphics.DrawString($"{weatherData.Current.Relativehumidity_2m}%", dataFont, whiteBrush, new PointF(300, yPosition));
                         yPosition += lineHeight;
 
-                        graphics.DrawString("Wind Speed:", labelFont, whiteBrush, new PointF(50, yPosition));
+                        graphics.DrawString("Vitesse du vent:", labelFont, whiteBrush, new PointF(50, yPosition));
                         graphics.DrawString($"{weatherData.Current.Windspeed_10m} {weatherData.CurrentUnits?.Windspeed_10m}",
                             dataFont, whiteBrush, new PointF(300, yPosition));
                         yPosition += lineHeight;
 
-                        graphics.DrawString("Wind Direction:", labelFont, whiteBrush, new PointF(50, yPosition));
+                        graphics.DrawString("Direction du vent:", labelFont, whiteBrush, new PointF(50, yPosition));
                         graphics.DrawString($"{weatherData.Current.Winddirection_10m}°", dataFont, whiteBrush, new PointF(300, yPosition));
                         yPosition += lineHeight;
 
-                        graphics.DrawString("Pressure:", labelFont, whiteBrush, new PointF(50, yPosition));
+                        graphics.DrawString("Pression atmosphérique:", labelFont, whiteBrush, new PointF(50, yPosition));
                         graphics.DrawString($"{weatherData.Current.Surface_pressure} hPa", dataFont, whiteBrush, new PointF(300, yPosition));
                     }
                 }
+                // Use the script's city index directly for filenames/badges (location0 -> 0)
+                int displayNumber = cityIndex;
 
-                string filename = Path.Combine(outputDir, config.WeatherImages?.DetailedWeatherFilename ?? "3_DetailedWeather.png");
+                // Draw a number badge in the top-right corner
+                int badgeDiameter = 96;
+                float margin = imgConfig.MarginPixels;
+                RectangleF badgeRect = new RectangleF(imgConfig.ImageWidth - margin - badgeDiameter, margin, badgeDiameter, badgeDiameter);
+                using (Brush badgeBrush = new SolidBrush(Color.FromArgb(200, 0, 0, 0)))
+                using (Brush numberBrush = new SolidBrush(Color.White))
+                using (Font numberFont = new Font(imgConfig.FontFamily ?? "Arial", 36, FontStyle.Bold))
+                {
+                    graphics.FillEllipse(badgeBrush, badgeRect);
+                    string numberText = displayNumber.ToString();
+                    SizeF numSize = graphics.MeasureString(numberText, numberFont);
+                    PointF numPos = new PointF(badgeRect.X + (badgeRect.Width - numSize.Width) / 2, badgeRect.Y + (badgeRect.Height - numSize.Height) / 2 - 4);
+                    graphics.DrawString(numberText, numberFont, numberBrush, numPos);
+                }
+
+                // Build a safe filename including the display number and sanitized location
+                string sanitized = string.Concat(locationName.Where(c => !Path.GetInvalidFileNameChars().Contains(c))).Replace(' ', '_');
+                if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "location" + displayNumber;
+                string filename = Path.Combine(outputDir, $"{displayNumber}_DetailedWeather_{sanitized}.png");
                 bitmap.Save(filename);
                 Console.WriteLine($"✓ Generated: {filename}");
             }
