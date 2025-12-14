@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -15,6 +15,8 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCopyright("Copyright © NoID Softwork 2020-2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
-[assembly: AssemblyVersion("0.0.7.1214")]
-[assembly: AssemblyFileVersion("0.0.7.1214")]
-[assembly: AssemblyInformationalVersion("0.0.7.1214")]
+
+[assembly: AssemblyVersion("0.0.11.1214")]
+[assembly: AssemblyFileVersion("0.0.11.1214")]
+[assembly: AssemblyInformationalVersion("0.0.11.1214")]
+

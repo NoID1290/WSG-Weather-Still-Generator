@@ -82,24 +82,20 @@ $assemblyInfoPath = "WeatherImageGenerator\AssemblyInfo.cs"
 if (Test-Path $assemblyInfoPath) {
     $assemblyInfoContent = Get-Content $assemblyInfoPath -Raw
 
-    $patternVersion = '(\[assembly:\s*AssemblyVersion\("')[^"']*("'\)\])'
-    $patternFileVersion = '(\[assembly:\s*AssemblyFileVersion\("')[^"']*("'\)\])'
-    $patternInformational = '(\[assembly:\s*AssemblyInformationalVersion\("')[^"']*("'\)\])'
-
-    # Use .NET regex replace with $1/$2 replacement tokens constructed safely
-    $assemblyInfoContent = [regex]::Replace($assemblyInfoContent, $patternVersion, ('$1' + $newVersion + '$2'))
-    $assemblyInfoContent = [regex]::Replace($assemblyInfoContent, $patternFileVersion, ('$1' + $newVersion + '$2'))
-    $assemblyInfoContent = [regex]::Replace($assemblyInfoContent, $patternInformational, ('$1' + $newVersion + '$2'))
+    # Use -replace operator with proper backreferences
+    $assemblyInfoContent = $assemblyInfoContent -replace '\[assembly: AssemblyVersion\("[^"]*"\)\]', "[assembly: AssemblyVersion(""$newVersion"")]"
+    $assemblyInfoContent = $assemblyInfoContent -replace '\[assembly: AssemblyFileVersion\("[^"]*"\)\]', "[assembly: AssemblyFileVersion(""$newVersion"")]"
+    $assemblyInfoContent = $assemblyInfoContent -replace '\[assembly: AssemblyInformationalVersion\("[^"]*"\)\]', "[assembly: AssemblyInformationalVersion(""$newVersion"")]"
 
     # If any of the attributes are missing, append them so the file stays explicit
     if ($assemblyInfoContent -notmatch 'AssemblyVersion') {
-        $assemblyInfoContent += "`r`n[assembly: AssemblyVersion(\"$newVersion\")]"
+        $assemblyInfoContent += "`r`n[assembly: AssemblyVersion(""$newVersion"")]"
     }
     if ($assemblyInfoContent -notmatch 'AssemblyFileVersion') {
-        $assemblyInfoContent += "`r`n[assembly: AssemblyFileVersion(\"$newVersion\")]"
+        $assemblyInfoContent += "`r`n[assembly: AssemblyFileVersion(""$newVersion"")]"
     }
     if ($assemblyInfoContent -notmatch 'AssemblyInformationalVersion') {
-        $assemblyInfoContent += "`r`n[assembly: AssemblyInformationalVersion(\"$newVersion\")]"
+        $assemblyInfoContent += "`r`n[assembly: AssemblyInformationalVersion(""$newVersion"")]"
     }
 
     Set-Content -Path $assemblyInfoPath -Value $assemblyInfoContent -Encoding UTF8
