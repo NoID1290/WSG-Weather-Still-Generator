@@ -36,3 +36,16 @@ $projectFile.Project.PropertyGroup.FileVersion = $newVersion
 $projectFile.Save($projectFilePath)
 
 Write-Host "Version updated to: $newVersion"
+
+# Also update AssemblyInfo.cs to keep it in sync
+$assemblyInfoPath = "s:\VScodeProjects\weather-still-api\WeatherImageGenerator\AssemblyInfo.cs"
+if (Test-Path $assemblyInfoPath) {
+    $assemblyInfoContent = Get-Content $assemblyInfoPath -Raw
+    
+    # Update AssemblyVersion
+    $assemblyInfoContent = $assemblyInfoContent -replace '(\[assembly: AssemblyVersion\(")[^"]*("\)\])', "`$1$newVersion`$2"
+    
+    # Write back to file
+    Set-Content $assemblyInfoPath $assemblyInfoContent
+    Write-Host "AssemblyInfo.cs updated with version: $newVersion"
+}
