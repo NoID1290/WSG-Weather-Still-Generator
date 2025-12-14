@@ -1,83 +1,24 @@
-# Auto-Push Script Usage Guide
+# Auto-push script (`push.ps1`) — short guide
 
-## Overview
-The `push.ps1` script automatically increments your version number and pushes to GitHub in one command.
+Use `push.ps1` to bump a semantic version segment and push a commit.
 
-## Version Format
-`a.b.c.MMDD`
-- **a** = Frontend updates (GUI changes)
-- **b** = Backend updates  
-- **c** = Little fixes/patches
-- **MMDD** = Month and day of push (auto-generated)
+Version format: `a.b.c.MMDD` (a=frontend, b=backend, c=patch)
 
-## How to Use
-
-### Basic Usage (fix - patch version)
-```powershell
+Basic usage
+```
 .\push.ps1
 ```
-- Updates: `0.0.0.1213` → `0.0.1.1213`
-- Message: "Auto-commit: Version update (v0.0.1.1213)"
 
-### Frontend Update
-```powershell
+Common options
+```
 .\push.ps1 -Type frontend
-```
-- Updates: `0.0.0.1213` → `1.0.0.1213`
-- Resets b and c to 0
-
-### Backend Update
-```powershell
 .\push.ps1 -Type backend
-```
-- Updates: `0.0.0.1213` → `0.1.0.1213`
-- Resets c to 0
-
-### Custom Commit Message
-```powershell
-.\push.ps1 -Type fix -CommitMessage "Fixed login bug"
-```
-- Message: "Fixed login bug (v0.0.1.1213)"
-
-### Specify Branch
-```powershell
-.\push.ps1 -Type fix -Branch "develop"
-```
-- Pushes to the develop branch instead of main
-
-## Parameters
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `Type` | string | "fix" | Update type: frontend, backend, or fix |
-| `CommitMessage` | string | "Auto-commit: Version update" | Custom commit message |
-| `Branch` | string | "main" | Target branch for push |
-
-## Examples
-```powershell
-# Simple fix
-.\push.ps1
-
-# Backend with custom message
-.\push.ps1 -Type backend -CommitMessage "Added API endpoint"
-
-# Frontend update to develop branch
-.\push.ps1 -Type frontend -CommitMessage "New UI redesign" -Branch develop
-
-# All parameters
-.\push.ps1 -Type backend -CommitMessage "Database optimization" -Branch main
+.\push.ps1 -Type fix -CommitMessage "Message" -Branch develop
 ```
 
-## What Happens
-1. Reads current version from `WeatherImageGenerator.csproj`
-2. Increments the appropriate version segment
-3. Updates the date portion (MMDD)
-4. Saves changes to `.csproj`
-5. Stages the file with git
-6. Creates a commit with your message + version
-7. Pushes to GitHub
+Behavior
+- Reads version from `WeatherImageGenerator.csproj` and updates the selected segment
+- Updates the date (MMDD), commits, and pushes
 
-## Requirements
-- Git installed and configured
-- GitHub credentials configured (SSH or HTTP)
-- PowerShell 5.1 or higher
-- `.csproj` file must have Version, AssemblyVersion, and FileVersion properties
+Requirements
+- Git, PowerShell 5.1+, and a `csproj` with version fields
