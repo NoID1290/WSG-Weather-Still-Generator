@@ -138,4 +138,45 @@ if ($?) {
     exit 1
 }
 
+# Create and push a git tag for the new version (v{version}) if it doesn't exist
+$tagName = "v$newVersion"
+$existingTag = git tag --list $tagName
+if (-not $existingTag) {
+    Write-Host "[TAG] Creating annotated tag: $tagName" -ForegroundColor Cyan
+    git tag -a $tagName -m "Release $tagName"
+    if ($?) {
+        Write-Host "[TAG] Pushing tag $tagName to origin" -ForegroundColor Cyan
+        git push origin $tagName
+        if ($?) {
+            Write-Host "[SUCCESS] Tag pushed: $tagName" -ForegroundColor Green
+        } else {
+            Write-Host "[WARNING] Failed to push tag $tagName" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[WARNING] Failed to create tag $tagName" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[INFO] Tag $tagName already exists; skipping tag creation" -ForegroundColor Yellow
+}
+
+# If GitHub CLI is available, create a GitHub release so shields using /v/release work
+$ghCmd = Get-Command gh -ErrorAction SilentlyContinue
+if ($ghCmd) {
+    # Check if release already exists
+    $releaseCheck = gh release view $tagName 2>$null
+    if (-not $releaseCheck) {
+        Write-Host "[RELEASE] Creating GitHub release for $tagName" -ForegroundColor Cyan
+        gh release create $tagName --title "$tagName" --notes "Automated release for $tagName" --target $Branch
+        if ($?) {
+            Write-Host "[SUCCESS] GitHub release created: $tagName" -ForegroundColor Green
+        } else {
+            Write-Host "[WARNING] Failed to create GitHub release via gh CLI" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[INFO] GitHub release $tagName already exists; skipping" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[INFO] 'gh' CLI not found; skipping GitHub release creation" -ForegroundColor Yellow
+}
+
 Write-Host "`n[COMPLETE] Auto-push finished!" -ForegroundColor Cyan

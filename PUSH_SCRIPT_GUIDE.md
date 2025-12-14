@@ -75,6 +75,8 @@ The `push.ps1` script automatically increments your version number and pushes to
 5. Stages the file with git
 6. Creates a commit with your message + version
 7. Pushes to GitHub
+8. Creates and pushes an annotated git tag `v<version>` (if absent)
+9. If `gh` CLI is installed, creates a GitHub release for the tag so release badges update
 
 ## Requirements
 - Git installed and configured
