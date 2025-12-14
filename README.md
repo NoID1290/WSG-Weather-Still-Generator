@@ -2,9 +2,7 @@
 
 > Automated weather image and video generation system for displaying current conditions, forecasts, and weather alerts
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-blue)
-![.NET Version](https://img.shields.io/badge/.NET-8.0-purple)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![.NET Version](https://img.shields.io/badge/.NET-8.0-purple) ![Release](https://img.shields.io/github/v/release/NoID1290/weather-still-api?label=release)
 
 ## 📋 Overview
 
