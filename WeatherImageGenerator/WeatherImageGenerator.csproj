@@ -10,7 +10,7 @@
     <AssemblyName>WSG</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
     <AssemblyProduct>Weather Image Generator</AssemblyProduct>
-    <AssemblyCopyright>Copyright Â© 2020-2026 NoID Softwork</AssemblyCopyright>
+    <AssemblyCopyright>© 2020-2026 NoID Softwork</AssemblyCopyright>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>

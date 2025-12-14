@@ -76,16 +76,33 @@ $projectFile.Project.PropertyGroup.FileVersion = $newVersion
 $projectFile.Save($projectFilePath)
 Write-Host "[SUCCESS] Version updated to: $newVersion" -ForegroundColor Green
 
+
 # Also update AssemblyInfo.cs to keep it in sync
 $assemblyInfoPath = "WeatherImageGenerator\AssemblyInfo.cs"
 if (Test-Path $assemblyInfoPath) {
     $assemblyInfoContent = Get-Content $assemblyInfoPath -Raw
-    
-    # Update AssemblyVersion
-    $assemblyInfoContent = $assemblyInfoContent -replace '(\[assembly: AssemblyVersion\(")[^"]*("\)\])', "`$1$newVersion`$2"
-    
-    # Write back to file
-    Set-Content $assemblyInfoPath $assemblyInfoContent
+
+    $patternVersion = '(\[assembly:\s*AssemblyVersion\("')[^"']*("'\)\])'
+    $patternFileVersion = '(\[assembly:\s*AssemblyFileVersion\("')[^"']*("'\)\])'
+    $patternInformational = '(\[assembly:\s*AssemblyInformationalVersion\("')[^"']*("'\)\])'
+
+    # Use .NET regex replace with $1/$2 replacement tokens constructed safely
+    $assemblyInfoContent = [regex]::Replace($assemblyInfoContent, $patternVersion, ('$1' + $newVersion + '$2'))
+    $assemblyInfoContent = [regex]::Replace($assemblyInfoContent, $patternFileVersion, ('$1' + $newVersion + '$2'))
+    $assemblyInfoContent = [regex]::Replace($assemblyInfoContent, $patternInformational, ('$1' + $newVersion + '$2'))
+
+    # If any of the attributes are missing, append them so the file stays explicit
+    if ($assemblyInfoContent -notmatch 'AssemblyVersion') {
+        $assemblyInfoContent += "`r`n[assembly: AssemblyVersion(\"$newVersion\")]"
+    }
+    if ($assemblyInfoContent -notmatch 'AssemblyFileVersion') {
+        $assemblyInfoContent += "`r`n[assembly: AssemblyFileVersion(\"$newVersion\")]"
+    }
+    if ($assemblyInfoContent -notmatch 'AssemblyInformationalVersion') {
+        $assemblyInfoContent += "`r`n[assembly: AssemblyInformationalVersion(\"$newVersion\")]"
+    }
+
+    Set-Content -Path $assemblyInfoPath -Value $assemblyInfoContent -Encoding UTF8
     Write-Host "[SUCCESS] AssemblyInfo.cs updated with version: $newVersion" -ForegroundColor Green
 }
 
