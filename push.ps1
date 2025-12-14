@@ -15,6 +15,11 @@ param(
     
     [Parameter(Mandatory=$false)]
     [string]$Branch = "main"
+    ,
+    [Parameter(Mandatory=$false)]
+    [switch]$AttachAssets,
+    [Parameter(Mandatory=$false)]
+    [switch]$SkipVersion
 )
 
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
@@ -41,40 +46,50 @@ $versionParts = $currentVersion -split '\.'
 [int]$b = $versionParts[1]
 [int]$c = $versionParts[2]
 
-# Increment based on update type
-switch ($Type) {
-    "frontend" {
-        $a++
-        $b = 0
-        $c = 0
-        Write-Host "[UPDATE] Frontend version incremented" -ForegroundColor Green
+# Respect SkipVersion flag
+if ($SkipVersion) {
+    Write-Host "[INFO] SkipVersion is set; not incrementing version" -ForegroundColor Yellow
+    $newVersion = $currentVersion
+} else {
+    # Increment based on update type
+    switch ($Type) {
+        "frontend" {
+            $a++
+            $b = 0
+            $c = 0
+            Write-Host "[UPDATE] Frontend version incremented" -ForegroundColor Green
+        }
+        "backend" {
+            $b++
+            $c = 0
+            Write-Host "[UPDATE] Backend version incremented" -ForegroundColor Green
+        }
+        "fix" {
+            $c++
+            Write-Host "[UPDATE] Fix version incremented" -ForegroundColor Green
+        }
     }
-    "backend" {
-        $b++
-        $c = 0
-        Write-Host "[UPDATE] Backend version incremented" -ForegroundColor Green
-    }
-    "fix" {
-        $c++
-        Write-Host "[UPDATE] Fix version incremented" -ForegroundColor Green
-    }
+
+    # Get today's date in MMDD format
+    $today = Get-Date
+    $dateString = $today.ToString("MMdd")
+
+    # Create new version: a.b.c.MMDD
+    $newVersion = "$a.$b.$c.$dateString"
 }
 
-# Get today's date in MMDD format
-$today = Get-Date
-$dateString = $today.ToString("MMdd")
+# Update Version, AssemblyVersion, and FileVersion (unless skipping)
+if (-not $SkipVersion) {
+    $projectFile.Project.PropertyGroup.Version = $newVersion
+    $projectFile.Project.PropertyGroup.AssemblyVersion = $newVersion
+    $projectFile.Project.PropertyGroup.FileVersion = $newVersion
 
-# Create new version: a.b.c.MMDD
-$newVersion = "$a.$b.$c.$dateString"
-
-# Update Version, AssemblyVersion, and FileVersion
-$projectFile.Project.PropertyGroup.Version = $newVersion
-$projectFile.Project.PropertyGroup.AssemblyVersion = $newVersion
-$projectFile.Project.PropertyGroup.FileVersion = $newVersion
-
-# Save the project file
-$projectFile.Save($projectFilePath)
-Write-Host "[SUCCESS] Version updated to: $newVersion" -ForegroundColor Green
+    # Save the project file
+    $projectFile.Save($projectFilePath)
+    Write-Host "[SUCCESS] Version updated to: $newVersion" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] Skipping project file update due to SkipVersion" -ForegroundColor Yellow
+}
 
 
 # Also update AssemblyInfo.cs to keep it in sync
@@ -98,8 +113,12 @@ if (Test-Path $assemblyInfoPath) {
         $assemblyInfoContent += "`r`n[assembly: AssemblyInformationalVersion(""$newVersion"")]"
     }
 
-    Set-Content -Path $assemblyInfoPath -Value $assemblyInfoContent -Encoding UTF8
-    Write-Host "[SUCCESS] AssemblyInfo.cs updated with version: $newVersion" -ForegroundColor Green
+    if (-not $SkipVersion) {
+        Set-Content -Path $assemblyInfoPath -Value $assemblyInfoContent -Encoding UTF8
+        Write-Host "[SUCCESS] AssemblyInfo.cs updated with version: $newVersion" -ForegroundColor Green
+    } else {
+        Write-Host "[INFO] Skipping AssemblyInfo update due to SkipVersion" -ForegroundColor Yellow
+    }
 }
 
 # Stage the updated file
@@ -177,6 +196,46 @@ if ($ghCmd) {
     }
 } else {
     Write-Host "[INFO] 'gh' CLI not found; skipping GitHub release creation" -ForegroundColor Yellow
+}
+
+# If requested, build the project, zip artifacts, and upload to the GitHub release
+if ($AttachAssets) {
+    Write-Host "[ASSETS] AttachAssets requested; building and uploading artifacts" -ForegroundColor Cyan
+
+    # location for published artifacts
+    $artifactRoot = Join-Path -Path (Split-Path -Parent $projectFilePath) -ChildPath "artifacts"
+    $publishDir = Join-Path $artifactRoot "WeatherImageGenerator-$newVersion"
+
+    # Clean previous artifacts
+    if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
+
+    # Build/publish
+    Write-Host "[BUILD] dotnet publish -c Release -o $publishDir" -ForegroundColor Cyan
+    dotnet publish $projectFilePath -c Release -o $publishDir
+    if (-not $?) {
+        Write-Host "[ERROR] dotnet publish failed; skipping artifact upload" -ForegroundColor Red
+    } else {
+        # Create zip
+        $zipName = "WSG-Weather-Still-Generator-$newVersion.zip"
+        $zipPath = Join-Path $artifactRoot $zipName
+        if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+        Write-Host "[ZIP] Creating $zipPath" -ForegroundColor Cyan
+        Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
+
+        # Upload to existing release via gh
+        $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
+        if ($ghCmd) {
+            Write-Host "[UPLOAD] Uploading $zipName to release $tagName" -ForegroundColor Cyan
+            gh release upload $tagName $zipPath --clobber
+            if ($?) {
+                Write-Host "[SUCCESS] Uploaded asset: $zipName" -ForegroundColor Green
+            } else {
+                Write-Host "[WARNING] Failed to upload asset $zipName" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "[INFO] 'gh' CLI not found; cannot upload assets" -ForegroundColor Yellow
+        }
+    }
 }
 
 Write-Host "`n[COMPLETE] Auto-push finished!" -ForegroundColor Cyan

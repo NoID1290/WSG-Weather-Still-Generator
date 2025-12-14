@@ -51,6 +51,8 @@ The `push.ps1` script automatically increments your version number and pushes to
 | `Type` | string | "fix" | Update type: frontend, backend, or fix |
 | `CommitMessage` | string | "Auto-commit: Version update" | Custom commit message |
 | `Branch` | string | "main" | Target branch for push |
+| `AttachAssets` | switch | (none) | Build/publish and attach a zip artifact to the release |
+| `SkipVersion` | switch | (none) | Skip version bump and project/assembly updates (useful when only attaching assets) |
 
 ## Examples
 ```powershell
@@ -77,6 +79,7 @@ The `push.ps1` script automatically increments your version number and pushes to
 7. Pushes to GitHub
 8. Creates and pushes an annotated git tag `v<version>` (if absent)
 9. If `gh` CLI is installed, creates a GitHub release for the tag so release badges update
+10. Optionally, build and attach a zip of the `WeatherImageGenerator` publish output to the release with `-AttachAssets` (use `-SkipVersion` to only attach without bumping version)
 
 ## Requirements
 - Git installed and configured

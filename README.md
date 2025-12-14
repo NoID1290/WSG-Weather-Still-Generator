@@ -2,7 +2,7 @@
 
 > Automated weather image and video generation system for displaying current conditions, forecasts, and weather alerts
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![.NET Version](https://img.shields.io/badge/.NET-8.0-purple) ![Release](https://img.shields.io/github/v/tag/NoID1290/WSG-Weather-Still-Generator?label=release&color=blue)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![.NET Version](https://img.shields.io/badge/.NET-8.0-purple)
 
 ## 📋 Overview
 
