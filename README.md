@@ -396,19 +396,7 @@ The application logs to console with timestamps and status indicators:
 ### Common Issues
 See [CONFIG_README.md](./CONFIG_README.md) troubleshooting section
 
-## 🗓️ Changelog
 
-### v1.0 (Current)
-- ✅ Configuration system implementation
-- ✅ Multi-location weather fetching
-- ✅ Image generation (6 types)
-- ✅ Video slideshow creation
-- ✅ Environment Canada alerts integration
-- ✅ Continuous operation with configurable intervals
-
-## 👨‍💻 Author
-
-**Weather Still Generator** - Automated weather visualization system
 
 ---
 
