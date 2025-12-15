@@ -43,7 +43,7 @@ namespace WeatherImageGenerator
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
             videoBtn.Click += (s, e) => VideoClicked();
 
-            Logger.MessageLogged += (text) => OnMessageLogged(text);
+            // Subscribe to only the leveled event to avoid duplicate entries (we previously subscribed to both events)
             Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text);
 
             settingsBtn.Click += (s, e) =>

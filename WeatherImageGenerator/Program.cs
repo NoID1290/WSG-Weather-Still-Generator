@@ -17,6 +17,11 @@ namespace WeatherImageGenerator
 {
     class Program
     {
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool AllocConsole();
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeConsole();
         [STAThread]
         static void Main(string[] args)
         {
@@ -38,7 +43,16 @@ namespace WeatherImageGenerator
             // If user supplies --nogui, run as console as before
             if (args.Contains("--nogui"))
             {
-                RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+                // Ensure a console is available for nogui mode (when running as WinExe)
+                AllocConsole();
+                try
+                {
+                    RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    FreeConsole();
+                }
                 return;
             }
 
