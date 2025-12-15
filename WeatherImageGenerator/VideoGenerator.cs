@@ -46,23 +46,19 @@ namespace WeatherImageGenerator
         /// </summary>
         public bool GenerateVideo()
         {
-            Console.WriteLine(new string('-', 48));
-            Console.WriteLine($"WORKING DIRECTORY: {WorkingDirectory}");
-            Console.WriteLine(new string('-', 48));
+            Logger.Log(new string('-', 48));
+            Logger.Log($"WORKING DIRECTORY: {WorkingDirectory}");
+            Logger.Log(new string('-', 48));
 
             // Load images
             var images = LoadImages();
             if (images.Count < 2)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[ERROR] Found {images.Count} images.");
-                Console.ResetColor();
+                Logger.Log($"[ERROR] Found {images.Count} images.", System.ConsoleColor.Red);
                 return false;
             }
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"[INFO] Found {images.Count} images. Processing...");
-            Console.ResetColor();
+            Logger.Log($"[INFO] Found {images.Count} images. Processing...", System.ConsoleColor.Green);
 
             // Calculate resolution
             CalculateResolution();
@@ -188,9 +184,7 @@ namespace WeatherImageGenerator
             // Add audio if available
             if (File.Exists(MusicFile))
             {
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.WriteLine($"[AUDIO] Adding Audio: {MusicFile}");
-                Console.ResetColor();
+                Logger.Log($"[AUDIO] Adding Audio: {MusicFile}", System.ConsoleColor.Magenta);
                 sb.Append($" -i \"{MusicFile}\" -map \"{images.Count}:a\" -shortest");
             }
 
@@ -203,49 +197,82 @@ namespace WeatherImageGenerator
 
         private bool ExecuteFFmpeg(string ffmpegCmd)
         {
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("[RUNNING] Starting FFmpeg...");
-            Console.ResetColor();
+            Logger.Log("[RUNNING] Starting FFmpeg...", System.ConsoleColor.Green);
 
             try
             {
-                // Execute FFmpeg command through cmd.exe (Windows)
+                // Try to run ffmpeg directly and capture output
+                string args = ffmpegCmd.StartsWith("ffmpeg ") ? ffmpegCmd.Substring(7) : ffmpegCmd;
+
                 var processInfo = new ProcessStartInfo
                 {
-                    FileName = "cmd.exe",
-                    Arguments = $"/c {ffmpegCmd}",
-                    RedirectStandardOutput = false,
-                    RedirectStandardError = false,
-                    UseShellExecute = true,
-                    CreateNoWindow = false
+                    FileName = "ffmpeg",
+                    Arguments = args,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = WorkingDirectory
                 };
 
-                using (var process = Process.Start(processInfo))
+                using (var process = new Process { StartInfo = processInfo, EnableRaisingEvents = true })
                 {
-                    process?.WaitForExit();
+                    process.OutputDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data); };
+                    process.ErrorDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data, System.ConsoleColor.Yellow); };
+
+                    try
+                    {
+                        process.Start();
+                        process.BeginOutputReadLine();
+                        process.BeginErrorReadLine();
+                        process.WaitForExit();
+                    }
+                    catch (System.ComponentModel.Win32Exception wex)
+                    {
+                        // ffmpeg not found in PATH
+                        Logger.Log($"[ERROR] ffmpeg process start failed: {wex.Message}", System.ConsoleColor.Red);
+                        Logger.Log("Attempting fallback via cmd.exe (if available)...");
+
+                        var cmdInfo = new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = $"/c {ffmpegCmd}",
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            WorkingDirectory = WorkingDirectory
+                        };
+
+                        using (var cmdProc = new Process { StartInfo = cmdInfo, EnableRaisingEvents = true })
+                        {
+                            cmdProc.OutputDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data); };
+                            cmdProc.ErrorDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data, System.ConsoleColor.Yellow); };
+
+                            cmdProc.Start();
+                            cmdProc.BeginOutputReadLine();
+                            cmdProc.BeginErrorReadLine();
+                            cmdProc.WaitForExit();
+                        }
+                    }
                 }
 
-                Console.WriteLine();
+                Logger.Log("");
+
                 if (File.Exists(OutputFile))
                 {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Console.WriteLine($"[DONE] Video saved to: {OutputFile}");
-                    Console.ResetColor();
+                    Logger.Log($"[DONE] Video saved to: {OutputFile}", System.ConsoleColor.Cyan);
                     return true;
                 }
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[FAIL] FFmpeg failed to create the file.");
-                    Console.ResetColor();
+                    Logger.Log("[FAIL] FFmpeg failed to create the file.", System.ConsoleColor.Red);
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[ERROR] Exception occurred: {ex.Message}");
-                Console.ResetColor();
+                Logger.Log($"[ERROR] Exception occurred: {ex.Message}", System.ConsoleColor.Red);
                 return false;
             }
         }

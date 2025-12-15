@@ -44,7 +44,7 @@ namespace QuebecWeatherAlertMonitor
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[ECCC] Error fetching {city.Key}: {ex.Message}");
+                    Logger.Log($"[ECCC] Error fetching {city.Key}: {ex.Message}", ConsoleColor.Red);
                 }
                 
                 // Be polite to the server

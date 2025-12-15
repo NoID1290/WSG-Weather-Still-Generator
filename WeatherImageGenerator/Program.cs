@@ -6,7 +6,9 @@ using System.Drawing; // NuGet: System.Drawing.Common
 using System.IO;
 using System.Linq; 
 using System.Net.Http; 
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using OpenMeteo; // NuGet: OpenMeteo
 using CommonStrings; 
 using QuebecWeatherAlertMonitor;
@@ -15,13 +17,84 @@ namespace WeatherImageGenerator
 {
     class Program
     {
+        [STAThread]
         static void Main(string[] args)
         {
-            // Entry point: Start the async task and wait for it indefinitely
-            RunAsync().GetAwaiter().GetResult();
+            // Helper flags for testing
+            if (args.Contains("--create-test-images"))
+            {
+                CreateTestImages();
+                return;
+            }
+
+            if (args.Contains("--make-video-now"))
+            {
+                var config = ConfigManager.LoadConfig();
+                var outputDir = Path.Combine(Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
+                StartMakeVideo(outputDir);
+                return;
+            }
+
+            // If user supplies --nogui, run as console as before
+            if (args.Contains("--nogui"))
+            {
+                RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+                return;
+            }
+
+            if (args.Contains("--smoke-gui"))
+            {
+                // Create MainForm and exercise the logger handlers without showing the UI (smoke test)
+                Application.SetHighDpiMode(HighDpiMode.SystemAware);
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+
+                using (var mf = new MainForm())
+                {
+                    Logger.Log("[SMOKE] Created MainForm");
+                    Logger.Log("[RUNNING] smoke");
+                    Logger.Log("[DONE] smoke");
+                }
+
+                return;
+            }
+
+            if (args.Contains("--smoke-make-video"))
+            {
+                // Instantiate MainForm (subscribe to Logger events) and trigger a video generation (smoke test)
+                Application.SetHighDpiMode(HighDpiMode.SystemAware);
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+
+                using (var mf = new MainForm())
+                {
+                    CreateTestImages();
+                    var config = ConfigManager.LoadConfig();
+                    var outputDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
+                    StartMakeVideo(outputDir);
+                }
+
+                return;
+            }
+
+            if (args.Contains("--smoke-save-config"))
+            {
+                var cfg = ConfigManager.LoadConfig();
+                cfg.Video ??= new VideoSettings();
+                ConfigManager.SaveConfig(cfg);
+                ConfigManager.ReloadConfig();
+                Logger.Log("[SMOKE] Config save & reload completed");
+                return;
+            }
+
+            // Launch WinForms GUI which hosts an embedded console
+            Application.SetHighDpiMode(HighDpiMode.SystemAware);
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new MainForm());
         }
 
-        static async Task RunAsync()
+        public static async Task RunAsync(CancellationToken cancellationToken = default)
         {
             // Load configuration
             var config = ConfigManager.LoadConfig();
@@ -36,12 +109,12 @@ namespace WeatherImageGenerator
                 string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
 
                 // Infinite loop to keep the program running
-                while (true)
+                while (!cancellationToken.IsCancellationRequested)
                 {
                     try
                     {
-                        Console.WriteLine($"\n--- Starting Update Cycle: {DateTime.Now} ---");
-                        Console.WriteLine($"Fetching weather data...");
+                        Logger.Log($"\n--- Starting Update Cycle: {DateTime.Now} ---");
+                        Logger.Log($"Fetching weather data...");
                         
                         // Array to store results for all 7 locations
                         WeatherForecast?[] allForecasts = new WeatherForecast?[7];
@@ -54,24 +127,24 @@ namespace WeatherImageGenerator
                             try 
                             {
                                 allForecasts[i] = await client.QueryAsync(loc);
-                                Console.WriteLine($"✓ Fetched weather data for {loc}");
+                                Logger.Log($"✓ Fetched weather data for {loc}");
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"X Failed to fetch for {loc}: {ex.Message}");
+                                Logger.Log($"X Failed to fetch for {loc}: {ex.Message}");
                                 dataFetchSuccess = false; 
                             }
                         }
                         // Fetch Weather Alert Data from ECCC
-                        Console.WriteLine("Checking ECCC weather alerts...");
+                        Logger.Log("Checking ECCC weather alerts...");
                         try
                         {
                             List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
-                            Console.WriteLine($"✓ Found {alerts.Count} active alerts.");
+                            Logger.Log($"✓ Found {alerts.Count} active alerts.");
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"X Failed to generate alerts image: {ex.Message}");
+                            Logger.Log($"X Failed to generate alerts image: {ex.Message}");
                         }
                        
                         
@@ -82,8 +155,8 @@ namespace WeatherImageGenerator
                         // Check if we have at least the primary location data to proceed
                         if (allForecasts[0] == null) 
                         {
-                            Console.WriteLine("Primary location data missing. Retrying in 1 minute...");
-                            await Task.Delay(60000);
+                            Logger.Log("Primary location data missing. Retrying in 1 minute...");
+                            try { await Task.Delay(60000, cancellationToken); } catch (OperationCanceledException) { break; }
                             continue;
                         }
 
@@ -94,7 +167,7 @@ namespace WeatherImageGenerator
                             Directory.CreateDirectory(outputDir);
                         }
 
-                        Console.WriteLine("Generating still images...");
+                        Logger.Log("Generating still images...");
 
                         // --- IMAGE GENERATION ---
                         
@@ -128,25 +201,25 @@ namespace WeatherImageGenerator
                         // 7. Video Generation (Optional)
                         StartMakeVideo(outputDir);    
 
-                        Console.WriteLine($"✓ Cycle Complete. Images saved to: {outputDir}");
+                        Logger.Log($"✓ Cycle Complete. Images saved to: {outputDir}");
 
                         // Wait Logic
                         if (config.RefreshTimeMinutes > 0)
                         {
-                            Console.WriteLine($"Sleeping for {config.RefreshTimeMinutes} minutes...");
-                            await Task.Delay(config.RefreshTimeMinutes * 60000);
+                            Logger.Log($"Sleeping for {config.RefreshTimeMinutes} minutes...");
+                            try { await Task.Delay(config.RefreshTimeMinutes * 60000, cancellationToken); } catch (OperationCanceledException) { break; }
                         }
                         else
                         {
-                            Console.WriteLine("Invalid refresh time setting. Defaulting to 15 minutes.");
-                            await Task.Delay(15 * 60000);
+                            Logger.Log("Invalid refresh time setting. Defaulting to 15 minutes.");
+                            try { await Task.Delay(15 * 60000, cancellationToken); } catch (OperationCanceledException) { break; }
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Critical Global Error: {ex.Message}");
-                        Console.WriteLine("Retrying in 1 minute...");
-                        await Task.Delay(60000);
+                        Logger.Log($"Critical Global Error: {ex.Message}", ConsoleColor.Red);
+                        Logger.Log("Retrying in 1 minute...");
+                        try { await Task.Delay(60000, cancellationToken); } catch (OperationCanceledException) { break; }
                     }
                 }
             }
@@ -230,7 +303,7 @@ namespace WeatherImageGenerator
                             // Check if we ran out of space on the image
                             if (currentY > height - 50) 
                             {
-                                Console.WriteLine("Warning: Not all alerts fit on the screen.");
+                                Logger.Log("Warning: Not all alerts fit on the screen.");
                                 break; 
                             }
                         }
@@ -240,7 +313,7 @@ namespace WeatherImageGenerator
                 // Default alert filename set to 10_ so it sorts / displays after primary images
                 string filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
                 bitmap.Save(filename);
-                Console.WriteLine($"✓ Generated: {filename}");
+                Logger.Log($"✓ Generated: {filename}");
             }
         }
 
@@ -310,7 +383,7 @@ namespace WeatherImageGenerator
                 // Default maps filename uses 00_ prefix so it's easily readable/first in listings
                 string filename = Path.Combine(outputDir, config.WeatherImages?.WeatherMapsFilename ?? "00_WeatherMaps.png");
                 bitmap.Save(filename);
-                Console.WriteLine($"✓ Generated: {filename}");
+                Logger.Log($"✓ Generated: {filename}");
             }
         }
 
@@ -360,7 +433,7 @@ namespace WeatherImageGenerator
 
                 string filename = Path.Combine(outputDir, "1_CurrentWeather.png");
                 bitmap.Save(filename);
-                Console.WriteLine($"✓ Generated: {filename}");
+                Logger.Log($"✓ Generated: {filename}");
             }
         }
 
@@ -418,7 +491,7 @@ namespace WeatherImageGenerator
 
                 string filename = Path.Combine(outputDir, "2_DailyForecast.png");
                 bitmap.Save(filename);
-                Console.WriteLine($"✓ Generated: {filename}");
+                Logger.Log($"✓ Generated: {filename}");
             }
         }
 
@@ -498,7 +571,7 @@ namespace WeatherImageGenerator
                 if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "location" + displayNumber;
                 string filename = Path.Combine(outputDir, $"{displayNumber}_DetailedWeather_{sanitized}.png");
                 bitmap.Save(filename);
-                Console.WriteLine($"✓ Generated: {filename}");
+                Logger.Log($"✓ Generated: {filename}");
             }
         }
 
@@ -526,8 +599,39 @@ namespace WeatherImageGenerator
 
                 string filename = Path.Combine(outputDir, config.WeatherImages?.TemperatureWatermarkFilename ?? "temp_watermark_alpha.png.IGNORE");
                 bitmap.Save(filename);
-                Console.WriteLine($"✓ Generated: {filename}");
+                Logger.Log($"✓ Generated: {filename}");
             }
+        }
+
+        static void CreateTestImages()
+        {
+            var config = ConfigManager.LoadConfig();
+            var outputDir = Path.Combine(Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
+            if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
+
+            Logger.Log($"Creating 4 test images in: {outputDir}");
+
+            for (int i = 0; i < 4; i++)
+            {
+                int width = 1920, height = 1080;
+                using (var bmp = new System.Drawing.Bitmap(width, height))
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
+                {
+                    var colors = new[] { System.Drawing.Color.Red, System.Drawing.Color.Green, System.Drawing.Color.Blue, System.Drawing.Color.Orange };
+                    g.Clear(colors[i % colors.Length]);
+                    using (var f = new System.Drawing.Font("Arial", 72, System.Drawing.FontStyle.Bold))
+                    using (var brush = new System.Drawing.SolidBrush(System.Drawing.Color.White))
+                    {
+                        g.DrawString($"Test Image {i + 1}", f, brush, new System.Drawing.PointF(100, 100));
+                    }
+
+                    string filename = Path.Combine(outputDir, $"test_{i + 1:D2}.png");
+                    bmp.Save(filename);
+                    Logger.Log($"Created: {filename}");
+                }
+            }
+
+            Logger.Log("Test images created.");
         }
 
         static void StartMakeVideo(string outputDir)
@@ -537,7 +641,7 @@ namespace WeatherImageGenerator
                 var config = ConfigManager.LoadConfig();
                 var videoConfig = config.Video ?? new VideoSettings();
 
-                Console.WriteLine("Starting video generation...");
+                Logger.Log("Starting video generation...");
                 var videoGenerator = new VideoGenerator(outputDir)
                 {
                     StaticDuration = videoConfig.StaticDurationSeconds,
@@ -548,16 +652,16 @@ namespace WeatherImageGenerator
                 
                 if (videoGenerator.GenerateVideo())
                 {
-                    Console.WriteLine("✓ Video generation completed successfully.");
+                    Logger.Log("✓ Video generation completed successfully.");
                 }
                 else
                 {
-                    Console.WriteLine("✗ Video generation failed.");
+                    Logger.Log("✗ Video generation failed.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to generate video: {ex.Message}");
+                Logger.Log($"Failed to generate video: {ex.Message}", ConsoleColor.Red);
             }
         }
 

@@ -120,6 +120,28 @@ The application will:
 4. Create videos if configured
 5. Wait for the refresh interval and repeat
 
+---
+
+## 🖥️ GUI Console (experimental)
+
+A minimal WinForms GUI provides an embedded console to view application and FFmpeg logs and run actions interactively.
+
+- Launch the GUI by running the application without flags. Use `--nogui` to run the original console mode.
+- Quick test flags:
+  - `--create-test-images` — create a small set of test images.
+  - `--make-video-now` — generate a video from images immediately (console mode).
+  - `--smoke-gui` — instantiate the GUI code in a smoke test (no visible window).
+  - `--smoke-make-video` — instantiate GUI handlers and run a make-video to exercise log parsing.
+
+- The GUI includes:
+  - **Start / Stop** background worker
+  - **Make Video Now** button
+  - **Settings** dialog for output directory and video timing
+  - **Log filter** and **search** box
+  - **Progress** indicator and status label
+
+Settings changed in the GUI are saved back to `appsettings.json`.
+
 ## 📝 Configuration
 
 All settings are managed in **`appsettings.json`** without requiring recompilation.

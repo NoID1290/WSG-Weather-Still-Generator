@@ -43,7 +43,7 @@ namespace WeatherImageGenerator
                 _settings = JsonSerializer.Deserialize<AppSettings>(jsonContent, options)
                     ?? throw new InvalidOperationException("Failed to deserialize configuration");
 
-                Console.WriteLine($"✓ Configuration loaded from: {ConfigFilePath}");
+                Logger.Log($"✓ Configuration loaded from: {ConfigFilePath}");
                 return _settings;
             }
             catch (JsonException ex)
@@ -63,6 +63,25 @@ namespace WeatherImageGenerator
         {
             _settings = null;
             return LoadConfig();
+        }
+
+        /// <summary>
+        /// Saves the provided settings back to appsettings.json and updates the cached settings.
+        /// </summary>
+        public static void SaveConfig(AppSettings settings)
+        {
+            try
+            {
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(settings, options);
+                File.WriteAllText(ConfigFilePath, json);
+                _settings = settings;
+                Logger.Log($"✓ Configuration saved to: {ConfigFilePath}");
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to save configuration: {ex.Message}", ex);
+            }
         }
     }
 
