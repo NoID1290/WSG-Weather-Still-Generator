@@ -366,20 +366,11 @@ dotnet test
 ### External Tools
 - **FFmpeg** - Video encoding and MP4 creation
 
-## 🤝 Contributing
-
-Contributions welcome! Areas for enhancement:
-- Additional weather data sources
-- More image layout templates
-- Enhanced alert visualization
-- Performance optimization
-- Cross-platform support improvements
 
 ## 📄 License
 
 MIT License - See LICENSE file for details
 
-## 🆘 Support
 
 ### Debug Mode
 Run with console output for detailed logging:
@@ -401,5 +392,4 @@ See [CONFIG_README.md](./CONFIG_README.md) troubleshooting section
 ---
 
 **Last Updated:** December 12, 2025  
-**Version:** 1.0  
-**Status:** Active & Maintained
+**Version:** 1.0.5.1214
