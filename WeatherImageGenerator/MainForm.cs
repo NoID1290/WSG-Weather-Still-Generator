@@ -13,6 +13,7 @@ namespace WeatherImageGenerator
         private TextBox? _txtSearch;
         private ProgressBar? _progress;
         private Label? _statusLabel;
+        private Label? _sleepLabel;
 
         public MainForm()
         {
@@ -37,7 +38,9 @@ namespace WeatherImageGenerator
             _txtSearch.TextChanged += (s, e) => RefreshLogView();
 
             _progress = new ProgressBar { Left = 10, Top = 46, Width = 300, Height = 18, Style = ProgressBarStyle.Blocks };
-            _statusLabel = new Label { Left = 320, Top = 46, Width = 420, Text = "Idle" };
+            // Make room for the sleep countdown label to the right of status
+            _statusLabel = new Label { Left = 320, Top = 46, Width = 300, Text = "Idle" };
+            _sleepLabel = new Label { Left = 630, Top = 46, Width = 220, Text = string.Empty };
 
             startBtn.Click += (s, e) => StartClicked(startBtn, stopBtn);
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
@@ -45,6 +48,9 @@ namespace WeatherImageGenerator
 
             // Subscribe to only the leveled event to avoid duplicate entries (we previously subscribed to both events)
             Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text);
+
+            // Subscribe to sleep updates from the background worker so we can show a countdown
+            Program.SleepRemainingUpdated += (ts) => SetSleepRemaining(ts);
 
             settingsBtn.Click += (s, e) =>
             {
@@ -66,9 +72,25 @@ namespace WeatherImageGenerator
             panel.Controls.Add(_txtSearch);
             panel.Controls.Add(_progress);
             panel.Controls.Add(_statusLabel);
+            panel.Controls.Add(_sleepLabel);
 
             this.Controls.Add(rich);
             this.Controls.Add(panel);
+        }
+
+        private void SetSleepRemaining(TimeSpan ts)
+        {
+            if (_sleepLabel == null) return;
+            if (_sleepLabel.InvokeRequired)
+            {
+                _sleepLabel.BeginInvoke(new Action(() => SetSleepRemaining(ts)));
+                return;
+            }
+
+            if (ts == TimeSpan.Zero)
+                _sleepLabel.Text = string.Empty;
+            else
+                _sleepLabel.Text = $"Next run in {ts.ToString(@"hh\:mm\:ss")}";
         }
 
         private void AppendLog(string text)
@@ -93,6 +115,8 @@ namespace WeatherImageGenerator
             _cts = new CancellationTokenSource();
             startBtn.Enabled = false;
             stopBtn.Enabled = true;
+            // Clear any previous sleep indicator when starting
+            SetSleepRemaining(TimeSpan.Zero);
 
             Task.Run(() => Program.RunAsync(_cts.Token));
             Logger.Log("Started background worker.");
@@ -105,6 +129,8 @@ namespace WeatherImageGenerator
             _cts = null;
             startBtn.Enabled = true;
             stopBtn.Enabled = false;
+            // Clear any sleep countdown when stopped
+            SetSleepRemaining(TimeSpan.Zero);
             Logger.Log("Stop requested. Background worker will exit shortly.");
         }
 

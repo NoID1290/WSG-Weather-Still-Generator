@@ -109,6 +109,9 @@ namespace WeatherImageGenerator
             Application.Run(new MainForm());
         }
 
+        // Event used by the GUI to show the remaining time while the background worker is sleeping
+        public static event Action<TimeSpan>? SleepRemainingUpdated;
+
         public static async Task RunAsync(CancellationToken cancellationToken = default)
         {
             // Load configuration
@@ -222,12 +225,51 @@ namespace WeatherImageGenerator
                         if (config.RefreshTimeMinutes > 0)
                         {
                             Logger.Log($"Sleeping for {config.RefreshTimeMinutes} minutes...");
-                            try { await Task.Delay(config.RefreshTimeMinutes * 60000, cancellationToken); } catch (OperationCanceledException) { break; }
+
+                            var totalMs = Math.Max(1, config.RefreshTimeMinutes * 60000);
+                            var end = DateTime.UtcNow.AddMilliseconds(totalMs);
+                            // Periodically notify GUI about remaining time (1s resolution)
+                            while (DateTime.UtcNow < end)
+                            {
+                                var remaining = end - DateTime.UtcNow;
+                                try
+                                {
+                                    SleepRemainingUpdated?.Invoke(remaining);
+                                    await Task.Delay(1000, cancellationToken);
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    // Ensure GUI is cleared and exit sleeping early
+                                    SleepRemainingUpdated?.Invoke(TimeSpan.Zero);
+                                    break;
+                                }
+                            }
+
+                            // Clear the GUI countdown when sleep completes
+                            SleepRemainingUpdated?.Invoke(TimeSpan.Zero);
                         }
                         else
                         {
                             Logger.Log("Invalid refresh time setting. Defaulting to 15 minutes.");
-                            try { await Task.Delay(15 * 60000, cancellationToken); } catch (OperationCanceledException) { break; }
+
+                            var totalMs = 15 * 60000;
+                            var end = DateTime.UtcNow.AddMilliseconds(totalMs);
+                            while (DateTime.UtcNow < end)
+                            {
+                                var remaining = end - DateTime.UtcNow;
+                                try
+                                {
+                                    SleepRemainingUpdated?.Invoke(remaining);
+                                    await Task.Delay(1000, cancellationToken);
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    SleepRemainingUpdated?.Invoke(TimeSpan.Zero);
+                                    break;
+                                }
+                            }
+
+                            SleepRemainingUpdated?.Invoke(TimeSpan.Zero);
                         }
                     }
                     catch (Exception ex)
