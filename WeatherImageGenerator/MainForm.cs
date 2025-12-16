@@ -141,13 +141,20 @@ namespace WeatherImageGenerator
                 _logBuffer.Add(text);
             }
 
+            var trimmed = text.Trim();
+
             // If messages indicate ffmpeg running/done, update status/progress
-            if (text.Contains("[RUNNING]"))
+            if (trimmed.Contains("[RUNNING]"))
             {
                 SetStatus("Running...");
                 SetProgressMarquee(true);
             }
-            else if (text.Contains("[DONE]") || text.Contains("[FAIL]") || text.Contains("Video saved") || text.Contains("Video generation completed"))
+            else if (TryExtractProgress(trimmed, out var pct))
+            {
+                SetProgressValue(pct);
+                SetStatus($"Encoding... {pct:0}%");
+            }
+            else if (trimmed.Contains("[DONE]") || trimmed.Contains("[FAIL]") || trimmed.Contains("Video saved") || trimmed.Contains("Video generation completed"))
             {
                 SetStatus("Idle");
                 SetProgressMarquee(false);
@@ -207,6 +214,43 @@ namespace WeatherImageGenerator
 
             _progress.Style = marquee ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
             if (!marquee) _progress.Value = 0;
+        }
+
+        private void SetProgressValue(double pct)
+        {
+            if (_progress == null) return;
+            if (_progress.InvokeRequired)
+            {
+                _progress.BeginInvoke(new Action(() => SetProgressValue(pct)));
+                return;
+            }
+
+            _progress.Style = ProgressBarStyle.Blocks;
+            var clamped = (int)Math.Max(0, Math.Min(100, Math.Round(pct)));
+            _progress.Value = clamped;
+        }
+
+        private bool TryExtractProgress(string line, out double percent)
+        {
+            percent = 0;
+
+            // We only care about the condensed ffmpeg progress lines like "[MAIN] [#####] 42%"
+            if (!line.StartsWith("[MAIN]", StringComparison.OrdinalIgnoreCase)) return false;
+
+            var percentIdx = line.LastIndexOf('%');
+            if (percentIdx < 0 || percentIdx == 0) return false;
+
+            var start = line.LastIndexOf(' ', percentIdx);
+            if (start < 0 || start >= percentIdx) return false;
+
+            var numberSpan = line.Substring(start + 1, percentIdx - start - 1);
+            if (double.TryParse(numberSpan, out var value))
+            {
+                percent = Math.Max(0, Math.Min(100, value));
+                return true;
+            }
+
+            return false;
         }
 
         private void SetStatus(string status)
