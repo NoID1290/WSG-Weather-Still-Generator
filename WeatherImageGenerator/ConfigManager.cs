@@ -196,6 +196,9 @@ namespace WeatherImageGenerator
 
         [JsonPropertyName("EnableFadeTransitions")]
         public bool EnableFadeTransitions { get; set; } = false;
+
+        [JsonPropertyName("VerboseFfmpeg")]
+        public bool VerboseFfmpeg { get; set; } = false;
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace WeatherImageGenerator
 {
@@ -32,6 +33,21 @@ namespace WeatherImageGenerator
         private int _width;
         private int _height;
         private readonly string[] _extensions = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp" };
+
+        // FFmpeg output simplification
+        private string _lastFfmpegProgress = "";
+        private DateTime _lastFfmpegProgressLog = DateTime.MinValue;
+
+        // Estimated totals for progress calculation
+        private double _expectedTotalSeconds = 0;
+        private double _expectedTotalFrames = 1;
+
+        private readonly object _progressLock = new object();
+
+        /// <summary>
+        /// When true, show raw ffmpeg output. Default is false (simplified output).
+        /// </summary>
+        public bool FfmpegVerbose { get; set; } = false;
 
         public VideoGenerator(string workingDirectory)
         {
@@ -65,6 +81,19 @@ namespace WeatherImageGenerator
 
             // Build filter complex
             var filterComplex = BuildFilterComplex(images);
+
+            // Estimate expected total duration and frames for progress calculation
+            if (EnableFadeTransitions)
+            {
+                // If fades overlap, total duration = static durations + fades between images
+                _expectedTotalSeconds = StaticDuration * images.Count + FadeDuration * Math.Max(0, images.Count - 1);
+            }
+            else
+            {
+                // Without fades, each clip duration is Static + Fade (used as clip length)
+                _expectedTotalSeconds = (StaticDuration + FadeDuration) * images.Count;
+            }
+            _expectedTotalFrames = Math.Max(1.0, _expectedTotalSeconds * FrameRate);
 
             // Build and execute FFmpeg command
             var ffmpegCmd = BuildFFmpegCommand(images, filterComplex);
@@ -217,11 +246,17 @@ namespace WeatherImageGenerator
 
                 using (var process = new Process { StartInfo = processInfo, EnableRaisingEvents = true })
                 {
-                    process.OutputDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data); };
-                    process.ErrorDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data, System.ConsoleColor.Yellow); };
+                    // Simplify ffmpeg output unless verbose mode is enabled
+                    if (!FfmpegVerbose)
+                    {
+                        Logger.Log("[INFO] Simplified FFmpeg output enabled (set VideoGenerator.FfmpegVerbose = true for raw output).", ConsoleColor.DarkGray);
+                    }
+
+                    process.OutputDataReceived += (s, e) => { if (e.Data != null) HandleFfmpegLine(e.Data, false); };
+                    process.ErrorDataReceived += (s, e) => { if (e.Data != null) HandleFfmpegLine(e.Data, true); };
 
                     try
-                    {
+                    { 
                         process.Start();
                         process.BeginOutputReadLine();
                         process.BeginErrorReadLine();
@@ -246,8 +281,8 @@ namespace WeatherImageGenerator
 
                         using (var cmdProc = new Process { StartInfo = cmdInfo, EnableRaisingEvents = true })
                         {
-                            cmdProc.OutputDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data); };
-                            cmdProc.ErrorDataReceived += (s, e) => { if (e.Data != null) Logger.Log(e.Data, System.ConsoleColor.Yellow); };
+                            cmdProc.OutputDataReceived += (s, e) => { if (e.Data != null) HandleFfmpegLine(e.Data, false); };
+                            cmdProc.ErrorDataReceived += (s, e) => { if (e.Data != null) HandleFfmpegLine(e.Data, true); };
 
                             cmdProc.Start();
                             cmdProc.BeginOutputReadLine();
@@ -274,6 +309,104 @@ namespace WeatherImageGenerator
             {
                 Logger.Log($"[ERROR] Exception occurred: {ex.Message}", System.ConsoleColor.Red);
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Condenses ffmpeg output into concise progress updates and hides noisy lines unless verbose mode is enabled.
+        /// </summary>
+        private void HandleFfmpegLine(string data, bool isError)
+        {
+            if (string.IsNullOrWhiteSpace(data)) return;
+            var d = data.Trim();
+
+            // Parse common progress tokens emitted by ffmpeg (frame=, fps=, time=, bitrate=, speed=)
+            string frame = null, fps = null, time = null, speed = null, bitrate = null;
+            var parts = d.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var kv = part.Split(new[] { '=' }, 2);
+                if (kv.Length != 2) continue;
+                var key = kv[0].Trim().ToLowerInvariant();
+                var val = kv[1].Trim();
+                switch (key)
+                {
+                    case "frame": frame = val; break;
+                    case "fps": fps = val; break;
+                    case "time": time = val; break;
+                    case "speed": speed = val; break;
+                    case "bitrate": bitrate = val; break;
+                }
+            }
+
+            if (frame != null || fps != null || time != null || speed != null)
+            {
+                // Convert tokens
+                double parsedTimeSeconds = -1;
+                if (time != null)
+                {
+                    // time usually appears as HH:MM:SS.xx
+                    if (TimeSpan.TryParse(time, out var ts)) parsedTimeSeconds = ts.TotalSeconds;
+                }
+
+                int parsedFrame = -1;
+                if (frame != null) int.TryParse(frame, out parsedFrame);
+
+                double mainPercent = 0;
+                if (parsedTimeSeconds > 0 && _expectedTotalSeconds > 0)
+                {
+                    mainPercent = Math.Min(100.0, (parsedTimeSeconds / _expectedTotalSeconds) * 100.0);
+                }
+
+                double framePercent = 0;
+                if (parsedFrame > 0 && _expectedTotalFrames > 0)
+                {
+                    framePercent = Math.Min(100.0, (parsedFrame / _expectedTotalFrames) * 100.0);
+                }
+
+                // Build ASCII progress bars
+                string BuildBar(double pct, int width = 40)
+                {
+                    pct = Math.Max(0, Math.Min(100, pct));
+                    int filled = (int)Math.Round((pct / 100.0) * width);
+                    return "[" + new string('#', filled) + new string('-', Math.Max(0, width - filled)) + $"] {pct:0}%";
+                }
+
+                var topBar = $"[MAIN] {BuildBar(mainPercent)}";
+                var bottomBar = $"[FF]   {BuildBar(framePercent)} " +
+                                (frame != null ? $"frame={frame} " : "") +
+                                (fps != null ? $"fps={fps} " : "") +
+                                (time != null ? $"time={time} " : "") +
+                                (speed != null ? $"speed={speed} " : "") +
+                                (bitrate != null ? $"bitrate={bitrate} " : "");
+
+                var now = DateTime.UtcNow;
+                if ((topBar != _lastFfmpegProgress) || (now - _lastFfmpegProgressLog).TotalMilliseconds > 800)
+                {
+                    lock (_progressLock)
+                    {
+                        // Emit concise two-line progress block
+                        Logger.Log(topBar, ConsoleColor.Cyan);
+                        Logger.Log(bottomBar, ConsoleColor.DarkCyan);
+                        _lastFfmpegProgress = topBar;
+                        _lastFfmpegProgressLog = now;
+                    }
+                }
+
+                return;
+            }
+
+            // Treat anything with 'error' as an error
+            if (d.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || d.StartsWith("Error", StringComparison.OrdinalIgnoreCase))
+            {
+                Logger.Log($"[FFMPEG] {d}", System.ConsoleColor.Red);
+                return;
+            }
+
+            // If verbose mode enabled, show raw lines; otherwise keep console simple
+            if (FfmpegVerbose)
+            {
+                if (isError) Logger.Log(d, System.ConsoleColor.Yellow); else Logger.Log(d);
             }
         }
     }

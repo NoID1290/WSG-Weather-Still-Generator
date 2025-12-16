@@ -661,7 +661,8 @@ namespace WeatherImageGenerator
                     StaticDuration = videoConfig.StaticDurationSeconds,
                     FadeDuration = videoConfig.FadeDurationSeconds,
                     ResolutionMode = Enum.Parse<ResolutionMode>(videoConfig.ResolutionMode ?? "Mode1080p"),
-                    EnableFadeTransitions = videoConfig.EnableFadeTransitions
+                    EnableFadeTransitions = videoConfig.EnableFadeTransitions,
+                    FfmpegVerbose = videoConfig.VerboseFfmpeg
                 };
                 
                 if (videoGenerator.GenerateVideo())
