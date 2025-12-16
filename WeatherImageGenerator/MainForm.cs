@@ -115,13 +115,29 @@ namespace WeatherImageGenerator
                 try
                 {
                     var config = ConfigManager.LoadConfig();
-                    var outputDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
-                    var videoGenerator = new VideoGenerator(outputDir)
+                    var imageDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
+                    var videoDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), config.Video?.OutputDirectory ?? config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
+                    if (!System.IO.Directory.Exists(videoDir)) System.IO.Directory.CreateDirectory(videoDir);
+                    if (!System.IO.Directory.Exists(imageDir)) System.IO.Directory.CreateDirectory(imageDir);
+                    var outputName = config.Video?.OutputFileName ?? "slideshow_v3.mp4";
+                    var container = (config.Video?.Container ?? "mp4").Trim().Trim('.');
+                    var outputPath = System.IO.Path.Combine(videoDir, System.IO.Path.ChangeExtension(outputName, container));
+
+                    var videoGenerator = new VideoGenerator(imageDir)
                     {
+                        WorkingDirectory = videoDir,
+                        ImageFolder = imageDir,
+                        OutputFile = outputPath,
                         StaticDuration = config.Video?.StaticDurationSeconds ?? 8,
                         FadeDuration = config.Video?.FadeDurationSeconds ?? 0.5,
+                        FrameRate = config.Video?.FrameRate ?? 30,
                         ResolutionMode = Enum.Parse<ResolutionMode>(config.Video?.ResolutionMode ?? "Mode1080p"),
-                        EnableFadeTransitions = config.Video?.EnableFadeTransitions ?? false
+                        EnableFadeTransitions = config.Video?.EnableFadeTransitions ?? false,
+                        VideoCodec = config.Video?.VideoCodec ?? "libx264",
+                        VideoBitrate = config.Video?.VideoBitrate ?? "4M",
+                        Container = container,
+                        FfmpegVerbose = config.Video?.VerboseFfmpeg ?? false,
+                        ShowFfmpegOutputInGui = config.Video?.ShowFfmpegOutputInGui ?? true
                     };
 
                     videoGenerator.GenerateVideo();

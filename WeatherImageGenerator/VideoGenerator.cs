@@ -29,6 +29,10 @@ namespace WeatherImageGenerator
         public int FrameRate { get; set; } = 30;                 // Output framerate
         public ResolutionMode ResolutionMode { get; set; } = ResolutionMode.Mode1080p;
         public bool EnableFadeTransitions { get; set; } = false;
+        public string VideoCodec { get; set; } = "libx264";     // FFmpeg video codec
+        public string VideoBitrate { get; set; } = "4M";        // Target bitrate (e.g., 4M)
+        public string Container { get; set; } = "mp4";          // Output container/extension
+        public bool ShowFfmpegOutputInGui { get; set; } = true;  // Controls whether to emit ffmpeg logs to Logger
 
         private int _width;
         private int _height;
@@ -94,6 +98,12 @@ namespace WeatherImageGenerator
                 _expectedTotalSeconds = (StaticDuration + FadeDuration) * images.Count;
             }
             _expectedTotalFrames = Math.Max(1.0, _expectedTotalSeconds * FrameRate);
+
+            if (!string.IsNullOrWhiteSpace(Container))
+            {
+                var ext = Container.Trim().TrimStart('.') ;
+                OutputFile = Path.ChangeExtension(OutputFile, ext);
+            }
 
             // Build and execute FFmpeg command
             var ffmpegCmd = BuildFFmpegCommand(images, filterComplex);
@@ -218,7 +228,22 @@ namespace WeatherImageGenerator
             }
 
             // Video encoding settings
-            sb.Append(" -c:v libx264 -preset medium -crf 23");
+            var codec = string.IsNullOrWhiteSpace(VideoCodec) ? "libx264" : VideoCodec;
+            sb.Append($" -c:v {codec}");
+
+            if (!string.IsNullOrWhiteSpace(VideoBitrate))
+            {
+                sb.Append($" -b:v {VideoBitrate}");
+            }
+            else
+            {
+                sb.Append(" -crf 23");
+            }
+
+            if (string.Equals(Container, "mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                sb.Append(" -movflags +faststart");
+            }
             sb.Append($" \"{OutputFile}\"");
 
             return sb.ToString();
@@ -386,8 +411,11 @@ namespace WeatherImageGenerator
                     lock (_progressLock)
                     {
                         // Emit concise two-line progress block
-                        Logger.Log(topBar, ConsoleColor.Cyan);
-                        Logger.Log(bottomBar, ConsoleColor.DarkCyan);
+                        if (ShowFfmpegOutputInGui)
+                        {
+                            Logger.Log(topBar, ConsoleColor.Cyan);
+                            Logger.Log(bottomBar, ConsoleColor.DarkCyan);
+                        }
                         _lastFfmpegProgress = topBar;
                         _lastFfmpegProgressLog = now;
                     }
@@ -399,12 +427,12 @@ namespace WeatherImageGenerator
             // Treat anything with 'error' as an error
             if (d.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || d.StartsWith("Error", StringComparison.OrdinalIgnoreCase))
             {
-                Logger.Log($"[FFMPEG] {d}", System.ConsoleColor.Red);
+                if (ShowFfmpegOutputInGui) Logger.Log($"[FFMPEG] {d}", System.ConsoleColor.Red);
                 return;
             }
 
             // If verbose mode enabled, show raw lines; otherwise keep console simple
-            if (FfmpegVerbose)
+            if (FfmpegVerbose && ShowFfmpegOutputInGui)
             {
                 if (isError) Logger.Log(d, System.ConsoleColor.Yellow); else Logger.Log(d);
             }

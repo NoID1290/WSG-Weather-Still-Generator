@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing; // NuGet: System.Drawing.Common
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq; 
 using System.Net.Http; 
@@ -326,8 +327,8 @@ namespace WeatherImageGenerator
 
                 // Default alert filename set to 10_ so it sorts / displays after primary images
                 string filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
-                bitmap.Save(filename);
-                Logger.Log($"✓ Generated: {filename}");
+                var saved = SaveImage(bitmap, filename, imgConfig);
+                Logger.Log($"✓ Generated: {saved}");
             }
         }
 
@@ -396,15 +397,18 @@ namespace WeatherImageGenerator
 
                 // Default maps filename uses 00_ prefix so it's easily readable/first in listings
                 string filename = Path.Combine(outputDir, config.WeatherImages?.WeatherMapsFilename ?? "00_WeatherMaps.png");
-                bitmap.Save(filename);
-                Logger.Log($"✓ Generated: {filename}");
+                var saved = SaveImage(bitmap, filename, imgConfig);
+                Logger.Log($"✓ Generated: {saved}");
             }
         }
 
         static void GenerateCurrentWeatherImage(WeatherForecast weatherData, string outputDir)
         {
-            int width = 1920;
-            int height = 1080;
+            var config = ConfigManager.LoadConfig();
+            var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
+
+            int width = imgConfig.ImageWidth;
+            int height = imgConfig.ImageHeight;
             
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -445,16 +449,19 @@ namespace WeatherImageGenerator
                     graphics.DrawString(windText, dataFont, whiteBrush, new PointF(50, 460));
                 }
 
-                string filename = Path.Combine(outputDir, "1_CurrentWeather.png");
-                bitmap.Save(filename);
-                Logger.Log($"✓ Generated: {filename}");
+                string filename = Path.Combine(outputDir, config.WeatherImages?.CurrentWeatherFilename ?? "1_CurrentWeather.png");
+                var saved = SaveImage(bitmap, filename, imgConfig);
+                Logger.Log($"✓ Generated: {saved}");
             }
         }
 
         static void GenerateForecastSummaryImage(WeatherForecast weatherData, string outputDir)
         {
-            int width = 1920;
-            int height = 1080;
+            var config = ConfigManager.LoadConfig();
+            var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
+
+            int width = imgConfig.ImageWidth;
+            int height = imgConfig.ImageHeight;
             
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -503,9 +510,9 @@ namespace WeatherImageGenerator
                     }
                 }
 
-                string filename = Path.Combine(outputDir, "2_DailyForecast.png");
-                bitmap.Save(filename);
-                Logger.Log($"✓ Generated: {filename}");
+                string filename = Path.Combine(outputDir, config.WeatherImages?.DailyForecastFilename ?? "2_DailyForecast.png");
+                var saved = SaveImage(bitmap, filename, imgConfig);
+                Logger.Log($"✓ Generated: {saved}");
             }
         }
 
@@ -584,8 +591,8 @@ namespace WeatherImageGenerator
                 string sanitized = string.Concat(locationName.Where(c => !Path.GetInvalidFileNameChars().Contains(c))).Replace(' ', '_');
                 if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "location" + displayNumber;
                 string filename = Path.Combine(outputDir, $"{displayNumber}_DetailedWeather_{sanitized}.png");
-                bitmap.Save(filename);
-                Logger.Log($"✓ Generated: {filename}");
+                var saved = SaveImage(bitmap, filename, imgConfig);
+                Logger.Log($"✓ Generated: {saved}");
             }
         }
 
@@ -612,9 +619,31 @@ namespace WeatherImageGenerator
                 }
 
                 string filename = Path.Combine(outputDir, config.WeatherImages?.TemperatureWatermarkFilename ?? "temp_watermark_alpha.png.IGNORE");
-                bitmap.Save(filename);
-                Logger.Log($"✓ Generated: {filename}");
+                var saved = SaveImage(bitmap, filename, config.ImageGeneration ?? new ImageGenerationSettings());
+                Logger.Log($"✓ Generated: {saved}");
             }
+        }
+
+        private static string SaveImage(Bitmap bitmap, string filename, ImageGenerationSettings imgConfig)
+        {
+            var ext = (imgConfig.ImageFormat ?? "png").Trim().Trim('.');
+            var format = ResolveImageFormat(ext);
+            var finalPath = Path.ChangeExtension(filename, ext);
+            bitmap.Save(finalPath, format);
+            return finalPath;
+        }
+
+        private static ImageFormat ResolveImageFormat(string ext)
+        {
+            return ext.ToLowerInvariant() switch
+            {
+                "png" => ImageFormat.Png,
+                "jpg" => ImageFormat.Jpeg,
+                "jpeg" => ImageFormat.Jpeg,
+                "bmp" => ImageFormat.Bmp,
+                "gif" => ImageFormat.Gif,
+                _ => ImageFormat.Png
+            };
         }
 
         static void CreateTestImages()
@@ -627,7 +656,8 @@ namespace WeatherImageGenerator
 
             for (int i = 0; i < 4; i++)
             {
-                int width = 1920, height = 1080;
+                int width = config.ImageGeneration?.ImageWidth ?? 1920;
+                int height = config.ImageGeneration?.ImageHeight ?? 1080;
                 using (var bmp = new System.Drawing.Bitmap(width, height))
                 using (var g = System.Drawing.Graphics.FromImage(bmp))
                 {
@@ -640,8 +670,8 @@ namespace WeatherImageGenerator
                     }
 
                     string filename = Path.Combine(outputDir, $"test_{i + 1:D2}.png");
-                    bmp.Save(filename);
-                    Logger.Log($"Created: {filename}");
+                    var saved = SaveImage(bmp, filename, config.ImageGeneration ?? new ImageGenerationSettings());
+                    Logger.Log($"Created: {saved}");
                 }
             }
 
@@ -656,13 +686,29 @@ namespace WeatherImageGenerator
                 var videoConfig = config.Video ?? new VideoSettings();
 
                 Logger.Log("Starting video generation...");
+                var container = (videoConfig.Container ?? "mp4").Trim().Trim('.');
+                var videoDir = Path.Combine(Directory.GetCurrentDirectory(), videoConfig.OutputDirectory ?? config.ImageGeneration?.OutputDirectory ?? outputDir);
+                var outputName = Path.ChangeExtension(videoConfig.OutputFileName ?? "slideshow_v3.mp4", container);
+                var outputPath = Path.Combine(videoDir, outputName);
+
+                if (!Directory.Exists(videoDir)) Directory.CreateDirectory(videoDir);
+                if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
+
                 var videoGenerator = new VideoGenerator(outputDir)
                 {
+                    WorkingDirectory = videoDir,
+                    ImageFolder = outputDir,
+                    OutputFile = outputPath,
                     StaticDuration = videoConfig.StaticDurationSeconds,
                     FadeDuration = videoConfig.FadeDurationSeconds,
+                    FrameRate = videoConfig.FrameRate,
                     ResolutionMode = Enum.Parse<ResolutionMode>(videoConfig.ResolutionMode ?? "Mode1080p"),
                     EnableFadeTransitions = videoConfig.EnableFadeTransitions,
-                    FfmpegVerbose = videoConfig.VerboseFfmpeg
+                    VideoCodec = videoConfig.VideoCodec ?? "libx264",
+                    VideoBitrate = videoConfig.VideoBitrate ?? "4M",
+                    Container = container,
+                    FfmpegVerbose = videoConfig.VerboseFfmpeg,
+                    ShowFfmpegOutputInGui = videoConfig.ShowFfmpegOutputInGui
                 };
                 
                 if (videoGenerator.GenerateVideo())

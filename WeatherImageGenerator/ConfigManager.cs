@@ -164,6 +164,9 @@ namespace WeatherImageGenerator
         [JsonPropertyName("ImageHeight")]
         public int ImageHeight { get; set; } = 1080;
 
+        [JsonPropertyName("ImageFormat")]
+        public string? ImageFormat { get; set; } = "png";
+
         [JsonPropertyName("MarginPixels")]
         public float MarginPixels { get; set; } = 50f;
 
@@ -194,11 +197,26 @@ namespace WeatherImageGenerator
         [JsonPropertyName("ResolutionMode")]
         public string? ResolutionMode { get; set; } = "Mode1080p";
 
+        [JsonPropertyName("VideoCodec")]
+        public string? VideoCodec { get; set; } = "libx264";
+
+        [JsonPropertyName("VideoBitrate")]
+        public string? VideoBitrate { get; set; } = "4M";
+
+        [JsonPropertyName("Container")]
+        public string? Container { get; set; } = "mp4";
+
+        [JsonPropertyName("OutputDirectory")]
+        public string? OutputDirectory { get; set; }
+
         [JsonPropertyName("EnableFadeTransitions")]
         public bool EnableFadeTransitions { get; set; } = false;
 
         [JsonPropertyName("VerboseFfmpeg")]
         public bool VerboseFfmpeg { get; set; } = false;
+
+        [JsonPropertyName("ShowFfmpegOutputInGui")]
+        public bool ShowFfmpegOutputInGui { get; set; } = true;
     }
 
     /// <summary>
