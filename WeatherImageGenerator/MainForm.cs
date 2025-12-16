@@ -349,11 +349,11 @@ namespace WeatherImageGenerator
                 var lblCompany = new Label { Text = company, Left = 16, Top = 64, Width = 520 };
                 var lblCopyright = new Label { Text = copyright, Left = 16, Top = 84, Width = 520 };
 
-                var githubUrl = "https://github.com/yourusername/weather-still-api";
+                var githubUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator";
                 var linkGithub = new LinkLabel { Text = githubUrl, Left = 16, Top = 110, Width = 520, LinkColor = System.Drawing.Color.Blue };
                 linkGithub.LinkClicked += (s, e) => OpenUrl(githubUrl);
 
-                var licenseUrl = "https://github.com/yourusername/weather-still-api/blob/main/LICENSE";
+                var licenseUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator/blob/main/LICENSE";
                 var linkLicense = new LinkLabel { Text = "MIT License", Left = 16, Top = 136, Width = 520, LinkColor = System.Drawing.Color.Blue };
                 linkLicense.LinkClicked += (s, e) => OpenUrl(licenseUrl);
 
