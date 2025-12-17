@@ -17,6 +17,9 @@ namespace WeatherImageGenerator
     {
         private readonly CultureInfo _culture = CultureInfo.InvariantCulture;
 
+        // Event to report ffmpeg progress (0-100) and a short status/detail string
+        public static event Action<double, string>? VideoProgressUpdated;
+
         // Settings
         public string WorkingDirectory { get; set; }
         public string ImageFolder { get; set; }
@@ -416,6 +419,10 @@ namespace WeatherImageGenerator
                             Logger.Log(topBar, ConsoleColor.Cyan);
                             Logger.Log(bottomBar, ConsoleColor.DarkCyan);
                         }
+
+                        // Also notify any GUI listeners specifically about the ffmpeg progress
+                        try { VideoProgressUpdated?.Invoke(mainPercent, bottomBar); } catch { }
+
                         _lastFfmpegProgress = topBar;
                         _lastFfmpegProgressLog = now;
                     }

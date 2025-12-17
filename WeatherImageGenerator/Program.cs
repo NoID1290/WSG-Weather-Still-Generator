@@ -112,6 +112,9 @@ namespace WeatherImageGenerator
         // Event used by the GUI to show the remaining time while the background worker is sleeping
         public static event Action<TimeSpan>? SleepRemainingUpdated;
 
+        // Event that reports overall progress of the update cycle (0-100) and a short status message
+        public static event Action<double, string>? ProgressUpdated;
+
         public static async Task RunAsync(CancellationToken cancellationToken = default)
         {
             // Load configuration
@@ -132,6 +135,8 @@ namespace WeatherImageGenerator
                     try
                     {
                         Logger.Log($"\n--- Starting Update Cycle: {DateTime.Now} ---");
+                        // Notify GUI we are at the beginning of the cycle
+                        ProgressUpdated?.Invoke(0, "Starting update cycle");
                         Logger.Log($"Fetching weather data...");
                         
                         // Array to store results for all 7 locations
@@ -151,6 +156,13 @@ namespace WeatherImageGenerator
                             {
                                 Logger.Log($"X Failed to fetch for {loc}: {ex.Message}");
                                 dataFetchSuccess = false; 
+                            }
+
+                            // Report incremental fetch progress (15% of total cycle)
+                            if (locations.Length > 0)
+                            {
+                                var fetchPct = ((i + 1) / (double)locations.Length) * 15.0;
+                                ProgressUpdated?.Invoke(fetchPct, $"Fetching weather ({i + 1}/{locations.Length})");
                             }
                         }
                         // Fetch Weather Alert Data from ECCC
@@ -186,6 +198,11 @@ namespace WeatherImageGenerator
                         }
 
                         Logger.Log("Generating still images...");
+                        // Image generation comprises the bulk of the cycle (about 65%)
+                        ProgressUpdated?.Invoke(15, "Generating still images");
+
+                        int imageSteps = Math.Max(1, locations.Length + 3); // locations + maps + apng + alerts
+                        int imageStepsCompleted = 0;
 
                         // --- IMAGE GENERATION ---
                         
@@ -202,24 +219,37 @@ namespace WeatherImageGenerator
                         {
                             if (allForecasts[i] != null)
                                 GenerateDetailedWeatherImage(allForecasts[i]!, outputDir, i, locations[i]);
-                        }   
+
+                            imageStepsCompleted++;
+                            var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0;
+                            ProgressUpdated?.Invoke(pct, $"Generating images ({imageStepsCompleted}/{imageSteps})");
+                        }  
 
 
 
                         // 4. Maps Image
                         GenerateMapsImage(allForecasts, locations, outputDir);
+                        imageStepsCompleted++;
+                        ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 5. APNG Helper
                         if (allForecasts[0] != null)
-                        GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
+                            GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
+                        imageStepsCompleted++;
+                        ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 6. WEATHER ALERTS from ECCC
                         GenerateAlertsImage(await ECCC.FetchAllAlerts(httpClient), outputDir);
+                        imageStepsCompleted++;
+                        ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 7. Video Generation (Optional)
-                        StartMakeVideo(outputDir);    
+                        ProgressUpdated?.Invoke(80.0, "Starting video generation");
 
                         Logger.Log($"✓ Cycle Complete. Images saved to: {outputDir}");
+
+                        // Ensure GUI reaches 100% at completion
+                        ProgressUpdated?.Invoke(100.0, "Cycle complete");
 
                         // Wait Logic
                         if (config.RefreshTimeMinutes > 0)
@@ -275,6 +305,8 @@ namespace WeatherImageGenerator
                     catch (Exception ex)
                     {
                         Logger.Log($"Critical Global Error: {ex.Message}", ConsoleColor.Red);
+                        // Notify GUI of failure
+                        ProgressUpdated?.Invoke(0.0, "Error");
                         Logger.Log("Retrying in 1 minute...");
                         try { await Task.Delay(60000, cancellationToken); } catch (OperationCanceledException) { break; }
                     }
@@ -728,6 +760,7 @@ namespace WeatherImageGenerator
                 var videoConfig = config.Video ?? new VideoSettings();
 
                 Logger.Log("Starting video generation...");
+                ProgressUpdated?.Invoke(80.0, "Starting video generation");
                 var container = (videoConfig.Container ?? "mp4").Trim().Trim('.');
                 var videoDir = Path.Combine(Directory.GetCurrentDirectory(), videoConfig.OutputDirectory ?? config.ImageGeneration?.OutputDirectory ?? outputDir);
                 var outputName = Path.ChangeExtension(videoConfig.OutputFileName ?? "slideshow_v3.mp4", container);
@@ -756,10 +789,12 @@ namespace WeatherImageGenerator
                 if (videoGenerator.GenerateVideo())
                 {
                     Logger.Log("✓ Video generation completed successfully.");
+                    ProgressUpdated?.Invoke(100.0, "Video complete");
                 }
                 else
                 {
                     Logger.Log("✗ Video generation failed.");
+                    ProgressUpdated?.Invoke(0.0, "Video failed");
                 }
             }
             catch (Exception ex)

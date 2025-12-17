@@ -13,9 +13,14 @@ namespace WeatherImageGenerator
         private readonly System.Collections.Generic.List<string> _logBuffer = new System.Collections.Generic.List<string>();
         private ComboBox? _cmbFilter;
         private TextBox? _txtSearch;
-        private ProgressBar? _progress;
+        private TextProgressBar? _progress;
         private Label? _statusLabel;
         private Label? _sleepLabel;
+
+        // Video phase mapping (when ffmpeg reports 0-100 we map it into [videoBase, 100])
+        private double _videoBase = 80.0;
+        private double _videoRange = 20.0;
+        private bool _videoActive = false;
 
         public MainForm()
         {
@@ -39,8 +44,10 @@ namespace WeatherImageGenerator
             _txtSearch.PlaceholderText = "Search logs...";
             _txtSearch.TextChanged += (s, e) => RefreshLogView();
 
-            _progress = new ProgressBar { Left = 10, Top = 46, Width = 300, Height = 18, Style = ProgressBarStyle.Blocks };
-            // Make room for the sleep countdown label to the right of status
+            // Core progress bar (used as the visual fill) with embedded percentage text
+            _progress = new TextProgressBar { Left = 10, Top = 46, Width = 300, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+
+            // Make room for the activity/status label to the right
             _statusLabel = new Label { Left = 320, Top = 46, Width = 300, Text = "Idle" };
             _sleepLabel = new Label { Left = 630, Top = 46, Width = 220, Text = string.Empty };
 
@@ -53,6 +60,10 @@ namespace WeatherImageGenerator
 
             // Subscribe to sleep updates from the background worker so we can show a countdown
             Program.SleepRemainingUpdated += (ts) => SetSleepRemaining(ts);
+
+            // Subscribe to overall progress and video-specific progress
+            Program.ProgressUpdated += (pct, msg) => OnProgramProgress(pct, msg);
+            VideoGenerator.VideoProgressUpdated += (pct, msg) => OnVideoProgress(pct, msg);
 
             settingsBtn.Click += (s, e) =>
             {
@@ -200,18 +211,28 @@ namespace WeatherImageGenerator
             // If messages indicate ffmpeg running/done, update status/progress
             if (trimmed.Contains("[RUNNING]"))
             {
+                // Video/FFmpeg started
+                _videoActive = true;
                 SetStatus("Running...");
                 SetProgressMarquee(true);
             }
             else if (TryExtractProgress(trimmed, out var pct))
             {
-                SetProgressValue(pct);
-                SetStatus($"Encoding... {pct:0}%");
+                // Legacy ffmpeg condensed progress lines - map to video progress range
+                OnVideoProgress(pct, $"Encoding... {pct:0}%");
             }
             else if (trimmed.Contains("[DONE]") || trimmed.Contains("[FAIL]") || trimmed.Contains("Video saved") || trimmed.Contains("Video generation completed"))
             {
+                // Video finished (success or fail)
+                _videoActive = false;
                 SetStatus("Idle");
                 SetProgressMarquee(false);
+
+                // If video save is present, push progress to 100
+                if (trimmed.Contains("Video saved") || trimmed.Contains("Video generation completed") || trimmed.Contains("[DONE]"))
+                {
+                    SetOverallProgress(100.0, "Video complete");
+                }
             }
 
             RefreshLogView();
@@ -266,8 +287,15 @@ namespace WeatherImageGenerator
                 return;
             }
 
-            _progress.Style = marquee ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
-            if (!marquee) _progress.Value = 0;
+            if (marquee)
+                _progress.StartMarquee();
+            else
+            {
+                _progress.StopMarquee();
+                _progress.Style = ProgressBarStyle.Continuous;
+                _progress.Value = 0;
+                _progress.Text = string.Empty;
+            }
         }
 
         private void SetProgressValue(double pct)
@@ -279,9 +307,13 @@ namespace WeatherImageGenerator
                 return;
             }
 
-            _progress.Style = ProgressBarStyle.Blocks;
+            _progress.Style = ProgressBarStyle.Continuous;
             var clamped = (int)Math.Max(0, Math.Min(100, Math.Round(pct)));
             _progress.Value = clamped;
+
+            // Update overlay text inside the bar
+            _progress.Text = $"{clamped}%";
+            _progress.Invalidate();
         }
 
         private bool TryExtractProgress(string line, out double percent)
@@ -307,6 +339,51 @@ namespace WeatherImageGenerator
             return false;
         }
 
+        // Called when Program reports broad progress (fetch/images/video start/complete)
+        private void OnProgramProgress(double pct, string status)
+        {
+            // If program reports a video start value, record mapping
+            if (status != null && status.ToLowerInvariant().Contains("video"))
+            {
+                _videoActive = true;
+                _videoBase = pct;
+                _videoRange = Math.Max(0.0, 100.0 - _videoBase);
+            }
+
+            SetOverallProgress(pct, status);
+        }
+
+        // Called when ffmpeg/video reports a fine-grained percent (0-100)
+        private void OnVideoProgress(double pct, string status)
+        {
+            // If a video phase mapping exists, map ffmpeg percent into overall percent
+            if (_videoActive)
+            {
+                var overall = _videoBase + (pct / 100.0) * _videoRange;
+                SetOverallProgress(overall, status);
+            }
+            else
+            {
+                // No mapping known; show raw percent
+                SetOverallProgress(pct, status);
+            }
+        }
+
+        private void SetOverallProgress(double pct, string status)
+        {
+            // Normalize
+            var clamped = Math.Max(0.0, Math.Min(100.0, pct));
+            SetProgressMarquee(false);
+            SetProgressValue(clamped);
+            SetStatus(status ?? string.Empty);
+
+            // If we've reached 100 and not in video phase, clear video flag
+            if (clamped >= 100.0)
+            {
+                _videoActive = false;
+            }
+        }
+
         private void SetStatus(string status)
         {
             if (_statusLabel == null) return;
@@ -315,12 +392,106 @@ namespace WeatherImageGenerator
                 _statusLabel.BeginInvoke(new Action(() => SetStatus(status)));
                 return;
             }
+
+            // Gentle color coding for statuses
+            if (status == null) status = string.Empty;
+            var lower = status.ToLowerInvariant();
+            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("fail")) _statusLabel.ForeColor = Color.Red;
+            else if (lower.Contains("encoding") || lower.Contains("video") || lower.Contains("running")) _statusLabel.ForeColor = Color.Cyan;
+            else _statusLabel.ForeColor = Color.Black;
+
             _statusLabel.Text = status;
         }
     }
 }
 
 /* Note: No Designer file is required for this simple form — controls are created at runtime */
+
+        // Custom progress bar that paints a centered overlay text (percentage) and supports a simple marquee animation.
+        internal class TextProgressBar : ProgressBar
+        {
+            private readonly System.Windows.Forms.Timer _marqueeTimer;
+            private int _marqueeOffset = 0;
+            private int _marqueeWidth = 80;
+
+            public TextProgressBar()
+            {
+                // We handle painting ourselves
+                SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+                _marqueeTimer = new System.Windows.Forms.Timer { Interval = 60 };
+                _marqueeTimer.Tick += (s, e) =>
+                {
+                    _marqueeOffset = (_marqueeOffset + 8) % (this.Width + _marqueeWidth);
+                    this.Invalidate();
+                };
+
+                // Provide a pleasant default look
+                this.ForeColor = Color.Black;
+                this.BackColor = Color.FromArgb(240, 240, 240);
+            }
+
+            public void StartMarquee()
+            {
+                this.Style = ProgressBarStyle.Marquee;
+                _marqueeTimer.Start();
+                this.Invalidate();
+            }
+
+            public void StopMarquee()
+            {
+                _marqueeTimer.Stop();
+                _marqueeOffset = 0;
+                this.Invalidate();
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                var rect = this.ClientRectangle;
+
+                // Background gradient
+                using (var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect, Color.FromArgb(240, 240, 240), Color.FromArgb(220, 220, 220), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+                    e.Graphics.FillRectangle(bg, rect);
+
+                // Draw progress or marquee
+                if (this.Style == ProgressBarStyle.Marquee)
+                {
+                    int w = Math.Min(_marqueeWidth, rect.Width);
+                    int x = _marqueeOffset - w;
+                    var mar = new Rectangle(x, 2, w, rect.Height - 4);
+                    if (mar.Width > 0)
+                    {
+                        using (var b = new System.Drawing.Drawing2D.LinearGradientBrush(mar, Color.FromArgb(150, 200, 255), Color.FromArgb(100, 160, 255), 0f))
+                            e.Graphics.FillRectangle(b, mar);
+                    }
+                }
+                else
+                {
+                    double pct = (this.Maximum > this.Minimum) ? (this.Value - this.Minimum) / (double)(this.Maximum - this.Minimum) : 0.0;
+                    int width = (int)Math.Round(rect.Width * pct);
+                    if (width > 0)
+                    {
+                        var fill = new Rectangle(0, 2, width, rect.Height - 4);
+                        using (var g = new System.Drawing.Drawing2D.LinearGradientBrush(fill, Color.FromArgb(105, 180, 255), Color.FromArgb(40, 120, 255), System.Drawing.Drawing2D.LinearGradientMode.Horizontal))
+                            e.Graphics.FillRectangle(g, fill);
+                    }
+                }
+
+                // Border
+                using (var p = new Pen(Color.FromArgb(170, 170, 170)))
+                    e.Graphics.DrawRectangle(p, 0, 0, rect.Width - 1, rect.Height - 1);
+
+                // Centered text (use Text property if set, otherwise default to percent)
+                string text = string.IsNullOrEmpty(this.Text) ? (this.Maximum > 0 ? $"{(int)Math.Round((this.Value / (double)this.Maximum) * 100.0)}%" : "0%") : this.Text;
+                Color textColor = Color.Black;
+                try
+                {
+                    if (this.Value / (double)Math.Max(1, this.Maximum) > 0.5) textColor = Color.White;
+                }
+                catch { }
+
+                TextRenderer.DrawText(e.Graphics, text, this.Font, rect, textColor, System.Windows.Forms.TextFormatFlags.HorizontalCenter | System.Windows.Forms.TextFormatFlags.VerticalCenter);
+            }
+        }
 
         // A compact About dialog kept in the same file to avoid namespace collisions.
         internal class AboutDialog : Form
