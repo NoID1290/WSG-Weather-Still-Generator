@@ -19,7 +19,9 @@ param(
     [Parameter(Mandatory=$false)]
     [switch]$AttachAssets,
     [Parameter(Mandatory=$false)]
-    [switch]$SkipVersion
+    [switch]$SkipVersion,
+    [Parameter(Mandatory=$false)]
+    [switch]$NoRelease
 )
 
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
@@ -32,6 +34,7 @@ if (-not $?) {
 
 Write-Host "[START] Auto-push process..." -ForegroundColor Cyan
 Write-Host "[TYPE] Update type: $Type" -ForegroundColor Yellow
+Write-Host "[FLAGS] NoRelease: $NoRelease   AttachAssets: $AttachAssets   SkipVersion: $SkipVersion" -ForegroundColor Yellow
 
 # Read the project file
 [xml]$projectFile = Get-Content $projectFilePath
@@ -178,29 +181,37 @@ if (-not $existingTag) {
     Write-Host "[INFO] Tag $tagName already exists; skipping tag creation" -ForegroundColor Yellow
 }
 
-# If GitHub CLI is available, create a GitHub release so shields using /v/release work
-$ghCmd = Get-Command gh -ErrorAction SilentlyContinue
-if ($ghCmd) {
-    # Check if release already exists
-    $releaseCheck = gh release view $tagName 2>$null
-    if (-not $releaseCheck) {
-        Write-Host "[RELEASE] Creating GitHub release for $tagName" -ForegroundColor Cyan
-        gh release create $tagName --title "$tagName" --notes "Automated release for $tagName" --target $Branch
-        if ($?) {
-            Write-Host "[SUCCESS] GitHub release created: $tagName" -ForegroundColor Green
+# If NoRelease is set, skip creating a GitHub release
+if ($NoRelease) {
+    Write-Host "[INFO] NoRelease flag is set; skipping GitHub release creation and upload" -ForegroundColor Yellow
+} else {
+    # If GitHub CLI is available, create a GitHub release so shields using /v/release work
+    $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
+    if ($ghCmd) {
+        # Check if release already exists
+        $releaseCheck = gh release view $tagName 2>$null
+        if (-not $releaseCheck) {
+            Write-Host "[RELEASE] Creating GitHub release for $tagName" -ForegroundColor Cyan
+            gh release create $tagName --title "$tagName" --notes "Automated release for $tagName" --target $Branch
+            if ($?) {
+                Write-Host "[SUCCESS] GitHub release created: $tagName" -ForegroundColor Green
+            } else {
+                Write-Host "[WARNING] Failed to create GitHub release via gh CLI" -ForegroundColor Yellow
+            }
         } else {
-            Write-Host "[WARNING] Failed to create GitHub release via gh CLI" -ForegroundColor Yellow
+            Write-Host "[INFO] GitHub release $tagName already exists; skipping" -ForegroundColor Yellow
         }
     } else {
-        Write-Host "[INFO] GitHub release $tagName already exists; skipping" -ForegroundColor Yellow
+        Write-Host "[INFO] 'gh' CLI not found; skipping GitHub release creation" -ForegroundColor Yellow
     }
-} else {
-    Write-Host "[INFO] 'gh' CLI not found; skipping GitHub release creation" -ForegroundColor Yellow
-}
+} 
 
 # If requested, build the project, zip artifacts, and upload to the GitHub release
 if ($AttachAssets) {
-    Write-Host "[ASSETS] AttachAssets requested; building and uploading artifacts" -ForegroundColor Cyan
+    if ($NoRelease) {
+        Write-Host "[INFO] AttachAssets was requested but NoRelease is set; skipping asset upload" -ForegroundColor Yellow
+    } else {
+        Write-Host "[ASSETS] AttachAssets requested; building and uploading artifacts" -ForegroundColor Cyan
 
     # location for published artifacts
     $artifactRoot = Join-Path -Path (Split-Path -Parent $projectFilePath) -ChildPath "artifacts"
@@ -235,6 +246,7 @@ if ($AttachAssets) {
         } else {
             Write-Host "[INFO] 'gh' CLI not found; cannot upload assets" -ForegroundColor Yellow
         }
+    }
     }
 }
 
