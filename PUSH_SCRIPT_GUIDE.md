@@ -53,6 +53,7 @@ The `push.ps1` script automatically increments your version number and pushes to
 | `Branch` | string | "main" | Target branch for push |
 | `AttachAssets` | switch | (none) | Build/publish and attach a zip artifact to the release |
 | `SkipVersion` | switch | (none) | Skip version bump and project/assembly updates (useful when only attaching assets) |
+| `NoRelease` | switch | (none) | Skip creating a GitHub release and uploading assets |
 
 ## Examples
 ```powershell
