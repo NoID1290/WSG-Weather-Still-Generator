@@ -7,11 +7,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("WSG-WeatherImageGenerator")]
+[assembly: AssemblyTitle("WSG-WeatherStillGenerator")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("NoID Softwork")]
-[assembly: AssemblyProduct("WSG-WeatherImageGenerator")]
+[assembly: AssemblyProduct("WSG-WeatherStillGenerator")]
 [assembly: AssemblyCopyright("© NoID Softwork 2020-2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

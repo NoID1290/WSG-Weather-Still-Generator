@@ -20,7 +20,7 @@ namespace WeatherImageGenerator
         public MainForm()
         {
 
-            this.Text = "Weather Image Generator — GUI Console";
+            this.Text = "WSG - WeatherStillGenerator";
             this.Width = 900;
             this.Height = 600;
 
