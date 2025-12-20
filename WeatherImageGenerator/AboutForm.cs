@@ -9,7 +9,7 @@ namespace WSG_WeatherImageGenerator.Forms
     [Obsolete("Replaced by AboutDialog in MainForm.cs")]
     public class AboutForm_Old : Form
     {
-        public AboutForm()
+        public AboutForm_Old()
         {
             this.Text = "About";
             this.FormBorderStyle = FormBorderStyle.FixedDialog;

@@ -12,13 +12,14 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("NoID Softwork")]
 [assembly: AssemblyProduct("WSG-WeatherStillGenerator")]
-[assembly: AssemblyCopyright("© NoID Softwork 2020-2026")]
+[assembly: AssemblyCopyright("Copyright (c) NoID Softwork 2020-2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: AssemblyVersion("0.2.10.1217")]
-[assembly: AssemblyFileVersion("0.2.10.1217")]
-[assembly: AssemblyInformationalVersion("0.2.10.1217")]
+[assembly: AssemblyVersion("0.3.0.1220")]
+[assembly: AssemblyFileVersion("0.3.0.1220")]
+[assembly: AssemblyInformationalVersion("0.3.0.1220")]
+
 
 
 
