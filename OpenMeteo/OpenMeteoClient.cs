@@ -42,8 +42,8 @@ namespace OpenMeteo
             {
                 Latitude = response.Locations[0].Latitude,
                 Longitude = response.Locations[0].Longitude,
-                Current = CurrentOptions.All // Get all current weather data if nothing else is provided
-                
+                Current = CurrentOptions.All, // Get all current weather data if nothing else is provided
+                Daily = DailyOptions.All // Get all daily forecast data for 5-day forecast
             };
 
             return await GetWeatherForecastAsync(options);
@@ -65,8 +65,8 @@ namespace OpenMeteo
             {
                 Latitude = response.Locations[0].Latitude,
                 Longitude = response.Locations[0].Longitude,
-                Current = CurrentOptions.All // Get all current weather data if nothing else is provided
-                
+                Current = CurrentOptions.All, // Get all current weather data if nothing else is provided
+                Daily = DailyOptions.All // Get all daily forecast data for 5-day forecast
             };
 
             return await GetWeatherForecastAsync(weatherForecastOptions);

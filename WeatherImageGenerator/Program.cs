@@ -139,8 +139,8 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(0, "Starting update cycle");
                         Logger.Log($"Fetching weather data...");
                         
-                        // Array to store results for all 7 locations
-                        WeatherForecast?[] allForecasts = new WeatherForecast?[7];
+                        // Array to store results for all locations
+                        WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
                         bool dataFetchSuccess = true;
 
                         // Fetch weather data for each location
@@ -201,7 +201,9 @@ namespace WeatherImageGenerator
                         // Image generation comprises the bulk of the cycle (about 65%)
                         ProgressUpdated?.Invoke(15, "Generating still images");
 
-                        int imageSteps = Math.Max(1, locations.Length + 3); // locations + maps + apng + alerts
+                        int detailedPerImage = 3;
+                        int numDetailedImages = Math.Max(1, (locations.Length + detailedPerImage - 1) / detailedPerImage);
+                        int imageSteps = Math.Max(1, numDetailedImages + 3); // detailed images + maps + apng + alerts
                         int imageStepsCompleted = 0;
 
                         // --- IMAGE GENERATION ---
@@ -214,11 +216,19 @@ namespace WeatherImageGenerator
                         //if (allForecasts[0] != null)
                         //    GenerateForecastSummaryImage(allForecasts[0]!, outputDir);
 
-                        // 3. Detailed Weather Location 0 to 6
-                        for (int i = 0; i < locations.Length; i++)
+                        // 3. Detailed Weather (batched, up to 3 cities per image)
+                        for (int batch = 0; batch < numDetailedImages; batch++)
                         {
-                            if (allForecasts[i] != null)
-                                GenerateDetailedWeatherImage(allForecasts[i]!, outputDir, i, locations[i]);
+                            int start = batch * detailedPerImage;
+                            int end = Math.Min(locations.Length, start + detailedPerImage);
+
+                            var batchItems = new List<(WeatherForecast? Forecast, string Name, int Index)>();
+                            for (int j = start; j < end; j++)
+                            {
+                                batchItems.Add((allForecasts[j], locations[j], j));
+                            }
+
+                            GenerateDetailedWeatherImageBatch(batchItems.ToArray(), outputDir, batch);
 
                             imageStepsCompleted++;
                             var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0;
@@ -602,81 +612,300 @@ namespace WeatherImageGenerator
 
         static void GenerateDetailedWeatherImage(WeatherForecast weatherData, string outputDir, int cityIndex, string locationName)
         {
+            // Redirect to the new batch renderer for consistent look & feel (single-item batch)
+            GenerateDetailedWeatherImageBatch(new[] { (Forecast: (WeatherForecast?)weatherData, Name: locationName, Index: cityIndex) }, outputDir, cityIndex);
+        }
+
+        // New: render up to 3 cities per detailed image with improved layout and fonts
+        static void GenerateDetailedWeatherImageBatch((WeatherForecast? Forecast, string Name, int Index)[] cities, string outputDir, int batchIndex)
+        {
+            // Filter out cities with empty/null names (no location set)
+            var validCities = cities.Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToArray();
+            
+            // If no valid cities, skip rendering this batch entirely
+            if (validCities.Length == 0)
+            {
+                Logger.Log($"[INFO] Skipping batch {batchIndex}: no valid cities to display.");
+                return;
+            }
+
             var config = ConfigManager.LoadConfig();
             var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
 
             int width = imgConfig.ImageWidth;
             int height = imgConfig.ImageHeight;
+            int margin = (int)imgConfig.MarginPixels;
+            int spacing = 30;
             
+            // Always use 3 columns layout
+            int columns = 3;
+            int colWidth = (width - margin * 2 - spacing * (columns - 1)) / columns;
+
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
             {
+                // Background gradient
                 using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
                     new Point(0, 0), new Point(0, height),
-                    Color.FromArgb(80, 140, 160), Color.FromArgb(110, 160, 190)))
+                    Color.FromArgb(40, 50, 60), Color.FromArgb(10, 20, 30)))
                 {
                     graphics.FillRectangle(brush, 0, 0, width, height);
                 }
 
-                using (Font titleFont = new Font(imgConfig.FontFamily ?? "Arial", 48, FontStyle.Bold))
-                using (Font labelFont = new Font(imgConfig.FontFamily ?? "Arial", 18, FontStyle.Regular))
-                using (Font dataFont = new Font(imgConfig.FontFamily ?? "Arial", 22, FontStyle.Bold))
+                // Fonts (modern UI feel)
+                using (Font cityFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 28, FontStyle.Bold))
+                using (Font tempFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 40, FontStyle.Bold))
+                using (Font labelFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 14, FontStyle.Regular))
+                using (Font dataFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 18, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    string primaryLocation = locationName ?? (config.Locations?.Location0 ?? "Montreal");
-                    graphics.DrawString($"Détail pour {primaryLocation}", titleFont, whiteBrush, new PointF(50, 30));
-
-                    int yPosition = 120;
-                    int lineHeight = 50;
-
-                    if (weatherData.Current != null)
+                    // Fixed 3-column layout
+                    for (int i = 0; i < columns; i++)
                     {
-                        graphics.DrawString("Température:", labelFont, whiteBrush, new PointF(50, yPosition));
-                        graphics.DrawString($"{weatherData.Current.Temperature}{weatherData.CurrentUnits?.Temperature}",
-                            dataFont, whiteBrush, new PointF(300, yPosition));
-                        yPosition += lineHeight;
+                        int x = margin + i * (colWidth + spacing);
+                        int y = margin;
+                        var rect = new RectangleF(x, y, colWidth, height - margin * 2);
 
-                        graphics.DrawString("Humidité:", labelFont, whiteBrush, new PointF(50, yPosition));
-                        graphics.DrawString($"{weatherData.Current.Relativehumidity_2m}%", dataFont, whiteBrush, new PointF(300, yPosition));
-                        yPosition += lineHeight;
+                        // Draw card background
+                        using (Brush cardBrush = new SolidBrush(Color.FromArgb(200, 20, 24, 30)))
+                        using (Pen cardBorder = new Pen(Color.FromArgb(120, 255, 255, 255), 1))
+                        {
+                            graphics.FillRectangle(cardBrush, rect);
+                            graphics.DrawRectangle(cardBorder, x, y, colWidth, height - margin * 2);
+                        }
 
-                        graphics.DrawString("Vitesse du vent:", labelFont, whiteBrush, new PointF(50, yPosition));
-                        graphics.DrawString($"{weatherData.Current.Windspeed_10m} {weatherData.CurrentUnits?.Windspeed_10m}",
-                            dataFont, whiteBrush, new PointF(300, yPosition));
-                        yPosition += lineHeight;
+                        // Only render city data if we have a valid city for this column
+                        if (i < validCities.Length)
+                        {
+                            var item = validCities[i];
+                            string cityName = item.Name;
 
-                        graphics.DrawString("Direction du vent:", labelFont, whiteBrush, new PointF(50, yPosition));
-                        graphics.DrawString($"{weatherData.Current.Winddirection_10m}°", dataFont, whiteBrush, new PointF(300, yPosition));
-                        yPosition += lineHeight;
+                        // Header (city name)
+                        graphics.DrawString(cityName, cityFont, whiteBrush, new PointF(x + 20, y + 20));
 
-                        graphics.DrawString("Pression atmosphérique:", labelFont, whiteBrush, new PointF(50, yPosition));
-                        graphics.DrawString($"{weatherData.Current.Surface_pressure} hPa", dataFont, whiteBrush, new PointF(300, yPosition));
+                        if (item.Forecast?.Current != null)
+                        {
+                            var cur = item.Forecast.Current;
+                            string tempText = cur.Temperature != null ? $"{cur.Temperature}{item.Forecast.CurrentUnits?.Temperature}" : "N/A";
+                            string cond = cur.Weathercode != null ? GetWeatherDescription((int)cur.Weathercode) : "";
+
+                            // Temperature
+                            graphics.DrawString(tempText, tempFont, whiteBrush, new PointF(x + 20, y + 80));
+
+                            // Small weather icon to the right of temperature
+                            var iconRect = new RectangleF(x + colWidth - 100, y + 70, 64, 64);
+                            DrawWeatherIcon(graphics, iconRect, item.Forecast?.Current?.Weathercode);
+
+                            // Condition
+                            graphics.DrawString(cond, dataFont, whiteBrush, new PointF(x + 20, y + 140));
+
+                            // Small details
+                            float detailY = y + 190;
+                            graphics.DrawString($"Humidity: {cur.Relativehumidity_2m}%", labelFont, whiteBrush, new PointF(x + 20, detailY));
+                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} @ {cur.Winddirection_10m}°", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
+                            graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
+
+                            // 5-Day Forecast Section
+                            float forecastY = detailY + 80;
+                            using (Font forecastHeaderFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 16, FontStyle.Bold))
+                            using (Font forecastDayFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 12, FontStyle.Bold))
+                            using (Font forecastTempFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 11, FontStyle.Regular))
+                            using (Brush accentBrush = new SolidBrush(Color.FromArgb(255, 100, 180, 255)))
+                            {
+                                // Section header
+                                graphics.DrawString("5-Day Forecast", forecastHeaderFont, accentBrush, new PointF(x + 20, forecastY));
+                                forecastY += 28;
+
+                                // Draw separator line
+                                using (Pen sepPen = new Pen(Color.FromArgb(80, 255, 255, 255), 1))
+                                {
+                                    graphics.DrawLine(sepPen, x + 20, forecastY, x + colWidth - 20, forecastY);
+                                }
+                                forecastY += 10;
+
+                                if (item.Forecast?.Daily != null && item.Forecast.Daily.Time != null && item.Forecast.Daily.Time.Length > 0)
+                                {
+                                    int daysToShow = Math.Min(5, item.Forecast.Daily.Time.Length);
+                                    float rowHeight = 50;
+
+                                    for (int d = 0; d < daysToShow; d++)
+                                    {
+                                        if (DateTime.TryParse(item.Forecast.Daily.Time[d], out DateTime dateTime))
+                                        {
+                                            string dayName = dateTime.ToString("ddd");
+                                            string dateStr = dateTime.ToString("MMM d");
+                                            string maxTemp = item.Forecast.Daily.Temperature_2m_max != null 
+                                                ? $"{item.Forecast.Daily.Temperature_2m_max[d]:F0}°" : "-";
+                                            string minTemp = item.Forecast.Daily.Temperature_2m_min != null 
+                                                ? $"{item.Forecast.Daily.Temperature_2m_min[d]:F0}°" : "-";
+                                            int? dayCode = item.Forecast.Daily.Weathercode != null 
+                                                ? (int?)item.Forecast.Daily.Weathercode[d] : null;
+
+                                            // Day name and date
+                                            graphics.DrawString(dayName, forecastDayFont, whiteBrush, new PointF(x + 20, forecastY));
+                                            graphics.DrawString(dateStr, forecastTempFont, whiteBrush, new PointF(x + 20, forecastY + 16));
+
+                                            // Small weather icon for the day
+                                            var dayIconRect = new RectangleF(x + 80, forecastY, 32, 32);
+                                            DrawWeatherIcon(graphics, dayIconRect, dayCode);
+
+                                            // High/Low temps
+                                            using (Brush highBrush = new SolidBrush(Color.FromArgb(255, 255, 150, 100)))
+                                            using (Brush lowBrush = new SolidBrush(Color.FromArgb(255, 150, 200, 255)))
+                                            {
+                                                graphics.DrawString($"H:{maxTemp}", forecastTempFont, highBrush, new PointF(x + 120, forecastY + 4));
+                                                graphics.DrawString($"L:{minTemp}", forecastTempFont, lowBrush, new PointF(x + 120, forecastY + 20));
+                                            }
+
+                                            forecastY += rowHeight;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    graphics.DrawString("No forecast data", forecastTempFont, whiteBrush, new PointF(x + 20, forecastY));
+                                }
+                            }
+
+                            // Index badge (top-right of each card)
+                            int badgeSize = 48;
+                            float bx = x + colWidth - badgeSize - 12;
+                            float by = y + 12;
+                            using (Brush b = new SolidBrush(Color.FromArgb(220, 0, 122, 204)))
+                            using (Brush nb = new SolidBrush(Color.White))
+                            using (Font nbFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 18, FontStyle.Bold))
+                            {
+                                graphics.FillEllipse(b, bx, by, badgeSize, badgeSize);
+                                string idx = (item.Index + 1).ToString();
+                                var s = graphics.MeasureString(idx, nbFont);
+                                graphics.DrawString(idx, nbFont, nb, bx + (badgeSize - s.Width) / 2, by + (badgeSize - s.Height) / 2 - 2);
+                            }
+                        }
+                        else
+                        {
+                            // No weather data available - show placeholder message
+                            using (Font ndFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 16, FontStyle.Italic))
+                            using (Brush gray = new SolidBrush(Color.FromArgb(200, 200, 200, 200)))
+                            {
+                                graphics.DrawString("Weather data unavailable", ndFont, gray, new RectangleF(x + 20, y + 100, colWidth - 40, 80));
+                            }
+                        }
+                        }
+                        // Empty column slot - card background already drawn, leave it empty
+                    }
+
+                    // Timestamp
+                    using (Font tsFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 12, FontStyle.Regular))
+                    {
+                        string timestamp = $"Updated: {DateTime.Now}";
+                        graphics.DrawString(timestamp, tsFont, whiteBrush, new PointF(margin + 10, height - margin - 20));
                     }
                 }
-                // Use the script's city index directly for filenames/badges (location0 -> 0)
-                int displayNumber = cityIndex;
 
-                // Draw a number badge in the top-right corner
-                int badgeDiameter = 96;
-                float margin = imgConfig.MarginPixels;
-                RectangleF badgeRect = new RectangleF(imgConfig.ImageWidth - margin - badgeDiameter, margin, badgeDiameter, badgeDiameter);
-                using (Brush badgeBrush = new SolidBrush(Color.FromArgb(200, 0, 0, 0)))
-                using (Brush numberBrush = new SolidBrush(Color.White))
-                using (Font numberFont = new Font(imgConfig.FontFamily ?? "Arial", 36, FontStyle.Bold))
-                {
-                    graphics.FillEllipse(badgeBrush, badgeRect);
-                    string numberText = displayNumber.ToString();
-                    SizeF numSize = graphics.MeasureString(numberText, numberFont);
-                    PointF numPos = new PointF(badgeRect.X + (badgeRect.Width - numSize.Width) / 2, badgeRect.Y + (badgeRect.Height - numSize.Height) / 2 - 4);
-                    graphics.DrawString(numberText, numberFont, numberBrush, numPos);
-                }
-
-                // Build a safe filename including the display number and sanitized location
-                string sanitized = string.Concat(locationName.Where(c => !Path.GetInvalidFileNameChars().Contains(c))).Replace(' ', '_');
-                if (string.IsNullOrWhiteSpace(sanitized)) sanitized = "location" + displayNumber;
-                string filename = Path.Combine(outputDir, $"{displayNumber}_DetailedWeather_{sanitized}.png");
+                // Build filename
+                var names = string.Join("_", validCities.Select(c => string.Concat(c.Name?.Where(ch => !Path.GetInvalidFileNameChars().Contains(ch)) ?? new char[0]).Replace(' ', '_')));
+                if (string.IsNullOrWhiteSpace(names)) names = $"batch{batchIndex}";
+                string filename = Path.Combine(outputDir, $"3_DetailedWeather_batch{batchIndex}_{names}.png");
                 var saved = SaveImage(bitmap, filename, imgConfig);
                 Logger.Log($"✓ Generated: {saved}");
+            }
+        }
+
+        // Draw a simple vector weather icon into the given rectangle
+        static void DrawWeatherIcon(Graphics g, RectangleF area, int? weatherCode)
+        {
+            // Normalize background
+            using (var bg = new SolidBrush(Color.FromArgb(0, 0, 0, 0))) { /* placeholder if needed */ }
+
+            // Default: clear icon (sun)
+            int code = weatherCode ?? 0;
+
+            if (code == 0 || code == 1)
+            {
+                // Sun
+                var center = new PointF(area.X + area.Width / 2, area.Y + area.Height / 2);
+                float r = Math.Min(area.Width, area.Height) * 0.28f;
+                using (Brush sun = new SolidBrush(Color.FromArgb(255, 245, 178)))
+                using (Pen ray = new Pen(Color.FromArgb(255, 230, 128), 2))
+                {
+                    g.FillEllipse(sun, center.X - r, center.Y - r, r * 2, r * 2);
+                    for (int i = 0; i < 8; i++)
+                    {
+                        var angle = i * (float)(Math.PI * 2 / 8);
+                        var x1 = center.X + (r + 4) * (float)Math.Cos(angle);
+                        var y1 = center.Y + (r + 4) * (float)Math.Sin(angle);
+                        var x2 = center.X + (r + 12) * (float)Math.Cos(angle);
+                        var y2 = center.Y + (r + 12) * (float)Math.Sin(angle);
+                        g.DrawLine(ray, x1, y1, x2, y2);
+                    }
+                }
+            }
+            else if (code == 2 || code == 3 || code == 45)
+            {
+                // Cloudy / overcast
+                using (Brush cloud = new SolidBrush(Color.FromArgb(230, 230, 235)))
+                {
+                    float cw = area.Width * 0.9f;
+                    float ch = area.Height * 0.5f;
+                    float cx = area.X + (area.Width - cw) / 2;
+                    float cy = area.Y + (area.Height - ch) / 2 + 8;
+                    g.FillEllipse(cloud, cx + cw * 0.05f, cy, cw * 0.6f, ch);
+                    g.FillEllipse(cloud, cx + cw * 0.35f, cy - ch * 0.25f, cw * 0.6f, ch);
+                    g.FillRectangle(cloud, cx + cw * 0.05f, cy + ch * 0.25f, cw * 0.9f, ch * 0.45f);
+                }
+            }
+            else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82))
+            {
+                // Rain
+                using (Brush cloud = new SolidBrush(Color.FromArgb(230, 230, 235)))
+                using (Pen drop = new Pen(Color.FromArgb(180, 180, 255), 3))
+                {
+                    float cw = area.Width * 0.9f;
+                    float ch = area.Height * 0.45f;
+                    float cx = area.X + (area.Width - cw) / 2;
+                    float cy = area.Y + (area.Height - ch) / 2 + 6;
+                    g.FillEllipse(cloud, cx + cw * 0.08f, cy, cw * 0.6f, ch);
+                    g.FillEllipse(cloud, cx + cw * 0.35f, cy - ch * 0.2f, cw * 0.6f, ch);
+                    g.FillRectangle(cloud, cx + cw * 0.05f, cy + ch * 0.2f, cw * 0.9f, ch * 0.5f);
+
+                    // drops
+                    var dx = cx + cw * 0.2f;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        g.DrawLine(drop, dx + i * 12, cy + ch + 6, dx + i * 12, cy + ch + 18);
+                    }
+                }
+            }
+            else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86))
+            {
+                // Snow
+                using (Brush cloud = new SolidBrush(Color.FromArgb(230, 230, 235)))
+                using (Pen snow = new Pen(Color.White, 2))
+                {
+                    float cw = area.Width * 0.9f;
+                    float ch = area.Height * 0.45f;
+                    float cx = area.X + (area.Width - cw) / 2;
+                    float cy = area.Y + (area.Height - ch) / 2 + 6;
+                    g.FillEllipse(cloud, cx + cw * 0.08f, cy, cw * 0.6f, ch);
+                    g.FillEllipse(cloud, cx + cw * 0.35f, cy - ch * 0.2f, cw * 0.6f, ch);
+                    g.FillRectangle(cloud, cx + cw * 0.05f, cy + ch * 0.2f, cw * 0.9f, ch * 0.5f);
+
+                    var sx = cx + cw * 0.2f;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var cxp = sx + i * 12;
+                        g.DrawLine(snow, cxp - 4, cy + ch + 8, cxp + 4, cy + ch + 8);
+                        g.DrawLine(snow, cxp, cy + ch + 4, cxp, cy + ch + 12);
+                    }
+                }
+            }
+            else
+            {
+                // Fallback: small circle
+                using (Brush b = new SolidBrush(Color.FromArgb(255, 200, 200, 200)))
+                {
+                    g.FillEllipse(b, area.X + area.Width * 0.25f, area.Y + area.Height * 0.25f, area.Width * 0.5f, area.Height * 0.5f);
+                }
             }
         }
 

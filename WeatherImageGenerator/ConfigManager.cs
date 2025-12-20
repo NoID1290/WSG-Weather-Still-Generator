@@ -141,12 +141,18 @@ namespace WeatherImageGenerator
         [JsonPropertyName("Location6")]
         public string? Location6 { get; set; }
 
+        [JsonPropertyName("Location7")]
+        public string? Location7 { get; set; }
+
+        [JsonPropertyName("Location8")]
+        public string? Location8 { get; set; }
+
         /// <summary>
         /// Returns all locations as an array
         /// </summary>
         public string[] GetLocationsArray()
         {
-            return new[] { Location0, Location1, Location2, Location3, Location4, Location5, Location6 };
+            return new[] { Location0, Location1, Location2, Location3, Location4, Location5, Location6, Location7, Location8 };
         }
     }
 
