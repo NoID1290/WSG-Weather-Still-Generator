@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <Version>0.3.0.1220</Version>
+    <AssemblyVersion>0.3.0.1220</AssemblyVersion>
+    <FileVersion>0.3.0.1220</FileVersion>
+    <RootNamespace>WSG_WeatherImageGenerator</RootNamespace>
+    <AssemblyName>WSG</AssemblyName>
+    <AssemblyCompany>NoID Softwork</AssemblyCompany>
+    <AssemblyProduct>Weather Image Generator</AssemblyProduct>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="commonEdit.cs" />
+    <Compile Include="ConfigManager.cs" />
+    <Compile Include="ECCC.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="VideoGenerator.cs" />
+    <Compile Include="Logger.cs" />
+    <Compile Include="MainForm.cs" />
+    <Compile Include="SettingsForm.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
