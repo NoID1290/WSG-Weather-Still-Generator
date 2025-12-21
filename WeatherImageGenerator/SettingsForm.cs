@@ -20,6 +20,7 @@ namespace WeatherImageGenerator
         TextBox txtBitrate;
         NumericUpDown numFps;
         ComboBox cmbContainer;
+        CheckBox chkVideoGeneration;
         CheckBox chkVerbose;
         CheckBox chkShowFfmpeg;
 
@@ -93,6 +94,7 @@ namespace WeatherImageGenerator
             top += rowH;
             chkVerbose = new CheckBox { Text = "Verbose FFmpeg output", Left = leftField, Top = top, Width = 180 };
             chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg logs in GUI", Left = leftField + 200, Top = top, Width = 200, Checked = true };
+            chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = top, Width = 200 };
 
             var btnSave = new Button { Text = "Save", Left = 360, Top = 380, Width = 100 };
             var btnCancel = new Button { Text = "Cancel", Left = 470, Top = 380, Width = 100 };
@@ -109,7 +111,7 @@ namespace WeatherImageGenerator
                 lblStatic, numStatic, lblFade, numFade, chkFade,
                 lblResolution, cmbResolution, lblFps, numFps, lblContainer, cmbContainer,
                 lblCodec, txtCodec, lblBitrate, txtBitrate,
-                chkVerbose, chkShowFfmpeg,
+                chkVerbose, chkShowFfmpeg, chkVideoGeneration,
                 btnSave, btnCancel
             });
 
@@ -150,6 +152,7 @@ namespace WeatherImageGenerator
                 txtBitrate.Text = cfg.Video?.VideoBitrate ?? "4M";
                 var container = (cfg.Video?.Container ?? "mp4").ToLowerInvariant();
                 if (cmbContainer.Items.Contains(container)) cmbContainer.SelectedItem = container;
+                chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
             }
@@ -183,6 +186,7 @@ namespace WeatherImageGenerator
                 v.VideoBitrate = txtBitrate.Text?.Trim();
                 v.Container = cmbContainer.SelectedItem?.ToString() ?? "mp4";
                 v.OutputDirectory = ToRelative(txtVideoOutputDir.Text, imageGen.OutputDirectory ?? "WeatherImages");
+                v.doVideoGeneration = chkVideoGeneration.Checked;
                 v.VerboseFfmpeg = chkVerbose.Checked;
                 v.ShowFfmpegOutputInGui = chkShowFfmpeg.Checked;
                 cfg.Video = v;

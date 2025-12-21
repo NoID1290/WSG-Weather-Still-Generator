@@ -258,7 +258,7 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(80.0, "Starting video generation");
 
                         // If video settings are configured, create a video from the generated images
-                        if (config.Video != null)
+                        if (config.Video?.doVideoGeneration == true)
                         {
                             StartMakeVideo(outputDir);
                         }
