@@ -4,13 +4,14 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
-    <Version>0.2.10.1217</Version>
-    <AssemblyVersion>0.2.10.1217</AssemblyVersion>
-    <FileVersion>0.2.10.1217</FileVersion>
+    <Version>0.3.0.1221</Version>
+    <AssemblyVersion>0.3.0.1221</AssemblyVersion>
+    <FileVersion>0.3.0.1221</FileVersion>
     <RootNamespace>WSG_WeatherImageGenerator</RootNamespace>
     <AssemblyName>WSG</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
-    <AssemblyProduct>Weather Image Generator</AssemblyProduct><GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyProduct>Weather Image Generator</AssemblyProduct>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
