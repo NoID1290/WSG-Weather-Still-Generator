@@ -186,7 +186,8 @@ namespace WeatherImageGenerator
                         VideoBitrate = config.Video?.VideoBitrate ?? "4M",
                         Container = container,
                         FfmpegVerbose = config.Video?.VerboseFfmpeg ?? false,
-                        ShowFfmpegOutputInGui = config.Video?.ShowFfmpegOutputInGui ?? true
+                        ShowFfmpegOutputInGui = config.Video?.ShowFfmpegOutputInGui ?? true,
+                        EnableHardwareEncoding = config.Video?.EnableHardwareEncoding ?? false
                     };
 
                     videoGenerator.GenerateVideo();

@@ -36,6 +36,9 @@ namespace WeatherImageGenerator
         public string VideoBitrate { get; set; } = "4M";        // Target bitrate (e.g., 4M)
         public string Container { get; set; } = "mp4";          // Output container/extension
         public bool ShowFfmpegOutputInGui { get; set; } = true;  // Controls whether to emit ffmpeg logs to Logger
+        
+        // When true, attempt hardware accelerated encoding (NVENC) if available
+        public bool EnableHardwareEncoding { get; set; } = false;
 
         // Audio handling
         public bool TrimToAudio { get; set; } = false;          // When true, end output when audio ends (-shortest)
@@ -263,15 +266,40 @@ namespace WeatherImageGenerator
 
             // Video encoding settings
             var codec = string.IsNullOrWhiteSpace(VideoCodec) ? "libx264" : VideoCodec;
-            sb.Append($" -c:v {codec}");
 
-            if (!string.IsNullOrWhiteSpace(VideoBitrate))
+            // If hardware encoding is requested, pick an NVENC codec that matches the desired family and add a few NVENC-friendly flags.
+            if (EnableHardwareEncoding)
             {
-                sb.Append($" -b:v {VideoBitrate}");
+                var lower = codec.ToLowerInvariant();
+                if (lower.Contains("hevc") || lower.Contains("x265") || lower.Contains("libx265"))
+                    codec = "hevc_nvenc";
+                else
+                    codec = "h264_nvenc";
+
+                sb.Append($" -c:v {codec} -preset p1 -rc vbr_hq");
+
+                // NVENC typically uses bitrate targets rather than CRF — ensure we have a sensible default bitrate if none specified.
+                if (!string.IsNullOrWhiteSpace(VideoBitrate))
+                {
+                    sb.Append($" -b:v {VideoBitrate}");
+                }
+                else
+                {
+                    sb.Append(" -b:v 8M");
+                }
             }
             else
             {
-                sb.Append(" -crf 23");
+                sb.Append($" -c:v {codec}");
+
+                if (!string.IsNullOrWhiteSpace(VideoBitrate))
+                {
+                    sb.Append($" -b:v {VideoBitrate}");
+                }
+                else
+                {
+                    sb.Append(" -crf 23");
+                }
             }
 
             if (string.Equals(Container, "mp4", StringComparison.OrdinalIgnoreCase))
@@ -473,6 +501,56 @@ namespace WeatherImageGenerator
             if (FfmpegVerbose && ShowFfmpegOutputInGui)
             {
                 if (isError) Logger.Log(d, System.ConsoleColor.Yellow); else Logger.Log(d);
+            }
+        }
+
+        /// <summary>
+        /// Probes ffmpeg to see whether NVENC hardware encoders are available (h264_nvenc or hevc_nvenc).
+        /// Returns true if an encoder name is present in the `ffmpeg -encoders` output. Provides a short message describing the result.
+        /// </summary>
+        public static bool IsHardwareEncodingSupported(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 5000)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = ffmpegExe,
+                    Arguments = "-hide_banner -encoders",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var p = Process.Start(psi))
+                {
+                    if (p == null)
+                    {
+                        message = "Failed to start ffmpeg";
+                        return false;
+                    }
+
+                    var outText = p.StandardOutput.ReadToEnd();
+                    // If nothing on stdout, check stderr as some ffmpeg builds write here
+                    if (string.IsNullOrWhiteSpace(outText)) outText = p.StandardError.ReadToEnd();
+                    p.WaitForExit(timeoutMs);
+
+                    if (outText.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_nvenc", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        message = "NVENC encoder found";
+                        return true;
+                    }
+                    else
+                    {
+                        message = "NVENC encoders not found in ffmpeg encoders list";
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+                return false;
             }
         }
     }

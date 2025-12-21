@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace WeatherImageGenerator
@@ -23,7 +24,9 @@ namespace WeatherImageGenerator
         CheckBox chkVideoGeneration;
         CheckBox chkVerbose;
         CheckBox chkShowFfmpeg;
-
+        CheckBox chkEnableHardwareEncoding; // New: toggle NVENC / hardware encoding
+        Label lblHwStatus;
+        Button btnCheckHw;
         public SettingsForm()
         {
             this.Text = "Settings";
@@ -94,6 +97,27 @@ namespace WeatherImageGenerator
             top += rowH;
             chkVerbose = new CheckBox { Text = "Verbose FFmpeg output", Left = leftField, Top = top, Width = 180 };
             chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg logs in GUI", Left = leftField + 200, Top = top, Width = 200, Checked = true };
+            chkEnableHardwareEncoding = new CheckBox { Text = "Enable Hardware Encoding (NVENC)", Left = leftField + 420, Top = top, Width = 260 };
+
+            // Status text and check button for hardware encoder availability
+            lblHwStatus = new Label { Text = "NVENC: Unknown", Left = leftField + 420, Top = top + 22, Width = 300, ForeColor = System.Drawing.Color.Gray };
+            btnCheckHw = new Button { Text = "Check", Left = leftField + 680, Top = top - 4, Width = 70 };
+            btnCheckHw.Click += (s, e) =>
+            {
+                btnCheckHw.Enabled = false;
+                lblHwStatus.Text = "Checking...";
+                Task.Run(() =>
+                {
+                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
+                    this.Invoke((Action)(() =>
+                    {
+                        lblHwStatus.Text = ok ? "NVENC available" : $"NVENC not found ({msg})";
+                        lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+                        btnCheckHw.Enabled = true;
+                    }));
+                });
+            };
+
             chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = top, Width = 200 };
 
             var btnSave = new Button { Text = "Save", Left = 360, Top = 380, Width = 100 };
@@ -111,7 +135,7 @@ namespace WeatherImageGenerator
                 lblStatic, numStatic, lblFade, numFade, chkFade,
                 lblResolution, cmbResolution, lblFps, numFps, lblContainer, cmbContainer,
                 lblCodec, txtCodec, lblBitrate, txtBitrate,
-                chkVerbose, chkShowFfmpeg, chkVideoGeneration,
+                chkVerbose, chkShowFfmpeg, chkEnableHardwareEncoding, lblHwStatus, btnCheckHw, chkVideoGeneration,
                 btnSave, btnCancel
             });
 
@@ -155,6 +179,18 @@ namespace WeatherImageGenerator
                 chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
+                chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
+
+                // Check hardware encoder availability asynchronously and display the result
+                Task.Run(() =>
+                {
+                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
+                    this.Invoke((Action)(() =>
+                    {
+                        lblHwStatus.Text = ok ? "NVENC available" : $"NVENC not found ({msg})";
+                        lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+                    }));
+                });
             }
             catch (Exception ex)
             {
@@ -189,6 +225,20 @@ namespace WeatherImageGenerator
                 v.doVideoGeneration = chkVideoGeneration.Checked;
                 v.VerboseFfmpeg = chkVerbose.Checked;
                 v.ShowFfmpegOutputInGui = chkShowFfmpeg.Checked;
+                // If enabling hardware encoding, verify ffmpeg supports NVENC and warn the user if it does not
+                if (chkEnableHardwareEncoding.Checked)
+                {
+                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
+                    if (!ok)
+                    {
+                        var res = MessageBox.Show(this, $"FFmpeg does not appear to support NVENC on this system. ({msg})\nEnabling hardware encoding may cause ffmpeg to fail. Continue enabling?", "Hardware Encoding Not Available", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        if (res == DialogResult.No)
+                        {
+                            chkEnableHardwareEncoding.Checked = false;
+                        }
+                    }
+                }
+                v.EnableHardwareEncoding = chkEnableHardwareEncoding.Checked;
                 cfg.Video = v;
 
                 ConfigManager.SaveConfig(cfg);

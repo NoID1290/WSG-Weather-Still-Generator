@@ -224,6 +224,9 @@ namespace WeatherImageGenerator
         [JsonPropertyName("ShowFfmpegOutputInGui")]
         public bool ShowFfmpegOutputInGui { get; set; } = true;
 
+        [JsonPropertyName("EnableHardwareEncoding")]
+        public bool EnableHardwareEncoding { get; set; } = false;
+
         [JsonPropertyName("doVideoGeneration")]
         public bool doVideoGeneration { get; set; } = true;
     }
