@@ -30,7 +30,7 @@ namespace WeatherImageGenerator
         public SettingsForm()
         {
             this.Text = "Settings";
-            this.Width = 740;
+            this.Width = 800;
             this.Height = 480;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -97,7 +97,7 @@ namespace WeatherImageGenerator
             top += rowH;
             chkVerbose = new CheckBox { Text = "Verbose FFmpeg output", Left = leftField, Top = top, Width = 180 };
             chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg logs in GUI", Left = leftField + 200, Top = top, Width = 200, Checked = true };
-            chkEnableHardwareEncoding = new CheckBox { Text = "Enable Hardware Encoding (NVENC)", Left = leftField + 420, Top = top, Width = 260 };
+            chkEnableHardwareEncoding = new CheckBox { Text = "Enable Hardware Encoding", Left = leftField + 420, Top = top, Width = 260 };
 
             // Status text and check button for hardware encoder availability
             lblHwStatus = new Label { Text = "NVENC: Unknown", Left = leftField + 420, Top = top + 22, Width = 300, ForeColor = System.Drawing.Color.Gray };
