@@ -243,11 +243,12 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 5. APNG Helper
-                        if (allForecasts[0] != null)
+                        /*if (allForecasts[0] != null)
                             GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
-
+                        */
+                        
                         // 6. WEATHER ALERTS from ECCC
                         GenerateAlertsImage(await ECCC.FetchAllAlerts(httpClient), outputDir);
                         imageStepsCompleted++;

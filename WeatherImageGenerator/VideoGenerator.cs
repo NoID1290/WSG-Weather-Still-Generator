@@ -37,6 +37,11 @@ namespace WeatherImageGenerator
         public string Container { get; set; } = "mp4";          // Output container/extension
         public bool ShowFfmpegOutputInGui { get; set; } = true;  // Controls whether to emit ffmpeg logs to Logger
 
+        // Audio handling
+        public bool TrimToAudio { get; set; } = false;          // When true, end output when audio ends (-shortest)
+        public string AudioCodec { get; set; } = "aac";         // FFmpeg audio codec
+        public string AudioBitrate { get; set; } = "192k";      // Audio bitrate for output
+
         private int _width;
         private int _height;
         private readonly string[] _extensions = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp" };
@@ -75,6 +80,12 @@ namespace WeatherImageGenerator
 
             // Load images
             var images = LoadImages();
+            Logger.Log($"[INFO] Images to include ({images.Count}):");
+            for (int i = 0; i < images.Count; i++)
+            {
+                Logger.Log($"  [{i}] {images[i].FullName}");
+            }
+
             if (images.Count < 2)
             {
                 Logger.Log($"[ERROR] Found {images.Count} images.", System.ConsoleColor.Red);
@@ -110,6 +121,7 @@ namespace WeatherImageGenerator
 
             // Build and execute FFmpeg command
             var ffmpegCmd = BuildFFmpegCommand(images, filterComplex);
+            if (FfmpegVerbose) Logger.Log($"[CMD] {ffmpegCmd}");
             return ExecuteFFmpeg(ffmpegCmd);
         }
 
@@ -220,14 +232,33 @@ namespace WeatherImageGenerator
                 sb.Append($" -framerate {FrameRate} -loop 1 -t {clipDurStr} -i \"{img.FullName}\"");
             }
 
-            // Add filter complex
-            sb.Append($" -filter_complex \"{filterComplex}\" -map \"[outv]\"");
-
-            // Add audio if available
-            if (File.Exists(MusicFile))
+            // Add audio input if available (must be added before filter_complex)
+            var hasAudio = File.Exists(MusicFile);
+            if (hasAudio)
             {
                 Logger.Log($"[AUDIO] Adding Audio: {MusicFile}", System.ConsoleColor.Magenta);
-                sb.Append($" -i \"{MusicFile}\" -map \"{images.Count}:a\" -shortest");
+                sb.Append($" -i \"{MusicFile}\"");
+            }
+
+            // Add filter complex and map the filtered video output
+            sb.Append($" -filter_complex \"{filterComplex}\" -map \"[outv]\"");
+
+            // Map audio if present (after filter_complex and video mapping) and set codec/bitrate
+            if (hasAudio)
+            {
+                sb.Append($" -map \"{images.Count}:a\"");
+                if (!string.IsNullOrWhiteSpace(AudioCodec))
+                {
+                    sb.Append($" -c:a {AudioCodec}");
+                }
+                if (!string.IsNullOrWhiteSpace(AudioBitrate))
+                {
+                    sb.Append($" -b:a {AudioBitrate}");
+                }
+                if (TrimToAudio)
+                {
+                    sb.Append(" -shortest");
+                }
             }
 
             // Video encoding settings
