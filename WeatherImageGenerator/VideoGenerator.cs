@@ -47,7 +47,7 @@ namespace WeatherImageGenerator
 
         private int _width;
         private int _height;
-        private readonly string[] _extensions = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp" };
+        private readonly string[] _extensions = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.gif" };
 
         // FFmpeg output simplification
         private string _lastFfmpegProgress = "";

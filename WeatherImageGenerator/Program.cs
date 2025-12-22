@@ -238,6 +238,17 @@ namespace WeatherImageGenerator
 
 
                         // 4. Maps Image
+                        try
+                        {
+                            Logger.Log("Fetching radar images...");
+                            await ECCC.FetchRadarImages(httpClient, outputDir);
+                            Logger.Log("✓ Radar images fetched.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"X Failed to fetch radar images: {ex.Message}");
+                        }
+
                         GenerateMapsImage(allForecasts, locations, outputDir);
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
@@ -438,9 +449,41 @@ namespace WeatherImageGenerator
             using (Bitmap bitmap = new Bitmap(width, height))
             using (Graphics graphics = Graphics.FromImage(bitmap))
             {
-                // Background
+                // Background: prefer a province-level radar animation (first frame) if present
                 string staticMapPath = Path.Combine(outputDir, config.WeatherImages?.StaticMapFilename ?? "STATIC_MAP.IGNORE");
-                if (File.Exists(staticMapPath))
+
+                // Look for an animated/static province radar file with the 00_ prefix
+                var provinceRadarFiles = Directory.GetFiles(outputDir, "00_ProvinceRadar.*");
+                if (provinceRadarFiles.Length > 0)
+                {
+                    try
+                    {
+                        // Use the first match (should be only one)
+                        string pr = provinceRadarFiles.OrderBy(f => f).First();
+                        using (var provImg = Image.FromFile(pr))
+                        {
+                            // If animated (GIF), Image.FromFile returns the GIF; drawing draws current frame (frame 0)
+                            graphics.DrawImage(provImg, 0, 0, width, height);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[Radar] Failed to draw province radar: {ex.Message}", ConsoleColor.Yellow);
+                        // fallback to static map
+                        if (File.Exists(staticMapPath))
+                        {
+                            using (var importedMap = Image.FromFile(staticMapPath))
+                            {
+                                graphics.DrawImage(importedMap, 0, 0, width, height);
+                            }
+                        }
+                        else
+                        {
+                            graphics.Clear(Color.DarkBlue);
+                        }
+                    }
+                }
+                else if (File.Exists(staticMapPath))
                 {
                     using (var importedMap = Image.FromFile(staticMapPath))
                     {
@@ -766,6 +809,43 @@ namespace WeatherImageGenerator
                                 {
                                     graphics.DrawString("No forecast data", forecastTempFont, whiteBrush, new PointF(x + 20, forecastY));
                                 }
+                            }
+
+                            // Radar thumbnail (if available)
+                            try
+                            {
+                                string safeName = string.Concat(cityName?.Where(ch => !Path.GetInvalidFileNameChars().Contains(ch)) ?? new char[0]).Replace(' ', '_');
+                                var radarFiles = Directory.GetFiles(outputDir, $"radar_{safeName}.*");
+                                if (radarFiles.Length > 0)
+                                {
+                                    string radarFile = radarFiles.OrderByDescending(f => new FileInfo(f).Length).First();
+                                    using (var ms = new MemoryStream(File.ReadAllBytes(radarFile)))
+                                    using (var radarImg = Image.FromStream(ms))
+                                    {
+                                        float cardInnerHeight = height - margin * 2;
+                                        float radarHeight = Math.Min(140f, cardInnerHeight * 0.28f);
+                                        float radarWidth = colWidth - 40;
+                                        float radarX = x + 20;
+                                        float radarY = y + cardInnerHeight - radarHeight - 20;
+                                        var radarRect = new RectangleF(radarX, radarY, radarWidth, radarHeight);
+                                        graphics.DrawImage(radarImg, radarRect);
+
+                                        // Draw a thin border and label
+                                        using (Pen p = new Pen(Color.FromArgb(120, 255, 255, 255), 1))
+                                        {
+                                            graphics.DrawRectangle(p, radarX, radarY, radarWidth, radarHeight);
+                                        }
+                                        using (Font rf = new Font(imgConfig.FontFamily ?? "Segoe UI", 10, FontStyle.Bold))
+                                        using (Brush lb = new SolidBrush(Color.FromArgb(230, 255, 255, 255)))
+                                        {
+                                            graphics.DrawString("Radar", rf, lb, new PointF(radarX + 6, radarY + 6));
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log($"[Radar] Failed to draw radar for {cityName}: {ex.Message}", ConsoleColor.Yellow);
                             }
 
                             // Index badge (top-right of each card)

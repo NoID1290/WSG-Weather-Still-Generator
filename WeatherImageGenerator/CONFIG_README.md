@@ -169,9 +169,27 @@ Configuration for fetching weather alerts from Environment and Climate Change Ca
     "Amos": "https://weather.gc.ca/rss/alerts/48.574_-78.116_f.xml",
     "Saint-Rémi": "https://weather.gc.ca/rss/alerts/45.263_-73.620_f.xml"
   },
+  "RadarFeeds": {
+    "Montreal": "https://<your-eccc-radar-url>/montreal.gif",
+    "Quebec City": "https://<your-eccc-radar-url>/quebeccity.gif",
+    "Amos": "https://<your-eccc-radar-url>/amos.gif"
+  },
+  "ProvinceRadarUrl": "https://<your-eccc-radar-url>/quebec_province.gif",
   "DelayBetweenRequestsMs": 200,
   "UserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| CityFeeds | Dictionary of cities and RSS URLs | Add/remove cities or update feed URLs |
+| RadarFeeds | Dictionary of cities and radar image URLs | Add radar image URLs (ECCC or other) to show per-city thumbnails on the maps image |
+| UseGeoMetWms | boolean | When true (default) the application will request city and province radar images from the MSC GeoMet WMS if no direct `RadarFeeds` entry is provided |
+| CityRadarLayer | string | Which GeoMet `LAYERS` name to use for city thumbnails (default `RADAR_1KM_RRAI`) |
+| ProvinceRadarLayer | string | Which GeoMet `LAYERS` name to use to build a province animation (default `RADAR_1KM_RRAI`) |
+| ProvinceFrames | integer | Number of frames to request when building the province animation from GeoMet WMS (default `8`) |
+| ProvinceRadarUrl | string | URL to province-wide animated radar GIF (saved as `00_ProvinceRadar.gif` and used fullscreen on maps image) |
+| DelayBetweenRequestsMs | `200` | Milliseconds to wait between requests (politeness setting) |
+| UserAgent | Standard Mozilla UA | HTTP User-Agent header for requests |
 ```
 
 | Setting | Default | Notes |

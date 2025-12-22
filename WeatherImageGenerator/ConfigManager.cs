@@ -308,6 +308,24 @@ namespace WeatherImageGenerator
         [JsonPropertyName("CityFeeds")]
         public Dictionary<string, string>? CityFeeds { get; set; }
 
+        [JsonPropertyName("RadarFeeds")]
+        public Dictionary<string, string>? RadarFeeds { get; set; }
+
+        [JsonPropertyName("UseGeoMetWms")]
+        public bool UseGeoMetWms { get; set; } = true;
+
+        [JsonPropertyName("CityRadarLayer")]
+        public string? CityRadarLayer { get; set; } = "RADAR_1KM_RRAI";
+
+        [JsonPropertyName("ProvinceRadarLayer")]
+        public string? ProvinceRadarLayer { get; set; } = "RADAR_1KM_RRAI";
+
+        [JsonPropertyName("ProvinceFrames")]
+        public int ProvinceFrames { get; set; } = 8;
+
+        [JsonPropertyName("ProvinceRadarUrl")]
+        public string? ProvinceRadarUrl { get; set; }
+
         [JsonPropertyName("DelayBetweenRequestsMs")]
         public int DelayBetweenRequestsMs { get; set; } = 200;
 
