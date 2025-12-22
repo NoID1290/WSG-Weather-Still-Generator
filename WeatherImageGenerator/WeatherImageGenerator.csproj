@@ -4,9 +4,9 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
-    <Version>0.4.0.1221</Version>
-    <AssemblyVersion>0.4.0.1221</AssemblyVersion>
-    <FileVersion>0.4.0.1221</FileVersion>
+    <Version>0.5.0.1222</Version>
+    <AssemblyVersion>0.5.0.1222</AssemblyVersion>
+    <FileVersion>0.5.0.1222</FileVersion>
     <RootNamespace>WSG_WeatherImageGenerator</RootNamespace>
     <AssemblyName>WSG</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
