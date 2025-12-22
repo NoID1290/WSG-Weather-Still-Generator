@@ -323,8 +323,29 @@ namespace WeatherImageGenerator
         [JsonPropertyName("ProvinceFrames")]
         public int ProvinceFrames { get; set; } = 8;
 
+        [JsonPropertyName("ProvinceImageWidth")]
+        public int ProvinceImageWidth { get; set; } = 1920;
+
+        [JsonPropertyName("ProvinceImageHeight")]
+        public int ProvinceImageHeight { get; set; } = 1080;
+
+        [JsonPropertyName("ProvincePaddingDegrees")]
+        public double ProvincePaddingDegrees { get; set; } = 0.5;
+
+        [JsonPropertyName("ProvinceEnsureCities")]
+        public string[]? ProvinceEnsureCities { get; set; }
+
+        [JsonPropertyName("ProvinceFrameStepMinutes")]
+        public int ProvinceFrameStepMinutes { get; set; } = 6;
+
+        [JsonPropertyName("ProvinceAnimationUrl")]
+        public string? ProvinceAnimationUrl { get; set; }
+
         [JsonPropertyName("ProvinceRadarUrl")]
         public string? ProvinceRadarUrl { get; set; }
+
+        [JsonPropertyName("CityMapTemplate")]
+        public string? CityMapTemplate { get; set; }
 
         [JsonPropertyName("DelayBetweenRequestsMs")]
         public int DelayBetweenRequestsMs { get; set; } = 200;

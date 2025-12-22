@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using System.IO;
 using System.Diagnostics;
-using WeatherImageGenerator;
+using System.Drawing;
+using System.Drawing.Imaging;
+using WeatherImageGenerator; 
 
 namespace QuebecWeatherAlertMonitor
 {
@@ -218,9 +220,45 @@ namespace QuebecWeatherAlertMonitor
             }
 
             // 2) Province-level animated radar using GeoMet WMS frames
-            // If explicit ProvinceRadarUrl provided, use it as a fallback; otherwise attempt to build animation from GeoMet WMS
+            // Prefer an explicit animation URL if provided; otherwise try ProvinceRadarUrl and detect animation
             bool provinceCreated = false;
-            if (!string.IsNullOrWhiteSpace(ecccConfig.ProvinceRadarUrl))
+
+            // 2a) Try explicit animation override (may be GIF/MP4)
+            if (!string.IsNullOrWhiteSpace(ecccConfig.ProvinceAnimationUrl))
+            {
+                try
+                {
+                    var resp = await client.GetAsync(ecccConfig.ProvinceAnimationUrl);
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        var contentType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                        string ext = GetExtensionFromContentTypeOrUrl(contentType, ecccConfig.ProvinceAnimationUrl ?? "");
+                        string outPath = Path.Combine(outputDir, $"00_ProvinceRadar{ext}");
+                        var bytes = await resp.Content.ReadAsByteArrayAsync();
+                        await File.WriteAllBytesAsync(outPath, bytes);
+
+                        // If this is an animated format (gif/mp4), consider animation created and skip WMS stitching
+                        if (ext == ".gif" || ext == ".mp4")
+                        {
+                            Logger.Log($"✓ Downloaded province animation -> {outPath}");
+                            provinceCreated = true;
+                        }
+                        else
+                        {
+                            Logger.Log($"Saved static province image from ProvinceAnimationUrl -> {outPath}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[ECCC] ProvinceAnimationUrl fetch failed: {ex.Message}", ConsoleColor.Yellow);
+                }
+
+                await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
+            }
+
+            // 2b) If not created, try ProvinceRadarUrl and detect if it's already an animation
+            if (!provinceCreated && !string.IsNullOrWhiteSpace(ecccConfig.ProvinceRadarUrl))
             {
                 try
                 {
@@ -232,8 +270,17 @@ namespace QuebecWeatherAlertMonitor
                         string outPath = Path.Combine(outputDir, $"00_ProvinceRadar{ext}");
                         var bytes = await resp.Content.ReadAsByteArrayAsync();
                         await File.WriteAllBytesAsync(outPath, bytes);
-                        Logger.Log($"✓ Downloaded province radar -> {outPath}");
-                        provinceCreated = true;
+
+                        if (ext == ".gif" || ext == ".mp4")
+                        {
+                            Logger.Log($"✓ Downloaded province animation -> {outPath}");
+                            provinceCreated = true;
+                        }
+                        else
+                        {
+                            Logger.Log($"Saved static province image from ProvinceRadarUrl -> {outPath}");
+                            // Do not mark as created; continue to try building animation from WMS frames
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -244,8 +291,10 @@ namespace QuebecWeatherAlertMonitor
                 await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
             }
 
+            // 2c) If we still don't have an animation, attempt to build one from GeoMet WMS frames
             if (!provinceCreated && ecccConfig.UseGeoMetWms)
             {
+                Logger.Log("[ECCC] No direct animation found; attempting to build province animation from GeoMet WMS frames...");
                 try
                 {
                     await CreateProvinceRadarAnimation(client, outputDir, ecccConfig);
@@ -275,7 +324,7 @@ namespace QuebecWeatherAlertMonitor
             return (minY, minX, maxY, maxX);
         }
 
-        private static string BuildGeoMetGetMapUrl(string layer, (double minY, double minX, double maxY, double maxX) bbox, int width, int height, string format = "image/png", string? time = null)
+        private static string BuildGeoMetGetMapUrl(string layer, (double minY, double minX, double maxY, double maxX) bbox, int width, int height, string format = "image/png", string? time = null, bool transparent = false)
         {
             // WMS 1.3.0 requires axis order lat,lon for EPSG:4326
             string bboxStr = $"{bbox.minY},{bbox.minX},{bbox.maxY},{bbox.maxX}";
@@ -287,12 +336,14 @@ namespace QuebecWeatherAlertMonitor
             sb.Append($"&BBOX={bboxStr}");
             sb.Append($"&WIDTH={width}&HEIGHT={height}");
             sb.Append($"&FORMAT={Uri.EscapeDataString(format)}");
+            if (transparent) sb.Append("&TRANSPARENT=TRUE");
             if (!string.IsNullOrWhiteSpace(time)) sb.Append($"&TIME={Uri.EscapeDataString(time)}");
             return sb.ToString();
         }
 
-        private static async Task CreateProvinceRadarAnimation(HttpClient client, string outputDir, ECCCSettings ecccConfig)
+        public static async Task CreateProvinceRadarAnimation(HttpClient client, string outputDir, ECCCSettings ecccConfig)
         {
+            Logger.Log($"[ECCC] CreateProvinceRadarAnimation: target size {ecccConfig.ProvinceImageWidth}x{ecccConfig.ProvinceImageHeight}");
             string layer = ecccConfig.ProvinceRadarLayer ?? "RADAR_1KM_RRAI";
             int frames = Math.Max(2, ecccConfig.ProvinceFrames);
 
@@ -348,13 +399,55 @@ namespace QuebecWeatherAlertMonitor
 
             if (times.Count == 0)
             {
-                // Fallback to requesting the default time only
-                Logger.Log("[ECCC] No times found in WMS capabilities; requesting latest single frame for province");
-                times.Add(null);
+                // No discrete times available in GetCapabilities; generate a list of recent times by stepping back
+                Logger.Log($"[ECCC] No times found in WMS capabilities; generating last {frames} times using step {ecccConfig.ProvinceFrameStepMinutes} minutes");
+                var step = TimeSpan.FromMinutes(Math.Max(1, ecccConfig.ProvinceFrameStepMinutes));
+                var now = DateTime.UtcNow;
+                for (int i = frames - 1; i >= 0; i--)
+                {
+                    var t = now.Subtract(TimeSpan.FromMinutes(i * step.TotalMinutes));
+                    times.Add(t.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+                }
             }
 
             // Province bounding box for Quebec (rough) lat,long: minY,minX,maxY,maxX
-            var provinceBbox = (minY: 45.0, minX: -80.5, maxY: 53.5, maxX: -57.0);
+            var defaultProvinceBbox = (minY: 45.0, minX: -80.5, maxY: 53.5, maxX: -57.0);
+            var provinceBbox = defaultProvinceBbox;
+
+            // If user requested to ensure certain cities are visible, expand/union the bbox to include them
+            if (ecccConfig.ProvinceEnsureCities != null && ecccConfig.ProvinceEnsureCities.Length > 0)
+            {
+                double minY = double.MaxValue, minX = double.MaxValue, maxY = double.MinValue, maxX = double.MinValue;
+                bool foundAny = false;
+                foreach (var city in ecccConfig.ProvinceEnsureCities)
+                {
+                    if (CityCoordinates.TryGetValue(city, out var c))
+                    {
+                        minY = Math.Min(minY, c.lat);
+                        minX = Math.Min(minX, c.lon);
+                        maxY = Math.Max(maxY, c.lat);
+                        maxX = Math.Max(maxX, c.lon);
+                        foundAny = true;
+                    }
+                    else
+                    {
+                        Logger.Log($"[ECCC] Unknown city requested for ProvinceEnsureCities: {city}");
+                    }
+                }
+
+                if (foundAny)
+                {
+                    var pad = ecccConfig.ProvincePaddingDegrees;
+                    var citiesBbox = (minY: minY - pad, minX: minX - pad, maxY: maxY + pad, maxX: maxX + pad);
+                    provinceBbox = (minY: Math.Min(defaultProvinceBbox.minY, citiesBbox.minY),
+                                    minX: Math.Min(defaultProvinceBbox.minX, citiesBbox.minX),
+                                    maxY: Math.Max(defaultProvinceBbox.maxY, citiesBbox.maxY),
+                                    maxX: Math.Max(defaultProvinceBbox.maxX, citiesBbox.maxX));
+                }
+            }
+
+            int width = ecccConfig.ProvinceImageWidth;
+            int height = ecccConfig.ProvinceImageHeight;
 
             // Create temp frames
             string tempDir = Path.Combine(outputDir, "province_frames");
@@ -364,7 +457,7 @@ namespace QuebecWeatherAlertMonitor
             var frameFiles = new List<string>();
             foreach (var t in times)
             {
-                string url = BuildGeoMetGetMapUrl(layer, provinceBbox, 1920, 1080, "image/png", t);
+                string url = BuildGeoMetGetMapUrl(layer, provinceBbox, width, height, "image/png", t);
                 try
                 {
                     var resp = await client.GetAsync(url);
@@ -396,22 +489,38 @@ namespace QuebecWeatherAlertMonitor
                 string gifOut = Path.Combine(outputDir, "00_ProvinceRadar.gif");
                 string mp4Out = Path.Combine(outputDir, "00_ProvinceRadar.mp4");
 
-                try
+                if (!IsExecutableAvailable("ffmpeg"))
                 {
-                    // Build ffmpeg command to create GIF
-                    // Use fps=5 and loop
-                    string args = $"-y -framerate 5 -i \"{Path.Combine(tempDir, "frame_%03d.png")}\" -vf \"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2\" -loop 0 \"{gifOut}\"";
-                    RunExternalProcess("ffmpeg", args, outputDir);
-
-                    // Also build MP4 copy (use libx264)
-                    string args2 = $"-y -framerate 5 -i \"{Path.Combine(tempDir, "frame_%03d.png")}\" -c:v libx264 -pix_fmt yuv420p -vf \"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2\" \"{mp4Out}\"";
-                    RunExternalProcess("ffmpeg", args2, outputDir);
-
-                    Logger.Log($"✓ Province animation created: {gifOut} and {mp4Out}");
+                    Logger.Log($"[ECCC] ffmpeg not found on PATH; frames saved to: {tempDir}. You can run ffmpeg manually to stitch (e.g. ffmpeg -y -framerate 5 -i \"{Path.Combine(tempDir, "frame_%03d.png")}\" -vf \"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2\" -loop 0 \"{gifOut}\"), then move outputs to {outputDir}.", ConsoleColor.Yellow);
                 }
-                catch (Exception ex)
+                else
                 {
-                    Logger.Log($"[ECCC] Failed to create animated GIF/MP4: {ex.Message}", ConsoleColor.Yellow);
+                    try
+                    {
+                        // Build ffmpeg command to create GIF
+                        // Use fps=5 and loop
+                        string args = $"-y -framerate 5 -i \"{Path.Combine(tempDir, "frame_%03d.png")}\" -vf \"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2\" -loop 0 \"{gifOut}\"";
+                        RunExternalProcess("ffmpeg", args, outputDir);
+
+                        // Also build MP4 copy (use libx264)
+                        string args2 = $"-y -framerate 5 -i \"{Path.Combine(tempDir, "frame_%03d.png")}\" -c:v libx264 -pix_fmt yuv420p -vf \"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2\" \"{mp4Out}\"";
+                        RunExternalProcess("ffmpeg", args2, outputDir);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[ECCC] Failed to run ffmpeg: {ex.Message}", ConsoleColor.Yellow);
+                    }
+
+                    // Verify outputs were created
+                    if (System.IO.File.Exists(gifOut) || System.IO.File.Exists(mp4Out))
+                    {
+                        var which = System.IO.File.Exists(gifOut) ? gifOut : mp4Out;
+                        Logger.Log($"✓ Province animation created: {which}");
+                    }
+                    else
+                    {
+                        Logger.Log($"[ECCC] FFmpeg did not produce expected outputs: {gifOut} / {mp4Out}", ConsoleColor.Yellow);
+                    }
                 }
             }
         }
@@ -452,6 +561,33 @@ namespace QuebecWeatherAlertMonitor
             }
         }
 
+        private static bool IsExecutableAvailable(string exe)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exe,
+                    Arguments = "-version",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var p = Process.Start(psi))
+                {
+                    if (p == null) return false;
+                    p.WaitForExit(2000);
+                    try { return p.ExitCode == 0; } catch { return true; }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static string SanitizeFileName(string name)
         {
             var invalid = Path.GetInvalidFileNameChars();
@@ -465,6 +601,7 @@ namespace QuebecWeatherAlertMonitor
             if (contentType.Contains("gif")) return ".gif";
             if (contentType.Contains("png")) return ".png";
             if (contentType.Contains("jpeg") || contentType.Contains("jpg")) return ".jpg";
+            if (contentType.Contains("mp4") || contentType.Contains("video")) return ".mp4";
 
             try
             {

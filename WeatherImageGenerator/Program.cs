@@ -41,6 +41,19 @@ namespace WeatherImageGenerator
                 return;
             }
 
+            if (args.Contains("--generate-province-animation"))
+            {
+                var config = ConfigManager.LoadConfig();
+                var outputDir = Path.Combine(Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
+                using (var http = new System.Net.Http.HttpClient())
+                {
+                    ECCC.CreateProvinceRadarAnimation(http, outputDir, config.ECCC ?? new ECCCSettings()).GetAwaiter().GetResult();
+                }
+
+                Logger.Log("Province animation generation requested (one-off). Exiting.");
+                return;
+            }
+
             // If user supplies --nogui, run as console as before
             if (args.Contains("--nogui"))
             {
