@@ -143,80 +143,87 @@ namespace QuebecWeatherAlertMonitor
                 client.DefaultRequestHeaders.Add("User-Agent", ecccConfig.UserAgent ?? "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
             }
 
-            // 1) City-level radar: if a direct URL is provided, use it; otherwise if UseGeoMetWms is true, use GeoMet WMS GetMap
-            foreach (var city in ecccConfig.CityFeeds ?? new Dictionary<string,string>())
+            // 1) City-level radar: disabled unless explicitly enabled in config
+            if (ecccConfig.EnableCityRadar)
             {
-                string cityName = city.Key;
-                string directUrl = (radarFeeds.TryGetValue(cityName, out var rv) ? rv : null) ?? string.Empty;
-
-                if (!string.IsNullOrWhiteSpace(directUrl))
+                foreach (var city in ecccConfig.CityFeeds ?? new Dictionary<string,string>())
                 {
-                    // Direct download
-                    try
-                    {
-                        var resp = await client.GetAsync(directUrl);
-                        if (!resp.IsSuccessStatusCode)
-                        {
-                            Logger.Log($"[ECCC] Radar fetch failed for {cityName}: HTTP {(int)resp.StatusCode}");
-                        }
-                        else
-                        {
-                            var contentType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
-                            string ext = GetExtensionFromContentTypeOrUrl(contentType, directUrl);
-                            string safeName = SanitizeFileName(cityName);
-                            string outPath = Path.Combine(outputDir, $"radar_{safeName}{ext}");
-                            var bytes = await resp.Content.ReadAsByteArrayAsync();
-                            await File.WriteAllBytesAsync(outPath, bytes);
-                            Logger.Log($"✓ Downloaded radar for {cityName} -> {outPath}");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log($"[ECCC] Radar {cityName} fetch failed: {ex.Message}", ConsoleColor.Yellow);
-                    }
+                    string cityName = city.Key;
+                    string directUrl = (radarFeeds.TryGetValue(cityName, out var rv) ? rv : null) ?? string.Empty;
 
-                    await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
-                    continue;
-                }
-
-                if (ecccConfig.UseGeoMetWms)
-                {
-                    try
+                    if (!string.IsNullOrWhiteSpace(directUrl))
                     {
-                        // Build a small bbox around the city coordinates
-                        if (CityCoordinates.TryGetValue(cityName, out var coord))
+                        // Direct download
+                        try
                         {
-                            var bbox = BuildBoundingBox(coord.lat, coord.lon, 0.6);
-                            string layer = ecccConfig.CityRadarLayer ?? "RADAR_1KM_RRAI";
-                            string url = BuildGeoMetGetMapUrl(layer, bbox, 400, 200, "image/png", null);
-
-                            var resp = await client.GetAsync(url);
-                            if (resp.IsSuccessStatusCode)
+                            var resp = await client.GetAsync(directUrl);
+                            if (!resp.IsSuccessStatusCode)
                             {
-                                string ext = ".png";
+                                Logger.Log($"[ECCC] Radar fetch failed for {cityName}: HTTP {(int)resp.StatusCode}");
+                            }
+                            else
+                            {
+                                var contentType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                                string ext = GetExtensionFromContentTypeOrUrl(contentType, directUrl);
                                 string safeName = SanitizeFileName(cityName);
                                 string outPath = Path.Combine(outputDir, $"radar_{safeName}{ext}");
                                 var bytes = await resp.Content.ReadAsByteArrayAsync();
                                 await File.WriteAllBytesAsync(outPath, bytes);
-                                Logger.Log($"✓ Fetched GeoMet WMS radar for {cityName} -> {outPath}");
+                                Logger.Log($"✓ Downloaded radar for {cityName} -> {outPath}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"[ECCC] Radar {cityName} fetch failed: {ex.Message}", ConsoleColor.Yellow);
+                        }
+
+                        await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
+                        continue;
+                    }
+
+                    if (ecccConfig.UseGeoMetWms)
+                    {
+                        try
+                        {
+                            // Build a small bbox around the city coordinates
+                            if (CityCoordinates.TryGetValue(cityName, out var coord))
+                            {
+                                var bbox = BuildBoundingBox(coord.lat, coord.lon, 0.6);
+                                string layer = ecccConfig.CityRadarLayer ?? "RADAR_1KM_RRAI";
+                                string url = BuildGeoMetGetMapUrl(layer, bbox, 400, 200, "image/png", null);
+
+                                var resp = await client.GetAsync(url);
+                                if (resp.IsSuccessStatusCode)
+                                {
+                                    string ext = ".png";
+                                    string safeName = SanitizeFileName(cityName);
+                                    string outPath = Path.Combine(outputDir, $"radar_{safeName}{ext}");
+                                    var bytes = await resp.Content.ReadAsByteArrayAsync();
+                                    await File.WriteAllBytesAsync(outPath, bytes);
+                                    Logger.Log($"✓ Fetched GeoMet WMS radar for {cityName} -> {outPath}");
+                                }
+                                else
+                                {
+                                    Logger.Log($"[ECCC] GeoMet WMS radar fetch failed for {cityName}: HTTP {(int)resp.StatusCode}");
+                                }
                             }
                             else
                             {
-                                Logger.Log($"[ECCC] GeoMet WMS radar fetch failed for {cityName}: HTTP {(int)resp.StatusCode}");
+                                Logger.Log($"[ECCC] No known coordinates for {cityName}; skipping GeoMet WMS thumbnail.");
                             }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            Logger.Log($"[ECCC] No known coordinates for {cityName}; skipping GeoMet WMS thumbnail.");
+                            Logger.Log($"[ECCC] GeoMet WMS fetch failed for {cityName}: {ex.Message}", ConsoleColor.Yellow);
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log($"[ECCC] GeoMet WMS fetch failed for {cityName}: {ex.Message}", ConsoleColor.Yellow);
-                    }
 
-                    await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
+                        await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
+                    }
                 }
+            }
+            else
+            {
+                Logger.Log("[ECCC] City-level radar generation disabled (EnableCityRadar=false); skipping city radar thumbnails.", ConsoleColor.Cyan);
             }
 
             // 2) Province-level animated radar using GeoMet WMS frames

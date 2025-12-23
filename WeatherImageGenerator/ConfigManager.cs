@@ -311,6 +311,9 @@ namespace WeatherImageGenerator
         [JsonPropertyName("RadarFeeds")]
         public Dictionary<string, string>? RadarFeeds { get; set; }
 
+        [JsonPropertyName("EnableCityRadar")]
+        public bool EnableCityRadar { get; set; } = false;
+
         [JsonPropertyName("UseGeoMetWms")]
         public bool UseGeoMetWms { get; set; } = true;
 

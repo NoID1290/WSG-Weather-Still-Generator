@@ -169,11 +169,7 @@ Configuration for fetching weather alerts from Environment and Climate Change Ca
     "Amos": "https://weather.gc.ca/rss/alerts/48.574_-78.116_f.xml",
     "Saint-Rémi": "https://weather.gc.ca/rss/alerts/45.263_-73.620_f.xml"
   },
-  "RadarFeeds": {
-    "Montreal": "https://<your-eccc-radar-url>/montreal.gif",
-    "Quebec City": "https://<your-eccc-radar-url>/quebeccity.gif",
-    "Amos": "https://<your-eccc-radar-url>/amos.gif"
-  },
+  "EnableCityRadar": false,
   "ProvinceRadarUrl": "https://<your-eccc-radar-url>/quebec_province.gif",
   "DelayBetweenRequestsMs": 200,
   "UserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
@@ -182,8 +178,8 @@ Configuration for fetching weather alerts from Environment and Climate Change Ca
 | Setting | Default | Notes |
 |---------|---------|-------|
 | CityFeeds | Dictionary of cities and RSS URLs | Add/remove cities or update feed URLs |
-| RadarFeeds | Dictionary of cities and radar image URLs | Add radar image URLs (ECCC or other) to show per-city thumbnails on the maps image |
-| UseGeoMetWms | boolean | When true (default) the application will request city and province radar images from the MSC GeoMet WMS if no direct `RadarFeeds` entry is provided |
+| EnableCityRadar | boolean | When false (default) city-level radar thumbnails are not generated; only province-level radar is used |
+| UseGeoMetWms | boolean | When true (default) the application will request province radar images from the MSC GeoMet WMS (city-level usage depends on EnableCityRadar) |
 | CityRadarLayer | string | Which GeoMet `LAYERS` name to use for city thumbnails (default `RADAR_1KM_RRAI`) |
 | ProvinceRadarLayer | string | Which GeoMet `LAYERS` name to use to build a province animation (default `RADAR_1KM_RRAI`) |
 | ProvinceFrames | integer | Number of frames to request when building the province animation from GeoMet WMS (default `8`) |
