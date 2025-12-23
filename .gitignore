@@ -369,6 +369,7 @@ FodyWeavers.xsd
 WeatherImageGenerator/Properties/launchSettings.json
 
 # Generated weather folders
+WeatherImages/
 WeatherImageGenerator/WeatherImages/
 WeatherImageGenerator/WeatherImages/slideshow_v3.mp4
 WeatherImageGenerator/WeatherImageGenerator.csproj

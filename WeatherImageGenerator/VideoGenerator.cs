@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -32,6 +34,10 @@ namespace WeatherImageGenerator
         public int FrameRate { get; set; } = 30;                 // Output framerate
         public ResolutionMode ResolutionMode { get; set; } = ResolutionMode.Mode1080p;
         public bool EnableFadeTransitions { get; set; } = false;
+        public bool UseOverlayMode { get; set; } = false;       // When true, overlay frames on static background
+        public string StaticMapPath { get; set; } = "";         // Path to static background map
+        // When set, the radar overlay will only be enabled for the base image whose filename contains this string (case-insensitive)
+        public string OverlayTargetFilename { get; set; } = "";
         public string VideoCodec { get; set; } = "libx264";     // FFmpeg video codec
         public string VideoBitrate { get; set; } = "4M";        // Target bitrate (e.g., 4M)
         public string Container { get; set; } = "mp4";          // Output container/extension
@@ -48,6 +54,11 @@ namespace WeatherImageGenerator
         private int _width;
         private int _height;
         private readonly string[] _extensions = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp", "*.gif" };
+
+        // When in overlay mode, radar frames are stored here
+        private List<FileInfo> _radarFrames = new List<FileInfo>();
+        // Temporary directory for composed stills (static map underlay)
+        private string? _compositeTempDir = null;
 
         // FFmpeg output simplification
         private string _lastFfmpegProgress = "";
@@ -100,19 +111,89 @@ namespace WeatherImageGenerator
             // Calculate resolution
             CalculateResolution();
 
+            // If overlay mode requested, load radar frames and pre-compose stills on top of the static map
+            List<FileInfo> baseImages = images;
+            List<FileInfo> radarFrames = new List<FileInfo>();
+            int overlayBaseIndex = -1;
+
+            if (UseOverlayMode)
+            {
+                radarFrames = LoadRadarFrames();
+
+                if (!string.IsNullOrEmpty(StaticMapPath) && File.Exists(StaticMapPath) && radarFrames.Count > 0)
+                {
+                    // Pre-compose each still with the static map beneath it
+                    _compositeTempDir = Path.Combine(WorkingDirectory, "_composited_stills");
+                    if (!Directory.Exists(_compositeTempDir)) Directory.CreateDirectory(_compositeTempDir);
+
+                    var composed = new List<FileInfo>();
+                    try
+                    {
+                        foreach (var st in images)
+                        {
+                            var outPath = Path.Combine(_compositeTempDir, Path.GetFileNameWithoutExtension(st.Name) + ".png");
+                            ComposeStillWithStaticMap(st.FullName, StaticMapPath, outPath);
+                            composed.Add(new FileInfo(outPath));
+                        }
+
+                        baseImages = composed.OrderBy(f => f.Name).ToList();
+
+                        // If a target filename substring is provided, find its index in the base image list
+                        if (!string.IsNullOrEmpty(OverlayTargetFilename))
+                        {
+                            var match = baseImages.Select((f, idx) => new { f, idx })
+                                                   .FirstOrDefault(x => x.f.Name.IndexOf(OverlayTargetFilename, StringComparison.OrdinalIgnoreCase) >= 0);
+                            if (match != null)
+                            {
+                                overlayBaseIndex = match.idx;
+                                Logger.Log($"[OVERLAY] Radar overlay will be enabled for base image index {overlayBaseIndex} ({baseImages[overlayBaseIndex].Name})", ConsoleColor.Cyan);
+                            }
+                            else
+                            {
+                                Logger.Log($"[OVERLAY] Target filename '{OverlayTargetFilename}' not found among base images; radar overlay will be disabled.", ConsoleColor.Yellow);
+                                UseOverlayMode = false; // disable overlay to avoid overlaying everywhere
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[OVERLAY] Failed to compose images: {ex.Message}", ConsoleColor.Yellow);
+                        // Fall back to original stills if composition fails
+                        baseImages = images;
+                    }
+                }
+                else
+                {
+                    Logger.Log("[OVERLAY] Static map not found or no radar frames; overlay mode will be ignored.", ConsoleColor.Yellow);
+                    UseOverlayMode = false;
+                }
+            }
+
             // Build filter complex
-            var filterComplex = BuildFilterComplex(images);
+            var filterComplex = BuildFilterComplex(baseImages, radarFrames, overlayBaseIndex);
 
             // Estimate expected total duration and frames for progress calculation
+            var imageCount = UseOverlayMode ? (/* base images */ (int?)null) : (int?)null;
+            // We already have _expectedTotalSeconds and frames calculated from inputs; compute from baseImages if overlay
+            // (calculate based on number of base images so the progress is accurate when overlay mode is used)
+            int baseCount = (UseOverlayMode && filterComplex != null) ? 0 : 0; // placeholder to keep flow; will override below
+
             if (EnableFadeTransitions)
             {
                 // If fades overlap, total duration = static durations + fades between images
-                _expectedTotalSeconds = StaticDuration * images.Count + FadeDuration * Math.Max(0, images.Count - 1);
+                _expectedTotalSeconds = StaticDuration * (UseOverlayMode ? 0 : 0); // replaced below
+            }
+            // We'll replace the above shortly by setting correct expected times based on the number of base images
+
+            // Set the expected totals properly now (baseImages used when overlay mode is on)
+            var effectiveCount = UseOverlayMode ? (baseImages?.Count ?? 0) : images.Count;
+            if (EnableFadeTransitions)
+            {
+                _expectedTotalSeconds = StaticDuration * effectiveCount + FadeDuration * Math.Max(0, effectiveCount - 1);
             }
             else
             {
-                // Without fades, each clip duration is Static + Fade (used as clip length)
-                _expectedTotalSeconds = (StaticDuration + FadeDuration) * images.Count;
+                _expectedTotalSeconds = (StaticDuration + FadeDuration) * effectiveCount;
             }
             _expectedTotalFrames = Math.Max(1.0, _expectedTotalSeconds * FrameRate);
 
@@ -123,9 +204,21 @@ namespace WeatherImageGenerator
             }
 
             // Build and execute FFmpeg command
-            var ffmpegCmd = BuildFFmpegCommand(images, filterComplex);
+            var ffmpegCmd = BuildFFmpegCommand(baseImages, radarFrames, filterComplex);
             if (FfmpegVerbose) Logger.Log($"[CMD] {ffmpegCmd}");
-            return ExecuteFFmpeg(ffmpegCmd);
+            try
+            {
+                return ExecuteFFmpeg(ffmpegCmd);
+            }
+            finally
+            {
+                // Cleanup any temporary composed images
+                if (!string.IsNullOrEmpty(_compositeTempDir) && Directory.Exists(_compositeTempDir))
+                {
+                    try { Directory.Delete(_compositeTempDir, true); } catch { }
+                    _compositeTempDir = null;
+                }
+            }
         }
 
         private List<FileInfo> LoadImages()
@@ -133,6 +226,7 @@ namespace WeatherImageGenerator
             var images = new List<FileInfo>();
             var dir = new DirectoryInfo(ImageFolder);
 
+            // Always load still images from the main folder (do not switch to province_frames)
             foreach (var extension in _extensions)
             {
                 var files = dir.GetFiles(extension);
@@ -140,6 +234,31 @@ namespace WeatherImageGenerator
             }
 
             return images.OrderBy(f => f.Name).ToList();
+        }
+
+        /// <summary>
+        /// Loads radar frames from the province_frames subdirectory (if present).
+        /// </summary>
+        private List<FileInfo> LoadRadarFrames()
+        {
+            var frames = new List<FileInfo>();
+            var provinceFramesDir = Path.Combine(ImageFolder, "province_frames");
+            if (Directory.Exists(provinceFramesDir))
+            {
+                Logger.Log($"[OVERLAY MODE] Loading radar frames from: {provinceFramesDir}", System.ConsoleColor.Cyan);
+                var d = new DirectoryInfo(provinceFramesDir);
+                foreach (var extension in _extensions)
+                {
+                    frames.AddRange(d.GetFiles(extension));
+                }
+            }
+            else
+            {
+                Logger.Log("[OVERLAY MODE] province_frames directory not found, no radar overlay will be applied.", System.ConsoleColor.Yellow);
+            }
+
+            _radarFrames = frames.OrderBy(f => f.Name).ToList();
+            return _radarFrames;
         }
 
         private void CalculateResolution()
@@ -162,7 +281,7 @@ namespace WeatherImageGenerator
             }
         }
 
-        private string BuildFilterComplex(List<FileInfo> images)
+        private string BuildFilterComplex(List<FileInfo> baseImages, List<FileInfo> radarFrames, int overlayBaseIndex = -1)
         {
             var clipDuration = StaticDuration + FadeDuration;
             var clipDurStr = clipDuration.ToString(_culture);
@@ -176,63 +295,149 @@ namespace WeatherImageGenerator
             var filterParts = new List<string>();
             var index = 0;
 
-            // Build input stream filters
-            foreach (var img in images)
+            // We'll add inputs in BuildFFmpegCommand in the following order when overlay mode is active:
+            // [baseImages..., radarFrames...]
+
+            // Build input stream filters for base images
+            foreach (var img in baseImages)
             {
-                // FIX 2: USE 'fps' INSTEAD OF 'framerate'
-                // We replaced 'framerate=$FPS' with 'fps=$FPS' which is more robust for static loops
                 filterParts.Add($"[{index}:v]{preScale},fps={FrameRate},setpts=PTS-STARTPTS[v{index}];");
                 index++;
             }
 
-            // Build transitions
-            var lastLabel = "[v0]";
+            var baseCount = baseImages.Count;
+
+            // Build input stream filters for radar frames
+            for (int r = 0; r < radarFrames.Count; r++)
+            {
+                filterParts.Add($"[{index}:v]{preScale},fps={FrameRate},setpts=PTS-STARTPTS[r{r+1}];");
+                index++;
+            }
+
+            // Build base sequence (concatenate or xfades between base images)
+            var lastLabel = baseCount > 0 ? "[v0]" : "[v0]";
             var currentOffset = 0.0;
             var fadeStr = FadeDuration.ToString(_culture);
 
-            for (int i = 0; i < images.Count - 1; i++)
+            if (baseCount > 0)
             {
-                var nextInput = $"[v{i + 1}]";
-                var outputLabel = $"[f{i}]";
-
-                currentOffset += StaticDuration;
-                var offStr = currentOffset.ToString(_culture);
-
-                if (EnableFadeTransitions)
+                for (int i = 0; i < baseCount - 1; i++)
                 {
-                    var xfadeString = $"{lastLabel}{nextInput}xfade=transition=fade:" +
-                                    $"duration={fadeStr}:offset={offStr}{outputLabel};";
-                    filterParts.Add(xfadeString);
+                    var nextInput = $"[v{i + 1}]";
+                    var outputLabel = $"[b{i}]";
+
+                    currentOffset += StaticDuration;
+                    var offStr = currentOffset.ToString(_culture);
+
+                    if (EnableFadeTransitions)
+                    {
+                        var xfadeString = $"{lastLabel}{nextInput}xfade=transition=fade:" +
+                                        $"duration={fadeStr}:offset={offStr}{outputLabel};";
+                        filterParts.Add(xfadeString);
+                    }
+                    else
+                    {
+                        var concatString = $"{lastLabel}{nextInput}concat=n=2:v=1:a=0{outputLabel};";
+                        filterParts.Add(concatString);
+                    }
+
+                    lastLabel = outputLabel;
+                }
+            }
+
+            var baseFinal = baseCount == 1 ? "[v0]" : lastLabel;
+
+            // Build radar animation sequence from radar frames (if any)
+            string? radarFinal = null;
+            if (radarFrames.Count > 0)
+            {
+                var radarLast = radarFrames.Count == 1 ? "[r1]" : "[r1]";
+                var radarLabel = radarFrames.Count == 1 ? "[r1]" : null;
+
+                // If more than one radar frame, xfade/concat them
+                if (radarFrames.Count > 1)
+                {
+                    var rLastLabel = "[r1]";
+                    for (int i = 0; i < radarFrames.Count - 1; i++)
+                    {
+                        var cur = $"[r{i + 1}]";
+                        var nxt = $"[r{i + 2}]";
+                        var outLbl = $"[ra{i}]";
+
+                        currentOffset += StaticDuration; // reuse offset to keep consistent timing for transitions
+                        var offStr = currentOffset.ToString(_culture);
+
+                        if (EnableFadeTransitions)
+                        {
+                            filterParts.Add($"{rLastLabel}{nxt}xfade=transition=fade:duration={fadeStr}:offset={offStr}{outLbl};");
+                        }
+                        else
+                        {
+                            filterParts.Add($"{rLastLabel}{nxt}concat=n=2:v=1:a=0{outLbl};");
+                        }
+
+                        rLastLabel = outLbl;
+                    }
+
+                    radarFinal = rLastLabel;
                 }
                 else
                 {
-                    // If fades are disabled, use a simple concat instead
-                    var concatString = $"{lastLabel}{nextInput}concat=n=2:v=1:a=0{outputLabel};";
-                    filterParts.Add(concatString);
+                    radarFinal = "[r1]";
                 }
-
-                lastLabel = outputLabel;
             }
 
-            // Final output
-            var finalMap = images.Count == 1 ? "[v0]" : lastLabel;
-            filterParts.Add($"{finalMap}format=yuv420p[outv]");
+            // If overlay mode (radar frames present) overlay radarFinal onto baseFinal
+            if (radarFinal != null && baseCount > 0)
+            {
+                if (overlayBaseIndex >= 0)
+                {
+                    // Compute the start and end time (seconds) to enable the overlay only during that base image clip
+                    double startSec = overlayBaseIndex * StaticDuration;
+                    double endSec = startSec + clipDuration; // show overlay for the duration of the clip
+                    var startStr = startSec.ToString(_culture);
+                    var endStr = endSec.ToString(_culture);
+                    Logger.Log($"[OVERLAY] Enabling radar overlay between {startStr}s and {endStr}s (for base index {overlayBaseIndex})", ConsoleColor.Cyan);
+                    filterParts.Add($"{baseFinal}{radarFinal}overlay=0:0:enable='between(t,{startStr},{endStr})'[overlaid];");
+                    filterParts.Add($"[overlaid]format=yuv420p[outv]");
+                }
+                else
+                {
+                    filterParts.Add($"{baseFinal}{radarFinal}overlay=0:0[overlaid];");
+                    filterParts.Add($"[overlaid]format=yuv420p[outv]");
+                }
+            }
+            else if (baseCount > 0)
+            {
+                // No radar frames; just output baseFinal
+                filterParts.Add($"{baseFinal}format=yuv420p[outv]");
+            }
+            else
+            {
+                // Fallback - empty
+                filterParts.Add("nullsrc=size=1920x1080,format=yuv420p[outv]");
+            }
 
             return string.Concat(filterParts);
         }
 
-        private string BuildFFmpegCommand(List<FileInfo> images, string filterComplex)
+        private string BuildFFmpegCommand(List<FileInfo> baseImages, List<FileInfo> radarFrames, string filterComplex)
         {
             var sb = new StringBuilder();
             sb.Append("ffmpeg -y");
 
-            // Add input files
+            // Add input files in this order: baseImages..., radarFrames..., [audio]
             var clipDuration = StaticDuration + FadeDuration;
             var clipDurStr = clipDuration.ToString(_culture);
 
-            foreach (var img in images)
+            foreach (var img in baseImages)
             {
                 sb.Append($" -framerate {FrameRate} -loop 1 -t {clipDurStr} -i \"{img.FullName}\"");
+            }
+
+            foreach (var rf in radarFrames)
+            {
+                sb.Append($" -framerate {FrameRate} -loop 1 -t {clipDurStr} -i \"{rf.FullName}\"");
             }
 
             // Add audio input if available (must be added before filter_complex)
@@ -249,7 +454,9 @@ namespace WeatherImageGenerator
             // Map audio if present (after filter_complex and video mapping) and set codec/bitrate
             if (hasAudio)
             {
-                sb.Append($" -map \"{images.Count}:a\"");
+                // Audio index needs to account for the total number of video inputs
+                var audioIndex = baseImages.Count + radarFrames.Count;
+                sb.Append($" -map \"{audioIndex}:a\"");
                 if (!string.IsNullOrWhiteSpace(AudioCodec))
                 {
                     sb.Append($" -c:a {AudioCodec}");
@@ -502,6 +709,50 @@ namespace WeatherImageGenerator
             {
                 if (isError) Logger.Log(d, System.ConsoleColor.Yellow); else Logger.Log(d);
             }
+        }
+
+        private void ComposeStillWithStaticMap(string stillPath, string staticMapPath, string outPath)
+        {
+            // Compose static map (below) and still image (above) into a new PNG sized to target resolution
+            using (var bgImg = Image.FromFile(staticMapPath))
+            using (var stImg = Image.FromFile(stillPath))
+            using (var bmp = new Bitmap(_width, _height))
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.Black);
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
+                g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+                // Draw background scaled to fill while preserving aspect
+                var bgRect = GetAspectFitRect(bgImg.Width, bgImg.Height, _width, _height);
+                g.DrawImage(bgImg, bgRect);
+
+                // Draw still centered and aspect-fit
+                var stRect = GetAspectFitRect(stImg.Width, stImg.Height, _width, _height);
+                g.DrawImage(stImg, stRect);
+
+                try
+                {
+                    bmp.Save(outPath, ImageFormat.Png);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[COMPOSE] Failed to save composed image {outPath}: {ex.Message}", ConsoleColor.Yellow);
+                    throw;
+                }
+            }
+        }
+
+        private Rectangle GetAspectFitRect(int srcW, int srcH, int dstW, int dstH)
+        {
+            double scale = Math.Min((double)dstW / srcW, (double)dstH / srcH);
+            int w = (int)Math.Round(srcW * scale);
+            int h = (int)Math.Round(srcH * scale);
+            int x = (dstW - w) / 2;
+            int y = (dstH - h) / 2;
+            return new Rectangle(x, y, w, h);
         }
 
         /// <summary>

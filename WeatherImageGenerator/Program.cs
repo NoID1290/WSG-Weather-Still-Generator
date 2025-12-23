@@ -1117,8 +1117,13 @@ namespace WeatherImageGenerator
                     Container = container,
                     FfmpegVerbose = videoConfig.VerboseFfmpeg,
                     ShowFfmpegOutputInGui = videoConfig.ShowFfmpegOutputInGui,
-                    EnableHardwareEncoding = videoConfig.EnableHardwareEncoding
+                    EnableHardwareEncoding = videoConfig.EnableHardwareEncoding,
+                    UseOverlayMode = true,
+                    StaticMapPath = Path.Combine(outputDir, config.WeatherImages?.StaticMapFilename ?? "STATIC_MAP.IGNORE")
                 };
+
+                // Configure which base image should receive the radar overlay. Prefer explicit filename from config if present.
+                videoGenerator.OverlayTargetFilename = config.WeatherImages?.WeatherMapsFilename ?? "WeatherMaps";
                 
                 if (videoGenerator.GenerateVideo())
                 {
