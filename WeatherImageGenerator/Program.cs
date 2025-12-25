@@ -944,8 +944,9 @@ namespace WeatherImageGenerator
                             // Temperature
                             graphics.DrawString(tempText, tempFont, whiteBrush, new PointF(x + 20, y + 80));
 
-                            // Small weather icon to the right of temperature
-                            var iconRect = new RectangleF(x + colWidth - 100, y + 70, 64, 64);
+                            // Large weather icon to the right of temperature, taking up available space
+                            float iconSize = 180;
+                            var iconRect = new RectangleF(x + colWidth - iconSize - 30, y + 60, iconSize, iconSize);
                             DrawWeatherIcon(graphics, iconRect, item.Forecast?.Current?.Weathercode);
 
                             // Condition
@@ -978,7 +979,7 @@ namespace WeatherImageGenerator
                                 if (item.Forecast?.Daily != null && item.Forecast.Daily.Time != null && item.Forecast.Daily.Time.Length > 0)
                                 {
                                     int daysToShow = Math.Min(5, item.Forecast.Daily.Time.Length);
-                                    float rowHeight = 50;
+                                    float rowHeight = 75;
 
                                     for (int d = 0; d < daysToShow; d++)
                                     {
@@ -993,20 +994,22 @@ namespace WeatherImageGenerator
                                             int? dayCode = item.Forecast.Daily.Weathercode != null 
                                                 ? (int?)item.Forecast.Daily.Weathercode[d] : null;
 
+                                            float paddingY = 10;
+
                                             // Day name and date
-                                            graphics.DrawString(dayName, forecastDayFont, whiteBrush, new PointF(x + 20, forecastY));
-                                            graphics.DrawString(dateStr, forecastTempFont, whiteBrush, new PointF(x + 20, forecastY + 16));
+                                            graphics.DrawString(dayName, forecastDayFont, whiteBrush, new PointF(x + 20, forecastY + paddingY));
+                                            graphics.DrawString(dateStr, forecastTempFont, whiteBrush, new PointF(x + 20, forecastY + paddingY + 20));
 
                                             // Small weather icon for the day
-                                            var dayIconRect = new RectangleF(x + 80, forecastY, 32, 32);
+                                            var dayIconRect = new RectangleF(x + 100, forecastY + paddingY - 5, 60, 60);
                                             DrawWeatherIcon(graphics, dayIconRect, dayCode);
 
                                             // High/Low temps
                                             using (Brush highBrush = new SolidBrush(Color.FromArgb(255, 255, 150, 100)))
                                             using (Brush lowBrush = new SolidBrush(Color.FromArgb(255, 150, 200, 255)))
                                             {
-                                                graphics.DrawString($"H:{maxTemp}", forecastTempFont, highBrush, new PointF(x + 120, forecastY + 4));
-                                                graphics.DrawString($"L:{minTemp}", forecastTempFont, lowBrush, new PointF(x + 120, forecastY + 20));
+                                                graphics.DrawString($"H:{maxTemp}", forecastTempFont, highBrush, new PointF(x + 175, forecastY + paddingY + 4));
+                                                graphics.DrawString($"L:{minTemp}", forecastTempFont, lowBrush, new PointF(x + 175, forecastY + paddingY + 24));
                                             }
 
                                             forecastY += rowHeight;
