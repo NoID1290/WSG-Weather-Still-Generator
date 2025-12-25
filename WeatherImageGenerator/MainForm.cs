@@ -304,6 +304,13 @@ namespace WeatherImageGenerator
                 if (_logBuffer.Count > 5000) _logBuffer.RemoveRange(0, _logBuffer.Count - 5000);
             }
 
+            // UI updates must be on UI thread
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => OnMessageLogged(text, level)));
+                return;
+            }
+
             var trimmed = text.Trim();
 
             // If messages indicate ffmpeg running/done, update status/progress (content-based features remain)
@@ -333,7 +340,31 @@ namespace WeatherImageGenerator
                 }
             }
 
-            RefreshLogView();
+            // Optimization: If compact mode is OFF, append directly instead of full refresh
+            if (_chkCompact?.Checked == false)
+            {
+                var richArr = this.Controls.Find("logBox", true);
+                if (richArr.Length == 1 && richArr[0] is RichTextBox rtb)
+                {
+                    string filter = _cmbFilter?.SelectedItem as string ?? "All";
+                    string search = _txtSearch?.Text ?? string.Empty;
+                    string verbosity = _cmbVerbosity?.SelectedItem as string ?? "Normal";
+
+                    if (PassesFilter(text, filter, search, level, verbosity))
+                    {
+                        AppendColoredLine(rtb, text, search, level);
+                        // Periodically refresh to prune old lines from the view if it gets too long
+                        if (rtb.Lines.Length > 2000) 
+                        {
+                            RefreshLogView();
+                        }
+                    }
+                }
+            }
+            else
+            {
+                RefreshLogView();
+            }
         }
 
         private void RefreshLogView()
@@ -505,14 +536,14 @@ namespace WeatherImageGenerator
             // Prefer explicit level when deciding color; allow content-based overrides for video/running and success
             switch (level)
             {
-                case Logger.LogLevel.Error: color = Color.OrangeRed; style = FontStyle.Bold; break;
-                case Logger.LogLevel.Warning: color = Color.Orange; style = FontStyle.Bold; break;
-                case Logger.LogLevel.Debug: color = Color.DarkGray; break;
-                default: color = Color.LightGray; break;
+                case Logger.LogLevel.Error: color = Color.FromArgb(255, 100, 100); style = FontStyle.Bold; break;
+                case Logger.LogLevel.Warning: color = Color.FromArgb(255, 215, 0); break;
+                case Logger.LogLevel.Debug: color = Color.Gray; break;
+                default: color = Color.WhiteSmoke; break;
             }
 
-            if (lower.Contains("saved") || lower.Contains("completed") || lower.Contains("success")) { color = Color.LimeGreen; style = FontStyle.Bold; }
-            else if (lower.Contains("[running]") || lower.Contains("video") || lower.Contains("encoding") || lower.Contains("[done]")) color = Color.Cyan;
+            if (lower.Contains("saved") || lower.Contains("completed") || lower.Contains("success")) { color = Color.LightGreen; style = FontStyle.Bold; }
+            else if (lower.Contains("[running]") || lower.Contains("video") || lower.Contains("encoding") || lower.Contains("[done]")) color = Color.LightSkyBlue;
 
             // Apply color and font
             rtb.Select(start, length);
