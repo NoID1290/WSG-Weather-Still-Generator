@@ -864,24 +864,30 @@ namespace WeatherImageGenerator
                     if (string.IsNullOrWhiteSpace(outText)) outText = p.StandardError.ReadToEnd();
                     p.WaitForExit(timeoutMs);
 
-                    if (outText.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_nvenc", StringComparison.OrdinalIgnoreCase) >= 0)
+                    // Check for NVENC
+                    if ((outText.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_nvenc", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                        ProbeEncoder("h264_nvenc", ffmpegExe, timeoutMs))
                     {
                         message = "NVENC (NVIDIA) encoder found";
                         return HardwareEncoderType.Nvenc;
                     }
-                    else if (outText.IndexOf("h264_amf", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_amf", StringComparison.OrdinalIgnoreCase) >= 0)
+                    // Check for AMF
+                    else if ((outText.IndexOf("h264_amf", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_amf", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                             ProbeEncoder("h264_amf", ffmpegExe, timeoutMs))
                     {
                         message = "AMF (AMD) encoder found";
                         return HardwareEncoderType.Amf;
                     }
-                    else if (outText.IndexOf("h264_qsv", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_qsv", StringComparison.OrdinalIgnoreCase) >= 0)
+                    // Check for QSV
+                    else if ((outText.IndexOf("h264_qsv", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_qsv", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                             ProbeEncoder("h264_qsv", ffmpegExe, timeoutMs))
                     {
                         message = "QSV (Intel) encoder found";
                         return HardwareEncoderType.Qsv;
                     }
                     else
                     {
-                        message = "No hardware encoders (NVENC/AMF/QSV) found";
+                        message = "No working hardware encoders (NVENC/AMF/QSV) found";
                         return HardwareEncoderType.None;
                     }
                 }
@@ -890,6 +896,38 @@ namespace WeatherImageGenerator
             {
                 message = ex.Message;
                 return HardwareEncoderType.None;
+            }
+        }
+
+        private static bool ProbeEncoder(string encoderName, string ffmpegExe, int timeoutMs)
+        {
+            try
+            {
+                // Try to encode a tiny dummy video to see if the hardware encoder actually initializes
+                var psi = new ProcessStartInfo
+                {
+                    FileName = ffmpegExe,
+                    Arguments = $"-hide_banner -y -f lavfi -i color=c=black:s=64x64:d=0.1 -c:v {encoderName} -f null -",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var p = Process.Start(psi))
+                {
+                    if (p == null) return false;
+                    if (!p.WaitForExit(timeoutMs))
+                    {
+                        try { p.Kill(); } catch { }
+                        return false;
+                    }
+                    return p.ExitCode == 0;
+                }
+            }
+            catch
+            {
+                return false;
             }
         }
     }

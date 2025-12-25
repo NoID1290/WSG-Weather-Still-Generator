@@ -116,9 +116,11 @@ namespace WeatherImageGenerator
             txtBitrate = new TextBox { Left = leftField + 90, Top = vTop, Width = 60, Text = "4M" };
 
             vTop += rowH;
-            chkEnableHardwareEncoding = new CheckBox { Text = "Hardware Encoding (NVENC)", Left = leftLabel, Top = vTop, Width = 200 };
-            lblHwStatus = new Label { Text = "Unknown", Left = leftLabel + 210, Top = vTop + 4, Width = 150, ForeColor = System.Drawing.Color.Gray, AutoSize = true };
-            btnCheckHw = new Button { Text = "Check", Left = leftLabel + 380, Top = vTop - 2, Width = 60, Height = 24 };
+            chkEnableHardwareEncoding = new CheckBox { Text = "Hardware Encoding (NVENC/AMF/QSV)", Left = leftLabel, Top = vTop, Width = 300 };
+            btnCheckHw = new Button { Text = "Check", Left = leftLabel + 310, Top = vTop - 2, Width = 60, Height = 24 };
+
+            vTop += rowH;
+            lblHwStatus = new Label { Text = "Unknown", Left = leftLabel + 20, Top = vTop, Width = 500, ForeColor = System.Drawing.Color.Gray, AutoSize = true };
             
             btnCheckHw.Click += (s, e) =>
             {
@@ -129,9 +131,19 @@ namespace WeatherImageGenerator
                     bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
                     this.Invoke((Action)(() =>
                     {
-                        lblHwStatus.Text = ok ? msg : $"Not found";
+                        lblHwStatus.Text = msg;
                         lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
                         btnCheckHw.Enabled = true;
+
+                        if (!ok)
+                        {
+                            chkEnableHardwareEncoding.Checked = false;
+                            chkEnableHardwareEncoding.Enabled = false;
+                        }
+                        else
+                        {
+                            chkEnableHardwareEncoding.Enabled = true;
+                        }
                     }));
                 });
             };
@@ -214,8 +226,18 @@ namespace WeatherImageGenerator
                     bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
                     this.Invoke((Action)(() =>
                     {
-                        lblHwStatus.Text = ok ? "NVENC available" : $"NVENC not found ({msg})";
+                        lblHwStatus.Text = msg;
                         lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+
+                        if (!ok)
+                        {
+                            chkEnableHardwareEncoding.Checked = false;
+                            chkEnableHardwareEncoding.Enabled = false;
+                        }
+                        else
+                        {
+                            chkEnableHardwareEncoding.Enabled = true;
+                        }
                     }));
                 });
             }
@@ -258,7 +280,7 @@ namespace WeatherImageGenerator
                     bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
                     if (!ok)
                     {
-                        var res = MessageBox.Show(this, $"FFmpeg does not appear to support NVENC on this system. ({msg})\nEnabling hardware encoding may cause ffmpeg to fail. Continue enabling?", "Hardware Encoding Not Available", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        var res = MessageBox.Show(this, $"FFmpeg does not appear to support hardware encoding on this system. ({msg})\nEnabling hardware encoding may cause ffmpeg to fail. Continue enabling?", "Hardware Encoding Not Available", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                         if (res == DialogResult.No)
                         {
                             chkEnableHardwareEncoding.Checked = false;

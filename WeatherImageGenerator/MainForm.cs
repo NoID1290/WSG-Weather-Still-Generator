@@ -48,8 +48,9 @@ namespace WeatherImageGenerator
             var stillBtn = new Button { Text = "Still", Left = 235, Top = 10, Width = 70, Height = 30 };
             var videoBtn = new Button { Text = "Video", Left = 310, Top = 10, Width = 70, Height = 30 };
             
-            var settingsBtn = new Button { Text = "Settings", Left = 400, Top = 10, Width = 70, Height = 30 };
-            var aboutBtn = new Button { Text = "About", Left = 475, Top = 10, Width = 70, Height = 30 };
+            var openOutputBtn = new Button { Text = "Open Dir", Left = 385, Top = 10, Width = 70, Height = 30 };
+            var settingsBtn = new Button { Text = "Settings", Left = 460, Top = 10, Width = 70, Height = 30 };
+            var aboutBtn = new Button { Text = "About", Left = 535, Top = 10, Width = 70, Height = 30 };
 
             // Progress & Status (Row 2)
             _progress = new TextProgressBar { Left = 10, Top = 50, Width = 370, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
@@ -87,6 +88,7 @@ namespace WeatherImageGenerator
 
             startBtn.Click += (s, e) => StartClicked(startBtn, stopBtn);
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
+            openOutputBtn.Click += (s, e) => OpenOutputDirectory();
             videoBtn.Click += (s, e) => VideoClicked();
             fetchBtn.Click += (s, e) => FetchClicked(fetchBtn);
             stillBtn.Click += (s, e) => StillClicked(stillBtn);
@@ -125,6 +127,7 @@ namespace WeatherImageGenerator
             panel.Controls.Add(stillBtn);
             panel.Controls.Add(fetchBtn);
             panel.Controls.Add(stopBtn);
+            panel.Controls.Add(openOutputBtn);
             panel.Controls.Add(startBtn);
             panel.Controls.Add(settingsBtn);
             panel.Controls.Add(aboutBtn);
@@ -875,6 +878,36 @@ namespace WeatherImageGenerator
             else _statusLabel.ForeColor = Color.Black;
 
             _statusLabel.Text = status;
+        }
+
+        private void OpenOutputDirectory()
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                string path = config.ImageGeneration?.OutputDirectory ?? "WeatherImages";
+                if (!System.IO.Path.IsPathRooted(path))
+                {
+                    path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                }
+
+                if (!System.IO.Directory.Exists(path))
+                {
+                    System.IO.Directory.CreateDirectory(path);
+                }
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error opening output directory: {ex.Message}", Logger.LogLevel.Error);
+                MessageBox.Show($"Could not open output directory: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
