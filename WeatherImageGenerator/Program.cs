@@ -985,44 +985,79 @@ namespace WeatherImageGenerator
                                 if (item.Forecast?.Daily != null && item.Forecast.Daily.Time != null && item.Forecast.Daily.Time.Length > 0)
                                 {
                                     int daysToShow = Math.Min(5, item.Forecast.Daily.Time.Length);
-                                    float rowHeight = 75;
+                                    float rowHeight = 95;
 
                                     for (int d = 0; d < daysToShow; d++)
                                     {
                                         if (DateTime.TryParse(item.Forecast.Daily.Time[d], out DateTime dateTime))
                                         {
+                                            // Draw row background
+                                            using (Brush rowBg = new SolidBrush(Color.FromArgb(30, 255, 255, 255)))
+                                            {
+                                                graphics.FillRectangle(rowBg, x + 10, forecastY, colWidth - 20, rowHeight - 5);
+                                            }
+
                                             string dayName = dateTime.ToString("ddd");
                                             string dateStr = dateTime.ToString("MMM d");
                                             string maxTemp = item.Forecast.Daily.Temperature_2m_max != null 
                                                 ? $"{item.Forecast.Daily.Temperature_2m_max[d]:F0}°" : "-";
                                             string minTemp = item.Forecast.Daily.Temperature_2m_min != null 
                                                 ? $"{item.Forecast.Daily.Temperature_2m_min[d]:F0}°" : "-";
+                                            
+                                            // Feels like
+                                            string maxFeel = item.Forecast.Daily.Apparent_temperature_max != null 
+                                                ? $"{item.Forecast.Daily.Apparent_temperature_max[d]:F0}°" : "-";
+                                            string minFeel = item.Forecast.Daily.Apparent_temperature_min != null 
+                                                ? $"{item.Forecast.Daily.Apparent_temperature_min[d]:F0}°" : "-";
+
                                             int? dayCode = item.Forecast.Daily.Weathercode != null 
                                                 ? (int?)item.Forecast.Daily.Weathercode[d] : null;
 
                                             float paddingY = 10;
 
-                                            // Day name and date
-                                            graphics.DrawString(dayName, forecastDayFont, whiteBrush, new PointF(x + 20, forecastY + paddingY));
-                                            graphics.DrawString(dateStr, forecastTempFont, whiteBrush, new PointF(x + 20, forecastY + paddingY + 20));
+                                            // Day name and date (Larger)
+                                            using (Font largeDayFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 14, FontStyle.Bold))
+                                            {
+                                                graphics.DrawString(dayName, largeDayFont, whiteBrush, new PointF(x + 20, forecastY + paddingY));
+                                            }
+                                            graphics.DrawString(dateStr, forecastTempFont, whiteBrush, new PointF(x + 20, forecastY + paddingY + 25));
 
-                                            // Small weather icon for the day
-                                            var dayIconRect = new RectangleF(x + 100, forecastY + paddingY - 5, 60, 60);
+                                            // Weather icon
+                                            var dayIconRect = new RectangleF(x + 90, forecastY + paddingY, 60, 60);
                                             DrawWeatherIcon(graphics, dayIconRect, dayCode);
 
                                             // High/Low temps
                                             using (Brush highBrush = new SolidBrush(Color.FromArgb(255, 255, 150, 100)))
                                             using (Brush lowBrush = new SolidBrush(Color.FromArgb(255, 150, 200, 255)))
+                                            using (Brush feelBrush = new SolidBrush(Color.FromArgb(200, 200, 200)))
                                             {
-                                                graphics.DrawString($"H:{maxTemp}", forecastTempFont, highBrush, new PointF(x + 175, forecastY + paddingY + 4));
-                                                graphics.DrawString($"L:{minTemp}", forecastTempFont, lowBrush, new PointF(x + 175, forecastY + paddingY + 24));
+                                                graphics.DrawString($"H: {maxTemp}", forecastDayFont, highBrush, new PointF(x + 160, forecastY + paddingY));
+                                                graphics.DrawString($"L: {minTemp}", forecastDayFont, lowBrush, new PointF(x + 160, forecastY + paddingY + 20));
+                                                
+                                                // Feels like
+                                                graphics.DrawString($"FL: {maxFeel} / {minFeel}", forecastTempFont, feelBrush, new PointF(x + 160, forecastY + paddingY + 42));
                                             }
 
-                                            // Wind
+                                            // Wind & Precip
                                             string windSpeed = item.Forecast.Daily.Windspeed_10m_max != null ? $"{item.Forecast.Daily.Windspeed_10m_max[d]:F0}" : "-";
                                             string windUnit = item.Forecast.DailyUnits?.Windspeed_10m_max ?? "km/h";
                                             string windDir = item.Forecast.Daily.Winddirection_10m_dominant != null ? DegreesToCardinal(item.Forecast.Daily.Winddirection_10m_dominant[d]) : "";
-                                            graphics.DrawString($"W:{windSpeed}{windUnit} {windDir}", forecastTempFont, whiteBrush, new PointF(x + 175, forecastY + paddingY + 44));
+                                            
+                                            string precip = "";
+                                            if (item.Forecast.Daily.Precipitation_sum != null && item.Forecast.Daily.Precipitation_sum[d] > 0)
+                                            {
+                                                string precipUnit = item.Forecast.DailyUnits?.Precipitation_sum ?? "mm";
+                                                precip = $"{item.Forecast.Daily.Precipitation_sum[d]:F1}{precipUnit}";
+                                            }
+
+                                            graphics.DrawString($"W: {windSpeed}{windUnit} {windDir}", forecastTempFont, whiteBrush, new PointF(x + 280, forecastY + paddingY));
+                                            if (!string.IsNullOrEmpty(precip))
+                                            {
+                                                using (Brush rainBrush = new SolidBrush(Color.LightBlue))
+                                                {
+                                                    graphics.DrawString($"Precip: {precip}", forecastTempFont, rainBrush, new PointF(x + 280, forecastY + paddingY + 20));
+                                                }
+                                            }
 
                                             forecastY += rowHeight;
                                         }
