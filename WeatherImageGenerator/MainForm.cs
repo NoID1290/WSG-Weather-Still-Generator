@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 using System.Windows.Forms;
 using System.Reflection;
 using System.Drawing;
@@ -10,12 +11,19 @@ namespace WeatherImageGenerator
     public class MainForm : Form
     {
         private CancellationTokenSource? _cts;
-        private readonly System.Collections.Generic.List<string> _logBuffer = new System.Collections.Generic.List<string>();
+        // Store text together with the explicit LogLevel so rendering is deterministic
+        private readonly System.Collections.Generic.List<(string Text, Logger.LogLevel Level)> _logBuffer = new System.Collections.Generic.List<(string Text, Logger.LogLevel Level)>();
         private ComboBox? _cmbFilter;
+        private ComboBox? _cmbVerbosity;
         private TextBox? _txtSearch;
+        private CheckBox? _chkCompact;
         private TextProgressBar? _progress;
         private Label? _statusLabel;
         private Label? _sleepLabel;
+
+        // When Minimal verbosity is selected, show only the last N important lines
+        private const int MinimalVisibleCount = 5;    // reduced for casual users (show only 5 lines)
+
 
         // Video phase mapping (when ffmpeg reports 0-100 we map it into [videoBase, 100])
         private double _videoBase = 80.0;
@@ -29,20 +37,30 @@ namespace WeatherImageGenerator
             this.Width = 900;
             this.Height = 600;
 
-            var rich = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", BackColor = System.Drawing.Color.Black, ForeColor = System.Drawing.Color.LightGreen, Font = new System.Drawing.Font("Consolas", 10) };
+            var rich = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", BackColor = System.Drawing.Color.Black, ForeColor = System.Drawing.Color.LightGray, Font = new System.Drawing.Font("Segoe UI", 10F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical };
             var startBtn = new Button { Text = "Start", Left = 10, Top = 10, Width = 80, Height = 30 };
             var stopBtn = new Button { Text = "Stop", Left = 100, Top = 10, Width = 80, Height = 30, Enabled = false };
             var videoBtn = new Button { Text = "Make Video Now", Left = 190, Top = 10, Width = 120, Height = 30 };
             var settingsBtn = new Button { Text = "Settings", Left = 320, Top = 10, Width = 80, Height = 30 };
 
             _cmbFilter = new ComboBox { Left = 410, Top = 12, Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
-            _cmbFilter.Items.AddRange(new object[] { "All", "Errors", "Info" });
+            _cmbFilter.Items.AddRange(new object[] { "All", "Errors", "Warnings", "Info" });
             _cmbFilter.SelectedIndex = 0;
             _cmbFilter.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _txtSearch = new TextBox { Left = 540, Top = 12, Width = 200 };
+            _cmbVerbosity = new ComboBox { Left = 540, Top = 12, Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbVerbosity.Items.AddRange(new object[] { "Verbose", "Normal", "Minimal" });
+            _cmbVerbosity.SelectedIndex = 1; // Normal
+            _cmbVerbosity.SelectedIndexChanged += (s, e) => RefreshLogView();
+
+            _txtSearch = new TextBox { Left = 640, Top = 12, Width = 200 };
             _txtSearch.PlaceholderText = "Search logs...";
             _txtSearch.TextChanged += (s, e) => RefreshLogView();
+            // Compact mode collapses consecutive identical messages into a single line with a repeat count
+            _chkCompact = new CheckBox { Left = 700, Top = 14, Width = 80, Text = "Compact" };
+            _chkCompact.CheckedChanged += (s, e) => RefreshLogView();
+
+            // Core progress bar (used as the visual fill) with embedded percentage text
 
             // Core progress bar (used as the visual fill) with embedded percentage text
             _progress = new TextProgressBar { Left = 10, Top = 46, Width = 300, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
@@ -55,8 +73,8 @@ namespace WeatherImageGenerator
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
             videoBtn.Click += (s, e) => VideoClicked();
 
-            // Subscribe to only the leveled event to avoid duplicate entries (we previously subscribed to both events)
-            Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text);
+            // Subscribe to only the leveled event and receive the explicit LogLevel (fixes coloring detection)
+            Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text, level);
 
             // Subscribe to sleep updates from the background worker so we can show a countdown
             Program.SleepRemainingUpdated += (ts) => SetSleepRemaining(ts);
@@ -92,7 +110,9 @@ namespace WeatherImageGenerator
             panel.Controls.Add(settingsBtn);
             panel.Controls.Add(aboutBtn);
             panel.Controls.Add(_cmbFilter);
+            panel.Controls.Add(_cmbVerbosity);
             panel.Controls.Add(_txtSearch);
+            panel.Controls.Add(_chkCompact);
             panel.Controls.Add(_progress);
             panel.Controls.Add(_statusLabel);
             panel.Controls.Add(_sleepLabel);
@@ -127,8 +147,8 @@ namespace WeatherImageGenerator
                     return;
                 }
 
-                rtb.AppendText(text);
-                rtb.ScrollToCaret();
+                // Use colorized append to improve readability and highlight search matches (assume Info-level for legacy/unnamed messages)
+                AppendColoredLine(rtb, text, _txtSearch?.Text ?? string.Empty, Logger.LogLevel.Info);
             }
         }
 
@@ -199,17 +219,19 @@ namespace WeatherImageGenerator
             });
         }
 
-        private void OnMessageLogged(string text)
+        private void OnMessageLogged(string text, Logger.LogLevel level)
         {
-            // Keep a copy of everything, then reapply filters for the view
+            // Keep a copy of everything with explicit level, then reapply filters for the view
             lock (_logBuffer)
             {
-                _logBuffer.Add(text);
+                _logBuffer.Add((text, level));
+                // Keep the buffer bounded to avoid runaway memory usage
+                if (_logBuffer.Count > 5000) _logBuffer.RemoveRange(0, _logBuffer.Count - 5000);
             }
 
             var trimmed = text.Trim();
 
-            // If messages indicate ffmpeg running/done, update status/progress
+            // If messages indicate ffmpeg running/done, update status/progress (content-based features remain)
             if (trimmed.Contains("[RUNNING]"))
             {
                 // Video/FFmpeg started
@@ -252,31 +274,254 @@ namespace WeatherImageGenerator
 
             string filter = _cmbFilter?.SelectedItem as string ?? "All";
             string search = _txtSearch?.Text ?? string.Empty;
+            string verbosity = _cmbVerbosity?.SelectedItem as string ?? "Normal";
 
             rtb.Clear();
             lock (_logBuffer)
             {
-                foreach (var line in _logBuffer)
+                if (verbosity == "Minimal")
                 {
-                    if (!PassesFilter(line, filter, search)) continue;
-                    rtb.AppendText(line);
+                    // Gather only important entries and show only the most recent MinimalVisibleCount to keep view friendly
+                    var important = _logBuffer.Where(e => IsImportantForMinimal(e.Text, e.Level)).ToList();
+                    int totalHidden = _logBuffer.Count - important.Count;
+
+                    var toShow = important.Skip(Math.Max(0, important.Count - MinimalVisibleCount)).ToList();
+
+                    // If compact mode is enabled, collapse consecutive duplicates within the shown subset
+                    if (_chkCompact?.Checked == true)
+                    {
+                        (string Text, Logger.LogLevel Level)? prev = null;
+                        int count = 0;
+                        foreach (var entry in toShow)
+                        {
+                            if (prev == null || prev.Value.Text != entry.Text || prev.Value.Level != entry.Level)
+                            {
+                                if (prev != null) AppendCollapsedLine(rtb, prev.Value.Text, search, prev.Value.Level, count);
+                                prev = entry;
+                                count = 1;
+                            }
+                            else count++;
+                        }
+
+                        if (prev != null) AppendCollapsedLine(rtb, prev.Value.Text, search, prev.Value.Level, count);
+                    }
+                    else
+                    {
+                        foreach (var entry in toShow)
+                        {
+                            AppendColoredLine(rtb, entry.Text, search, entry.Level);
+                        }
+                    }
+
+                    if (totalHidden > 0) AppendHiddenSummary(rtb, totalHidden);
+                }
+                else if (_chkCompact?.Checked == true)
+                {
+                    // Collapse consecutive identical entries - show "(Nx)" for repeats
+                    (string Text, Logger.LogLevel Level)? prev = null;
+                    int count = 0;
+                    int hiddenCount = 0;
+                    foreach (var entry in _logBuffer)
+                    {
+                        if (!PassesFilter(entry.Text, filter, search, entry.Level, verbosity))
+                        {
+                            hiddenCount++;
+                            continue;
+                        }
+
+                        // If we had hidden lines immediately before a visible one, emit a summary
+                        if (hiddenCount > 0)
+                        {
+                            AppendHiddenSummary(rtb, hiddenCount);
+                            hiddenCount = 0;
+                        }
+
+                        if (prev == null || prev.Value.Text != entry.Text || prev.Value.Level != entry.Level)
+                        {
+                            if (prev != null)
+                            {
+                                AppendCollapsedLine(rtb, prev.Value.Text, search, prev.Value.Level, count);
+                            }
+
+                            prev = entry;
+                            count = 1;
+                        }
+                        else
+                        {
+                            count++;
+                        }
+                    }
+
+                    if (hiddenCount > 0) AppendHiddenSummary(rtb, hiddenCount);
+                    if (prev != null) AppendCollapsedLine(rtb, prev.Value.Text, search, prev.Value.Level, count);
+                }
+                else
+                {
+                    int hiddenCount = 0;
+                    foreach (var entry in _logBuffer)
+                    {
+                        if (!PassesFilter(entry.Text, filter, search, entry.Level, verbosity))
+                        {
+                            hiddenCount++;
+                            continue;
+                        }
+
+                        if (hiddenCount > 0)
+                        {
+                            AppendHiddenSummary(rtb, hiddenCount);
+                            hiddenCount = 0;
+                        }
+
+                        AppendColoredLine(rtb, entry.Text, search, entry.Level);
+                    }
+
+                    if (hiddenCount > 0) AppendHiddenSummary(rtb, hiddenCount);
                 }
             }
 
             rtb.ScrollToCaret();
         }
 
-        private bool PassesFilter(string line, string filter, string search)
+        private bool PassesFilter(string line, string filter, string search, Logger.LogLevel level, string verbosity)
         {
             if (!string.IsNullOrEmpty(search) && !line.Contains(search, StringComparison.OrdinalIgnoreCase)) return false;
 
+            var lower = line.ToLowerInvariant();
+
+            // Verbosity controls overall noise
+            if (verbosity == "Minimal")
+            {
+                // Minimal: only errors, warnings, and important status lines
+                if (level == Logger.LogLevel.Error || level == Logger.LogLevel.Warning) return true;
+                if (lower.Contains("[running]") || lower.Contains("video") || lower.Contains("encoding") || lower.Contains("[done]") || lower.Contains("saved") || lower.Contains("completed") || lower.Contains("fail")) return true;
+                return false;
+            }
+
+            if (verbosity == "Normal")
+            {
+                // Normal: hide Debug-level messages
+                if (level == Logger.LogLevel.Debug) return false;
+            }
+
+            // Apply filter on the remaining messages
             return filter switch
             {
                 "All" => true,
-                "Errors" => line.Contains("[ERROR]") || line.Contains("Failed") || line.Contains("✗") || line.Contains("X "),
-                "Info" => !line.Contains("[ERROR]") && !line.Contains("✗") && !line.Contains("X "),
+                "Errors" => level == Logger.LogLevel.Error || lower.Contains("[error]") || lower.Contains("failed") || lower.Contains("✗") || lower.Contains(" x "),
+                "Warnings" => level == Logger.LogLevel.Warning || lower.Contains("[warn]") || lower.Contains("warning"),
+                "Info" => level == Logger.LogLevel.Info || level == Logger.LogLevel.Debug || (!lower.Contains("[error]") && !lower.Contains("✗") && !lower.Contains(" x ")),
                 _ => true
             };
+        }
+
+        // Append a single line to the RichTextBox with color, optional bolding for level tokens, and search highlighting
+        private void AppendColoredLine(RichTextBox rtb, string line, string search, Logger.LogLevel level)
+        {
+            if (rtb == null) return;
+
+            int start = rtb.TextLength;
+            rtb.AppendText(line);
+            int length = line.Length;
+
+            var lower = line.ToLowerInvariant();
+            Color color;
+            FontStyle style = FontStyle.Regular;
+
+            // Prefer explicit level when deciding color; allow content-based overrides for video/running and success
+            switch (level)
+            {
+                case Logger.LogLevel.Error: color = Color.OrangeRed; style = FontStyle.Bold; break;
+                case Logger.LogLevel.Warning: color = Color.Orange; style = FontStyle.Bold; break;
+                case Logger.LogLevel.Debug: color = Color.DarkGray; break;
+                default: color = Color.LightGray; break;
+            }
+
+            if (lower.Contains("saved") || lower.Contains("completed") || lower.Contains("success")) { color = Color.LimeGreen; style = FontStyle.Bold; }
+            else if (lower.Contains("[running]") || lower.Contains("video") || lower.Contains("encoding") || lower.Contains("[done]")) color = Color.Cyan;
+
+            // Apply color and font
+            rtb.Select(start, length);
+            rtb.SelectionColor = color;
+            rtb.SelectionFont = new Font(rtb.Font, style);
+
+            // Bold level token when present
+            var levelTokens = new string[] { "[error]", "[warn]", "[running]", "[done]", "[fail]" };
+            foreach (var token in levelTokens)
+            {
+                int idx = lower.IndexOf(token);
+                if (idx >= 0)
+                {
+                    rtb.Select(start + idx, token.Length);
+                    rtb.SelectionFont = new Font(rtb.Font, FontStyle.Bold);
+                }
+            }
+
+            // Highlight search matches
+            if (!string.IsNullOrEmpty(search))
+            {
+                int offset = 0;
+                var comparison = StringComparison.OrdinalIgnoreCase;
+                while (true)
+                {
+                    int pos = line.IndexOf(search, offset, comparison);
+                    if (pos < 0) break;
+                    rtb.Select(start + pos, search.Length);
+                    rtb.SelectionBackColor = Color.Yellow;
+                    rtb.SelectionColor = Color.Black;
+                    offset = pos + search.Length;
+                }
+            }
+
+            // Reset selection and scroll
+            rtb.SelectionStart = rtb.TextLength;
+            rtb.SelectionLength = 0;
+            rtb.ScrollToCaret();
+        }
+
+        // Helper to append a collapsed entry (with repeat count)
+        private void AppendCollapsedLine(RichTextBox rtb, string line, string search, Logger.LogLevel level, int count)
+        {
+            if (count <= 1)
+            {
+                AppendColoredLine(rtb, line, search, level);
+                return;
+            }
+
+            var display = line.TrimEnd();
+            display += $"  ({count}x)" + Environment.NewLine;
+            AppendColoredLine(rtb, display, search, level);
+        }
+
+        // Small summary line used when many lines are hidden in Minimal verbosity
+        private void AppendHiddenSummary(RichTextBox rtb, int hiddenCount)
+        {
+            if (hiddenCount <= 0) return;
+            var msg = $"... {hiddenCount} lines hidden ..." + Environment.NewLine;
+            int start = rtb.TextLength;
+            rtb.AppendText(msg);
+            rtb.Select(start, msg.Length);
+            rtb.SelectionColor = Color.DarkGray;
+            rtb.SelectionFont = new Font(rtb.Font, FontStyle.Italic);
+            rtb.SelectionStart = rtb.TextLength;
+            rtb.SelectionLength = 0;
+            rtb.ScrollToCaret();
+        }
+
+        // Minimal-mode importance test: only errors/warnings and a small set of high-level status lines
+        private bool IsImportantForMinimal(string line, Logger.LogLevel level)
+        {
+            if (level == Logger.LogLevel.Error || level == Logger.LogLevel.Warning) return true;
+
+            var lower = line.ToLowerInvariant();
+
+            // High-level indicators we consider important for casual users
+            if (lower.Contains("[done]") || lower.Contains("video saved") || lower.Contains("video generation completed") || lower.Contains("completed") || lower.Contains("saved")) return true;
+            if (lower.Contains("started background worker") || lower.Contains("stop requested") || lower.Contains("settings saved")) return true;
+
+            // Exclude noisy progress lines (percentages and ffmpeg '[MAIN]' lines)
+            if (lower.Contains("%") || lower.StartsWith("[main]")) return false;
+
+            return false;
         }
 
         private void SetProgressMarquee(bool marquee)
