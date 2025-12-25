@@ -26,6 +26,7 @@ namespace WeatherImageGenerator
         CheckBox chkShowFfmpeg;
         CheckBox chkEnableHardwareEncoding; // New: toggle NVENC / hardware encoding
         Label lblHwStatus;
+        Label lblFfmpegInstalled;
         Button btnCheckHw;
         public SettingsForm()
         {
@@ -84,6 +85,7 @@ namespace WeatherImageGenerator
             int vTop = 20;
 
             chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = vTop, Width = 200 };
+            lblFfmpegInstalled = new Label { Text = "Checking FFmpeg...", Left = leftLabel + 210, Top = vTop + 4, Width = 300, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
             
             vTop += rowH;
             var lblStatic = new Label { Text = "Static Duration (s):", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
@@ -153,7 +155,7 @@ namespace WeatherImageGenerator
             chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg GUI", Left = leftLabel + 140, Top = vTop, Width = 150 };
 
             tabVideo.Controls.AddRange(new Control[] { 
-                chkVideoGeneration, 
+                chkVideoGeneration, lblFfmpegInstalled,
                 lblStatic, numStatic, 
                 lblFade, numFade, chkFade, 
                 lblResPreset, cmbResolution, 
@@ -237,6 +239,25 @@ namespace WeatherImageGenerator
                         else
                         {
                             chkEnableHardwareEncoding.Enabled = true;
+                        }
+                    }));
+                });
+
+                // Check FFmpeg availability
+                Task.Run(() =>
+                {
+                    bool installed = VideoGenerator.IsFfmpegInstalled(out var version);
+                    this.Invoke((Action)(() =>
+                    {
+                        if (installed)
+                        {
+                            lblFfmpegInstalled.Text = $"FFmpeg Installed ({version})";
+                            lblFfmpegInstalled.ForeColor = System.Drawing.Color.Green;
+                        }
+                        else
+                        {
+                            lblFfmpegInstalled.Text = "FFmpeg NOT found in PATH";
+                            lblFfmpegInstalled.ForeColor = System.Drawing.Color.Red;
                         }
                     }));
                 });

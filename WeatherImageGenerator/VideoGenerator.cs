@@ -820,6 +820,68 @@ namespace WeatherImageGenerator
         }
 
         /// <summary>
+        /// Checks if ffmpeg is installed and available in the system PATH.
+        /// </summary>
+        public static bool IsFfmpegInstalled(out string version, string ffmpegExe = "ffmpeg", int timeoutMs = 5000)
+        {
+            version = "Unknown";
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = ffmpegExe,
+                    Arguments = "-version",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var p = Process.Start(psi))
+                {
+                    if (p == null)
+                    {
+                        return false;
+                    }
+
+                    var outText = p.StandardOutput.ReadToEnd();
+                    if (string.IsNullOrWhiteSpace(outText)) outText = p.StandardError.ReadToEnd();
+                    
+                    if (!p.WaitForExit(timeoutMs))
+                    {
+                        try { p.Kill(); } catch { }
+                        return false;
+                    }
+
+                    if (p.ExitCode == 0 && !string.IsNullOrWhiteSpace(outText))
+                    {
+                        // Parse version from first line, e.g. "ffmpeg version 4.4.1-..."
+                        var lines = outText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (lines.Length > 0)
+                        {
+                            var match = Regex.Match(lines[0], @"ffmpeg version\s+([^\s]+)", RegexOptions.IgnoreCase);
+                            if (match.Success)
+                            {
+                                version = match.Groups[1].Value;
+                            }
+                            else
+                            {
+                                // Just take the first part of the string if regex fails, up to a reasonable length
+                                version = lines[0].Length > 30 ? lines[0].Substring(0, 30) + "..." : lines[0];
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore exceptions (file not found etc)
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Probes ffmpeg to see whether hardware encoders are available (NVENC, AMF, QSV).
         /// Returns true if an encoder name is present in the `ffmpeg -encoders` output. Provides a short message describing the result.
         /// </summary>
