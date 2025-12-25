@@ -825,10 +825,17 @@ namespace WeatherImageGenerator
                         : "Unknown";
                     item.SubItems.Add(condition);
 
-                    item.SubItems.Add($"{f.Current.Windspeed_10m}{f.CurrentUnits?.Windspeed_10m ?? "km/h"}");
+                    item.SubItems.Add($"{f.Current.Windspeed_10m}{f.CurrentUnits?.Windspeed_10m ?? "km/h"} {DegreesToCardinal(f.Current.Winddirection_10m)}");
                     _weatherList.Items.Add(item);
                 }
             }
+        }
+
+        private string DegreesToCardinal(double? degrees)
+        {
+            if (!degrees.HasValue) return "";
+            string[] cardinals = { "N", "NE", "E", "SE", "S", "SW", "W", "NW", "N" };
+            return cardinals[(int)Math.Round(((double)degrees % 360) / 45)];
         }
 
         private void OnProgramProgress(double pct, string status)

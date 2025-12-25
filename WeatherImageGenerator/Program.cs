@@ -782,7 +782,7 @@ namespace WeatherImageGenerator
                         : "N/A";
 
                     string windText = weatherData.Current?.Windspeed_10m != null
-                        ? $"{weatherData.Current.Windspeed_10m} {weatherData.CurrentUnits?.Windspeed_10m}"
+                        ? $"{weatherData.Current.Windspeed_10m} {weatherData.CurrentUnits?.Windspeed_10m} {DegreesToCardinal(weatherData.Current.Winddirection_10m)}"
                         : "N/A";
 
                     graphics.DrawString("Temperature:", labelFont, whiteBrush, new PointF(50, 150));
@@ -791,7 +791,7 @@ namespace WeatherImageGenerator
                     graphics.DrawString("Condition:", labelFont, whiteBrush, new PointF(50, 280));
                     graphics.DrawString(conditionText, dataFont, whiteBrush, new PointF(50, 330));
 
-                    graphics.DrawString("Wind Speed:", labelFont, whiteBrush, new PointF(50, 410));
+                    graphics.DrawString("Wind:", labelFont, whiteBrush, new PointF(50, 410));
                     graphics.DrawString(windText, dataFont, whiteBrush, new PointF(50, 460));
                 }
 
@@ -842,9 +842,14 @@ namespace WeatherImageGenerator
                                     ? GetWeatherDescription((int)weatherData.Daily.Weathercode[i])
                                     : "";
 
+                                string windSpeed = weatherData.Daily.Windspeed_10m_max != null ? weatherData.Daily.Windspeed_10m_max[i].ToString() : "-";
+                                string windUnit = weatherData.DailyUnits?.Windspeed_10m_max ?? "km/h";
+                                string windDir = weatherData.Daily.Winddirection_10m_dominant != null ? DegreesToCardinal(weatherData.Daily.Winddirection_10m_dominant[i]) : "";
+
                                 graphics.DrawString($"{date}", labelFont, whiteBrush, new PointF(50, yPosition));
                                 graphics.DrawString($"High: {maxTemp}° | Low: {minTemp}° | {condition}", dataFont, whiteBrush,
                                     new PointF(50, yPosition + 35));
+                                graphics.DrawString($"Wind: {windSpeed} {windUnit} {windDir}", labelFont, whiteBrush, new PointF(50, yPosition + 75));
 
                                 yPosition += 120;
                             }
@@ -956,7 +961,7 @@ namespace WeatherImageGenerator
                             float detailY = y + 190;
                             graphics.DrawString($"Feels Like: {cur.Apparent_temperature}{item.Forecast.CurrentUnits?.Apparent_temperature}", labelFont, whiteBrush, new PointF(x + 20, detailY));
                             graphics.DrawString($"Humidity: {cur.Relativehumidity_2m}%", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
-                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} @ {cur.Winddirection_10m}°", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
+                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} {DegreesToCardinal(cur.Winddirection_10m)}", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
                             graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 66));
 
                             // 5-Day Forecast Section
@@ -1012,6 +1017,12 @@ namespace WeatherImageGenerator
                                                 graphics.DrawString($"H:{maxTemp}", forecastTempFont, highBrush, new PointF(x + 175, forecastY + paddingY + 4));
                                                 graphics.DrawString($"L:{minTemp}", forecastTempFont, lowBrush, new PointF(x + 175, forecastY + paddingY + 24));
                                             }
+
+                                            // Wind
+                                            string windSpeed = item.Forecast.Daily.Windspeed_10m_max != null ? $"{item.Forecast.Daily.Windspeed_10m_max[d]:F0}" : "-";
+                                            string windUnit = item.Forecast.DailyUnits?.Windspeed_10m_max ?? "km/h";
+                                            string windDir = item.Forecast.Daily.Winddirection_10m_dominant != null ? DegreesToCardinal(item.Forecast.Daily.Winddirection_10m_dominant[d]) : "";
+                                            graphics.DrawString($"W:{windSpeed}{windUnit} {windDir}", forecastTempFont, whiteBrush, new PointF(x + 175, forecastY + paddingY + 44));
 
                                             forecastY += rowHeight;
                                         }
@@ -1430,6 +1441,13 @@ namespace WeatherImageGenerator
             {
                 Logger.Log($"Failed to generate video: {ex.Message}", ConsoleColor.Red);
             }
+        }
+
+        static string DegreesToCardinal(double? degrees)
+        {
+            if (!degrees.HasValue) return "N/A";
+            string[] cardinals = { "N", "NE", "E", "SE", "S", "SW", "W", "NW", "N" };
+            return cardinals[(int)Math.Round(((double)degrees % 360) / 45)];
         }
 
         static string GetWeatherDescription(int weatherCode)
