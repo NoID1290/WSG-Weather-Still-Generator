@@ -33,6 +33,14 @@ namespace WeatherImageGenerator
                 return;
             }
 
+            if (args.Contains("--generate-icons"))
+            {
+                var config = ConfigManager.LoadConfig();
+                var outputDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages", "Icons");
+                IconGenerator.GenerateAll(outputDir);
+                return;
+            }
+
             if (args.Contains("--make-video-now"))
             {
                 var config = ConfigManager.LoadConfig();
@@ -1095,11 +1103,44 @@ namespace WeatherImageGenerator
         // Draw a simple vector weather icon into the given rectangle
         static void DrawWeatherIcon(Graphics g, RectangleF area, int? weatherCode)
         {
-            // Normalize background
-            using (var bg = new SolidBrush(Color.FromArgb(0, 0, 0, 0))) { /* placeholder if needed */ }
-
             // Default: clear icon (sun)
             int code = weatherCode ?? 0;
+
+            // Try to load custom icon from "WeatherImages/Icons/{code}.png"
+            // We look in the application directory
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string iconPath = Path.Combine(baseDir, "WeatherImages", "Icons", $"{code}.png");
+            
+            // If specific code not found, try generic mapping
+            if (!File.Exists(iconPath))
+            {
+                string? generic = GetGenericIconName(code);
+                if (generic != null)
+                {
+                    string genericPath = Path.Combine(baseDir, "WeatherImages", "Icons", generic);
+                    if (File.Exists(genericPath)) iconPath = genericPath;
+                }
+            }
+
+            if (File.Exists(iconPath))
+            {
+                try
+                {
+                    using (var img = Image.FromFile(iconPath))
+                    {
+                        g.DrawImage(img, area);
+                    }
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[Warning] Failed to load icon {iconPath}: {ex.Message}", ConsoleColor.Yellow);
+                }
+            }
+
+            // Fallback to vector graphics
+            var oldMode = g.SmoothingMode;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
             if (code == 0 || code == 1)
             {
@@ -1121,9 +1162,9 @@ namespace WeatherImageGenerator
                     }
                 }
             }
-            else if (code == 2 || code == 3 || code == 45)
+            else if (code == 2 || code == 3 || code == 45 || code == 48)
             {
-                // Cloudy / overcast
+                // Cloudy / overcast / fog
                 using (Brush cloud = new SolidBrush(Color.FromArgb(230, 230, 235)))
                 {
                     float cw = area.Width * 0.9f;
@@ -1138,8 +1179,8 @@ namespace WeatherImageGenerator
             else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82))
             {
                 // Rain
-                using (Brush cloud = new SolidBrush(Color.FromArgb(230, 230, 235)))
-                using (Pen drop = new Pen(Color.FromArgb(180, 180, 255), 3))
+                using (Brush cloud = new SolidBrush(Color.FromArgb(200, 200, 210)))
+                using (Pen drop = new Pen(Color.FromArgb(100, 160, 255), 3))
                 {
                     float cw = area.Width * 0.9f;
                     float ch = area.Height * 0.45f;
@@ -1160,7 +1201,7 @@ namespace WeatherImageGenerator
             else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86))
             {
                 // Snow
-                using (Brush cloud = new SolidBrush(Color.FromArgb(230, 230, 235)))
+                using (Brush cloud = new SolidBrush(Color.FromArgb(240, 240, 250)))
                 using (Pen snow = new Pen(Color.White, 2))
                 {
                     float cw = area.Width * 0.9f;
@@ -1180,6 +1221,28 @@ namespace WeatherImageGenerator
                     }
                 }
             }
+            else if (code >= 95 && code <= 99)
+            {
+                 // Thunderstorm
+                using (Brush cloud = new SolidBrush(Color.FromArgb(100, 100, 110)))
+                using (Pen bolt = new Pen(Color.Yellow, 3))
+                {
+                    float cw = area.Width * 0.9f;
+                    float ch = area.Height * 0.45f;
+                    float cx = area.X + (area.Width - cw) / 2;
+                    float cy = area.Y + (area.Height - ch) / 2 + 6;
+                    g.FillEllipse(cloud, cx + cw * 0.08f, cy, cw * 0.6f, ch);
+                    g.FillEllipse(cloud, cx + cw * 0.35f, cy - ch * 0.2f, cw * 0.6f, ch);
+                    g.FillRectangle(cloud, cx + cw * 0.05f, cy + ch * 0.2f, cw * 0.9f, ch * 0.5f);
+
+                    // Bolt
+                    var bx = cx + cw * 0.4f;
+                    var by = cy + ch;
+                    g.DrawLine(bolt, bx, by, bx - 5, by + 10);
+                    g.DrawLine(bolt, bx - 5, by + 10, bx + 5, by + 10);
+                    g.DrawLine(bolt, bx + 5, by + 10, bx, by + 20);
+                }
+            }
             else
             {
                 // Fallback: small circle
@@ -1188,6 +1251,42 @@ namespace WeatherImageGenerator
                     g.FillEllipse(b, area.X + area.Width * 0.25f, area.Y + area.Height * 0.25f, area.Width * 0.5f, area.Height * 0.5f);
                 }
             }
+            
+            g.SmoothingMode = oldMode;
+        }
+
+        static string? GetGenericIconName(int code)
+        {
+            return code switch
+            {
+                0 => "sunny.png",
+                1 => "partly_cloudy.png",
+                2 => "partly_cloudy.png",
+                3 => "cloudy.png",
+                45 => "fog.png",
+                48 => "fog.png",
+                51 => "rain.png",
+                53 => "rain.png",
+                55 => "rain.png",
+                61 => "rain.png",
+                63 => "rain.png",
+                65 => "rain.png",
+                66 => "freezing_rain.png",
+                67 => "freezing_rain.png",
+                71 => "snow.png",
+                73 => "snow.png",
+                75 => "snow.png",
+                77 => "snow.png",
+                80 => "rain.png",
+                81 => "rain.png",
+                82 => "rain.png",
+                85 => "snow.png",
+                86 => "snow.png",
+                95 => "storm.png",
+                96 => "storm.png",
+                99 => "storm.png",
+                _ => null
+            };
         }
 
         static void GenerateAPNGcurrentTemperature(WeatherForecast weatherData, string outputDir)

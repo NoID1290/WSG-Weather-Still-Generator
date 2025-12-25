@@ -26,6 +26,7 @@
     <Compile Include="commonEdit.cs" />
     <Compile Include="ConfigManager.cs" />
     <Compile Include="ECCC.cs" />
+    <Compile Include="IconGenerator.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="VideoGenerator.cs" />
     <Compile Include="Logger.cs" />
@@ -36,5 +37,8 @@
     <None Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Content Include="WeatherImages\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>
