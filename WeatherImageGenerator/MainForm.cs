@@ -20,6 +20,7 @@ namespace WeatherImageGenerator
         private TextProgressBar? _progress;
         private Label? _statusLabel;
         private Label? _sleepLabel;
+        private Label? _lastFetchLabel;
         private ListView? _weatherList;
 
         // When Minimal verbosity is selected, show only the last N important lines
@@ -69,6 +70,7 @@ namespace WeatherImageGenerator
             // Make room for the activity/status label to the right
             _statusLabel = new Label { Left = 320, Top = 46, Width = 300, Text = "Idle" };
             _sleepLabel = new Label { Left = 630, Top = 46, Width = 220, Text = string.Empty };
+            _lastFetchLabel = new Label { Left = 630, Top = 66, Width = 220, Text = "Last fetch: Never", Font = new Font("Segoe UI", 8F, FontStyle.Italic) };
 
             startBtn.Click += (s, e) => StartClicked(startBtn, stopBtn);
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
@@ -117,6 +119,7 @@ namespace WeatherImageGenerator
             panel.Controls.Add(_progress);
             panel.Controls.Add(_statusLabel);
             panel.Controls.Add(_sleepLabel);
+            panel.Controls.Add(_lastFetchLabel);
 
             var splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
             _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true };
@@ -124,6 +127,7 @@ namespace WeatherImageGenerator
             _weatherList.Columns.Add("Temp", 80);
             _weatherList.Columns.Add("Condition", 150);
             _weatherList.Columns.Add("Wind", 150);
+            _weatherList.Columns.Add("Alerts", 200);
 
             splitContainer.Panel1.Controls.Add(_weatherList);
             splitContainer.Panel2.Controls.Add(rich);
@@ -134,6 +138,62 @@ namespace WeatherImageGenerator
             this.Controls.Add(panel);
 
             Program.WeatherDataFetched += OnWeatherDataFetched;
+            Program.AlertsFetched += OnAlertsFetched;
+        }
+
+        private void OnAlertsFetched(System.Collections.Generic.List<QuebecWeatherAlertMonitor.AlertEntry> alerts)
+        {
+            if (_weatherList == null) return;
+            if (_weatherList.InvokeRequired)
+            {
+                _weatherList.BeginInvoke(new Action(() => OnAlertsFetched(alerts)));
+                return;
+            }
+
+            // Clear previous alerts in the list
+            foreach (ListViewItem item in _weatherList.Items)
+            {
+                // Ensure we have enough subitems
+                while (item.SubItems.Count < 5) item.SubItems.Add("");
+                item.SubItems[4].Text = "No alert";
+                item.SubItems[4].BackColor = Color.Transparent;
+                item.SubItems[4].ForeColor = Color.Black;
+            }
+
+            // Map alerts to locations
+            foreach (var alert in alerts)
+            {
+                foreach (ListViewItem item in _weatherList.Items)
+                {
+                    // Simple case-insensitive match
+                    if (string.Equals(item.Text, alert.City, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string existing = item.SubItems[4].Text;
+                        string newAlert = $"{alert.Type}: {alert.Title}";
+                        
+                        if (existing == "No alert")
+                        {
+                            item.SubItems[4].Text = newAlert;
+                        }
+                        else
+                        {
+                            item.SubItems[4].Text = existing + "; " + newAlert;
+                        }
+                        
+                        // Color coding based on severity
+                        if (alert.SeverityColor.Equals("Red", StringComparison.OrdinalIgnoreCase))
+                        {
+                            item.SubItems[4].BackColor = Color.Red;
+                            item.SubItems[4].ForeColor = Color.White;
+                        }
+                        else if (alert.SeverityColor.Equals("Yellow", StringComparison.OrdinalIgnoreCase) && item.SubItems[4].BackColor != Color.Red)
+                        {
+                            item.SubItems[4].BackColor = Color.Yellow;
+                            item.SubItems[4].ForeColor = Color.Black;
+                        }
+                    }
+                }
+            }
         }
 
         private void SetSleepRemaining(TimeSpan ts)
@@ -608,6 +668,11 @@ namespace WeatherImageGenerator
             {
                 _weatherList.BeginInvoke(new Action(() => OnWeatherDataFetched(forecasts)));
                 return;
+            }
+
+            if (_lastFetchLabel != null)
+            {
+                _lastFetchLabel.Text = $"Last fetch: {DateTime.Now:HH:mm:ss}";
             }
 
             _weatherList.Items.Clear();

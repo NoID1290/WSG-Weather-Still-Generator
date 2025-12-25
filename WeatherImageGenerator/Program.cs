@@ -131,6 +131,9 @@ namespace WeatherImageGenerator
         // Event that reports the fetched weather data
         public static event Action<WeatherForecast?[]>? WeatherDataFetched;
 
+        // Event that reports the fetched alerts
+        public static event Action<List<AlertEntry>>? AlertsFetched;
+
         public static async Task RunAsync(CancellationToken cancellationToken = default)
         {
             // Load configuration
@@ -191,6 +194,7 @@ namespace WeatherImageGenerator
                         {
                             List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
                             Logger.Log($"✓ Found {alerts.Count} active alerts.");
+                            AlertsFetched?.Invoke(alerts);
                         }
                         catch (Exception ex)
                         {
