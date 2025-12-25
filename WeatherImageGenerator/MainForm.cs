@@ -56,7 +56,7 @@ namespace WeatherImageGenerator
             _progress = new TextProgressBar { Left = 10, Top = 50, Width = 370, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
             _statusLabel = new Label { Left = 400, Top = 50, Width = 200, Text = "Idle", AutoSize = true };
             _sleepLabel = new Label { Left = 400, Top = 70, Width = 200, Text = string.Empty, AutoSize = true };
-            _lastFetchLabel = new Label { Left = 600, Top = 50, Width = 200, Text = "Last fetch: Never", Font = new Font("Segoe UI", 8F, FontStyle.Italic), AutoSize = true };
+            _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 20, Text = "Last fetch: Never", Font = new Font("Segoe UI", 8F, FontStyle.Italic), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5, 0, 0, 0) };
 
             // --- Log Controls (Separate Panel) ---
             var logPanel = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = SystemColors.Control };
@@ -145,7 +145,7 @@ namespace WeatherImageGenerator
             panel.Controls.Add(_progress);
             panel.Controls.Add(_statusLabel);
             panel.Controls.Add(_sleepLabel);
-            panel.Controls.Add(_lastFetchLabel);
+            // _lastFetchLabel moved to splitContainer.Panel1
 
             var splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
             _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true };
@@ -157,6 +157,11 @@ namespace WeatherImageGenerator
             _weatherList.Columns.Add("Alerts", 200);
 
             splitContainer.Panel1.Controls.Add(_weatherList);
+            splitContainer.Panel1.Controls.Add(_lastFetchLabel);
+            // Docking order is reverse of Z-order. Send label to back so it is docked first (Top), 
+            // then list fills the remaining space.
+            _lastFetchLabel.SendToBack();
+            _weatherList.BringToFront();
             
             // Add log controls panel first (Dock=Top) then rich text box (Dock=Fill)
             splitContainer.Panel2.Controls.Add(logPanel);
@@ -792,7 +797,7 @@ namespace WeatherImageGenerator
 
             if (_lastFetchLabel != null)
             {
-                _lastFetchLabel.Text = $"Last fetch: {DateTime.Now:HH:mm:ss}";
+                _lastFetchLabel.Text = $"Last fetch: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             }
 
             _weatherList.Items.Clear();
