@@ -230,7 +230,17 @@ namespace WeatherImageGenerator
             foreach (var extension in _extensions)
             {
                 var files = dir.GetFiles(extension);
-                images.AddRange(files);
+                foreach (var file in files)
+                {
+                    if (IsValidImage(file))
+                    {
+                        images.Add(file);
+                    }
+                    else
+                    {
+                        Logger.Log($"[WARN] Skipping invalid or corrupt image: {file.Name}", ConsoleColor.Yellow);
+                    }
+                }
             }
 
             return images.OrderBy(f => f.Name).ToList();
@@ -249,7 +259,18 @@ namespace WeatherImageGenerator
                 var d = new DirectoryInfo(provinceFramesDir);
                 foreach (var extension in _extensions)
                 {
-                    frames.AddRange(d.GetFiles(extension));
+                    var files = d.GetFiles(extension);
+                    foreach (var file in files)
+                    {
+                        if (IsValidImage(file))
+                        {
+                            frames.Add(file);
+                        }
+                        else
+                        {
+                            Logger.Log($"[WARN] Skipping invalid or corrupt radar frame: {file.Name}", ConsoleColor.Yellow);
+                        }
+                    }
                 }
             }
             else
@@ -259,6 +280,24 @@ namespace WeatherImageGenerator
 
             _radarFrames = frames.OrderBy(f => f.Name).ToList();
             return _radarFrames;
+        }
+
+        /// <summary>
+        /// Checks if an image file is valid by attempting to load it.
+        /// </summary>
+        private bool IsValidImage(FileInfo file)
+        {
+            try
+            {
+                using (var img = Image.FromFile(file.FullName))
+                {
+                    return img.Width > 0 && img.Height > 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void CalculateResolution()
@@ -474,25 +513,58 @@ namespace WeatherImageGenerator
             // Video encoding settings
             var codec = string.IsNullOrWhiteSpace(VideoCodec) ? "libx264" : VideoCodec;
 
-            // If hardware encoding is requested, pick an NVENC codec that matches the desired family and add a few NVENC-friendly flags.
+            // If hardware encoding is requested, pick a hardware codec that matches the desired family and add friendly flags.
             if (EnableHardwareEncoding)
             {
+                var hwType = GetHardwareEncoderType(out _);
                 var lower = codec.ToLowerInvariant();
-                if (lower.Contains("hevc") || lower.Contains("x265") || lower.Contains("libx265"))
-                    codec = "hevc_nvenc";
-                else
-                    codec = "h264_nvenc";
+                bool isHevc = lower.Contains("hevc") || lower.Contains("x265") || lower.Contains("libx265");
 
-                sb.Append($" -c:v {codec} -preset p1 -rc vbr_hq");
-
-                // NVENC typically uses bitrate targets rather than CRF — ensure we have a sensible default bitrate if none specified.
-                if (!string.IsNullOrWhiteSpace(VideoBitrate))
+                if (hwType == HardwareEncoderType.Nvenc)
                 {
-                    sb.Append($" -b:v {VideoBitrate}");
+                    codec = isHevc ? "hevc_nvenc" : "h264_nvenc";
+                    sb.Append($" -c:v {codec} -preset p1 -rc vbr_hq");
+                }
+                else if (hwType == HardwareEncoderType.Amf)
+                {
+                    codec = isHevc ? "hevc_amf" : "h264_amf";
+                    // AMF specific flags can be added here if needed, e.g. -usage transcoding
+                    sb.Append($" -c:v {codec}");
+                }
+                else if (hwType == HardwareEncoderType.Qsv)
+                {
+                    codec = isHevc ? "hevc_qsv" : "h264_qsv";
+                    sb.Append($" -c:v {codec} -preset medium");
                 }
                 else
                 {
-                    sb.Append(" -b:v 8M");
+                    // Fallback to software if no hardware encoder found but requested
+                    Logger.Log("[WARN] Hardware encoding requested but no supported hardware encoder found. Falling back to software encoding.", ConsoleColor.Yellow);
+                    sb.Append($" -c:v {codec}");
+                }
+
+                // Hardware encoders typically use bitrate targets rather than CRF — ensure we have a sensible default bitrate if none specified.
+                if (hwType != HardwareEncoderType.None)
+                {
+                    if (!string.IsNullOrWhiteSpace(VideoBitrate))
+                    {
+                        sb.Append($" -b:v {VideoBitrate}");
+                    }
+                    else
+                    {
+                        sb.Append(" -b:v 8M");
+                    }
+                }
+                else
+                {
+                    if (!string.IsNullOrWhiteSpace(VideoBitrate))
+                    {
+                        sb.Append($" -b:v {VideoBitrate}");
+                    }
+                    else
+                    {
+                        sb.Append(" -crf 23");
+                    }
                 }
             }
             else
@@ -756,10 +828,16 @@ namespace WeatherImageGenerator
         }
 
         /// <summary>
-        /// Probes ffmpeg to see whether NVENC hardware encoders are available (h264_nvenc or hevc_nvenc).
+        /// Probes ffmpeg to see whether hardware encoders are available (NVENC, AMF, QSV).
         /// Returns true if an encoder name is present in the `ffmpeg -encoders` output. Provides a short message describing the result.
         /// </summary>
         public static bool IsHardwareEncodingSupported(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 5000)
+        {
+            var type = GetHardwareEncoderType(out message, ffmpegExe, timeoutMs);
+            return type != HardwareEncoderType.None;
+        }
+
+        public static HardwareEncoderType GetHardwareEncoderType(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 5000)
         {
             try
             {
@@ -778,7 +856,7 @@ namespace WeatherImageGenerator
                     if (p == null)
                     {
                         message = "Failed to start ffmpeg";
-                        return false;
+                        return HardwareEncoderType.None;
                     }
 
                     var outText = p.StandardOutput.ReadToEnd();
@@ -788,20 +866,30 @@ namespace WeatherImageGenerator
 
                     if (outText.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_nvenc", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        message = "NVENC encoder found";
-                        return true;
+                        message = "NVENC (NVIDIA) encoder found";
+                        return HardwareEncoderType.Nvenc;
+                    }
+                    else if (outText.IndexOf("h264_amf", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_amf", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        message = "AMF (AMD) encoder found";
+                        return HardwareEncoderType.Amf;
+                    }
+                    else if (outText.IndexOf("h264_qsv", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_qsv", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        message = "QSV (Intel) encoder found";
+                        return HardwareEncoderType.Qsv;
                     }
                     else
                     {
-                        message = "NVENC encoders not found in ffmpeg encoders list";
-                        return false;
+                        message = "No hardware encoders (NVENC/AMF/QSV) found";
+                        return HardwareEncoderType.None;
                     }
                 }
             }
             catch (Exception ex)
             {
                 message = ex.Message;
-                return false;
+                return HardwareEncoderType.None;
             }
         }
     }
@@ -814,5 +902,13 @@ namespace WeatherImageGenerator
         Mode1080p,
         Mode4K,
         ModeVertical
+    }
+
+    public enum HardwareEncoderType
+    {
+        None,
+        Nvenc,
+        Amf,
+        Qsv
     }
 }

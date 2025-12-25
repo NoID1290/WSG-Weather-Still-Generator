@@ -100,7 +100,7 @@ namespace WeatherImageGenerator
             chkEnableHardwareEncoding = new CheckBox { Text = "Enable Hardware Encoding", Left = leftField + 420, Top = top, Width = 260 };
 
             // Status text and check button for hardware encoder availability
-            lblHwStatus = new Label { Text = "NVENC: Unknown", Left = leftField + 420, Top = top + 22, Width = 300, ForeColor = System.Drawing.Color.Gray };
+            lblHwStatus = new Label { Text = "HW Encoder: Unknown", Left = leftField + 420, Top = top + 22, Width = 300, ForeColor = System.Drawing.Color.Gray };
             btnCheckHw = new Button { Text = "Check", Left = leftField + 680, Top = top - 4, Width = 70 };
             btnCheckHw.Click += (s, e) =>
             {
@@ -111,7 +111,7 @@ namespace WeatherImageGenerator
                     bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
                     this.Invoke((Action)(() =>
                     {
-                        lblHwStatus.Text = ok ? "NVENC available" : $"NVENC not found ({msg})";
+                        lblHwStatus.Text = ok ? msg : $"Not found ({msg})";
                         lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
                         btnCheckHw.Enabled = true;
                     }));
