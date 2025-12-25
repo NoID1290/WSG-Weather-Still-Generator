@@ -151,6 +151,7 @@ namespace WeatherImageGenerator
             _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true };
             _weatherList.Columns.Add("Location", 200);
             _weatherList.Columns.Add("Temp", 80);
+            _weatherList.Columns.Add("Feels Like", 80);
             _weatherList.Columns.Add("Condition", 150);
             _weatherList.Columns.Add("Wind", 150);
             _weatherList.Columns.Add("Alerts", 200);
@@ -196,10 +197,10 @@ namespace WeatherImageGenerator
             foreach (ListViewItem item in _weatherList.Items)
             {
                 // Ensure we have enough subitems
-                while (item.SubItems.Count < 5) item.SubItems.Add("");
-                item.SubItems[4].Text = "No alert";
-                item.SubItems[4].BackColor = Color.Transparent;
-                item.SubItems[4].ForeColor = Color.Black;
+                while (item.SubItems.Count < 6) item.SubItems.Add("");
+                item.SubItems[5].Text = "No alert";
+                item.SubItems[5].BackColor = Color.Transparent;
+                item.SubItems[5].ForeColor = Color.Black;
             }
 
             // Map alerts to locations
@@ -210,28 +211,28 @@ namespace WeatherImageGenerator
                     // Simple case-insensitive match
                     if (string.Equals(item.Text, alert.City, StringComparison.OrdinalIgnoreCase))
                     {
-                        string existing = item.SubItems[4].Text;
+                        string existing = item.SubItems[5].Text;
                         string newAlert = $"{alert.Type}: {alert.Title}";
                         
                         if (existing == "No alert")
                         {
-                            item.SubItems[4].Text = newAlert;
+                            item.SubItems[5].Text = newAlert;
                         }
                         else
                         {
-                            item.SubItems[4].Text = existing + "; " + newAlert;
+                            item.SubItems[5].Text = existing + "; " + newAlert;
                         }
                         
                         // Color coding based on severity
                         if (alert.SeverityColor.Equals("Red", StringComparison.OrdinalIgnoreCase))
                         {
-                            item.SubItems[4].BackColor = Color.Red;
-                            item.SubItems[4].ForeColor = Color.White;
+                            item.SubItems[5].BackColor = Color.Red;
+                            item.SubItems[5].ForeColor = Color.White;
                         }
-                        else if (alert.SeverityColor.Equals("Yellow", StringComparison.OrdinalIgnoreCase) && item.SubItems[4].BackColor != Color.Red)
+                        else if (alert.SeverityColor.Equals("Yellow", StringComparison.OrdinalIgnoreCase) && item.SubItems[5].BackColor != Color.Red)
                         {
-                            item.SubItems[4].BackColor = Color.Yellow;
-                            item.SubItems[4].ForeColor = Color.Black;
+                            item.SubItems[5].BackColor = Color.Yellow;
+                            item.SubItems[5].ForeColor = Color.Black;
                         }
                     }
                 }
@@ -810,12 +811,14 @@ namespace WeatherImageGenerator
                     item.SubItems.Add("N/A");
                     item.SubItems.Add("N/A");
                     item.SubItems.Add("N/A");
+                    item.SubItems.Add("N/A");
                     _weatherList.Items.Add(item);
                 }
                 else
                 {
                     var item = new ListViewItem(locName);
                     item.SubItems.Add($"{f.Current.Temperature}{f.CurrentUnits?.Temperature ?? "°C"}");
+                    item.SubItems.Add($"{f.Current.Apparent_temperature}{f.CurrentUnits?.Apparent_temperature ?? "°C"}");
                     
                     string condition = f.Current.Weathercode.HasValue 
                         ? client.WeathercodeToString(f.Current.Weathercode.Value) 

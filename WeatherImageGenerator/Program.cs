@@ -954,12 +954,13 @@ namespace WeatherImageGenerator
 
                             // Small details
                             float detailY = y + 190;
-                            graphics.DrawString($"Humidity: {cur.Relativehumidity_2m}%", labelFont, whiteBrush, new PointF(x + 20, detailY));
-                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} @ {cur.Winddirection_10m}°", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
-                            graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
+                            graphics.DrawString($"Feels Like: {cur.Apparent_temperature}{item.Forecast.CurrentUnits?.Apparent_temperature}", labelFont, whiteBrush, new PointF(x + 20, detailY));
+                            graphics.DrawString($"Humidity: {cur.Relativehumidity_2m}%", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
+                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} @ {cur.Winddirection_10m}°", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
+                            graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 66));
 
                             // 5-Day Forecast Section
-                            float forecastY = detailY + 80;
+                            float forecastY = detailY + 100;
                             using (Font forecastHeaderFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 16, FontStyle.Bold))
                             using (Font forecastDayFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 12, FontStyle.Bold))
                             using (Font forecastTempFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 11, FontStyle.Regular))
