@@ -730,38 +730,30 @@ namespace WeatherImageGenerator
                     framePercent = Math.Min(100.0, (parsedFrame / _expectedTotalFrames) * 100.0);
                 }
 
-                // Build ASCII progress bars
-                string BuildBar(double pct, int width = 40)
-                {
-                    pct = Math.Max(0, Math.Min(100, pct));
-                    int filled = (int)Math.Round((pct / 100.0) * width);
-                    return "[" + new string('#', filled) + new string('-', Math.Max(0, width - filled)) + $"] {pct:0}%";
-                }
+                var stats = new List<string>();
+                if (!string.IsNullOrEmpty(frame)) stats.Add($"Frame: {frame}");
+                if (!string.IsNullOrEmpty(fps)) stats.Add($"FPS: {fps}");
+                if (!string.IsNullOrEmpty(time)) stats.Add($"Time: {time}");
+                if (!string.IsNullOrEmpty(speed)) stats.Add($"Speed: {speed}");
+                if (!string.IsNullOrEmpty(bitrate)) stats.Add($"Bitrate: {bitrate}");
 
-                var topBar = $"[MAIN] {BuildBar(mainPercent)}";
-                var bottomBar = $"[FF]   {BuildBar(framePercent)} " +
-                                (frame != null ? $"frame={frame} " : "") +
-                                (fps != null ? $"fps={fps} " : "") +
-                                (time != null ? $"time={time} " : "") +
-                                (speed != null ? $"speed={speed} " : "") +
-                                (bitrate != null ? $"bitrate={bitrate} " : "");
+                var bottomBar = $"Rendering: " + string.Join(" | ", stats);
 
                 var now = DateTime.UtcNow;
-                if ((topBar != _lastFfmpegProgress) || (now - _lastFfmpegProgressLog).TotalMilliseconds > 800)
+                if ((bottomBar != _lastFfmpegProgress) || (now - _lastFfmpegProgressLog).TotalMilliseconds > 800)
                 {
                     lock (_progressLock)
                     {
-                        // Emit concise two-line progress block
+                        // Emit concise progress block
                         if (ShowFfmpegOutputInGui)
                         {
-                            Logger.Log(topBar, ConsoleColor.Cyan);
                             Logger.Log(bottomBar, ConsoleColor.DarkCyan);
                         }
 
                         // Also notify any GUI listeners specifically about the ffmpeg progress
                         try { VideoProgressUpdated?.Invoke(mainPercent, bottomBar); } catch { }
 
-                        _lastFfmpegProgress = topBar;
+                        _lastFfmpegProgress = bottomBar;
                         _lastFfmpegProgressLog = now;
                     }
                 }
