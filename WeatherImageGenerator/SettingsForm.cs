@@ -30,78 +30,96 @@ namespace WeatherImageGenerator
         public SettingsForm()
         {
             this.Text = "Settings";
-            this.Width = 800;
-            this.Height = 480;
+            this.Width = 600;
+            this.Height = 500;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
 
+            var tabControl = new TabControl { Dock = DockStyle.Top, Height = 400 };
+            
+            // --- General Tab ---
+            var tabGeneral = new TabPage("General");
+            int gTop = 20;
+            int rowH = 35;
             int leftLabel = 10;
-            int leftField = 170;
-            int top = 20;
-            int rowH = 28;
+            int leftField = 160;
 
-            var lblOutImg = new Label { Text = "Image Output Directory:", Left = leftLabel, Top = top, Width = 150 };
-            txtImageOutputDir = new TextBox { Left = leftField, Top = top - 2, Width = 360 };
-            var btnBrowseImg = new Button { Text = "Browse...", Left = 540, Top = top - 4, Width = 70 };
+            var lblRefresh = new Label { Text = "Refresh Interval (min):", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numRefresh = new NumericUpDown { Left = leftField, Top = gTop, Width = 80, Minimum = 1, Maximum = 1440, Value = 10 };
+            
+            gTop += rowH;
+            var lblOutImg = new Label { Text = "Image Output Dir:", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtImageOutputDir = new TextBox { Left = leftField, Top = gTop, Width = 300 };
+            var btnBrowseImg = new Button { Text = "...", Left = 470, Top = gTop - 1, Width = 40, Height = 23 };
             btnBrowseImg.Click += (s, e) => BrowseClicked(txtImageOutputDir);
 
-            top += rowH;
-            var lblOutVid = new Label { Text = "Video Output Directory:", Left = leftLabel, Top = top, Width = 150 };
-            txtVideoOutputDir = new TextBox { Left = leftField, Top = top - 2, Width = 360 };
-            var btnBrowseVid = new Button { Text = "Browse...", Left = 540, Top = top - 4, Width = 70 };
+            gTop += rowH;
+            var lblOutVid = new Label { Text = "Video Output Dir:", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtVideoOutputDir = new TextBox { Left = leftField, Top = gTop, Width = 300 };
+            var btnBrowseVid = new Button { Text = "...", Left = 470, Top = gTop - 1, Width = 40, Height = 23 };
             btnBrowseVid.Click += (s, e) => BrowseClicked(txtVideoOutputDir);
 
-            top += rowH;
-            var lblRefresh = new Label { Text = "Refresh Interval (min):", Left = leftLabel, Top = top, Width = 150 };
-            numRefresh = new NumericUpDown { Left = leftField, Top = top - 2, Width = 80, Minimum = 1, Maximum = 1440, Value = 10 };
+            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid });
 
-            top += rowH;
-            var lblImgSize = new Label { Text = "Image Resolution (WxH):", Left = leftLabel, Top = top, Width = 150 };
-            numImgWidth = new NumericUpDown { Left = leftField, Top = top - 2, Width = 90, Minimum = 320, Maximum = 7680, Value = 1920, Increment = 10 };
-            numImgHeight = new NumericUpDown { Left = leftField + 100, Top = top - 2, Width = 90, Minimum = 240, Maximum = 4320, Value = 1080, Increment = 10 };
-            cmbImgFormat = new ComboBox { Left = leftField + 200, Top = top - 2, Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
+            // --- Image Tab ---
+            var tabImage = new TabPage("Image");
+            int iTop = 20;
+
+            var lblImgSize = new Label { Text = "Resolution (WxH):", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numImgWidth = new NumericUpDown { Left = leftField, Top = iTop, Width = 80, Minimum = 320, Maximum = 7680, Value = 1920, Increment = 10 };
+            var lblX = new Label { Text = "x", Left = leftField + 85, Top = iTop, Width = 15, AutoSize = true };
+            numImgHeight = new NumericUpDown { Left = leftField + 105, Top = iTop, Width = 80, Minimum = 240, Maximum = 4320, Value = 1080, Increment = 10 };
+            
+            iTop += rowH;
+            var lblFormat = new Label { Text = "Format:", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbImgFormat = new ComboBox { Left = leftField, Top = iTop, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbImgFormat.Items.AddRange(new object[] { "png", "jpeg", "bmp", "gif" });
             cmbImgFormat.SelectedIndex = 0;
 
-            top += rowH;
-            var lblStatic = new Label { Text = "Static Duration (s):", Left = leftLabel, Top = top, Width = 150 };
-            numStatic = new NumericUpDown { Left = leftField, Top = top - 2, Width = 80, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
+            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat });
 
-            var lblFade = new Label { Text = "Fade Duration (s):", Left = leftField + 90, Top = top, Width = 130 };
-            numFade = new NumericUpDown { Left = leftField + 220, Top = top - 2, Width = 80, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M };
+            // --- Video Tab ---
+            var tabVideo = new TabPage("Video");
+            int vTop = 20;
 
-            chkFade = new CheckBox { Text = "Enable Fade Transitions", Left = leftField + 320, Top = top, Width = 180 };
+            chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = vTop, Width = 200 };
+            
+            vTop += rowH;
+            var lblStatic = new Label { Text = "Static Duration (s):", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numStatic = new NumericUpDown { Left = leftField, Top = vTop, Width = 80, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
 
-            top += rowH;
-            var lblResolution = new Label { Text = "Video Resolution Preset:", Left = leftLabel, Top = top, Width = 150 };
-            cmbResolution = new ComboBox { Left = leftField, Top = top - 2, Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
+            vTop += rowH;
+            var lblFade = new Label { Text = "Fade Duration (s):", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numFade = new NumericUpDown { Left = leftField, Top = vTop, Width = 80, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M };
+            chkFade = new CheckBox { Text = "Enable Transitions", Left = leftField + 100, Top = vTop, Width = 150 };
+
+            vTop += rowH;
+            var lblResPreset = new Label { Text = "Resolution Preset:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbResolution = new ComboBox { Left = leftField, Top = vTop, Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbResolution.Items.AddRange(Enum.GetNames(typeof(ResolutionMode)));
             cmbResolution.SelectedIndex = 0;
 
-            var lblFps = new Label { Text = "Video FPS:", Left = leftField + 150, Top = top, Width = 80 };
-            numFps = new NumericUpDown { Left = leftField + 230, Top = top - 2, Width = 70, Minimum = 1, Maximum = 240, Value = 30 };
+            vTop += rowH;
+            var lblFps = new Label { Text = "FPS:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numFps = new NumericUpDown { Left = leftField, Top = vTop, Width = 80, Minimum = 1, Maximum = 240, Value = 30 };
 
-            var lblContainer = new Label { Text = "Container:", Left = leftField + 310, Top = top, Width = 80 };
-            cmbContainer = new ComboBox { Left = leftField + 390, Top = top - 2, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
+            vTop += rowH;
+            var lblContainer = new Label { Text = "Container:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbContainer = new ComboBox { Left = leftField, Top = vTop, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbContainer.Items.AddRange(new object[] { "mp4", "mkv", "mov", "avi", "webm" });
             cmbContainer.SelectedIndex = 0;
 
-            top += rowH;
-            var lblCodec = new Label { Text = "Video Codec:", Left = leftLabel, Top = top, Width = 150 };
-            txtCodec = new TextBox { Left = leftField, Top = top - 2, Width = 140, Text = "libx264" };
+            vTop += rowH;
+            var lblCodec = new Label { Text = "Codec / Bitrate:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtCodec = new TextBox { Left = leftField, Top = vTop, Width = 80, Text = "libx264" };
+            txtBitrate = new TextBox { Left = leftField + 90, Top = vTop, Width = 60, Text = "4M" };
 
-            var lblBitrate = new Label { Text = "Video Bitrate (e.g. 4M):", Left = leftField + 150, Top = top, Width = 200 };
-            txtBitrate = new TextBox { Left = leftField + 350, Top = top - 2, Width = 140, Text = "4M" };
-
-            top += rowH;
-            chkVerbose = new CheckBox { Text = "Verbose FFmpeg output", Left = leftField, Top = top, Width = 180 };
-            chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg logs in GUI", Left = leftField + 200, Top = top, Width = 200, Checked = true };
-            chkEnableHardwareEncoding = new CheckBox { Text = "Enable Hardware Encoding", Left = leftField + 420, Top = top, Width = 260 };
-
-            // Status text and check button for hardware encoder availability
-            lblHwStatus = new Label { Text = "HW Encoder: Unknown", Left = leftField + 420, Top = top + 22, Width = 300, ForeColor = System.Drawing.Color.Gray };
-            btnCheckHw = new Button { Text = "Check", Left = leftField + 680, Top = top - 4, Width = 70 };
+            vTop += rowH;
+            chkEnableHardwareEncoding = new CheckBox { Text = "Hardware Encoding (NVENC)", Left = leftLabel, Top = vTop, Width = 200 };
+            lblHwStatus = new Label { Text = "Unknown", Left = leftLabel + 210, Top = vTop + 4, Width = 150, ForeColor = System.Drawing.Color.Gray, AutoSize = true };
+            btnCheckHw = new Button { Text = "Check", Left = leftLabel + 380, Top = vTop - 2, Width = 60, Height = 24 };
+            
             btnCheckHw.Click += (s, e) =>
             {
                 btnCheckHw.Enabled = false;
@@ -111,33 +129,42 @@ namespace WeatherImageGenerator
                     bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
                     this.Invoke((Action)(() =>
                     {
-                        lblHwStatus.Text = ok ? msg : $"Not found ({msg})";
+                        lblHwStatus.Text = ok ? msg : $"Not found";
                         lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
                         btnCheckHw.Enabled = true;
                     }));
                 });
             };
 
-            chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = top, Width = 200 };
+            vTop += rowH;
+            chkVerbose = new CheckBox { Text = "Verbose FFmpeg", Left = leftLabel, Top = vTop, Width = 130 };
+            chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg GUI", Left = leftLabel + 140, Top = vTop, Width = 150 };
 
-            var btnSave = new Button { Text = "Save", Left = 360, Top = 380, Width = 100 };
-            var btnCancel = new Button { Text = "Cancel", Left = 470, Top = 380, Width = 100 };
+            tabVideo.Controls.AddRange(new Control[] { 
+                chkVideoGeneration, 
+                lblStatic, numStatic, 
+                lblFade, numFade, chkFade, 
+                lblResPreset, cmbResolution, 
+                lblFps, numFps, 
+                lblContainer, cmbContainer, 
+                lblCodec, txtCodec, txtBitrate, 
+                chkEnableHardwareEncoding, lblHwStatus, btnCheckHw,
+                chkVerbose, chkShowFfmpeg 
+            });
+
+            tabControl.TabPages.Add(tabGeneral);
+            tabControl.TabPages.Add(tabImage);
+            tabControl.TabPages.Add(tabVideo);
+
+            var btnSave = new Button { Text = "Save", Left = 380, Top = 420, Width = 90, Height = 30 };
+            var btnCancel = new Button { Text = "Cancel", Left = 480, Top = 420, Width = 90, Height = 30 };
 
             btnSave.Click += (s, e) => SaveClicked();
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
 
-            this.Controls.AddRange(new Control[]
-            {
-                lblOutImg, txtImageOutputDir, btnBrowseImg,
-                lblOutVid, txtVideoOutputDir, btnBrowseVid,
-                lblRefresh, numRefresh,
-                lblImgSize, numImgWidth, numImgHeight, cmbImgFormat,
-                lblStatic, numStatic, lblFade, numFade, chkFade,
-                lblResolution, cmbResolution, lblFps, numFps, lblContainer, cmbContainer,
-                lblCodec, txtCodec, lblBitrate, txtBitrate,
-                chkVerbose, chkShowFfmpeg, chkEnableHardwareEncoding, lblHwStatus, btnCheckHw, chkVideoGeneration,
-                btnSave, btnCancel
-            });
+            this.Controls.Add(tabControl);
+            this.Controls.Add(btnSave);
+            this.Controls.Add(btnCancel);
 
             LoadSettings();
         }

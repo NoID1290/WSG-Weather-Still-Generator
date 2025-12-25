@@ -134,6 +134,182 @@ namespace WeatherImageGenerator
         // Event that reports the fetched alerts
         public static event Action<List<AlertEntry>>? AlertsFetched;
 
+        public static async Task FetchDataOnlyAsync(CancellationToken cancellationToken = default)
+        {
+            var config = ConfigManager.LoadConfig();
+            OpenMeteoClient client = new OpenMeteoClient();
+
+            using (HttpClient httpClient = new HttpClient())
+            {
+                string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                Logger.Log($"Fetching weather data (Fetch Only)...");
+                ProgressUpdated?.Invoke(0, "Starting fetch only...");
+
+                WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
+
+                for (int i = 0; i < locations.Length; i++)
+                {
+                    if (cancellationToken.IsCancellationRequested) return;
+
+                    string loc = locations[i];
+                    try 
+                    {
+                        allForecasts[i] = await client.QueryAsync(loc);
+                        Logger.Log($"✓ Fetched weather data for {loc}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"X Failed to fetch for {loc}: {ex.Message}");
+                    }
+                    
+                    if (locations.Length > 0)
+                    {
+                        var fetchPct = ((i + 1) / (double)locations.Length) * 80.0;
+                        ProgressUpdated?.Invoke(fetchPct, $"Fetching weather ({i + 1}/{locations.Length})");
+                    }
+                }
+
+                WeatherDataFetched?.Invoke(allForecasts);
+
+                if (cancellationToken.IsCancellationRequested) return;
+
+                Logger.Log("Checking ECCC weather alerts...");
+                try
+                {
+                    List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
+                    Logger.Log($"✓ Found {alerts.Count} active alerts.");
+                    AlertsFetched?.Invoke(alerts);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"X Failed to fetch alerts: {ex.Message}");
+                }
+
+                ProgressUpdated?.Invoke(100, "Fetch complete");
+            }
+        }
+
+        public static async Task GenerateStillsOnlyAsync(CancellationToken cancellationToken = default)
+        {
+            var config = ConfigManager.LoadConfig();
+            OpenMeteoClient client = new OpenMeteoClient();
+
+            using (HttpClient httpClient = new HttpClient())
+            {
+                string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                Logger.Log($"Fetching weather data (Stills Only)...");
+                ProgressUpdated?.Invoke(0, "Starting stills generation...");
+
+                WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
+
+                // Fetch Weather
+                for (int i = 0; i < locations.Length; i++)
+                {
+                    if (cancellationToken.IsCancellationRequested) return;
+
+                    string loc = locations[i];
+                    try 
+                    {
+                        allForecasts[i] = await client.QueryAsync(loc);
+                        Logger.Log($"✓ Fetched weather data for {loc}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"X Failed to fetch for {loc}: {ex.Message}");
+                    }
+                    
+                    if (locations.Length > 0)
+                    {
+                        var fetchPct = ((i + 1) / (double)locations.Length) * 15.0;
+                        ProgressUpdated?.Invoke(fetchPct, $"Fetching weather ({i + 1}/{locations.Length})");
+                    }
+                }
+
+                WeatherDataFetched?.Invoke(allForecasts);
+
+                if (cancellationToken.IsCancellationRequested) return;
+
+                // Fetch Alerts
+                Logger.Log("Checking ECCC weather alerts...");
+                List<AlertEntry> alerts = new List<AlertEntry>();
+                try
+                {
+                    alerts = await ECCC.FetchAllAlerts(httpClient);
+                    Logger.Log($"✓ Found {alerts.Count} active alerts.");
+                    AlertsFetched?.Invoke(alerts);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"X Failed to fetch alerts: {ex.Message}");
+                }
+
+                if (allForecasts[0] == null) 
+                {
+                    Logger.Log("Primary location data missing. Aborting stills generation.");
+                    return;
+                }
+
+                // Generate Images
+                string outputDir = Path.Combine(Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
+                if (!Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+
+                Logger.Log("Generating still images...");
+                ProgressUpdated?.Invoke(15, "Generating still images");
+
+                int detailedPerImage = 3;
+                int numDetailedImages = Math.Max(1, (locations.Length + detailedPerImage - 1) / detailedPerImage);
+                int imageSteps = Math.Max(1, numDetailedImages + 3); 
+                int imageStepsCompleted = 0;
+
+                // Detailed Weather
+                for (int batch = 0; batch < numDetailedImages; batch++)
+                {
+                    if (cancellationToken.IsCancellationRequested) return;
+                    int start = batch * detailedPerImage;
+                    int end = Math.Min(locations.Length, start + detailedPerImage);
+
+                    var batchItems = new List<(WeatherForecast? Forecast, string Name, int Index)>();
+                    for (int j = start; j < end; j++)
+                    {
+                        batchItems.Add((allForecasts[j], locations[j], j));
+                    }
+
+                    GenerateDetailedWeatherImageBatch(batchItems.ToArray(), outputDir, batch);
+
+                    imageStepsCompleted++;
+                    var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0;
+                    ProgressUpdated?.Invoke(pct, $"Generating images ({imageStepsCompleted}/{imageSteps})");
+                }
+
+                // Maps
+                if (cancellationToken.IsCancellationRequested) return;
+                try
+                {
+                    Logger.Log("Fetching radar images...");
+                    await ECCC.FetchRadarImages(httpClient, outputDir);
+                    Logger.Log("✓ Radar images fetched.");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"X Failed to fetch radar images: {ex.Message}");
+                }
+
+                GenerateMapsImage(allForecasts, locations, outputDir);
+                imageStepsCompleted++;
+                ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
+
+                // Alerts
+                if (cancellationToken.IsCancellationRequested) return;
+                GenerateAlertsImage(alerts, outputDir);
+                imageStepsCompleted++;
+                ProgressUpdated?.Invoke(100, "Stills generation complete");
+                Logger.Log($"✓ Stills Generation Complete. Images saved to: {outputDir}");
+            }
+        }
+
         public static async Task RunAsync(CancellationToken cancellationToken = default)
         {
             // Load configuration

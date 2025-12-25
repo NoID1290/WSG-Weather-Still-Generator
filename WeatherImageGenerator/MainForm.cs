@@ -40,41 +40,56 @@ namespace WeatherImageGenerator
             this.Height = 600;
 
             var rich = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", BackColor = System.Drawing.Color.Black, ForeColor = System.Drawing.Color.LightGray, Font = new System.Drawing.Font("Segoe UI", 10F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical };
-            var startBtn = new Button { Text = "Start", Left = 10, Top = 10, Width = 80, Height = 30 };
-            var stopBtn = new Button { Text = "Stop", Left = 100, Top = 10, Width = 80, Height = 30, Enabled = false };
-            var videoBtn = new Button { Text = "Make Video Now", Left = 190, Top = 10, Width = 120, Height = 30 };
-            var settingsBtn = new Button { Text = "Settings", Left = 320, Top = 10, Width = 80, Height = 30 };
+            
+            // --- Top Panel Controls ---
+            var startBtn = new Button { Text = "Start", Left = 10, Top = 10, Width = 70, Height = 30 };
+            var stopBtn = new Button { Text = "Stop", Left = 85, Top = 10, Width = 70, Height = 30, Enabled = false };
+            var fetchBtn = new Button { Text = "Fetch", Left = 160, Top = 10, Width = 70, Height = 30 };
+            var stillBtn = new Button { Text = "Still", Left = 235, Top = 10, Width = 70, Height = 30 };
+            var videoBtn = new Button { Text = "Video", Left = 310, Top = 10, Width = 70, Height = 30 };
+            
+            var settingsBtn = new Button { Text = "Settings", Left = 400, Top = 10, Width = 70, Height = 30 };
+            var aboutBtn = new Button { Text = "About", Left = 475, Top = 10, Width = 70, Height = 30 };
 
-            _cmbFilter = new ComboBox { Left = 410, Top = 12, Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
+            // Progress & Status (Row 2)
+            _progress = new TextProgressBar { Left = 10, Top = 50, Width = 370, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            _statusLabel = new Label { Left = 400, Top = 50, Width = 200, Text = "Idle", AutoSize = true };
+            _sleepLabel = new Label { Left = 400, Top = 70, Width = 200, Text = string.Empty, AutoSize = true };
+            _lastFetchLabel = new Label { Left = 600, Top = 50, Width = 200, Text = "Last fetch: Never", Font = new Font("Segoe UI", 8F, FontStyle.Italic), AutoSize = true };
+
+            // --- Log Controls (Separate Panel) ---
+            var logPanel = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = SystemColors.Control };
+            
+            var lblLog = new Label { Text = "Logs:", Left = 10, Top = 12, AutoSize = true };
+            
+            _cmbFilter = new ComboBox { Left = 60, Top = 8, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
             _cmbFilter.Items.AddRange(new object[] { "All", "Errors", "Warnings", "Info" });
             _cmbFilter.SelectedIndex = 0;
             _cmbFilter.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _cmbVerbosity = new ComboBox { Left = 540, Top = 12, Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbVerbosity = new ComboBox { Left = 170, Top = 8, Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
             _cmbVerbosity.Items.AddRange(new object[] { "Verbose", "Normal", "Minimal" });
             _cmbVerbosity.SelectedIndex = 1; // Normal
             _cmbVerbosity.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _txtSearch = new TextBox { Left = 640, Top = 12, Width = 200 };
-            _txtSearch.PlaceholderText = "Search logs...";
-            _txtSearch.TextChanged += (s, e) => RefreshLogView();
-            // Compact mode collapses consecutive identical messages into a single line with a repeat count
-            _chkCompact = new CheckBox { Left = 700, Top = 14, Width = 80, Text = "Compact" };
+            _chkCompact = new CheckBox { Left = 270, Top = 10, Width = 80, Text = "Compact" };
             _chkCompact.CheckedChanged += (s, e) => RefreshLogView();
 
-            // Core progress bar (used as the visual fill) with embedded percentage text
+            _txtSearch = new TextBox { Left = 360, Top = 8, Width = 200 };
+            _txtSearch.PlaceholderText = "Search logs...";
+            _txtSearch.TextChanged += (s, e) => RefreshLogView();
 
-            // Core progress bar (used as the visual fill) with embedded percentage text
-            _progress = new TextProgressBar { Left = 10, Top = 46, Width = 300, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
-
-            // Make room for the activity/status label to the right
-            _statusLabel = new Label { Left = 320, Top = 46, Width = 300, Text = "Idle" };
-            _sleepLabel = new Label { Left = 630, Top = 46, Width = 220, Text = string.Empty };
-            _lastFetchLabel = new Label { Left = 630, Top = 66, Width = 220, Text = "Last fetch: Never", Font = new Font("Segoe UI", 8F, FontStyle.Italic) };
+            logPanel.Controls.Add(lblLog);
+            logPanel.Controls.Add(_cmbFilter);
+            logPanel.Controls.Add(_cmbVerbosity);
+            logPanel.Controls.Add(_chkCompact);
+            logPanel.Controls.Add(_txtSearch);
 
             startBtn.Click += (s, e) => StartClicked(startBtn, stopBtn);
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
             videoBtn.Click += (s, e) => VideoClicked();
+            fetchBtn.Click += (s, e) => FetchClicked(fetchBtn);
+            stillBtn.Click += (s, e) => StillClicked(stillBtn);
 
             // Subscribe to only the leveled event and receive the explicit LogLevel (fixes coloring detection)
             Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text, level);
@@ -97,7 +112,6 @@ namespace WeatherImageGenerator
                 }
             };
 
-            var aboutBtn = new Button { Text = "About", Left = 760, Top = 10, Width = 80, Height = 30 };
             aboutBtn.Click += (s, e) =>
             {
                 using (var f = new AboutDialog())
@@ -108,14 +122,12 @@ namespace WeatherImageGenerator
 
             var panel = new Panel { Dock = DockStyle.Top, Height = 90 };
             panel.Controls.Add(videoBtn);
+            panel.Controls.Add(stillBtn);
+            panel.Controls.Add(fetchBtn);
             panel.Controls.Add(stopBtn);
             panel.Controls.Add(startBtn);
             panel.Controls.Add(settingsBtn);
             panel.Controls.Add(aboutBtn);
-            panel.Controls.Add(_cmbFilter);
-            panel.Controls.Add(_cmbVerbosity);
-            panel.Controls.Add(_txtSearch);
-            panel.Controls.Add(_chkCompact);
             panel.Controls.Add(_progress);
             panel.Controls.Add(_statusLabel);
             panel.Controls.Add(_sleepLabel);
@@ -130,7 +142,23 @@ namespace WeatherImageGenerator
             _weatherList.Columns.Add("Alerts", 200);
 
             splitContainer.Panel1.Controls.Add(_weatherList);
+            
+            // Add log controls panel first (Dock=Top) then rich text box (Dock=Fill)
+            splitContainer.Panel2.Controls.Add(logPanel);
             splitContainer.Panel2.Controls.Add(rich);
+            rich.BringToFront(); // Ensure rich text box fills remaining space correctly if needed, but usually Dock order is reverse of Add order?
+            // Actually: "Controls added to a container are docked in the reverse order of the z-order."
+            // So the last added control is at the top of the z-order and gets docked first? No.
+            // "The control at the top of the Z-order is docked last."
+            // So if I want logPanel at Top, and rich at Fill.
+            // I should add rich first, then logPanel?
+            // Let's try adding logPanel (Top) then rich (Fill).
+            // If logPanel is Top, it takes the top strip. rich (Fill) takes the rest.
+            // But if rich is added first, it fills everything. Then logPanel is added... where?
+            // Let's stick to: Add logPanel, Add rich. And set logPanel.SendToBack() (bottom of Z-order -> docked first).
+            // Or just rely on the fact that Dock=Top usually takes precedence over Dock=Fill if added in correct order.
+            // Let's just add them and see. Usually adding Top then Fill works.
+            
             // Make console smaller (Panel2 is bottom)
             splitContainer.SplitterDistance = 350;
 
@@ -290,6 +318,52 @@ namespace WeatherImageGenerator
                 catch (Exception ex)
                 {
                     Logger.Log($"[ERROR] Manual video generation error: {ex.Message}", ConsoleColor.Red);
+                }
+            });
+        }
+
+        private void FetchClicked(Button fetchBtn)
+        {
+            fetchBtn.Enabled = false;
+            Task.Run(async () => 
+            {
+                try
+                {
+                    await Program.FetchDataOnlyAsync();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[ERROR] Manual fetch error: {ex.Message}", ConsoleColor.Red);
+                }
+                finally
+                {
+                    if (fetchBtn.InvokeRequired)
+                        fetchBtn.Invoke(new Action(() => fetchBtn.Enabled = true));
+                    else
+                        fetchBtn.Enabled = true;
+                }
+            });
+        }
+
+        private void StillClicked(Button stillBtn)
+        {
+            stillBtn.Enabled = false;
+            Task.Run(async () => 
+            {
+                try
+                {
+                    await Program.GenerateStillsOnlyAsync();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[ERROR] Manual still generation error: {ex.Message}", ConsoleColor.Red);
+                }
+                finally
+                {
+                    if (stillBtn.InvokeRequired)
+                        stillBtn.Invoke(new Action(() => stillBtn.Enabled = true));
+                    else
+                        stillBtn.Enabled = true;
                 }
             });
         }
