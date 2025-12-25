@@ -80,11 +80,22 @@ namespace WeatherImageGenerator
             _txtSearch.PlaceholderText = "Search logs...";
             _txtSearch.TextChanged += (s, e) => RefreshLogView();
 
+            var clearBtn = new Button { Text = "Clear", Left = 570, Top = 7, Width = 60, Height = 25 };
+            clearBtn.Click += (s, e) => 
+            {
+                lock (_logBuffer)
+                {
+                    _logBuffer.Clear();
+                }
+                RefreshLogView();
+            };
+
             logPanel.Controls.Add(lblLog);
             logPanel.Controls.Add(_cmbFilter);
             logPanel.Controls.Add(_cmbVerbosity);
             logPanel.Controls.Add(_chkCompact);
             logPanel.Controls.Add(_txtSearch);
+            logPanel.Controls.Add(clearBtn);
 
             startBtn.Click += (s, e) => StartClicked(startBtn, stopBtn);
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
