@@ -20,6 +20,7 @@ namespace WeatherImageGenerator
         private TextProgressBar? _progress;
         private Label? _statusLabel;
         private Label? _sleepLabel;
+        private ListView? _weatherList;
 
         // When Minimal verbosity is selected, show only the last N important lines
         private const int MinimalVisibleCount = 5;    // reduced for casual users (show only 5 lines)
@@ -117,8 +118,22 @@ namespace WeatherImageGenerator
             panel.Controls.Add(_statusLabel);
             panel.Controls.Add(_sleepLabel);
 
-            this.Controls.Add(rich);
+            var splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
+            _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true };
+            _weatherList.Columns.Add("Location", 200);
+            _weatherList.Columns.Add("Temp", 80);
+            _weatherList.Columns.Add("Condition", 150);
+            _weatherList.Columns.Add("Wind", 150);
+
+            splitContainer.Panel1.Controls.Add(_weatherList);
+            splitContainer.Panel2.Controls.Add(rich);
+            // Make console smaller (Panel2 is bottom)
+            splitContainer.SplitterDistance = 350;
+
+            this.Controls.Add(splitContainer);
             this.Controls.Add(panel);
+
+            Program.WeatherDataFetched += OnWeatherDataFetched;
         }
 
         private void SetSleepRemaining(TimeSpan ts)
@@ -586,6 +601,49 @@ namespace WeatherImageGenerator
         }
 
         // Called when Program reports broad progress (fetch/images/video start/complete)
+        private void OnWeatherDataFetched(OpenMeteo.WeatherForecast?[] forecasts)
+        {
+            if (_weatherList == null) return;
+            if (_weatherList.InvokeRequired)
+            {
+                _weatherList.BeginInvoke(new Action(() => OnWeatherDataFetched(forecasts)));
+                return;
+            }
+
+            _weatherList.Items.Clear();
+            var config = ConfigManager.LoadConfig();
+            var locations = config.Locations?.GetLocationsArray() ?? new string[0];
+            var client = new OpenMeteo.OpenMeteoClient();
+
+            for (int i = 0; i < forecasts.Length; i++)
+            {
+                var f = forecasts[i];
+                var locName = (i < locations.Length) ? locations[i] : $"Location {i}";
+
+                if (f?.Current == null)
+                {
+                    var item = new ListViewItem(locName);
+                    item.SubItems.Add("N/A");
+                    item.SubItems.Add("N/A");
+                    item.SubItems.Add("N/A");
+                    _weatherList.Items.Add(item);
+                }
+                else
+                {
+                    var item = new ListViewItem(locName);
+                    item.SubItems.Add($"{f.Current.Temperature}{f.CurrentUnits?.Temperature ?? "°C"}");
+                    
+                    string condition = f.Current.Weathercode.HasValue 
+                        ? client.WeathercodeToString(f.Current.Weathercode.Value) 
+                        : "Unknown";
+                    item.SubItems.Add(condition);
+
+                    item.SubItems.Add($"{f.Current.Windspeed_10m}{f.CurrentUnits?.Windspeed_10m ?? "km/h"}");
+                    _weatherList.Items.Add(item);
+                }
+            }
+        }
+
         private void OnProgramProgress(double pct, string status)
         {
             // If program reports a video start value, record mapping

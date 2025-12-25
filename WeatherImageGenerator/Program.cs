@@ -128,6 +128,9 @@ namespace WeatherImageGenerator
         // Event that reports overall progress of the update cycle (0-100) and a short status message
         public static event Action<double, string>? ProgressUpdated;
 
+        // Event that reports the fetched weather data
+        public static event Action<WeatherForecast?[]>? WeatherDataFetched;
+
         public static async Task RunAsync(CancellationToken cancellationToken = default)
         {
             // Load configuration
@@ -178,6 +181,10 @@ namespace WeatherImageGenerator
                                 ProgressUpdated?.Invoke(fetchPct, $"Fetching weather ({i + 1}/{locations.Length})");
                             }
                         }
+
+                        // Notify GUI that weather data has been fetched
+                        WeatherDataFetched?.Invoke(allForecasts);
+
                         // Fetch Weather Alert Data from ECCC
                         Logger.Log("Checking ECCC weather alerts...");
                         try
