@@ -262,87 +262,94 @@ namespace WeatherImageGenerator.Services
             // Prefer an explicit animation URL if provided; otherwise try ProvinceRadarUrl and detect animation
             bool provinceCreated = false;
 
-            // 2a) Try explicit animation override (may be GIF/MP4)
-            if (!string.IsNullOrWhiteSpace(ecccConfig.ProvinceAnimationUrl))
+            if (ecccConfig.EnableProvinceRadar)
             {
-                try
+                // 2a) Try explicit animation override (may be GIF/MP4)
+                if (!string.IsNullOrWhiteSpace(ecccConfig.ProvinceAnimationUrl))
                 {
-                    var resp = await client.GetAsync(ecccConfig.ProvinceAnimationUrl);
-                    if (resp.IsSuccessStatusCode)
+                    try
                     {
-                        var contentType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
-                        string ext = GetExtensionFromContentTypeOrUrl(contentType, ecccConfig.ProvinceAnimationUrl ?? "");
-                        string outPath = Path.Combine(outputDir, $"00_ProvinceRadar{ext}");
-                        var bytes = await resp.Content.ReadAsByteArrayAsync();
-                        await File.WriteAllBytesAsync(outPath, bytes);
+                        var resp = await client.GetAsync(ecccConfig.ProvinceAnimationUrl);
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            var contentType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                            string ext = GetExtensionFromContentTypeOrUrl(contentType, ecccConfig.ProvinceAnimationUrl ?? "");
+                            string outPath = Path.Combine(outputDir, $"00_ProvinceRadar{ext}");
+                            var bytes = await resp.Content.ReadAsByteArrayAsync();
+                            await File.WriteAllBytesAsync(outPath, bytes);
 
-                        // If this is an animated format (gif/mp4), consider animation created and skip WMS stitching
-                        if (ext == ".gif" || ext == ".mp4")
-                        {
-                            Logger.Log($"✓ Downloaded province animation -> {outPath}");
-                            provinceCreated = true;
-                        }
-                        else
-                        {
-                            Logger.Log($"Saved static province image from ProvinceAnimationUrl -> {outPath}");
+                            // If this is an animated format (gif/mp4), consider animation created and skip WMS stitching
+                            if (ext == ".gif" || ext == ".mp4")
+                            {
+                                Logger.Log($"✓ Downloaded province animation -> {outPath}");
+                                provinceCreated = true;
+                            }
+                            else
+                            {
+                                Logger.Log($"Saved static province image from ProvinceAnimationUrl -> {outPath}");
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log($"[ECCC] ProvinceAnimationUrl fetch failed: {ex.Message}", ConsoleColor.Yellow);
-                }
-
-                await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
-            }
-
-            // 2b) If not created, try ProvinceRadarUrl and detect if it's already an animation
-            if (!provinceCreated && !string.IsNullOrWhiteSpace(ecccConfig.ProvinceRadarUrl))
-            {
-                try
-                {
-                    var resp = await client.GetAsync(ecccConfig.ProvinceRadarUrl);
-                    if (resp.IsSuccessStatusCode)
+                    catch (Exception ex)
                     {
-                        var contentType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
-                        string ext = GetExtensionFromContentTypeOrUrl(contentType, ecccConfig.ProvinceRadarUrl ?? "");
-                        string outPath = Path.Combine(outputDir, $"00_ProvinceRadar{ext}");
-                        var bytes = await resp.Content.ReadAsByteArrayAsync();
-                        await File.WriteAllBytesAsync(outPath, bytes);
+                        Logger.Log($"[ECCC] ProvinceAnimationUrl fetch failed: {ex.Message}", ConsoleColor.Yellow);
+                    }
 
-                        if (ext == ".gif" || ext == ".mp4")
+                    await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
+                }
+
+                // 2b) If not created, try ProvinceRadarUrl and detect if it's already an animation
+                if (!provinceCreated && !string.IsNullOrWhiteSpace(ecccConfig.ProvinceRadarUrl))
+                {
+                    try
+                    {
+                        var resp = await client.GetAsync(ecccConfig.ProvinceRadarUrl);
+                        if (resp.IsSuccessStatusCode)
                         {
-                            Logger.Log($"✓ Downloaded province animation -> {outPath}");
-                            provinceCreated = true;
-                        }
-                        else
-                        {
-                            Logger.Log($"Saved static province image from ProvinceRadarUrl -> {outPath}");
-                            // Do not mark as created; continue to try building animation from WMS frames
+                            var contentType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                            string ext = GetExtensionFromContentTypeOrUrl(contentType, ecccConfig.ProvinceRadarUrl ?? "");
+                            string outPath = Path.Combine(outputDir, $"00_ProvinceRadar{ext}");
+                            var bytes = await resp.Content.ReadAsByteArrayAsync();
+                            await File.WriteAllBytesAsync(outPath, bytes);
+
+                            if (ext == ".gif" || ext == ".mp4")
+                            {
+                                Logger.Log($"✓ Downloaded province animation -> {outPath}");
+                                provinceCreated = true;
+                            }
+                            else
+                            {
+                                Logger.Log($"Saved static province image from ProvinceRadarUrl -> {outPath}");
+                                // Do not mark as created; continue to try building animation from WMS frames
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log($"[ECCC] Province radar fetch failed: {ex.Message}", ConsoleColor.Yellow);
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[ECCC] Province radar fetch failed: {ex.Message}", ConsoleColor.Yellow);
+                    }
+
+                    await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
                 }
 
-                await Task.Delay(ecccConfig.DelayBetweenRequestsMs);
+                // 2c) If we still don't have an animation, attempt to build one from GeoMet WMS frames
+                if (!provinceCreated && ecccConfig.UseGeoMetWms)
+                {
+                    Logger.Log("[ECCC] No direct animation found; attempting to build province animation from GeoMet WMS frames...");
+                    try
+                    {
+                        await CreateProvinceRadarAnimation(client, outputDir, ecccConfig);
+                        provinceCreated = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[ECCC] Failed to create province animation: {ex.Message}", ConsoleColor.Yellow);
+                    }
+                }
             }
-
-            // 2c) If we still don't have an animation, attempt to build one from GeoMet WMS frames
-            if (!provinceCreated && ecccConfig.UseGeoMetWms)
+            else
             {
-                Logger.Log("[ECCC] No direct animation found; attempting to build province animation from GeoMet WMS frames...");
-                try
-                {
-                    await CreateProvinceRadarAnimation(client, outputDir, ecccConfig);
-                    provinceCreated = true;
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log($"[ECCC] Failed to create province animation: {ex.Message}", ConsoleColor.Yellow);
-                }
+                Logger.Log("[ECCC] Province-level radar generation disabled (EnableProvinceRadar=false).", ConsoleColor.Cyan);
             }
         }
 

@@ -296,18 +296,27 @@ namespace WeatherImageGenerator
 
                 // Maps
                 if (cancellationToken.IsCancellationRequested) return;
-                try
+                
+                if (config.ImageGeneration?.EnableWeatherMaps == true)
                 {
-                    Logger.Log("Fetching radar images...");
-                    await ECCC.FetchRadarImages(httpClient, outputDir);
-                    Logger.Log("✓ Radar images fetched.");
+                    try
+                    {
+                        Logger.Log("Fetching radar images...");
+                        await ECCC.FetchRadarImages(httpClient, outputDir);
+                        Logger.Log("✓ Radar images fetched.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"X Failed to fetch radar images: {ex.Message}");
+                    }
+
+                    ImageGenerator.GenerateMapsImage(allForecasts, locations, outputDir);
                 }
-                catch (Exception ex)
+                else
                 {
-                    Logger.Log($"X Failed to fetch radar images: {ex.Message}");
+                    Logger.Log("Skipping Weather Maps generation (disabled in settings).");
                 }
 
-                ImageGenerator.GenerateMapsImage(allForecasts, locations, outputDir);
                 imageStepsCompleted++;
                 ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
@@ -448,18 +457,26 @@ namespace WeatherImageGenerator
 
 
                         // 4. Maps Image
-                        try
+                        if (config.ImageGeneration?.EnableWeatherMaps == true)
                         {
-                            Logger.Log("Fetching radar images...");
-                            await ECCC.FetchRadarImages(httpClient, outputDir);
-                            Logger.Log("✓ Radar images fetched.");
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.Log($"X Failed to fetch radar images: {ex.Message}");
-                        }
+                            try
+                            {
+                                Logger.Log("Fetching radar images...");
+                                await ECCC.FetchRadarImages(httpClient, outputDir);
+                                Logger.Log("✓ Radar images fetched.");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log($"X Failed to fetch radar images: {ex.Message}");
+                            }
 
-                        ImageGenerator.GenerateMapsImage(allForecasts, locations, outputDir);
+                            ImageGenerator.GenerateMapsImage(allForecasts, locations, outputDir);
+                        }
+                        else
+                        {
+                            Logger.Log("Skipping Weather Maps generation (disabled in settings).");
+                        }
+                        
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 

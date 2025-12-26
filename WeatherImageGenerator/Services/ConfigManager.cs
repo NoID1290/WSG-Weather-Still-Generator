@@ -179,6 +179,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("FontFamily")]
         public string? FontFamily { get; set; } = "Arial";
+
+        [JsonPropertyName("EnableWeatherMaps")]
+        public bool EnableWeatherMaps { get; set; } = true;
     }
 
     /// <summary>
@@ -314,6 +317,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("EnableCityRadar")]
         public bool EnableCityRadar { get; set; } = false;
+
+        [JsonPropertyName("EnableProvinceRadar")]
+        public bool EnableProvinceRadar { get; set; } = true;
 
         [JsonPropertyName("UseGeoMetWms")]
         public bool UseGeoMetWms { get; set; } = true;

@@ -19,6 +19,8 @@ namespace WeatherImageGenerator.Forms
         NumericUpDown numImgHeight;
         ComboBox cmbImgFormat;
         ComboBox cmbResolution;
+        CheckBox chkEnableProvinceRadar;
+        CheckBox chkEnableWeatherMaps;
         TextBox txtCodec;
         TextBox txtBitrate;
         NumericUpDown numFps;
@@ -80,7 +82,13 @@ namespace WeatherImageGenerator.Forms
             cmbImgFormat.Items.AddRange(new object[] { "png", "jpeg", "bmp", "gif" });
             cmbImgFormat.SelectedIndex = 0;
 
-            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat });
+            iTop += rowH;
+            chkEnableProvinceRadar = new CheckBox { Text = "Enable Province Radar Animation", Left = leftLabel, Top = iTop, Width = 250 };
+
+            iTop += rowH;
+            chkEnableWeatherMaps = new CheckBox { Text = "Enable Weather Maps Generation", Left = leftLabel, Top = iTop, Width = 250 };
+
+            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps });
 
             // --- Video Tab ---
             var tabVideo = new TabPage("Video");
@@ -209,6 +217,8 @@ namespace WeatherImageGenerator.Forms
                 numImgHeight.Value = cfg.ImageGeneration?.ImageHeight ?? 1080;
                 var fmt = (cfg.ImageGeneration?.ImageFormat ?? "png").ToLowerInvariant();
                 if (cmbImgFormat.Items.Contains(fmt)) cmbImgFormat.SelectedItem = fmt;
+                chkEnableProvinceRadar.Checked = cfg.ECCC?.EnableProvinceRadar ?? true;
+                chkEnableWeatherMaps.Checked = cfg.ImageGeneration?.EnableWeatherMaps ?? true;
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -282,7 +292,12 @@ namespace WeatherImageGenerator.Forms
                 imageGen.ImageWidth = (int)numImgWidth.Value;
                 imageGen.ImageHeight = (int)numImgHeight.Value;
                 imageGen.ImageFormat = cmbImgFormat.SelectedItem?.ToString() ?? "png";
+                imageGen.EnableWeatherMaps = chkEnableWeatherMaps.Checked;
                 cfg.ImageGeneration = imageGen;
+
+                var eccc = cfg.ECCC ?? new ECCCSettings();
+                eccc.EnableProvinceRadar = chkEnableProvinceRadar.Checked;
+                cfg.ECCC = eccc;
 
                 var v = cfg.Video ?? new VideoSettings();
                 v.StaticDurationSeconds = (double)numStatic.Value;
