@@ -5,8 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using WeatherImageGenerator.Utilities;
 
-namespace WeatherImageGenerator
+namespace WeatherImageGenerator.Services
 {
     /// <summary>
     /// Manages application configuration loaded from appsettings.json

@@ -9,20 +9,11 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Net;
-using WeatherImageGenerator; 
+using WeatherImageGenerator.Models;
+using WeatherImageGenerator.Utilities;
 
-namespace QuebecWeatherAlertMonitor
+namespace WeatherImageGenerator.Services
 {
-    // A simple model to hold alert data
-    public class AlertEntry
-    {
-        public string City { get; set; } = "";
-        public string Type { get; set; } = ""; // WARNING, WATCH, STATEMENT
-        public string Title { get; set; } = "";
-        public string Summary { get; set; } = "";
-        public string SeverityColor { get; set; } = "Gray"; // Red, Yellow, Gray
-    }
-
     public static class ECCC
     {
         // Call this method from Program.cs

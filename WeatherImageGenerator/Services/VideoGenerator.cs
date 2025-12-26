@@ -8,8 +8,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using WeatherImageGenerator.Utilities;
 
-namespace WeatherImageGenerator
+namespace WeatherImageGenerator.Services
 {
     /// <summary>
     /// Generates MP4 videos from a sequence of images with fade transitions using FFmpeg.

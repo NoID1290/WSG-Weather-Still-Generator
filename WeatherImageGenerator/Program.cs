@@ -11,8 +11,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using OpenMeteo; // NuGet: OpenMeteo
-using CommonStrings; 
-using QuebecWeatherAlertMonitor;
+using WeatherImageGenerator.Utilities;
+using WeatherImageGenerator.Services;
+using WeatherImageGenerator.Forms;
+using WeatherImageGenerator.Models;
 
 namespace WeatherImageGenerator
 {

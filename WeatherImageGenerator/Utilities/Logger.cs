@@ -1,6 +1,6 @@
 using System;
 
-namespace WeatherImageGenerator
+namespace WeatherImageGenerator.Utilities
 {
     /// <summary>
     /// Simple logger that writes to Console and raises an event for UI sinks (e.g. embedded console in a WinForms form).

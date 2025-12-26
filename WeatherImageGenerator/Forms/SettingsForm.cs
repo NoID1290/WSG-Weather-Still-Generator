@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using WeatherImageGenerator.Services;
+using WeatherImageGenerator.Utilities;
 
-namespace WeatherImageGenerator
+namespace WeatherImageGenerator.Forms
 {
     public class SettingsForm : Form
     {

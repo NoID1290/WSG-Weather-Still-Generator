@@ -1,4 +1,4 @@
-namespace CommonStrings
+namespace WeatherImageGenerator.Utilities
 {
     public static class CommonSettings
     {

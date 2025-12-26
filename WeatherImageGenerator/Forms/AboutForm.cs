@@ -4,7 +4,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
 
-namespace WSG_WeatherImageGenerator.Forms
+namespace WeatherImageGenerator.Forms
 {
     [Obsolete("Replaced by AboutDialog in MainForm.cs")]
     public class AboutForm_Old : Form

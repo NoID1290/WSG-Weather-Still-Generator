@@ -5,8 +5,11 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Reflection;
 using System.Drawing;
+using WeatherImageGenerator.Services;
+using WeatherImageGenerator.Utilities;
+using WeatherImageGenerator.Models;
 
-namespace WeatherImageGenerator
+namespace WeatherImageGenerator.Forms
 {
     public class MainForm : Form
     {
@@ -189,7 +192,7 @@ namespace WeatherImageGenerator
             Program.AlertsFetched += OnAlertsFetched;
         }
 
-        private void OnAlertsFetched(System.Collections.Generic.List<QuebecWeatherAlertMonitor.AlertEntry> alerts)
+        private void OnAlertsFetched(System.Collections.Generic.List<AlertEntry> alerts)
         {
             if (_weatherList == null) return;
             if (_weatherList.InvokeRequired)
