@@ -8,6 +8,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Net;
 using WeatherImageGenerator; 
 
 namespace QuebecWeatherAlertMonitor
@@ -73,6 +74,7 @@ namespace QuebecWeatherAlertMonitor
                 string title = entry.Element(atom + "title")?.Value ?? "";
                 string summary = entry.Element(atom + "summary")?.Value ?? "";
                 string category = entry.Element(atom + "category")?.Attribute("term")?.Value ?? "";
+                string link = entry.Element(atom + "link")?.Attribute("href")?.Value ?? "";
 
                 // Filter for Warnings/Watches/Statements
                 if (category.Equals("Veilles et avertissements", StringComparison.OrdinalIgnoreCase) || 
@@ -91,6 +93,16 @@ namespace QuebecWeatherAlertMonitor
                         Title = title,
                         Summary = CleanSummary(summary)
                     };
+
+                    // Fetch details if link is present
+                    if (!string.IsNullOrWhiteSpace(link))
+                    {
+                         string details = await FetchAlertDetails(client, link);
+                         if (!string.IsNullOrWhiteSpace(details))
+                         {
+                             newAlert.Summary = details;
+                         }
+                    }
 
                     // Determine Type and Color Logic
                     if (title.Contains("avertissement", StringComparison.OrdinalIgnoreCase) || 
@@ -116,6 +128,35 @@ namespace QuebecWeatherAlertMonitor
             }
 
             return foundAlerts;
+        }
+
+        private static async Task<string> FetchAlertDetails(HttpClient client, string url)
+        {
+            try
+            {
+                string html = await client.GetStringAsync(url);
+                // Simple parsing for <p class="pre-wrap">...</p>
+                string startTag = "<p class=\"pre-wrap\">";
+                string endTag = "</p>";
+                int startIndex = html.IndexOf(startTag);
+                if (startIndex != -1)
+                {
+                    startIndex += startTag.Length;
+                    int endIndex = html.IndexOf(endTag, startIndex);
+                    if (endIndex != -1)
+                    {
+                        string content = html.Substring(startIndex, endIndex - startIndex);
+                        // Remove any internal HTML tags if any (e.g. links)
+                        content = System.Text.RegularExpressions.Regex.Replace(content, "<.*?>", string.Empty);
+                        return WebUtility.HtmlDecode(content).Trim();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[ECCC] Error fetching alert details from {url}: {ex.Message}", ConsoleColor.Yellow);
+            }
+            return string.Empty;
         }
 
         private static string CleanSummary(string summary)
