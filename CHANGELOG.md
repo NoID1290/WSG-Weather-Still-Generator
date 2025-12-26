@@ -16,9 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Configuration**:
   - Expanded location support to 9 locations (Location0 - Location8).
   - Centralized `appsettings.json` for all configuration.
+  - **New Locations Manager**: Added dedicated LocationsForm for managing weather fetch locations with add, edit, remove, and reorder capabilities.
 - **Weather Data**:
   - Integration with OpenMeteo API.
   - Support for Air Quality, Daily, Hourly, and Minutely data.
+- **User Interface**:
+  - Added "Locations" button to main toolbar for easy access to location management.
 
 ### Changed
 - Updated project to .NET 8.0.
