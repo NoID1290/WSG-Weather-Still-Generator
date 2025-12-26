@@ -145,8 +145,7 @@ namespace WeatherImageGenerator
         public static event Action<List<AlertEntry>>? AlertsFetched;
 
         public static async Task FetchDataOnlyAsync(CancellationToken cancellationToken = default)
-        {
-            var config = ConfigManager.LoadConfig();
+        {            EnsureIconsExist();            var config = ConfigManager.LoadConfig();
             OpenMeteoClient client = new OpenMeteoClient();
 
             using (HttpClient httpClient = new HttpClient())
@@ -201,6 +200,7 @@ namespace WeatherImageGenerator
 
         public static async Task GenerateStillsOnlyAsync(CancellationToken cancellationToken = default)
         {
+            EnsureIconsExist();
             var config = ConfigManager.LoadConfig();
             OpenMeteoClient client = new OpenMeteoClient();
 
@@ -632,6 +632,25 @@ namespace WeatherImageGenerator
             }
         }
 
+        private static void EnsureIconsExist()
+        {
+            try
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string iconsDir = Path.Combine(baseDir, "WeatherImages", "Icons");
 
+                // Check if directory exists and has files
+                if (!Directory.Exists(iconsDir) || Directory.GetFiles(iconsDir, "*.png").Length == 0)
+                {
+                    Logger.Log("Icons missing or incomplete. Generating icons...");
+                    IconGenerator.GenerateAll(iconsDir);
+                    Logger.Log("✓ Icons generated.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Warning] Failed to ensure icons exist: {ex.Message}", ConsoleColor.Yellow);
+            }
+        }
     }
 }
