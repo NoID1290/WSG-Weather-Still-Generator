@@ -564,86 +564,132 @@ namespace WeatherImageGenerator
             int height = imgConfig.ImageHeight;
             float margin = imgConfig.MarginPixels;
             float contentWidth = width - (margin * 2);
+
+            // Cleanup old alert images to avoid stale pages
+            string baseName = Path.GetFileNameWithoutExtension(alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+            string ext = Path.GetExtension(alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
             
-            using (Bitmap bitmap = new Bitmap(width, height))
-            using (Graphics graphics = Graphics.FromImage(bitmap))
+            // Delete exact match
+            string exactPath = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+            if (File.Exists(exactPath)) File.Delete(exactPath);
+
+            // Delete numbered variations
+            var oldFiles = Directory.GetFiles(outputDir, $"{baseName}_*{ext}");
+            foreach (var f in oldFiles)
             {
-                // 1. Background
+                try { File.Delete(f); } catch { }
+            }
+            
+            // Helper to create a fresh bitmap with background and header
+            (Bitmap, Graphics) CreateNewPage()
+            {
+                Bitmap bmp = new Bitmap(width, height);
+                Graphics g = Graphics.FromImage(bmp);
+                
+                // Background
                 using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
                     new Point(0, 0), new Point(0, height),
                     Color.FromArgb(30, 30, 30), Color.FromArgb(10, 10, 10)))
                 {
-                    graphics.FillRectangle(brush, 0, 0, width, height);
+                    g.FillRectangle(brush, 0, 0, width, height);
                 }
 
+                // Header
                 using (Font headerFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.HeaderFontSize, FontStyle.Bold))
-                using (Font cityFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.CityFontSize, FontStyle.Bold))
-                using (Font typeFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.TypeFontSize, FontStyle.Bold))
-                using (Font detailFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.DetailsFontSize, FontStyle.Regular))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    // Main Header
-                    graphics.DrawString(alertConfig.HeaderText ?? "⚠️ Environment Canada Alerts", headerFont, whiteBrush, new PointF(margin, margin));
+                    g.DrawString(alertConfig.HeaderText ?? "⚠️ Environment Canada Alerts", headerFont, whiteBrush, new PointF(margin, margin));
+                }
+                
+                return (bmp, g);
+            }
 
-                    float currentY = 150f; // Start position for alerts
+            var (currentBitmap, currentGraphics) = CreateNewPage();
+            float currentY = 150f; 
+            int pageIndex = 1;
 
-                    if (alerts.Count == 0)
+            using (Font cityFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.CityFontSize, FontStyle.Bold))
+            using (Font typeFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.TypeFontSize, FontStyle.Bold))
+            using (Font detailFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.DetailsFontSize, FontStyle.Regular))
+            using (Brush whiteBrush = new SolidBrush(Color.White))
+            {
+                if (alerts.Count == 0)
+                {
+                    using(Brush greenBrush = new SolidBrush(Color.LightGreen))
                     {
-                        using(Brush greenBrush = new SolidBrush(Color.LightGreen))
-                        {
-                             graphics.DrawString(alertConfig.NoAlertsText ?? "No Active Warnings or Watches", cityFont, greenBrush, new PointF(margin, currentY));
-                        }
-                    }
-                    else
-                    {
-                        foreach (var alert in alerts) 
-                        {
-                            // 1. Determine Color
-                            Color alertColor = Color.LightGray;
-                            if (alert.SeverityColor == "Red") alertColor = Color.Red;
-                            if (alert.SeverityColor == "Yellow") alertColor = Color.Yellow;
-
-                            using (Brush alertBrush = new SolidBrush(alertColor))
-                            {
-                                // 2. Draw Alert Header (City - Type)
-                                string headerLine = $"> {alert.City.ToUpper()} : {alert.Type}";
-                                graphics.DrawString(headerLine, cityFont, alertBrush, new PointF(margin, currentY));
-                                currentY += 45; // Move down
-
-                                // 3. Draw Title (Wrapped)
-                                // Measure height required for the title
-                                SizeF titleSize = graphics.MeasureString(alert.Title, typeFont, (int)contentWidth);
-                                RectangleF titleRect = new RectangleF(margin, currentY, contentWidth, titleSize.Height);
-                                
-                                graphics.DrawString(alert.Title, typeFont, whiteBrush, titleRect);
-                                currentY += titleSize.Height + 10; // Move down + padding
-                            }
-
-                            // 4. Draw Full Summary (Wrapped)
-                            // Measure height required for the summary
-                            SizeF summarySize = graphics.MeasureString(alert.Summary, detailFont, (int)contentWidth);
-                            RectangleF summaryRect = new RectangleF(margin, currentY, contentWidth, summarySize.Height);
-
-                            graphics.DrawString(alert.Summary, detailFont, whiteBrush, summaryRect);
-                            
-                            // 5. Update Y Position for next alert
-                            currentY += summarySize.Height + 60; // Extra padding between separate alerts
-
-                            // Check if we ran out of space on the image
-                            if (currentY > height - 50) 
-                            {
-                                Logger.Log("Warning: Not all alerts fit on the screen.");
-                                break; 
-                            }
-                        }
+                         currentGraphics.DrawString(alertConfig.NoAlertsText ?? "No Active Warnings or Watches", cityFont, greenBrush, new PointF(margin, currentY));
                     }
                 }
+                else
+                {
+                    foreach (var alert in alerts) 
+                    {
+                        // Calculate required height for this alert
+                        float requiredHeight = 45; // Header
+                        SizeF titleSize = currentGraphics.MeasureString(alert.Title, typeFont, (int)contentWidth);
+                        requiredHeight += titleSize.Height + 10;
+                        
+                        SizeF summarySize = currentGraphics.MeasureString(alert.Summary, detailFont, (int)contentWidth);
+                        requiredHeight += summarySize.Height + 60;
 
-                // Default alert filename set to 10_ so it sorts / displays after primary images
-                string filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
-                var saved = SaveImage(bitmap, filename, imgConfig);
-                Logger.Log($"✓ Generated: {saved}");
+                        // Check if we need a new page
+                        if (currentY + requiredHeight > height - 50)
+                        {
+                            // Save current page
+                            string filename;
+                            if (pageIndex == 1)
+                                filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+                            else
+                                filename = Path.Combine(outputDir, $"{baseName}_{pageIndex}{ext}");
+
+                            SaveImage(currentBitmap, filename, imgConfig);
+                            Logger.Log($"✓ Generated: {filename}");
+                            
+                            // Dispose current
+                            currentGraphics.Dispose();
+                            currentBitmap.Dispose();
+
+                            // Start new page
+                            pageIndex++;
+                            (currentBitmap, currentGraphics) = CreateNewPage();
+                            currentY = 150f;
+                        }
+
+                        // Draw Alert
+                        Color alertColor = Color.LightGray;
+                        if (alert.SeverityColor == "Red") alertColor = Color.Red;
+                        if (alert.SeverityColor == "Yellow") alertColor = Color.Yellow;
+
+                        using (Brush alertBrush = new SolidBrush(alertColor))
+                        {
+                            string headerLine = $"> {alert.City.ToUpper()} : {alert.Type}";
+                            currentGraphics.DrawString(headerLine, cityFont, alertBrush, new PointF(margin, currentY));
+                            currentY += 45;
+
+                            RectangleF titleRect = new RectangleF(margin, currentY, contentWidth, titleSize.Height);
+                            currentGraphics.DrawString(alert.Title, typeFont, whiteBrush, titleRect);
+                            currentY += titleSize.Height + 10;
+                        }
+
+                        RectangleF summaryRect = new RectangleF(margin, currentY, contentWidth, summarySize.Height);
+                        currentGraphics.DrawString(alert.Summary, detailFont, whiteBrush, summaryRect);
+                        currentY += summarySize.Height + 60;
+                    }
+                }
             }
+
+            // Save the final page
+            string finalFilename;
+            if (pageIndex == 1)
+                finalFilename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+            else
+                finalFilename = Path.Combine(outputDir, $"{baseName}_{pageIndex}{ext}");
+
+            SaveImage(currentBitmap, finalFilename, imgConfig);
+            Logger.Log($"✓ Generated: {finalFilename}");
+
+            currentGraphics.Dispose();
+            currentBitmap.Dispose();
         }
 
         static void GenerateMapsImage(WeatherForecast?[] allData, string[] locationNames, string outputDir)
@@ -1044,11 +1090,33 @@ namespace WeatherImageGenerator
                                             string windDir = item.Forecast.Daily.Winddirection_10m_dominant != null ? DegreesToCardinal(item.Forecast.Daily.Winddirection_10m_dominant[d]) : "";
                                             
                                             string precip = "";
-                                            if (item.Forecast.Daily.Precipitation_sum != null && item.Forecast.Daily.Precipitation_sum[d] > 0)
+                                            
+                                            // Calculate Rain (Rain + Showers)
+                                            float rainVal = 0f;
+                                            if (item.Forecast.Daily.Rain_sum != null) rainVal += item.Forecast.Daily.Rain_sum[d];
+                                            if (item.Forecast.Daily.Showers_sum != null) rainVal += item.Forecast.Daily.Showers_sum[d];
+
+                                            if (rainVal > 0)
+                                            {
+                                                string rainUnit = item.Forecast.DailyUnits?.Rain_sum ?? "mm";
+                                                precip += $"{rainVal:F1}{rainUnit} ";
+                                            }
+
+                                            // Calculate Snow
+                                            if (item.Forecast.Daily.Snowfall_sum != null && item.Forecast.Daily.Snowfall_sum[d] > 0)
+                                            {
+                                                string snowUnit = item.Forecast.DailyUnits?.Snowfall_sum ?? "cm";
+                                                precip += $"{item.Forecast.Daily.Snowfall_sum[d]:F1}{snowUnit} ";
+                                            }
+
+                                            // Fallback to total precipitation if no specific rain/snow data found but precip exists
+                                            if (string.IsNullOrWhiteSpace(precip) && item.Forecast.Daily.Precipitation_sum != null && item.Forecast.Daily.Precipitation_sum[d] > 0)
                                             {
                                                 string precipUnit = item.Forecast.DailyUnits?.Precipitation_sum ?? "mm";
                                                 precip = $"{item.Forecast.Daily.Precipitation_sum[d]:F1}{precipUnit}";
                                             }
+
+                                            precip = precip.Trim();
 
                                             graphics.DrawString($"W: {windSpeed}{windUnit} {windDir}", forecastTempFont, whiteBrush, new PointF(x + 280, forecastY + paddingY));
                                             if (!string.IsNullOrEmpty(precip))
