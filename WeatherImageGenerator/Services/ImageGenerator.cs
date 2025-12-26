@@ -518,7 +518,12 @@ namespace WeatherImageGenerator.Services
                             string cond = cur.Weathercode != null ? GetWeatherDescription((int)cur.Weathercode) : "";
 
                             // Temperature
+                            SizeF tempSize = graphics.MeasureString(tempText, tempFont);
                             graphics.DrawString(tempText, tempFont, whiteBrush, new PointF(x + 20, y + 80));
+
+                            // Feels Like (next to temperature)
+                            string feelsLikeText = $"Feels Like: {cur.Apparent_temperature}{item.Forecast.CurrentUnits?.Apparent_temperature}";
+                            graphics.DrawString(feelsLikeText, labelFont, whiteBrush, new PointF(x + 20 + tempSize.Width + 10, y + 100));
 
                             // Large weather icon to the right of temperature, taking up available space
                             float iconSize = 180;
@@ -530,10 +535,9 @@ namespace WeatherImageGenerator.Services
 
                             // Small details
                             float detailY = y + 190;
-                            graphics.DrawString($"Feels Like: {cur.Apparent_temperature}{item.Forecast.CurrentUnits?.Apparent_temperature}", labelFont, whiteBrush, new PointF(x + 20, detailY));
-                            graphics.DrawString($"Humidity: {cur.Relativehumidity_2m}%", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
-                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} {DegreesToCardinal(cur.Winddirection_10m)}", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
-                            graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 66));
+                            graphics.DrawString($"Humidity: {cur.Relativehumidity_2m}%", labelFont, whiteBrush, new PointF(x + 20, detailY));
+                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} {DegreesToCardinal(cur.Winddirection_10m)}", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
+                            graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
 
                             // 5-Day Forecast Section
                             float forecastY = detailY + 110;
