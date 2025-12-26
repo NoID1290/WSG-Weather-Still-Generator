@@ -536,27 +536,27 @@ namespace WeatherImageGenerator.Services
                             graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 66));
 
                             // 5-Day Forecast Section
-                            float forecastY = detailY + 100;
-                            using (Font forecastHeaderFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 16, FontStyle.Bold))
-                            using (Font forecastDayFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 12, FontStyle.Bold))
-                            using (Font forecastTempFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 11, FontStyle.Regular))
+                            float forecastY = detailY + 110;
+                            using (Font forecastHeaderFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 22, FontStyle.Bold))
+                            using (Font forecastDayFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 16, FontStyle.Bold))
+                            using (Font forecastTempFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 14, FontStyle.Regular))
                             using (Brush accentBrush = new SolidBrush(Color.FromArgb(255, 100, 180, 255)))
                             {
                                 // Section header
                                 graphics.DrawString("5-Day Forecast", forecastHeaderFont, accentBrush, new PointF(x + 20, forecastY));
-                                forecastY += 28;
+                                forecastY += 35;
 
                                 // Draw separator line
                                 using (Pen sepPen = new Pen(Color.FromArgb(80, 255, 255, 255), 1))
                                 {
                                     graphics.DrawLine(sepPen, x + 20, forecastY, x + colWidth - 20, forecastY);
                                 }
-                                forecastY += 10;
+                                forecastY += 15;
 
                                 if (item.Forecast?.Daily != null && item.Forecast.Daily.Time != null && item.Forecast.Daily.Time.Length > 0)
                                 {
                                     int daysToShow = Math.Min(5, item.Forecast.Daily.Time.Length);
-                                    float rowHeight = 95;
+                                    float rowHeight = 110;
 
                                     for (int d = 0; d < daysToShow; d++)
                                     {
@@ -584,17 +584,17 @@ namespace WeatherImageGenerator.Services
                                             int? dayCode = item.Forecast.Daily.Weathercode != null 
                                                 ? (int?)item.Forecast.Daily.Weathercode[d] : null;
 
-                                            float paddingY = 10;
+                                            float paddingY = 15;
 
                                             // Day name and date (Larger)
-                                            using (Font largeDayFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 14, FontStyle.Bold))
+                                            using (Font largeDayFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 20, FontStyle.Bold))
                                             {
                                                 graphics.DrawString(dayName, largeDayFont, whiteBrush, new PointF(x + 20, forecastY + paddingY));
                                             }
-                                            graphics.DrawString(dateStr, forecastTempFont, whiteBrush, new PointF(x + 20, forecastY + paddingY + 25));
+                                            graphics.DrawString(dateStr, forecastTempFont, whiteBrush, new PointF(x + 20, forecastY + paddingY + 35));
 
                                             // Weather icon
-                                            var dayIconRect = new RectangleF(x + 90, forecastY + paddingY, 60, 60);
+                                            var dayIconRect = new RectangleF(x + 110, forecastY + paddingY - 5, 80, 80);
                                             DrawWeatherIcon(graphics, dayIconRect, dayCode);
 
                                             // High/Low temps
@@ -602,11 +602,11 @@ namespace WeatherImageGenerator.Services
                                             using (Brush lowBrush = new SolidBrush(Color.FromArgb(255, 150, 200, 255)))
                                             using (Brush feelBrush = new SolidBrush(Color.FromArgb(200, 200, 200)))
                                             {
-                                                graphics.DrawString($"H: {maxTemp}", forecastDayFont, highBrush, new PointF(x + 160, forecastY + paddingY));
-                                                graphics.DrawString($"L: {minTemp}", forecastDayFont, lowBrush, new PointF(x + 160, forecastY + paddingY + 20));
+                                                graphics.DrawString($"H: {maxTemp}", forecastDayFont, highBrush, new PointF(x + 210, forecastY + paddingY));
+                                                graphics.DrawString($"L: {minTemp}", forecastDayFont, lowBrush, new PointF(x + 210, forecastY + paddingY + 25));
                                                 
                                                 // Feels like
-                                                graphics.DrawString($"FL: {maxFeel} / {minFeel}", forecastTempFont, feelBrush, new PointF(x + 160, forecastY + paddingY + 42));
+                                                graphics.DrawString($"FL: {maxFeel} / {minFeel}", forecastTempFont, feelBrush, new PointF(x + 210, forecastY + paddingY + 50));
                                             }
 
                                             // Wind & Precip
@@ -643,12 +643,12 @@ namespace WeatherImageGenerator.Services
 
                                             precip = precip.Trim();
 
-                                            graphics.DrawString($"W: {windSpeed}{windUnit} {windDir}", forecastTempFont, whiteBrush, new PointF(x + 280, forecastY + paddingY));
+                                            graphics.DrawString($"W: {windSpeed}{windUnit} {windDir}", forecastTempFont, whiteBrush, new PointF(x + 350, forecastY + paddingY));
                                             if (!string.IsNullOrEmpty(precip))
                                             {
                                                 using (Brush rainBrush = new SolidBrush(Color.LightBlue))
                                                 {
-                                                    graphics.DrawString($"Precip: {precip}", forecastTempFont, rainBrush, new PointF(x + 280, forecastY + paddingY + 20));
+                                                    graphics.DrawString($"Precip: {precip}", forecastTempFont, rainBrush, new PointF(x + 350, forecastY + paddingY + 25));
                                                 }
                                             }
 
