@@ -528,7 +528,8 @@ namespace WeatherImageGenerator.Services
                             // Large weather icon to the right of temperature, taking up available space
                             float iconSize = 180;
                             var iconRect = new RectangleF(x + colWidth - iconSize - 30, y + 60, iconSize, iconSize);
-                            DrawWeatherIcon(graphics, iconRect, item.Forecast?.Current?.Weathercode);
+                            bool isDay = (item.Forecast?.Current?.Is_day ?? 1) == 1;
+                            DrawWeatherIcon(graphics, iconRect, item.Forecast?.Current?.Weathercode, isDay);
 
                             // Condition
                             graphics.DrawString(cond, dataFont, whiteBrush, new PointF(x + 20, y + 140));
@@ -748,9 +749,9 @@ namespace WeatherImageGenerator.Services
         }
 
         // Draw a simple vector weather icon into the given rectangle
-        public static void DrawWeatherIcon(Graphics g, RectangleF area, int? weatherCode)
+        public static void DrawWeatherIcon(Graphics g, RectangleF area, int? weatherCode, bool isDay = true)
         {
-            // Default: clear icon (sun)
+            // Default: clear icon (sun or moon)
             int code = weatherCode ?? 0;
 
             // Try to load custom icon from "WeatherImages/Icons/{code}.png"
@@ -761,7 +762,7 @@ namespace WeatherImageGenerator.Services
             // If specific code not found, try generic mapping
             if (!File.Exists(iconPath))
             {
-                string? generic = GetGenericIconName(code);
+                string? generic = GetGenericIconName(code, isDay);
                 if (generic != null)
                 {
                     string genericPath = Path.Combine(baseDir, "WeatherImages", "Icons", generic);
@@ -791,27 +792,88 @@ namespace WeatherImageGenerator.Services
 
             if (code == 0 || code == 1)
             {
-                // Sun
-                var center = new PointF(area.X + area.Width / 2, area.Y + area.Height / 2);
-                float r = Math.Min(area.Width, area.Height) * 0.28f;
-                using (Brush sun = new SolidBrush(Color.FromArgb(255, 245, 178)))
-                using (Pen ray = new Pen(Color.FromArgb(255, 230, 128), 2))
+                if (isDay)
                 {
-                    g.FillEllipse(sun, center.X - r, center.Y - r, r * 2, r * 2);
-                    for (int i = 0; i < 8; i++)
+                    // Sun
+                    var center = new PointF(area.X + area.Width / 2, area.Y + area.Height / 2);
+                    float r = Math.Min(area.Width, area.Height) * 0.28f;
+                    using (Brush sun = new SolidBrush(Color.FromArgb(255, 245, 178)))
+                    using (Pen ray = new Pen(Color.FromArgb(255, 230, 128), 2))
                     {
-                        var angle = i * (float)(Math.PI * 2 / 8);
-                        var x1 = center.X + (r + 4) * (float)Math.Cos(angle);
-                        var y1 = center.Y + (r + 4) * (float)Math.Sin(angle);
-                        var x2 = center.X + (r + 12) * (float)Math.Cos(angle);
-                        var y2 = center.Y + (r + 12) * (float)Math.Sin(angle);
-                        g.DrawLine(ray, x1, y1, x2, y2);
+                        g.FillEllipse(sun, center.X - r, center.Y - r, r * 2, r * 2);
+                        for (int i = 0; i < 8; i++)
+                        {
+                            var angle = i * (float)(Math.PI * 2 / 8);
+                            var x1 = center.X + (r + 4) * (float)Math.Cos(angle);
+                            var y1 = center.Y + (r + 4) * (float)Math.Sin(angle);
+                            var x2 = center.X + (r + 12) * (float)Math.Cos(angle);
+                            var y2 = center.Y + (r + 12) * (float)Math.Sin(angle);
+                            g.DrawLine(ray, x1, y1, x2, y2);
+                        }
+                    }
+                }
+                else
+                {
+                    // Moon (Crescent)
+                    float size = Math.Min(area.Width, area.Height) * 0.8f;
+                    float x = area.X + (area.Width - size) / 2;
+                    float y = area.Y + (area.Height - size) / 2;
+                    
+                    using (var moonPath = new System.Drawing.Drawing2D.GraphicsPath())
+                    {
+                        moonPath.AddEllipse(x, y, size, size);
+                        using (var moonRegion = new Region(moonPath))
+                        {
+                            using (var cutPath = new System.Drawing.Drawing2D.GraphicsPath())
+                            {
+                                float cutSize = size * 0.85f;
+                                float cutX = x + size * 0.35f;
+                                float cutY = y - size * 0.1f;
+                                cutPath.AddEllipse(cutX, cutY, cutSize, cutSize);
+                                moonRegion.Exclude(cutPath);
+                            }
+                            using (var brush = new SolidBrush(Color.FromArgb(240, 240, 255)))
+                            {
+                                g.FillRegion(brush, moonRegion);
+                            }
+                        }
                     }
                 }
             }
             else if (code == 2 || code == 3 || code == 45 || code == 48)
             {
                 // Cloudy / overcast / fog
+                // If partly cloudy (2) and night, maybe show moon behind cloud?
+                // For simplicity, keeping vector cloud same, but maybe add moon if code==2 && !isDay
+                
+                if (code == 2 && !isDay)
+                {
+                    // Draw small moon behind
+                    float size = Math.Min(area.Width, area.Height) * 0.5f;
+                    float x = area.X + area.Width * 0.5f;
+                    float y = area.Y + area.Height * 0.1f;
+                    
+                    using (var moonPath = new System.Drawing.Drawing2D.GraphicsPath())
+                    {
+                        moonPath.AddEllipse(x, y, size, size);
+                        using (var moonRegion = new Region(moonPath))
+                        {
+                            using (var cutPath = new System.Drawing.Drawing2D.GraphicsPath())
+                            {
+                                float cutSize = size * 0.85f;
+                                float cutX = x + size * 0.35f;
+                                float cutY = y - size * 0.1f;
+                                cutPath.AddEllipse(cutX, cutY, cutSize, cutSize);
+                                moonRegion.Exclude(cutPath);
+                            }
+                            using (var brush = new SolidBrush(Color.FromArgb(240, 240, 255)))
+                            {
+                                g.FillRegion(brush, moonRegion);
+                            }
+                        }
+                    }
+                }
+
                 using (Brush cloud = new SolidBrush(Color.FromArgb(230, 230, 235)))
                 {
                     float cw = area.Width * 0.9f;
@@ -902,13 +964,13 @@ namespace WeatherImageGenerator.Services
             g.SmoothingMode = oldMode;
         }
 
-        public static string? GetGenericIconName(int code)
+        public static string? GetGenericIconName(int code, bool isDay = true)
         {
             return code switch
             {
-                0 => "sunny.png",
-                1 => "partly_cloudy.png",
-                2 => "partly_cloudy.png",
+                0 => isDay ? "sunny.png" : "clear_night.png",
+                1 => isDay ? "partly_cloudy.png" : "clear_night.png", // Mainly clear
+                2 => isDay ? "partly_cloudy.png" : "partly_cloudy_night.png",
                 3 => "cloudy.png",
                 45 => "fog.png",
                 48 => "fog.png",

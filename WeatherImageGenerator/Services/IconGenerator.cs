@@ -13,7 +13,9 @@ namespace WeatherImageGenerator.Services
             if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
 
             GenerateSunny(Path.Combine(outputDir, "sunny.png"));
+            GenerateClearNight(Path.Combine(outputDir, "clear_night.png"));
             GeneratePartlyCloudy(Path.Combine(outputDir, "partly_cloudy.png"));
+            GeneratePartlyCloudyNight(Path.Combine(outputDir, "partly_cloudy_night.png"));
             GenerateCloudy(Path.Combine(outputDir, "cloudy.png"));
             GenerateFog(Path.Combine(outputDir, "fog.png"));
             GenerateRain(Path.Combine(outputDir, "rain.png"));
@@ -68,6 +70,49 @@ namespace WeatherImageGenerator.Services
             }
         }
 
+        private static void DrawMoon(Graphics g, float x, float y, float size)
+        {
+            // Glow
+            using (var path = new GraphicsPath())
+            {
+                path.AddEllipse(x - size * 0.2f, y - size * 0.2f, size * 1.4f, size * 1.4f);
+                using (var brush = new PathGradientBrush(path))
+                {
+                    brush.CenterColor = Color.FromArgb(80, 200, 200, 255);
+                    brush.SurroundColors = new[] { Color.Transparent };
+                    g.FillPath(brush, path);
+                }
+            }
+
+            // Moon Shape (Quarter/Crescent)
+            using (var moonPath = new GraphicsPath())
+            {
+                moonPath.AddEllipse(x, y, size, size);
+                using (var moonRegion = new Region(moonPath))
+                {
+                    using (var cutPath = new GraphicsPath())
+                    {
+                        // Shifted circle to cut out to make a crescent
+                        float cutSize = size * 0.85f;
+                        float cutX = x + size * 0.35f;
+                        float cutY = y - size * 0.1f;
+                        
+                        cutPath.AddEllipse(cutX, cutY, cutSize, cutSize);
+                        moonRegion.Exclude(cutPath);
+                    }
+                    
+                    using (var brush = new LinearGradientBrush(
+                        new RectangleF(x, y, size, size),
+                        Color.FromArgb(255, 240, 240, 255),
+                        Color.FromArgb(255, 180, 180, 200),
+                        LinearGradientMode.ForwardDiagonal))
+                    {
+                        g.FillRegion(brush, moonRegion);
+                    }
+                }
+            }
+        }
+
         private static void DrawCloud(Graphics g, float x, float y, float width, float height, Color baseColor)
         {
             // Simple puff cloud
@@ -93,6 +138,14 @@ namespace WeatherImageGenerator.Services
             Save(bmp, path);
         }
 
+        public static void GenerateClearNight(string path)
+        {
+            using var bmp = CreateBase();
+            using var g = GetGraphics(bmp);
+            DrawMoon(g, 60, 60, 140);
+            Save(bmp, path);
+        }
+
         public static void GeneratePartlyCloudy(string path)
         {
             using var bmp = CreateBase();
@@ -100,6 +153,17 @@ namespace WeatherImageGenerator.Services
             
             DrawSun(g, 100, 30, 120);
             DrawCloud(g, 30, 100, 180, 100, Color.FromArgb(255, 220, 220, 230));
+            
+            Save(bmp, path);
+        }
+
+        public static void GeneratePartlyCloudyNight(string path)
+        {
+            using var bmp = CreateBase();
+            using var g = GetGraphics(bmp);
+            
+            DrawMoon(g, 110, 40, 100);
+            DrawCloud(g, 30, 100, 180, 100, Color.FromArgb(255, 200, 200, 210));
             
             Save(bmp, path);
         }

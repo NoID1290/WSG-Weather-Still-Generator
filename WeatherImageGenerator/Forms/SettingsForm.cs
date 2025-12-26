@@ -88,7 +88,32 @@ namespace WeatherImageGenerator.Forms
             iTop += rowH;
             chkEnableWeatherMaps = new CheckBox { Text = "Enable Weather Maps Generation", Left = leftLabel, Top = iTop, Width = 250 };
 
-            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps });
+            iTop += rowH;
+            var btnRegenIcons = new Button { Text = "Regenerate Icons", Left = leftLabel, Top = iTop, Width = 150, Height = 25 };
+            btnRegenIcons.Click += (s, e) =>
+            {
+                try
+                {
+                    btnRegenIcons.Enabled = false;
+                    btnRegenIcons.Text = "Generating...";
+                    string outDir = txtImageOutputDir.Text;
+                    if (string.IsNullOrWhiteSpace(outDir)) outDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
+                    
+                    IconGenerator.GenerateAll(outDir);
+                    MessageBox.Show("Icons regenerated successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error regenerating icons: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    btnRegenIcons.Enabled = true;
+                    btnRegenIcons.Text = "Regenerate Icons";
+                }
+            };
+
+            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons });
 
             // --- Video Tab ---
             var tabVideo = new TabPage("Video");
