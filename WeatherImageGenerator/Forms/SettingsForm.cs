@@ -99,8 +99,9 @@ namespace WeatherImageGenerator.Forms
                     string outDir = txtImageOutputDir.Text;
                     if (string.IsNullOrWhiteSpace(outDir)) outDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
                     
-                    IconGenerator.GenerateAll(outDir);
-                    MessageBox.Show("Icons regenerated successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    string iconsDir = Path.Combine(outDir, "Icons");
+                    IconGenerator.GenerateAll(iconsDir);
+                    MessageBox.Show($"Icons regenerated successfully in {iconsDir}!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
