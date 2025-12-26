@@ -43,55 +43,97 @@ namespace WeatherImageGenerator.Services
             {
                 Bitmap bmp = new Bitmap(width, height);
                 Graphics g = Graphics.FromImage(bmp);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
                 
-                // Background
+                // Modern Dark Background
                 using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
                     new Point(0, 0), new Point(0, height),
-                    Color.FromArgb(30, 30, 30), Color.FromArgb(10, 10, 10)))
+                    Color.FromArgb(32, 32, 32), Color.FromArgb(16, 16, 16)))
                 {
                     g.FillRectangle(brush, 0, 0, width, height);
                 }
 
-                // Header
-                using (Font headerFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.HeaderFontSize, FontStyle.Bold))
+                // Header Bar
+                using (var headerBrush = new SolidBrush(Color.FromArgb(200, 40, 40, 40)))
+                {
+                    g.FillRectangle(headerBrush, 0, 0, width, 100);
+                }
+
+                // Header Text
+                using (Font headerFont = new Font(imgConfig.FontFamily ?? "Segoe UI", alertConfig.HeaderFontSize + 4, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    g.DrawString(alertConfig.HeaderText ?? "⚠️ Environment Canada Alerts", headerFont, whiteBrush, new PointF(margin, margin));
+                    g.DrawString(alertConfig.HeaderText ?? "⚠️ Environment Canada Alerts", headerFont, whiteBrush, new PointF(margin, 30));
+                }
+                
+                // Footer/Timestamp
+                using (Font footerFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 12, FontStyle.Regular))
+                using (Brush grayBrush = new SolidBrush(Color.Gray))
+                {
+                    string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+                    SizeF size = g.MeasureString(timestamp, footerFont);
+                    g.DrawString(timestamp, footerFont, grayBrush, width - size.Width - margin, 40);
                 }
                 
                 return (bmp, g);
             }
 
+            // Helper for rounded rectangles
+            void FillRoundedRectangle(Graphics g, Brush brush, float x, float y, float w, float h, float radius)
+            {
+                using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    path.AddArc(x, y, radius, radius, 180, 90);
+                    path.AddArc(x + w - radius, y, radius, radius, 270, 90);
+                    path.AddArc(x + w - radius, y + h - radius, radius, radius, 0, 90);
+                    path.AddArc(x, y + h - radius, radius, radius, 90, 90);
+                    path.CloseFigure();
+                    g.FillPath(brush, path);
+                }
+            }
+
             var (currentBitmap, currentGraphics) = CreateNewPage();
-            float currentY = 150f; 
+            float currentY = 120f; 
             int pageIndex = 1;
 
-            using (Font cityFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.CityFontSize, FontStyle.Bold))
-            using (Font typeFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.TypeFontSize, FontStyle.Bold))
-            using (Font detailFont = new Font(imgConfig.FontFamily ?? "Arial", alertConfig.DetailsFontSize, FontStyle.Regular))
+            using (Font cityFont = new Font(imgConfig.FontFamily ?? "Segoe UI", alertConfig.CityFontSize, FontStyle.Bold))
+            using (Font typeFont = new Font(imgConfig.FontFamily ?? "Segoe UI", alertConfig.TypeFontSize, FontStyle.Bold))
+            using (Font detailFont = new Font(imgConfig.FontFamily ?? "Segoe UI", alertConfig.DetailsFontSize, FontStyle.Regular))
             using (Brush whiteBrush = new SolidBrush(Color.White))
+            using (Brush lightGrayBrush = new SolidBrush(Color.FromArgb(220, 220, 220)))
+            using (Brush dimBrush = new SolidBrush(Color.FromArgb(180, 180, 180)))
             {
                 if (alerts.Count == 0)
                 {
                     using(Brush greenBrush = new SolidBrush(Color.LightGreen))
+                    using(Font bigFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 36, FontStyle.Bold))
                     {
-                         currentGraphics.DrawString(alertConfig.NoAlertsText ?? "No Active Warnings or Watches", cityFont, greenBrush, new PointF(margin, currentY));
+                         string text = alertConfig.NoAlertsText ?? "No Active Warnings or Watches";
+                         SizeF textSize = currentGraphics.MeasureString(text, bigFont);
+                         float x = (width - textSize.Width) / 2;
+                         float y = (height - textSize.Height) / 2;
+                         
+                         currentGraphics.DrawString(text, bigFont, greenBrush, x, y);
                     }
                 }
                 else
                 {
                     foreach (var alert in alerts) 
                     {
-                        // Calculate required height for this alert
-                        float requiredHeight = 45; // Header
-                        SizeF titleSize = currentGraphics.MeasureString(alert.Title, typeFont, (int)contentWidth);
-                        requiredHeight += titleSize.Height + 10;
+                        // Card styling
+                        float cardPadding = 20;
+                        float cardMarginBottom = 20;
                         
-                        SizeF summarySize = currentGraphics.MeasureString(alert.Summary, detailFont, (int)contentWidth);
-                        requiredHeight += summarySize.Height + 60;
+                        // Measure content
+                        SizeF citySize = currentGraphics.MeasureString($"{alert.City.ToUpper()} - {alert.Type}", cityFont, (int)(contentWidth - cardPadding * 2));
+                        SizeF titleSize = currentGraphics.MeasureString(alert.Title, typeFont, (int)(contentWidth - cardPadding * 2));
+                        SizeF summarySize = currentGraphics.MeasureString(alert.Summary, detailFont, (int)(contentWidth - cardPadding * 2));
+
+                        float cardHeight = cardPadding + citySize.Height + 5 + titleSize.Height + 10 + summarySize.Height + cardPadding;
 
                         // Check if we need a new page
-                        if (currentY + requiredHeight > height - 50)
+                        if (currentY + cardHeight > height - 50)
                         {
                             // Save current page
                             string filename;
@@ -110,28 +152,53 @@ namespace WeatherImageGenerator.Services
                             // Start new page
                             pageIndex++;
                             (currentBitmap, currentGraphics) = CreateNewPage();
-                            currentY = 150f;
+                            currentY = 120f;
                         }
 
-                        // Draw Alert
-                        Color alertColor = Color.LightGray;
-                        if (alert.SeverityColor == "Red") alertColor = Color.Red;
-                        if (alert.SeverityColor == "Yellow") alertColor = Color.Yellow;
-
-                        using (Brush alertBrush = new SolidBrush(alertColor))
+                        // Determine Colors
+                        Color severityColor = Color.Gray;
+                        Color cardBgColor = Color.FromArgb(45, 45, 48);
+                        
+                        if (alert.SeverityColor?.Equals("Red", StringComparison.OrdinalIgnoreCase) == true) 
                         {
-                            string headerLine = $"> {alert.City.ToUpper()} : {alert.Type}";
-                            currentGraphics.DrawString(headerLine, cityFont, alertBrush, new PointF(margin, currentY));
-                            currentY += 45;
-
-                            RectangleF titleRect = new RectangleF(margin, currentY, contentWidth, titleSize.Height);
-                            currentGraphics.DrawString(alert.Title, typeFont, whiteBrush, titleRect);
-                            currentY += titleSize.Height + 10;
+                            severityColor = Color.FromArgb(220, 53, 69); // Bootstrap Danger
+                            cardBgColor = Color.FromArgb(60, 20, 20);
+                        }
+                        else if (alert.SeverityColor?.Equals("Yellow", StringComparison.OrdinalIgnoreCase) == true)
+                        {
+                            severityColor = Color.FromArgb(255, 193, 7); // Bootstrap Warning
+                            cardBgColor = Color.FromArgb(60, 50, 20);
                         }
 
-                        RectangleF summaryRect = new RectangleF(margin, currentY, contentWidth, summarySize.Height);
-                        currentGraphics.DrawString(alert.Summary, detailFont, whiteBrush, summaryRect);
-                        currentY += summarySize.Height + 60;
+                        // Draw Card Background
+                        using (var cardBrush = new SolidBrush(cardBgColor))
+                        {
+                            FillRoundedRectangle(currentGraphics, cardBrush, margin, currentY, contentWidth, cardHeight, 15);
+                        }
+
+                        // Draw Severity Strip
+                        using (var stripBrush = new SolidBrush(severityColor))
+                        {
+                            // Left strip
+                            currentGraphics.FillRectangle(stripBrush, margin + 5, currentY + 5, 6, cardHeight - 10);
+                        }
+
+                        // Draw Content
+                        float textX = margin + 25;
+                        float textY = currentY + cardPadding;
+
+                        // City & Type
+                        currentGraphics.DrawString($"{alert.City.ToUpper()} • {alert.Type}", cityFont, dimBrush, new PointF(textX, textY));
+                        textY += citySize.Height + 5;
+
+                        // Title
+                        currentGraphics.DrawString(alert.Title, typeFont, whiteBrush, new RectangleF(textX, textY, contentWidth - cardPadding - 25, titleSize.Height));
+                        textY += titleSize.Height + 10;
+
+                        // Summary
+                        currentGraphics.DrawString(alert.Summary, detailFont, lightGrayBrush, new RectangleF(textX, textY, contentWidth - cardPadding - 25, summarySize.Height));
+
+                        currentY += cardHeight + cardMarginBottom;
                     }
                 }
             }
