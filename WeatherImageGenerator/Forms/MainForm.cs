@@ -39,7 +39,7 @@ namespace WeatherImageGenerator.Forms
         {
 
             this.Text = "WSG - WeatherStillGenerator";
-            this.Width = 900;
+            this.Width = 950;
             this.Height = 600;
 
             var rich = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", BackColor = System.Drawing.Color.Black, ForeColor = System.Drawing.Color.LightGray, Font = new System.Drawing.Font("Segoe UI", 10F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical };
@@ -52,8 +52,9 @@ namespace WeatherImageGenerator.Forms
             var videoBtn = new Button { Text = "Video", Left = 310, Top = 10, Width = 70, Height = 30 };
             
             var openOutputBtn = new Button { Text = "Open Dir", Left = 385, Top = 10, Width = 70, Height = 30 };
-            var settingsBtn = new Button { Text = "Settings", Left = 460, Top = 10, Width = 70, Height = 30 };
-            var aboutBtn = new Button { Text = "About", Left = 535, Top = 10, Width = 70, Height = 30 };
+            var locationsBtn = new Button { Text = "Locations", Left = 460, Top = 10, Width = 80, Height = 30 };
+            var settingsBtn = new Button { Text = "Settings", Left = 545, Top = 10, Width = 70, Height = 30 };
+            var aboutBtn = new Button { Text = "About", Left = 620, Top = 10, Width = 70, Height = 30 };
 
             // Progress & Status (Row 2)
             _progress = new TextProgressBar { Left = 10, Top = 50, Width = 370, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
@@ -128,6 +129,17 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
+            locationsBtn.Click += (s, e) =>
+            {
+                using (var f = new LocationsForm())
+                {
+                    if (f.ShowDialog() == DialogResult.OK)
+                    {
+                        Logger.Log("Locations updated.");
+                    }
+                }
+            };
+
             aboutBtn.Click += (s, e) =>
             {
                 using (var f = new AboutDialog())
@@ -143,6 +155,7 @@ namespace WeatherImageGenerator.Forms
             panel.Controls.Add(stopBtn);
             panel.Controls.Add(openOutputBtn);
             panel.Controls.Add(startBtn);
+            panel.Controls.Add(locationsBtn);
             panel.Controls.Add(settingsBtn);
             panel.Controls.Add(aboutBtn);
             panel.Controls.Add(_progress);
