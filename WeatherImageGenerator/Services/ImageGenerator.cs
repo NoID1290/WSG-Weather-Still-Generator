@@ -756,7 +756,7 @@ namespace WeatherImageGenerator.Services
 
             // Try to load custom icon from "WeatherImages/Icons/{code}.png"
             // We look in the application directory
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string baseDir = Directory.GetCurrentDirectory();
             string iconPath = Path.Combine(baseDir, "WeatherImages", "Icons", $"{code}.png");
             
             // If specific code not found, try generic mapping

@@ -933,7 +933,7 @@ namespace WeatherImageGenerator.Forms
                 string path = config.ImageGeneration?.OutputDirectory ?? "WeatherImages";
                 if (!System.IO.Path.IsPathRooted(path))
                 {
-                    path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+                    path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), path);
                 }
 
                 if (!System.IO.Directory.Exists(path))
@@ -972,13 +972,13 @@ namespace WeatherImageGenerator.Forms
                 string imageDir = config.ImageGeneration?.OutputDirectory ?? "WeatherImages";
                 if (!System.IO.Path.IsPathRooted(imageDir))
                 {
-                    imageDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, imageDir);
+                    imageDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), imageDir);
                 }
 
                 string videoDir = config.Video?.OutputDirectory ?? imageDir;
                 if (!System.IO.Path.IsPathRooted(videoDir))
                 {
-                    videoDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, videoDir);
+                    videoDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), videoDir);
                 }
 
                 int deletedCount = 0;

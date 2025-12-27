@@ -636,7 +636,7 @@ namespace WeatherImageGenerator
         {
             try
             {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string baseDir = Directory.GetCurrentDirectory();
                 string iconsDir = Path.Combine(baseDir, "WeatherImages", "Icons");
 
                 // Check if directory exists and has files
