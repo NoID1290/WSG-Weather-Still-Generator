@@ -4,11 +4,11 @@ This directory contains music tracks that can be used for video generation.
 
 ## Demo Tracks
 
-The following demo tracks are included:
-- **demo_calm_ambient.mp3** - Calm ambient background music
-- **demo_upbeat_energy.mp3** - Upbeat energetic music
-- **demo_smooth_jazz.mp3** - Smooth jazz background
-- **demo_electronic_chill.mp3** - Electronic chill music
+The following demo tracks are included (Music by Kevin MacLeod, incompetech.com, Licensed under Creative Commons: By Attribution 3.0):
+- **demo_calm_ambient.mp3** - "Clean Soul" - Calm ambient background music
+- **demo_upbeat_energy.mp3** - "Carefree" - Upbeat energetic music
+- **demo_smooth_jazz.mp3** - "Lobby Time" - Smooth jazz background
+- **demo_electronic_chill.mp3** - "Perspectives" - Electronic chill music
 
 ## Adding Your Own Music
 

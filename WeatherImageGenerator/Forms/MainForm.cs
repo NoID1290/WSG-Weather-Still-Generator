@@ -1541,7 +1541,13 @@ namespace WeatherImageGenerator.Forms
                     MkLbl("FFmpeg Project", true),
                     MkLink("https://ffmpeg.org/", "https://ffmpeg.org/"),
                     MkLbl("License: LGPL v2.1", false, true),
-                    MkLbl("FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.", false, true)
+                    MkLbl("FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.", false, true),
+                    new Label { Height = 10 }, // spacer
+                    MkLbl("Music", true),
+                    MkLbl("Kevin MacLeod (incompetech.com)", false),
+                    MkLink("https://incompetech.com/", "https://incompetech.com/"),
+                    MkLbl("Licensed under Creative Commons: By Attribution 3.0", false, true),
+                    MkLink("http://creativecommons.org/licenses/by/3.0/", "http://creativecommons.org/licenses/by/3.0/")
                 );
 
                 flowCredits.Controls.AddRange(new Control[] { grpDev, grpData, grpMedia });

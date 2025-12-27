@@ -615,6 +615,9 @@ namespace WeatherImageGenerator
                 // Configure which base image should receive the radar overlay. Prefer explicit filename from config if present.
                 videoGenerator.OverlayTargetFilename = config.WeatherImages?.WeatherMapsFilename ?? "WeatherMaps";
                 
+                // Load music from configuration
+                videoGenerator.LoadMusicFromConfig();
+
                 if (videoGenerator.GenerateVideo())
                 {
                     Logger.Log("✓ Video generation completed successfully.");
