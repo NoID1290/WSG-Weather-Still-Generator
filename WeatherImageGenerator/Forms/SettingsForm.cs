@@ -9,6 +9,7 @@ namespace WeatherImageGenerator.Forms
 {
     public class SettingsForm : Form
     {
+        private bool _isLoadingSettings = false; // Prevent event loops during load
         TextBox txtImageOutputDir;
         TextBox txtVideoOutputDir;
         NumericUpDown numStatic;
@@ -22,8 +23,9 @@ namespace WeatherImageGenerator.Forms
         ComboBox cmbResolution;
         CheckBox chkEnableProvinceRadar;
         CheckBox chkEnableWeatherMaps;
-        TextBox txtCodec;
-        TextBox txtBitrate;
+        ComboBox cmbCodec;  // Changed from TextBox to ComboBox
+        ComboBox cmbBitrate; // Changed from TextBox to ComboBox
+        ComboBox cmbQualityPreset; // New quality preset selector
         NumericUpDown numFps;
         ComboBox cmbContainer;
         CheckBox chkVideoGeneration;
@@ -38,13 +40,13 @@ namespace WeatherImageGenerator.Forms
         public SettingsForm()
         {
             this.Text = "Settings";
-            this.Width = 600;
-            this.Height = 500;
+            this.Width = 700;
+            this.Height = 600;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
 
-            var tabControl = new TabControl { Dock = DockStyle.Top, Height = 400 };
+            var tabControl = new TabControl { Dock = DockStyle.Top, Height = 600 };
             
             // --- General Tab ---
             var tabGeneral = new TabPage("General");
@@ -134,46 +136,171 @@ namespace WeatherImageGenerator.Forms
             // --- Video Tab ---
             var tabVideo = new TabPage("Video");
             int vTop = 20;
+            int rightCol = 310; // Right column position
 
+            // General video settings group
             chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = vTop, Width = 200 };
-            lblFfmpegInstalled = new Label { Text = "Checking FFmpeg...", Left = leftLabel + 210, Top = vTop + 4, Width = 300, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
+            lblFfmpegInstalled = new Label { Text = "Checking FFmpeg...", Left = leftLabel, Top = vTop + rowH, Width = 500, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
             
-            vTop += rowH;
-            var lblStatic = new Label { Text = "Static Duration (s):", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numStatic = new NumericUpDown { Left = leftField, Top = vTop, Width = 80, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
+            vTop += rowH + rowH;
+            var lblDivider1 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            
+            // LEFT COLUMN - Timing Settings
+            vTop += 20;
+            var lblTimingGroup = new Label { Text = "⏱ Timing Settings", Left = leftLabel, Top = vTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            
+            vTop += 25;
+            var lblStatic = new Label { Text = "Static Duration (s):", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numStatic = new NumericUpDown { Left = leftLabel + 135, Top = vTop, Width = 70, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
+            var lblStaticHelp = new Label { Text = "Slide duration", Left = leftLabel + 210, Top = vTop + 3, Width = 90, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
 
             vTop += rowH;
-            var lblFade = new Label { Text = "Fade Duration (s):", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numFade = new NumericUpDown { Left = leftField, Top = vTop, Width = 80, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M };
-            chkFade = new CheckBox { Text = "Enable Transitions", Left = leftField + 100, Top = vTop, Width = 150 };
+            var lblFade = new Label { Text = "Fade Duration (s):", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numFade = new NumericUpDown { Left = leftLabel + 135, Top = vTop, Width = 70, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M };
+            chkFade = new CheckBox { Text = "Enable", Left = leftLabel + 210, Top = vTop, Width = 70 };
 
-            vTop += rowH;
-            var lblResPreset = new Label { Text = "Resolution Preset:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbResolution = new ComboBox { Left = leftField, Top = vTop, Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbResolution.Items.AddRange(Enum.GetNames(typeof(ResolutionMode)));
-            cmbResolution.SelectedIndex = 0;
+            // RIGHT COLUMN - Video Format
+            int rTop = 125; // Start position for right column
+            var lblVideoFormat = new Label { Text = "📹 Video Format", Left = rightCol, Top = rTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            
+            rTop += 25;
+            var lblQualityPreset = new Label { Text = "Quality Preset:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbQualityPreset = new ComboBox { Left = rightCol + 105, Top = rTop, Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbQualityPreset.Items.AddRange(new object[] { 
+                "Ultra (Best Quality)", 
+                "High Quality", 
+                "Balanced", 
+                "Web Optimized", 
+                "Low Bandwidth",
+                "Custom" 
+            });
+            cmbQualityPreset.SelectedIndex = 2; // Default to Balanced
 
-            vTop += rowH;
-            var lblFps = new Label { Text = "FPS:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numFps = new NumericUpDown { Left = leftField, Top = vTop, Width = 80, Minimum = 1, Maximum = 240, Value = 30 };
+            rTop += rowH;
+            var lblResPreset = new Label { Text = "Resolution:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbResolution = new ComboBox { Left = rightCol + 105, Top = rTop, Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbResolution.Items.AddRange(new object[] { 
+                "3840x2160 (4K/UHD)",
+                "2560x1440 (2K/QHD)",
+                "1920x1080 (Full HD)",
+                "1600x900 (HD+)",
+                "1280x720 (HD)",
+                "960x540 (qHD)",
+                "854x480 (FWVGA)",
+                "640x480 (VGA)"
+            });
+            cmbResolution.SelectedIndex = 2; // Default to 1080p
 
-            vTop += rowH;
-            var lblContainer = new Label { Text = "Container:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbContainer = new ComboBox { Left = leftField, Top = vTop, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
+            rTop += rowH;
+            var lblFps = new Label { Text = "Frame Rate:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numFps = new NumericUpDown { Left = rightCol + 105, Top = rTop, Width = 60, Minimum = 1, Maximum = 240, Value = 30 };
+            var lblFpsHelp = new Label { Text = "fps", Left = rightCol + 170, Top = rTop + 3, Width = 30, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
+
+            rTop += rowH;
+            var lblContainer = new Label { Text = "Container:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbContainer = new ComboBox { Left = rightCol + 105, Top = rTop, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbContainer.Items.AddRange(new object[] { "mp4", "mkv", "mov", "avi", "webm" });
             cmbContainer.SelectedIndex = 0;
 
-            vTop += rowH;
-            var lblCodec = new Label { Text = "Codec / Bitrate:", Left = leftLabel, Top = vTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtCodec = new TextBox { Left = leftField, Top = vTop, Width = 80, Text = "libx264" };
-            txtBitrate = new TextBox { Left = leftField + 90, Top = vTop, Width = 60, Text = "4M" };
+            // LEFT COLUMN continues - Encoding Settings
+            vTop += rowH + 10;
+            var lblDivider2 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 280, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            
+            vTop += 20;
+            var lblEncodingGroup = new Label { Text = "🎬 Encoding", Left = leftLabel, Top = vTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            
+            vTop += 25;
+            var lblCodec = new Label { Text = "Codec:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbCodec = new ComboBox { Left = leftLabel + 135, Top = vTop, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbCodec.Items.AddRange(new object[] { 
+                "libx264 (H.264)",
+                "libx265 (H.265/HEVC)",
+                "libvpx-vp9 (VP9)",
+                "libaom-av1 (AV1)",
+                "mpeg4",
+                "msmpeg4"
+            });
+            cmbCodec.SelectedIndex = 0;
 
             vTop += rowH;
-            chkEnableHardwareEncoding = new CheckBox { Text = "Hardware Encoding (NVENC/AMF/QSV)", Left = leftLabel, Top = vTop, Width = 300 };
-            btnCheckHw = new Button { Text = "Check", Left = leftLabel + 310, Top = vTop - 2, Width = 60, Height = 24 };
+            var lblBitrate = new Label { Text = "Bitrate:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbBitrate = new ComboBox { Left = leftLabel + 135, Top = vTop, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbBitrate.Items.AddRange(new object[] { 
+                "1M (Low)",
+                "2M (Medium-Low)",
+                "4M (Medium)",
+                "6M (Medium-High)",
+                "8M (High)",
+                "12M (Very High)",
+                "16M (Ultra)"
+            });
+            cmbBitrate.SelectedIndex = 2; // Default to 4M
 
             vTop += rowH;
-            lblHwStatus = new Label { Text = "Unknown", Left = leftLabel + 20, Top = vTop, Width = 500, ForeColor = System.Drawing.Color.Gray, AutoSize = true };
+            chkEnableHardwareEncoding = new CheckBox { Text = "⚡ Hardware Encoding", Left = leftLabel, Top = vTop, Width = 180 };
+            btnCheckHw = new Button { Text = "Check", Left = leftLabel + 185, Top = vTop - 2, Width = 60, Height = 24 };
+
+            vTop += rowH;
+            lblHwStatus = new Label { Text = "Unknown", Left = leftLabel + 20, Top = vTop, Width = 260, ForeColor = System.Drawing.Color.Gray, AutoSize = true };
+
+
+            
+            // Quality preset change handler
+            cmbQualityPreset.SelectedIndexChanged += (s, e) =>
+            {
+                if (_isLoadingSettings || cmbQualityPreset.SelectedIndex == 5) return; // Custom - don't change anything
+                
+                // Temporarily disable the markCustom handlers
+                _isLoadingSettings = true;
+                
+                // Apply preset values
+                switch (cmbQualityPreset.SelectedIndex)
+                {
+                    case 0: // Ultra
+                        cmbResolution.SelectedIndex = 0; // 4K
+                        cmbCodec.SelectedIndex = 0; // H.264
+                        cmbBitrate.SelectedIndex = 6; // 16M
+                        numFps.Value = 60;
+                        break;
+                    case 1: // High Quality
+                        cmbResolution.SelectedIndex = 2; // 1080p
+                        cmbCodec.SelectedIndex = 0; // H.264
+                        cmbBitrate.SelectedIndex = 4; // 8M
+                        numFps.Value = 30;
+                        break;
+                    case 2: // Balanced
+                        cmbResolution.SelectedIndex = 2; // 1080p
+                        cmbCodec.SelectedIndex = 0; // H.264
+                        cmbBitrate.SelectedIndex = 2; // 4M
+                        numFps.Value = 30;
+                        break;
+                    case 3: // Web Optimized
+                        cmbResolution.SelectedIndex = 4; // 720p
+                        cmbCodec.SelectedIndex = 0; // H.264
+                        cmbBitrate.SelectedIndex = 1; // 2M
+                        numFps.Value = 30;
+                        break;
+                    case 4: // Low Bandwidth
+                        cmbResolution.SelectedIndex = 6; // 480p
+                        cmbCodec.SelectedIndex = 0; // H.264
+                        cmbBitrate.SelectedIndex = 0; // 1M
+                        numFps.Value = 24;
+                        break;
+                }
+                
+                _isLoadingSettings = false;
+            };
+            
+            // Mark as custom when user manually changes settings
+            EventHandler markCustom = (s, e) => 
+            { 
+                if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5) 
+                    cmbQualityPreset.SelectedIndex = 5; 
+            };
+            cmbResolution.SelectedIndexChanged += markCustom;
+            cmbCodec.SelectedIndexChanged += markCustom;
+            cmbBitrate.SelectedIndexChanged += markCustom;
+            numFps.ValueChanged += markCustom;
             
             btnCheckHw.Click += (s, e) =>
             {
@@ -202,27 +329,38 @@ namespace WeatherImageGenerator.Forms
             };
 
             vTop += rowH;
-            chkVerbose = new CheckBox { Text = "Verbose FFmpeg", Left = leftLabel, Top = vTop, Width = 130 };
-            chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg GUI", Left = leftLabel + 140, Top = vTop, Width = 150 };
+            var lblDivider4 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            
+            vTop += 20;
+            var lblDebugGroup2 = new Label { Text = "🔧 Debug Options", Left = leftLabel, Top = vTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            
+            vTop += 25;
+            chkVerbose = new CheckBox { Text = "Verbose FFmpeg Output", Left = leftLabel, Top = vTop, Width = 180 };
+            chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg Console", Left = leftLabel + 190, Top = vTop, Width = 180 };
 
             tabVideo.Controls.AddRange(new Control[] { 
-                chkVideoGeneration, lblFfmpegInstalled,
-                lblStatic, numStatic, 
-                lblFade, numFade, chkFade, 
-                lblResPreset, cmbResolution, 
-                lblFps, numFps, 
-                lblContainer, cmbContainer, 
-                lblCodec, txtCodec, txtBitrate, 
+                chkVideoGeneration, lblFfmpegInstalled, lblDivider1,
+                // Left column
+                lblTimingGroup, lblStatic, numStatic, lblStaticHelp,
+                lblFade, numFade, chkFade, lblDivider2,
+                lblEncodingGroup, lblCodec, cmbCodec,
+                lblBitrate, cmbBitrate,
                 chkEnableHardwareEncoding, lblHwStatus, btnCheckHw,
-                chkVerbose, chkShowFfmpeg 
+                // Right column
+                lblVideoFormat, lblQualityPreset, cmbQualityPreset,
+                lblResPreset, cmbResolution, 
+                lblFps, numFps, lblFpsHelp,
+                lblContainer, cmbContainer,
+                // Debug section
+                lblDivider4, lblDebugGroup2, chkVerbose, chkShowFfmpeg
             });
 
             tabControl.TabPages.Add(tabGeneral);
             tabControl.TabPages.Add(tabImage);
             tabControl.TabPages.Add(tabVideo);
 
-            var btnSave = new Button { Text = "Save", Left = 380, Top = 420, Width = 90, Height = 30 };
-            var btnCancel = new Button { Text = "Cancel", Left = 480, Top = 420, Width = 90, Height = 30 };
+            var btnSave = new Button { Text = "Save", Left = 380, Top = 620, Width = 90, Height = 30 };
+            var btnCancel = new Button { Text = "Cancel", Left = 480, Top = 620, Width = 90, Height = 30 };
 
             btnSave.Click += (s, e) => SaveClicked();
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
@@ -248,6 +386,7 @@ namespace WeatherImageGenerator.Forms
 
         private void LoadSettings()
         {
+            _isLoadingSettings = true; // Prevent event handlers from firing
             try
             {
                 var cfg = ConfigManager.LoadConfig();
@@ -271,10 +410,52 @@ namespace WeatherImageGenerator.Forms
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
                 chkFade.Checked = cfg.Video?.EnableFadeTransitions ?? false;
-                cmbResolution.SelectedItem = cfg.Video?.ResolutionMode ?? "Mode1080p";
+                
+                // Map old ResolutionMode enum values to new display format
+                var resMode = cfg.Video?.ResolutionMode ?? "Mode1080p";
+                var resDisplay = resMode switch
+                {
+                    "Mode1080p" => "1920x1080 (Full HD)",
+                    "Mode4K" => "3840x2160 (4K/UHD)",
+                    "ModeVertical" => "1920x1080 (Full HD)", // Map old vertical to 1080p
+                    _ => "1920x1080 (Full HD)"
+                };
+                if (cmbResolution.Items.Contains(resDisplay)) cmbResolution.SelectedItem = resDisplay;
+                else cmbResolution.SelectedIndex = 2; // Default to 1080p
+                
                 numFps.Value = cfg.Video?.FrameRate ?? 30;
-                txtCodec.Text = cfg.Video?.VideoCodec ?? "libx264";
-                txtBitrate.Text = cfg.Video?.VideoBitrate ?? "4M";
+                
+                // Load codec - map from config value to display value
+                var codec = cfg.Video?.VideoCodec ?? "libx264";
+                var codecDisplay = codec switch
+                {
+                    "libx264" => "libx264 (H.264)",
+                    "libx265" => "libx265 (H.265/HEVC)",
+                    "libvpx-vp9" => "libvpx-vp9 (VP9)",
+                    "libaom-av1" => "libaom-av1 (AV1)",
+                    "mpeg4" => "mpeg4",
+                    "msmpeg4" => "msmpeg4",
+                    _ => "libx264 (H.264)"
+                };
+                if (cmbCodec.Items.Contains(codecDisplay)) cmbCodec.SelectedItem = codecDisplay;
+                else cmbCodec.SelectedIndex = 0;
+                
+                // Load bitrate - map from config value to display value
+                var bitrate = cfg.Video?.VideoBitrate ?? "4M";
+                var bitrateDisplay = bitrate.ToUpper() switch
+                {
+                    "1M" => "1M (Low)",
+                    "2M" => "2M (Medium-Low)",
+                    "4M" => "4M (Medium)",
+                    "6M" => "6M (Medium-High)",
+                    "8M" => "8M (High)",
+                    "12M" => "12M (Very High)",
+                    "16M" => "16M (Ultra)",
+                    _ => "4M (Medium)"
+                };
+                if (cmbBitrate.Items.Contains(bitrateDisplay)) cmbBitrate.SelectedItem = bitrateDisplay;
+                else cmbBitrate.SelectedIndex = 2;
+                
                 var container = (cfg.Video?.Container ?? "mp4").ToLowerInvariant();
                 if (cmbContainer.Items.Contains(container)) cmbContainer.SelectedItem = container;
                 chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
@@ -326,6 +507,10 @@ namespace WeatherImageGenerator.Forms
             {
                 Logger.Log($"Failed to load config in settings: {ex.Message}", Logger.LogLevel.Error);
             }
+            finally
+            {
+                _isLoadingSettings = false; // Re-enable event handlers
+            }
         }
 
         private void SaveClicked()
@@ -352,10 +537,41 @@ namespace WeatherImageGenerator.Forms
                 v.StaticDurationSeconds = (double)numStatic.Value;
                 v.FadeDurationSeconds = (double)numFade.Value;
                 v.EnableFadeTransitions = chkFade.Checked;
-                v.ResolutionMode = cmbResolution.SelectedItem?.ToString() ?? "Mode1080p";
+                
+                // Extract resolution mode from display text and map to enum value
+                var resDisplay = cmbResolution.SelectedItem?.ToString() ?? "1920x1080 (Full HD)";
+                v.ResolutionMode = resDisplay switch
+                {
+                    "3840x2160 (4K/UHD)" => "Mode4K",
+                    "2560x1440 (2K/QHD)" => "Mode1080p", // Use 1080p mode
+                    "1920x1080 (Full HD)" => "Mode1080p",
+                    "1600x900 (HD+)" => "Mode1080p",
+                    "1280x720 (HD)" => "Mode1080p",
+                    "960x540 (qHD)" => "Mode1080p",
+                    "854x480 (FWVGA)" => "Mode1080p",
+                    "640x480 (VGA)" => "Mode1080p",
+                    _ => "Mode1080p"
+                };
+                
                 v.FrameRate = (int)numFps.Value;
-                v.VideoCodec = txtCodec.Text?.Trim();
-                v.VideoBitrate = txtBitrate.Text?.Trim();
+                
+                // Extract codec value from display text
+                var codecDisplay = cmbCodec.SelectedItem?.ToString() ?? "libx264 (H.264)";
+                v.VideoCodec = codecDisplay switch
+                {
+                    "libx264 (H.264)" => "libx264",
+                    "libx265 (H.265/HEVC)" => "libx265",
+                    "libvpx-vp9 (VP9)" => "libvpx-vp9",
+                    "libaom-av1 (AV1)" => "libaom-av1",
+                    "mpeg4" => "mpeg4",
+                    "msmpeg4" => "msmpeg4",
+                    _ => "libx264"
+                };
+                
+                // Extract bitrate value from display text (e.g., "4M (Medium)" -> "4M")
+                var bitrateDisplay = cmbBitrate.SelectedItem?.ToString() ?? "4M (Medium)";
+                v.VideoBitrate = bitrateDisplay.Split(' ')[0]; // Extract just the "4M" part
+                
                 v.Container = cmbContainer.SelectedItem?.ToString() ?? "mp4";
                 v.OutputDirectory = ToRelative(txtVideoOutputDir.Text, imageGen.OutputDirectory ?? "WeatherImages");
                 v.doVideoGeneration = chkVideoGeneration.Checked;
