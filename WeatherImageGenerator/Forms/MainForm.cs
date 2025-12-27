@@ -51,7 +51,7 @@ namespace WeatherImageGenerator.Forms
         public MainForm()
         {
             this.Text = "WSG - WeatherStillGenerator";
-            this.Width = 1100;
+            this.Width = 1120;
             this.Height = 700;
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -88,8 +88,8 @@ namespace WeatherImageGenerator.Forms
             _progress = new TextProgressBar { Left = 15, Top = 100, Width = 520, Height = 30, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
             
             _statusLabel2 = new Label { Text = "STATUS", Left = 555, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _statusLabel = new Label { Left = 555, Top = 100, Width = 250, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 11F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
-            _sleepLabel = new Label { Left = 555, Top = 122, Width = 250, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = Color.Transparent };
+            _statusLabel = new Label { Left = 555, Top = 100, Width = 520, Height = 30, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 10F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
+            _sleepLabel = new Label { Left = 555, Top = 132, Width = 520, Height = 20, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = Color.Transparent };
             _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 30, Text = "📡 Last fetch: Never", Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 6, 0, 0) };
 
             // --- Log Controls Panel with Enhanced Readability ---
