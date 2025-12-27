@@ -114,6 +114,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("ECCC")]
         public ECCCSettings? ECCC { get; set; }
+
+        [JsonPropertyName("Theme")]
+        public string Theme { get; set; } = "Blue";
     }
 
     /// <summary>

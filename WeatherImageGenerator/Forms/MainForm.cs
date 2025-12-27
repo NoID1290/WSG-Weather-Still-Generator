@@ -25,6 +25,19 @@ namespace WeatherImageGenerator.Forms
         private Label? _sleepLabel;
         private Label? _lastFetchLabel;
         private ListView? _weatherList;
+        private RichTextBox? _logBox;
+        private SplitContainer? _splitContainer;
+        private Panel? _topPanel;
+        private Panel? _logPanel;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _settingsBtn, _aboutBtn, _clearLogBtn;
+        private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
+
+        // Theme colors for dynamic updates
+        private Color _themeSuccessColor = Color.Green;
+        private Color _themeDangerColor = Color.Red;
+        private Color _themeWarningColor = Color.Orange;
+        private Color _themeTextColor = Color.Black;
+        private Color _themeAccentColor = Color.Blue;
 
         // When Minimal verbosity is selected, show only the last N important lines
         private const int MinimalVisibleCount = 5;    // reduced for casual users (show only 5 lines)
@@ -37,87 +50,72 @@ namespace WeatherImageGenerator.Forms
 
         public MainForm()
         {
-            // Modern color scheme with enhanced readability
-            Color primaryColor = ColorTranslator.FromHtml("#2C3E50");
-            Color secondaryColor = ColorTranslator.FromHtml("#34495E");
-            Color accentColor = ColorTranslator.FromHtml("#3498DB");
-            Color successColor = ColorTranslator.FromHtml("#27AE60");
-            Color warningColor = ColorTranslator.FromHtml("#F39C12");
-            Color dangerColor = ColorTranslator.FromHtml("#E74C3C");
-            Color lightTextColor = ColorTranslator.FromHtml("#E8E8E8");  // Softer white for better readability
-            Color headerTextColor = ColorTranslator.FromHtml("#F8F8F2"); // Slightly warm white
-            Color labelTextColor = ColorTranslator.FromHtml("#BDC3C7");  // Softer gray for labels
-            Color bgColor = ColorTranslator.FromHtml("#1E1E1E");
-
             this.Text = "WSG - WeatherStillGenerator";
             this.Width = 1100;
             this.Height = 700;
-            this.BackColor = ColorTranslator.FromHtml("#2C3E50");
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
 
-            var rich = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", BackColor = bgColor, ForeColor = lightTextColor, Font = new System.Drawing.Font("Consolas", 9.5F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
+            _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9.5F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
             // Note: RichTextBox with Dock=Fill doesn't support Region properly, so we skip rounding for it
             
-            Color buttonColor = ColorTranslator.FromHtml("#34495E");
-
             // === CONTROL GROUPS - Organized by Function ===
             // Group 1: Control Operations (Left)
-            var groupLabel1 = new Label { Text = "CONTROL", Left = 15, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
-            var startBtn = CreateStyledButton("▶ Start", 15, 28, 95, 42, successColor, headerTextColor);
-            var stopBtn = CreateStyledButton("⏹ Stop", 120, 28, 95, 42, dangerColor, headerTextColor);
-            stopBtn.Enabled = false;
+            _groupLabel1 = new Label { Text = "CONTROL", Left = 15, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _startBtn = CreateStyledButton("▶ Start", 15, 28, 95, 42, Color.Gray, Color.White);
+            _stopBtn = CreateStyledButton("⏹ Stop", 120, 28, 95, 42, Color.Gray, Color.White);
+            _stopBtn.Enabled = false;
             
             // Group 2: Generation Operations (Center-Left)
-            var groupLabel2 = new Label { Text = "GENERATE", Left = 235, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
-            var fetchBtn = CreateStyledButton("🔄 Fetch", 235, 28, 95, 42, accentColor, headerTextColor);
-            var stillBtn = CreateStyledButton("📷 Still", 340, 28, 95, 42, accentColor, headerTextColor);
-            var videoBtn = CreateStyledButton("🎬 Video", 445, 28, 95, 42, accentColor, headerTextColor);
+            _groupLabel2 = new Label { Text = "GENERATE", Left = 235, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _fetchBtn = CreateStyledButton("🔄 Fetch", 235, 28, 95, 42, Color.Gray, Color.White);
+            _stillBtn = CreateStyledButton("📷 Still", 340, 28, 95, 42, Color.Gray, Color.White);
+            _videoBtn = CreateStyledButton("🎬 Video", 445, 28, 95, 42, Color.Gray, Color.White);
             
             // Group 3: File Operations (Center-Right)
-            var groupLabel3 = new Label { Text = "FILES", Left = 560, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
-            var openOutputBtn = CreateStyledButton("📁 Open", 560, 28, 95, 42, buttonColor, headerTextColor);
-            var clearDirBtn = CreateStyledButton("🗑 Clear", 665, 28, 95, 42, warningColor, headerTextColor);
+            _groupLabel3 = new Label { Text = "FILES", Left = 560, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _openOutputBtn = CreateStyledButton("📁 Open", 560, 28, 95, 42, Color.Gray, Color.White);
+            _clearDirBtn = CreateStyledButton("🗑 Clear", 665, 28, 95, 42, Color.Gray, Color.White);
             
             // Group 4: Configuration (Right)
-            var groupLabel4 = new Label { Text = "SETTINGS", Left = 780, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
-            var locationsBtn = CreateStyledButton("📍 Locations", 780, 28, 105, 42, buttonColor, headerTextColor);
-            var settingsBtn = CreateStyledButton("⚙ Settings", 895, 28, 95, 42, buttonColor, headerTextColor);
-            var aboutBtn = CreateStyledButton("ℹ About", 1000, 28, 85, 42, buttonColor, headerTextColor);
+            _groupLabel4 = new Label { Text = "SETTINGS", Left = 780, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _locationsBtn = CreateStyledButton("📍 Locations", 780, 28, 105, 42, Color.Gray, Color.White);
+            _settingsBtn = CreateStyledButton("⚙ Settings", 895, 28, 95, 42, Color.Gray, Color.White);
+            _aboutBtn = CreateStyledButton("ℹ About", 1000, 28, 85, 42, Color.Gray, Color.White);
 
             // Progress & Status (Row 2) with Enhanced Readability
-            var progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
-            _progress = new TextProgressBar { Left = 15, Top = 100, Width = 520, Height = 30, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = headerTextColor };
+            _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _progress = new TextProgressBar { Left = 15, Top = 100, Width = 520, Height = 30, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
             
-            var statusLabel2 = new Label { Text = "STATUS", Left = 555, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
-            _statusLabel = new Label { Left = 555, Top = 100, Width = 250, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 11F, FontStyle.Bold), ForeColor = successColor, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
-            _sleepLabel = new Label { Left = 555, Top = 122, Width = 250, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), ForeColor = labelTextColor, BackColor = Color.Transparent };
-            _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 30, Text = "📡 Last fetch: Never", Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 6, 0, 0), ForeColor = headerTextColor, BackColor = ColorTranslator.FromHtml("#34495E") };
+            _statusLabel2 = new Label { Text = "STATUS", Left = 555, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _statusLabel = new Label { Left = 555, Top = 100, Width = 250, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 11F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
+            _sleepLabel = new Label { Left = 555, Top = 122, Width = 250, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = Color.Transparent };
+            _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 30, Text = "📡 Last fetch: Never", Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 6, 0, 0) };
 
             // --- Log Controls Panel with Enhanced Readability ---
-            var logPanel = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = primaryColor, Padding = new Padding(10, 8, 10, 8) };
+            _logPanel = new Panel { Dock = DockStyle.Top, Height = 50, Padding = new Padding(10, 8, 10, 8) };
             
-            var lblLog = new Label { Text = "📋 LOGS", Left = 10, Top = 14, AutoSize = true, Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = headerTextColor };
+            _lblLog = new Label { Text = "📋 LOGS", Left = 10, Top = 14, AutoSize = true, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
             
-            _cmbFilter = new ComboBox { Left = 90, Top = 11, Width = 110, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = buttonColor, ForeColor = headerTextColor };
+            _cmbFilter = new ComboBox { Left = 90, Top = 11, Width = 110, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular) };
             _cmbFilter.Items.AddRange(new object[] { "All", "Errors", "Warnings", "Info" });
             _cmbFilter.SelectedIndex = 0;
             _cmbFilter.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _cmbVerbosity = new ComboBox { Left = 210, Top = 11, Width = 105, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = buttonColor, ForeColor = headerTextColor };
+            _cmbVerbosity = new ComboBox { Left = 210, Top = 11, Width = 105, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular) };
             _cmbVerbosity.Items.AddRange(new object[] { "Verbose", "Normal", "Minimal" });
             _cmbVerbosity.SelectedIndex = 1; // Normal
             _cmbVerbosity.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _chkCompact = new CheckBox { Left = 325, Top = 13, Width = 95, Text = "Compact", Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), ForeColor = headerTextColor, FlatStyle = FlatStyle.Flat };
+            _chkCompact = new CheckBox { Left = 325, Top = 13, Width = 95, Text = "Compact", Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
             _chkCompact.CheckedChanged += (s, e) => RefreshLogView();
 
-            _txtSearch = new TextBox { Left = 430, Top = 12, Width = 280, Height = 26, Font = new Font("Segoe UI", 9.5F), BackColor = buttonColor, ForeColor = headerTextColor, BorderStyle = BorderStyle.FixedSingle };
+            _txtSearch = new TextBox { Left = 430, Top = 12, Width = 280, Height = 26, Font = new Font("Segoe UI", 9.5F), BorderStyle = BorderStyle.FixedSingle };
             _txtSearch.PlaceholderText = "🔍 Search logs...";
             _txtSearch.TextChanged += (s, e) => RefreshLogView();
 
-            var clearBtn = CreateStyledButton("Clear", 720, 10, 75, 30, dangerColor, headerTextColor);
-            clearBtn.Click += (s, e) => 
+            _clearLogBtn = CreateStyledButton("Clear", 720, 10, 75, 30, Color.Gray, Color.White);
+            _clearLogBtn.Click += (s, e) => 
             {
                 lock (_logBuffer)
                 {
@@ -126,20 +124,20 @@ namespace WeatherImageGenerator.Forms
                 RefreshLogView();
             };
 
-            logPanel.Controls.Add(lblLog);
-            logPanel.Controls.Add(_cmbFilter);
-            logPanel.Controls.Add(_cmbVerbosity);
-            logPanel.Controls.Add(_chkCompact);
-            logPanel.Controls.Add(_txtSearch);
-            logPanel.Controls.Add(clearBtn);
+            _logPanel.Controls.Add(_lblLog);
+            _logPanel.Controls.Add(_cmbFilter);
+            _logPanel.Controls.Add(_cmbVerbosity);
+            _logPanel.Controls.Add(_chkCompact);
+            _logPanel.Controls.Add(_txtSearch);
+            _logPanel.Controls.Add(_clearLogBtn);
 
-            startBtn.Click += (s, e) => StartClicked(startBtn, stopBtn);
-            stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
-            openOutputBtn.Click += (s, e) => OpenOutputDirectory();
-            clearDirBtn.Click += (s, e) => ClearOutputDirectory();
-            videoBtn.Click += (s, e) => VideoClicked();
-            fetchBtn.Click += (s, e) => FetchClicked(fetchBtn);
-            stillBtn.Click += (s, e) => StillClicked(stillBtn);
+            _startBtn.Click += (s, e) => StartClicked(_startBtn, _stopBtn);
+            _stopBtn.Click += (s, e) => StopClicked(_startBtn, _stopBtn);
+            _openOutputBtn.Click += (s, e) => OpenOutputDirectory();
+            _clearDirBtn.Click += (s, e) => ClearOutputDirectory();
+            _videoBtn.Click += (s, e) => VideoClicked();
+            _fetchBtn.Click += (s, e) => FetchClicked(_fetchBtn);
+            _stillBtn.Click += (s, e) => StillClicked(_stillBtn);
 
             // Subscribe to only the leveled event and receive the explicit LogLevel (fixes coloring detection)
             Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text, level);
@@ -151,18 +149,20 @@ namespace WeatherImageGenerator.Forms
             Program.ProgressUpdated += (pct, msg) => OnProgramProgress(pct, msg);
             VideoGenerator.VideoProgressUpdated += (pct, msg) => OnVideoProgress(pct, msg);
 
-            settingsBtn.Click += (s, e) =>
+            _settingsBtn.Click += (s, e) =>
             {
                 using (var f = new SettingsForm())
                 {
                     if (f.ShowDialog() == DialogResult.OK)
                     {
                         Logger.Log("Settings saved.");
+                        var newConfig = ConfigManager.LoadConfig();
+                        ApplyTheme(newConfig.Theme);
                     }
                 }
             };
 
-            locationsBtn.Click += (s, e) =>
+            _locationsBtn.Click += (s, e) =>
             {
                 using (var f = new LocationsForm())
                 {
@@ -173,7 +173,7 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            aboutBtn.Click += (s, e) =>
+            _aboutBtn.Click += (s, e) =>
             {
                 using (var f = new AboutDialog())
                 {
@@ -181,33 +181,33 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            var panel = new Panel { Dock = DockStyle.Top, Height = 155, BackColor = primaryColor, Padding = new Padding(5) };
+            _topPanel = new Panel { Dock = DockStyle.Top, Height = 155, Padding = new Padding(5) };
             // Add group labels
-            panel.Controls.Add(groupLabel1);
-            panel.Controls.Add(groupLabel2);
-            panel.Controls.Add(groupLabel3);
-            panel.Controls.Add(groupLabel4);
+            _topPanel.Controls.Add(_groupLabel1);
+            _topPanel.Controls.Add(_groupLabel2);
+            _topPanel.Controls.Add(_groupLabel3);
+            _topPanel.Controls.Add(_groupLabel4);
             // Add buttons
-            panel.Controls.Add(videoBtn);
-            panel.Controls.Add(stillBtn);
-            panel.Controls.Add(fetchBtn);
-            panel.Controls.Add(stopBtn);
-            panel.Controls.Add(openOutputBtn);
-            panel.Controls.Add(clearDirBtn);
-            panel.Controls.Add(startBtn);
-            panel.Controls.Add(locationsBtn);
-            panel.Controls.Add(settingsBtn);
-            panel.Controls.Add(aboutBtn);
+            _topPanel.Controls.Add(_videoBtn);
+            _topPanel.Controls.Add(_stillBtn);
+            _topPanel.Controls.Add(_fetchBtn);
+            _topPanel.Controls.Add(_stopBtn);
+            _topPanel.Controls.Add(_openOutputBtn);
+            _topPanel.Controls.Add(_clearDirBtn);
+            _topPanel.Controls.Add(_startBtn);
+            _topPanel.Controls.Add(_locationsBtn);
+            _topPanel.Controls.Add(_settingsBtn);
+            _topPanel.Controls.Add(_aboutBtn);
             // Add progress and status
-            panel.Controls.Add(progressLabel);
-            panel.Controls.Add(statusLabel2);
-            panel.Controls.Add(_progress);
-            panel.Controls.Add(_statusLabel);
-            panel.Controls.Add(_sleepLabel);
+            _topPanel.Controls.Add(_progressLabel);
+            _topPanel.Controls.Add(_statusLabel2);
+            _topPanel.Controls.Add(_progress);
+            _topPanel.Controls.Add(_statusLabel);
+            _topPanel.Controls.Add(_sleepLabel);
             // _lastFetchLabel moved to splitContainer.Panel1
 
-            var splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, BackColor = primaryColor };
-            _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true, BackColor = ColorTranslator.FromHtml("#2C3E50"), ForeColor = headerTextColor, Font = new Font("Segoe UI", 10F, FontStyle.Regular), BorderStyle = BorderStyle.None };
+            _splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
+            _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true, Font = new Font("Segoe UI", 10F, FontStyle.Regular), BorderStyle = BorderStyle.None };
             _weatherList.Columns.Add("📍 Location", 220);
             _weatherList.Columns.Add("🌡 Temp", 90);
             _weatherList.Columns.Add("🤔 Feels Like", 100);
@@ -215,40 +215,175 @@ namespace WeatherImageGenerator.Forms
             _weatherList.Columns.Add("💨 Wind", 160);
             _weatherList.Columns.Add("⚠ Alerts", 240);
 
-            splitContainer.Panel1.Controls.Add(_weatherList);
-            splitContainer.Panel1.Controls.Add(_lastFetchLabel);
+            _splitContainer.Panel1.Controls.Add(_weatherList);
+            _splitContainer.Panel1.Controls.Add(_lastFetchLabel);
             // Docking order is reverse of Z-order. Send label to back so it is docked first (Top), 
             // then list fills the remaining space.
             _lastFetchLabel.SendToBack();
             _weatherList.BringToFront();
             
             // Add log controls panel first (Dock=Top) then rich text box (Dock=Fill)
-            splitContainer.Panel2.Controls.Add(logPanel);
-            splitContainer.Panel2.Controls.Add(rich);
-            rich.BringToFront(); // Ensure rich text box fills remaining space correctly if needed, but usually Dock order is reverse of Add order?
-            // Actually: "Controls added to a container are docked in the reverse order of the z-order."
-            // So the last added control is at the top of the z-order and gets docked first? No.
-            // "The control at the top of the Z-order is docked last."
-            // So if I want logPanel at Top, and rich at Fill.
-            // I should add rich first, then logPanel?
-            // Let's try adding logPanel (Top) then rich (Fill).
-            // If logPanel is Top, it takes the top strip. rich (Fill) takes the rest.
-            // But if rich is added first, it fills everything. Then logPanel is added... where?
-            // Let's stick to: Add logPanel, Add rich. And set logPanel.SendToBack() (bottom of Z-order -> docked first).
-            // Or just rely on the fact that Dock=Top usually takes precedence over Dock=Fill if added in correct order.
-            // Let's just add them and see. Usually adding Top then Fill works.
+            _splitContainer.Panel2.Controls.Add(_logPanel);
+            _splitContainer.Panel2.Controls.Add(_logBox);
+            _logBox.BringToFront(); 
             
             // Make console smaller (Panel2 is bottom)
-            splitContainer.SplitterDistance = 300;
-            splitContainer.SplitterWidth = 6;
-            splitContainer.Panel1.BackColor = secondaryColor;
-            splitContainer.Panel2.BackColor = primaryColor;
+            _splitContainer.SplitterDistance = 300;
+            _splitContainer.SplitterWidth = 6;
 
-            this.Controls.Add(splitContainer);
-            this.Controls.Add(panel);
+            this.Controls.Add(_splitContainer);
+            this.Controls.Add(_topPanel);
 
             Program.WeatherDataFetched += OnWeatherDataFetched;
             Program.AlertsFetched += OnAlertsFetched;
+
+            var cfg = ConfigManager.LoadConfig();
+            ApplyTheme(cfg.Theme);
+        }
+
+        private void ApplyTheme(string? themeName)
+        {
+            themeName ??= "Blue";
+            Color primaryColor, secondaryColor, accentColor, successColor, warningColor, dangerColor;
+            Color lightTextColor, headerTextColor, labelTextColor, bgColor, buttonColor;
+            Color coloredBtnText, neutralBtnText, warningBtnText;
+
+            switch (themeName.ToLowerInvariant())
+            {
+                case "light":
+                    primaryColor = ColorTranslator.FromHtml("#F8F9FA");
+                    secondaryColor = ColorTranslator.FromHtml("#FFFFFF");
+                    accentColor = ColorTranslator.FromHtml("#0D6EFD"); // Bootstrap Primary Blue
+                    successColor = ColorTranslator.FromHtml("#198754"); // Bootstrap Success Green
+                    warningColor = ColorTranslator.FromHtml("#FFC107"); // Bootstrap Warning Yellow
+                    dangerColor = ColorTranslator.FromHtml("#DC3545"); // Bootstrap Danger Red
+                    
+                    lightTextColor = ColorTranslator.FromHtml("#212529"); // Dark text for light bg
+                    headerTextColor = ColorTranslator.FromHtml("#212529");
+                    labelTextColor = ColorTranslator.FromHtml("#495057");
+                    bgColor = ColorTranslator.FromHtml("#FFFFFF"); // Log box bg
+                    buttonColor = ColorTranslator.FromHtml("#DEE2E6"); // Light gray button
+                    
+                    coloredBtnText = Color.White;
+                    neutralBtnText = Color.Black;
+                    warningBtnText = Color.Black; // Black on Yellow
+                    break;
+
+                case "dark":
+                    primaryColor = ColorTranslator.FromHtml("#121212");
+                    secondaryColor = ColorTranslator.FromHtml("#1E1E1E");
+                    accentColor = ColorTranslator.FromHtml("#3498DB");
+                    successColor = ColorTranslator.FromHtml("#27AE60");
+                    warningColor = ColorTranslator.FromHtml("#F39C12");
+                    dangerColor = ColorTranslator.FromHtml("#E74C3C");
+                    
+                    lightTextColor = ColorTranslator.FromHtml("#E0E0E0");
+                    headerTextColor = ColorTranslator.FromHtml("#FFFFFF");
+                    labelTextColor = ColorTranslator.FromHtml("#B0B0B0");
+                    bgColor = ColorTranslator.FromHtml("#1E1E1E");
+                    buttonColor = ColorTranslator.FromHtml("#333333"); // Lighter than bg
+                    
+                    coloredBtnText = Color.White;
+                    neutralBtnText = Color.White;
+                    warningBtnText = Color.Black;
+                    break;
+
+                case "green":
+                    primaryColor = ColorTranslator.FromHtml("#102018"); // Very dark green
+                    secondaryColor = ColorTranslator.FromHtml("#1B3A28");
+                    accentColor = ColorTranslator.FromHtml("#2E8B57"); // SeaGreen
+                    successColor = ColorTranslator.FromHtml("#27AE60");
+                    warningColor = ColorTranslator.FromHtml("#F39C12");
+                    dangerColor = ColorTranslator.FromHtml("#E74C3C");
+                    
+                    lightTextColor = ColorTranslator.FromHtml("#E8F8F1");
+                    headerTextColor = ColorTranslator.FromHtml("#FFFFFF");
+                    labelTextColor = ColorTranslator.FromHtml("#A0C0B0");
+                    bgColor = ColorTranslator.FromHtml("#0A1510");
+                    buttonColor = ColorTranslator.FromHtml("#2D5A40"); // Distinct from bg
+                    
+                    coloredBtnText = Color.White;
+                    neutralBtnText = Color.White;
+                    warningBtnText = Color.Black;
+                    break;
+
+                default: // blue
+                    primaryColor = ColorTranslator.FromHtml("#2C3E50");
+                    secondaryColor = ColorTranslator.FromHtml("#34495E");
+                    accentColor = ColorTranslator.FromHtml("#3498DB");
+                    successColor = ColorTranslator.FromHtml("#27AE60");
+                    warningColor = ColorTranslator.FromHtml("#F39C12");
+                    dangerColor = ColorTranslator.FromHtml("#E74C3C");
+                    
+                    lightTextColor = ColorTranslator.FromHtml("#ECF0F1");
+                    headerTextColor = ColorTranslator.FromHtml("#FFFFFF");
+                    labelTextColor = ColorTranslator.FromHtml("#BDC3C7");
+                    bgColor = ColorTranslator.FromHtml("#233140"); // Darker blue for logs
+                    buttonColor = ColorTranslator.FromHtml("#4E6781"); // Lighter blue-grey
+                    
+                    coloredBtnText = Color.White;
+                    neutralBtnText = Color.White;
+                    warningBtnText = Color.Black;
+                    break;
+            }
+
+            // Update class-level theme colors
+            _themeSuccessColor = successColor;
+            _themeDangerColor = dangerColor;
+            _themeWarningColor = warningColor;
+            _themeAccentColor = accentColor;
+            _themeTextColor = headerTextColor;
+
+            this.BackColor = primaryColor;
+            if (_logBox != null) { _logBox.BackColor = bgColor; _logBox.ForeColor = lightTextColor; }
+            if (_topPanel != null) _topPanel.BackColor = primaryColor;
+            if (_logPanel != null) _logPanel.BackColor = primaryColor;
+            if (_splitContainer != null) { _splitContainer.BackColor = primaryColor; _splitContainer.Panel1.BackColor = secondaryColor; _splitContainer.Panel2.BackColor = primaryColor; }
+            if (_weatherList != null) { _weatherList.BackColor = secondaryColor; _weatherList.ForeColor = headerTextColor; }
+            if (_lastFetchLabel != null) { _lastFetchLabel.BackColor = secondaryColor; _lastFetchLabel.ForeColor = headerTextColor; }
+            
+            // Labels
+            void SetLabel(Label? l, Color c) { if (l != null) l.ForeColor = c; }
+            SetLabel(_groupLabel1, labelTextColor);
+            SetLabel(_groupLabel2, labelTextColor);
+            SetLabel(_groupLabel3, labelTextColor);
+            SetLabel(_groupLabel4, labelTextColor);
+            SetLabel(_progressLabel, labelTextColor);
+            SetLabel(_statusLabel2, labelTextColor);
+            SetLabel(_lblLog, headerTextColor);
+            SetLabel(_sleepLabel, labelTextColor);
+            if (_statusLabel != null) _statusLabel.ForeColor = successColor; // Idle is success color usually
+
+            // Buttons
+            void SetBtn(Button? b, Color bg, Color fg) { 
+                if (b != null) { 
+                    b.BackColor = bg; 
+                    b.ForeColor = fg; 
+                    b.FlatAppearance.BorderColor = ControlPaint.Light(bg, 0.2f);
+                    b.FlatAppearance.MouseOverBackColor = ControlPaint.Light(bg, 0.15f);
+                    b.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(bg, 0.15f);
+                } 
+            }
+            SetBtn(_startBtn, successColor, coloredBtnText);
+            SetBtn(_stopBtn, dangerColor, coloredBtnText);
+            SetBtn(_fetchBtn, accentColor, coloredBtnText);
+            SetBtn(_stillBtn, accentColor, coloredBtnText);
+            SetBtn(_videoBtn, accentColor, coloredBtnText);
+            SetBtn(_openOutputBtn, buttonColor, neutralBtnText);
+            SetBtn(_clearDirBtn, warningColor, warningBtnText);
+            SetBtn(_locationsBtn, buttonColor, neutralBtnText);
+            SetBtn(_settingsBtn, buttonColor, neutralBtnText);
+            SetBtn(_aboutBtn, buttonColor, neutralBtnText);
+            SetBtn(_clearLogBtn, dangerColor, coloredBtnText);
+
+            // Combos & Inputs
+            void SetCombo(ComboBox? c) { if (c != null) { c.BackColor = buttonColor; c.ForeColor = neutralBtnText; } }
+            SetCombo(_cmbFilter);
+            SetCombo(_cmbVerbosity);
+            if (_chkCompact != null) _chkCompact.ForeColor = headerTextColor;
+            if (_txtSearch != null) { _txtSearch.BackColor = buttonColor; _txtSearch.ForeColor = neutralBtnText; }
+            if (_progress != null) _progress.ForeColor = headerTextColor;
+        
         }
 
         private Button CreateStyledButton(string text, int left, int top, int width, int height, Color backColor, Color foreColor)
@@ -985,9 +1120,9 @@ namespace WeatherImageGenerator.Forms
             // Gentle color coding for statuses
             if (status == null) status = string.Empty;
             var lower = status.ToLowerInvariant();
-            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("fail")) _statusLabel.ForeColor = Color.Red;
-            else if (lower.Contains("encoding") || lower.Contains("video") || lower.Contains("running")) _statusLabel.ForeColor = Color.Cyan;
-            else _statusLabel.ForeColor = Color.Black;
+            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("fail")) _statusLabel.ForeColor = _themeDangerColor;
+            else if (lower.Contains("encoding") || lower.Contains("video") || lower.Contains("running")) _statusLabel.ForeColor = _themeAccentColor;
+            else _statusLabel.ForeColor = _themeTextColor;
 
             _statusLabel.Text = status;
         }
@@ -1227,7 +1362,16 @@ namespace WeatherImageGenerator.Forms
                 var lblCopyright = new Label { Text = copyright, Left = 20, Top = 85, Width = 520, Font = new Font("Segoe UI", 10F) };
 
                 var githubUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator";
-                var linkGithub = new LinkLabel { Text = "GitHub Repository", Left = 20, Top = 120, Width = 520, LinkColor = System.Drawing.Color.Blue, Font = new Font("Segoe UI", 10F) };
+                var aboutCfg = ConfigManager.LoadConfig();
+                var aboutTheme = aboutCfg.Theme ?? "Blue";
+                Color aboutAccent = aboutTheme.ToLowerInvariant() switch
+                {
+                    "light" => ColorTranslator.FromHtml("#1976D2"),
+                    "dark" => ColorTranslator.FromHtml("#61AFEF"),
+                    "green" => ColorTranslator.FromHtml("#27AE60"),
+                    _ => ColorTranslator.FromHtml("#3498DB")
+                };
+                var linkGithub = new LinkLabel { Text = "GitHub Repository", Left = 20, Top = 120, Width = 520, LinkColor = aboutAccent, Font = new Font("Segoe UI", 10F) };
                 linkGithub.LinkClicked += (s, e) => OpenUrl(githubUrl);
 
                 var lblDesc = new Label 

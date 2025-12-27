@@ -15,6 +15,7 @@ namespace WeatherImageGenerator.Forms
         NumericUpDown numFade;
         CheckBox chkFade;
         NumericUpDown numRefresh;
+        ComboBox cmbTheme;
         NumericUpDown numImgWidth;
         NumericUpDown numImgHeight;
         ComboBox cmbImgFormat;
@@ -54,6 +55,12 @@ namespace WeatherImageGenerator.Forms
             numRefresh = new NumericUpDown { Left = leftField, Top = gTop, Width = 80, Minimum = 1, Maximum = 1440, Value = 10 };
             
             gTop += rowH;
+            var lblTheme = new Label { Text = "Theme:", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbTheme = new ComboBox { Left = leftField, Top = gTop, Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbTheme.Items.AddRange(new object[] { "Blue", "Light", "Dark", "Green" });
+            cmbTheme.SelectedIndex = 0;
+
+            gTop += rowH;
             var lblOutImg = new Label { Text = "Image Output Dir:", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
             txtImageOutputDir = new TextBox { Left = leftField, Top = gTop, Width = 300 };
             var btnBrowseImg = new Button { Text = "...", Left = 470, Top = gTop - 1, Width = 40, Height = 23 };
@@ -65,7 +72,7 @@ namespace WeatherImageGenerator.Forms
             var btnBrowseVid = new Button { Text = "...", Left = 470, Top = gTop - 1, Width = 40, Height = 23 };
             btnBrowseVid.Click += (s, e) => BrowseClicked(txtVideoOutputDir);
 
-            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid });
+            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid });
 
             // --- Image Tab ---
             var tabImage = new TabPage("Image");
@@ -246,6 +253,10 @@ namespace WeatherImageGenerator.Forms
                 chkEnableProvinceRadar.Checked = cfg.ECCC?.EnableProvinceRadar ?? true;
                 chkEnableWeatherMaps.Checked = cfg.ImageGeneration?.EnableWeatherMaps ?? true;
 
+                var theme = cfg.Theme ?? "Blue";
+                if (cmbTheme.Items.Contains(theme)) cmbTheme.SelectedItem = theme;
+                else cmbTheme.SelectedItem = "Blue"; 
+
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
                 chkFade.Checked = cfg.Video?.EnableFadeTransitions ?? false;
@@ -311,7 +322,8 @@ namespace WeatherImageGenerator.Forms
             try
             {
                 var cfg = ConfigManager.LoadConfig();
-                cfg.RefreshTimeMinutes = (int)numRefresh.Value;
+                var oldTheme = cfg.Theme;
+                cfg.RefreshTimeMinutes = (int)numRefresh.Value; 
 
                 var imageGen = cfg.ImageGeneration ?? new ImageGenerationSettings();
                 imageGen.OutputDirectory = ToRelative(txtImageOutputDir.Text, "WeatherImages");
@@ -354,8 +366,12 @@ namespace WeatherImageGenerator.Forms
                 v.EnableHardwareEncoding = chkEnableHardwareEncoding.Checked;
                 cfg.Video = v;
 
+                // Persist theme choice
+                cfg.Theme = cmbTheme.SelectedItem?.ToString() ?? "Blue";
+
                 ConfigManager.SaveConfig(cfg);
-                this.DialogResult = DialogResult.OK;
+
+                this.DialogResult = DialogResult.OK; 
             }
             catch (Exception ex)
             {
