@@ -41,7 +41,7 @@ namespace WeatherImageGenerator.Forms
         {
             this.Text = "Settings";
             this.Width = 700;
-            this.Height = 600;
+            this.Height = 700;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
