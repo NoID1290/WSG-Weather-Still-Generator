@@ -3,9 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WeatherImageGenerator.Utilities;
+using WeatherImageGenerator.Models;
 
 namespace WeatherImageGenerator.Services
 {
@@ -123,6 +125,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("MinimizeToTrayOnClose")]
         public bool MinimizeToTrayOnClose { get; set; } = false;
+
+        [JsonPropertyName("Music")]
+        public MusicSettings? Music { get; set; }
     }
 
     /// <summary>
@@ -371,5 +376,65 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("UserAgent")]
         public string? UserAgent { get; set; }
+    }
+
+    /// <summary>
+    /// Music settings for video generation
+    /// </summary>
+    public class MusicSettings
+    {
+        [JsonPropertyName("musicTracks")]
+        public List<MusicEntry>? MusicTracks { get; set; }
+
+        [JsonPropertyName("selectedMusicIndex")]
+        public int SelectedMusicIndex { get; set; } = -1; // -1 means random
+
+        [JsonPropertyName("useRandomMusic")]
+        public bool UseRandomMusic { get; set; } = true;
+
+        /// <summary>
+        /// Gets the selected music entry, or a random one if UseRandomMusic is true
+        /// </summary>
+        public MusicEntry? GetSelectedMusic()
+        {
+            if (MusicTracks == null || MusicTracks.Count == 0)
+                return null;
+
+            // Filter to only existing files
+            var validTracks = MusicTracks.Where(m => m.FileExists()).ToList();
+            if (validTracks.Count == 0)
+                return null;
+
+            // If random is enabled, pick a random valid track
+            if (UseRandomMusic || SelectedMusicIndex < 0 || SelectedMusicIndex >= validTracks.Count)
+            {
+                var random = new Random();
+                return validTracks[random.Next(validTracks.Count)];
+            }
+
+            // Otherwise return the selected index from valid tracks
+            return validTracks[SelectedMusicIndex];
+        }
+
+        /// <summary>
+        /// Initializes default demo music tracks
+        /// </summary>
+        public static MusicSettings CreateDefault(string basePath)
+        {
+            var musicDir = Path.Combine(basePath, "Music");
+            
+            return new MusicSettings
+            {
+                UseRandomMusic = true,
+                SelectedMusicIndex = -1,
+                MusicTracks = new List<MusicEntry>
+                {
+                    new MusicEntry("Calm Ambient", Path.Combine(musicDir, "demo_calm_ambient.mp3"), true),
+                    new MusicEntry("Upbeat Energy", Path.Combine(musicDir, "demo_upbeat_energy.mp3"), true),
+                    new MusicEntry("Smooth Jazz", Path.Combine(musicDir, "demo_smooth_jazz.mp3"), true),
+                    new MusicEntry("Electronic Chill", Path.Combine(musicDir, "demo_electronic_chill.mp3"), true)
+                }
+            };
+        }
     }
 }

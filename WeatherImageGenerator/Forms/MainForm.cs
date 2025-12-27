@@ -31,7 +31,7 @@ namespace WeatherImageGenerator.Forms
         private SplitContainer? _splitContainer;
         private Panel? _topPanel;
         private Panel? _logPanel;
-        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _settingsBtn, _aboutBtn, _clearLogBtn;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn;
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
 
         // Theme colors for dynamic updates
@@ -53,7 +53,7 @@ namespace WeatherImageGenerator.Forms
         public MainForm()
         {
             this.Text = "WSG - WeatherStillGenerator";
-            this.Width = 1120;
+            this.Width = 1100;
             this.Height = 700;
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -61,37 +61,39 @@ namespace WeatherImageGenerator.Forms
             _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9.5F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
             // Note: RichTextBox with Dock=Fill doesn't support Region properly, so we skip rounding for it
             
-            // === CONTROL GROUPS - Organized by Function ===
-            // Group 1: Control Operations (Left)
+            // === CONTROL GROUPS - Reorganized for Better Layout ===
+            // Row 1: Main Operations
+            // Group 1: Control Operations
             _groupLabel1 = new Label { Text = "CONTROL", Left = 15, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _startBtn = CreateStyledButton("▶ Start", 15, 28, 95, 42, Color.Gray, Color.White);
-            _stopBtn = CreateStyledButton("⏹ Stop", 120, 28, 95, 42, Color.Gray, Color.White);
+            _startBtn = CreateStyledButton("▶ Start", 15, 28, 100, 38, Color.Gray, Color.White);
+            _stopBtn = CreateStyledButton("⏹ Stop", 125, 28, 100, 38, Color.Gray, Color.White);
             _stopBtn.Enabled = false;
             
-            // Group 2: Generation Operations (Center-Left)
-            _groupLabel2 = new Label { Text = "GENERATE", Left = 235, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _fetchBtn = CreateStyledButton("🔄 Fetch", 235, 28, 95, 42, Color.Gray, Color.White);
-            _stillBtn = CreateStyledButton("📷 Still", 340, 28, 95, 42, Color.Gray, Color.White);
-            _videoBtn = CreateStyledButton("🎬 Video", 445, 28, 95, 42, Color.Gray, Color.White);
+            // Group 2: Generation Operations
+            _groupLabel2 = new Label { Text = "GENERATE", Left = 245, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _fetchBtn = CreateStyledButton("🔄 Fetch", 245, 28, 100, 38, Color.Gray, Color.White);
+            _stillBtn = CreateStyledButton("📷 Still", 355, 28, 100, 38, Color.Gray, Color.White);
+            _videoBtn = CreateStyledButton("🎬 Video", 465, 28, 100, 38, Color.Gray, Color.White);
             
-            // Group 3: File Operations (Center-Right)
-            _groupLabel3 = new Label { Text = "FILES", Left = 560, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _openOutputBtn = CreateStyledButton("📁 Open", 560, 28, 95, 42, Color.Gray, Color.White);
-            _clearDirBtn = CreateStyledButton("🗑 Clear", 665, 28, 95, 42, Color.Gray, Color.White);
+            // Group 3: File Operations
+            _groupLabel3 = new Label { Text = "FILES", Left = 585, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _openOutputBtn = CreateStyledButton("📁 Open", 585, 28, 100, 38, Color.Gray, Color.White);
+            _clearDirBtn = CreateStyledButton("🗑 Clear", 695, 28, 100, 38, Color.Gray, Color.White);
             
-            // Group 4: Configuration (Right)
-            _groupLabel4 = new Label { Text = "SETTINGS", Left = 780, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _locationsBtn = CreateStyledButton("📍 Locations", 780, 28, 105, 42, Color.Gray, Color.White);
-            _settingsBtn = CreateStyledButton("⚙ Settings", 895, 28, 95, 42, Color.Gray, Color.White);
-            _aboutBtn = CreateStyledButton("ℹ About", 1000, 28, 85, 42, Color.Gray, Color.White);
+            // Row 2: Settings & Configuration (2 rows)
+            _groupLabel4 = new Label { Text = "SETTINGS", Left = 815, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _locationsBtn = CreateStyledButton("📍 Locations", 815, 28, 120, 38, Color.Gray, Color.White);
+            _musicBtn = CreateStyledButton("🎵 Music", 945, 28, 120, 38, Color.Gray, Color.White);
+            _settingsBtn = CreateStyledButton("⚙ Settings", 815, 76, 120, 38, Color.Gray, Color.White);
+            _aboutBtn = CreateStyledButton("ℹ About", 945, 76, 120, 38, Color.Gray, Color.White);
 
-            // Progress & Status (Row 2) with Enhanced Readability
-            _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _progress = new TextProgressBar { Left = 15, Top = 100, Width = 520, Height = 30, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
+            // Progress & Status (Below buttons - adjusted for 2-row settings)
+            _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _progress = new TextProgressBar { Left = 15, Top = 144, Width = 600, Height = 28, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
             
-            _statusLabel2 = new Label { Text = "STATUS", Left = 555, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _statusLabel = new Label { Left = 555, Top = 100, Width = 520, Height = 30, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 10F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
-            _sleepLabel = new Label { Left = 555, Top = 132, Width = 520, Height = 20, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = Color.Transparent };
+            _statusLabel2 = new Label { Text = "STATUS", Left = 635, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _statusLabel = new Label { Left = 635, Top = 144, Width = 440, Height = 28, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 10F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
+            _sleepLabel = new Label { Left = 635, Top = 174, Width = 440, Height = 20, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = Color.Transparent };
             _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 30, Text = "📡 Last fetch: Never", Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 6, 0, 0) };
 
             // --- Log Controls Panel with Enhanced Readability ---
@@ -175,6 +177,17 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
+            _musicBtn.Click += (s, e) =>
+            {
+                using (var f = new MusicForm())
+                {
+                    if (f.ShowDialog() == DialogResult.OK)
+                    {
+                        Logger.Log("Music settings updated.");
+                    }
+                }
+            };
+
             _aboutBtn.Click += (s, e) =>
             {
                 using (var f = new AboutDialog())
@@ -183,7 +196,7 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            _topPanel = new Panel { Dock = DockStyle.Top, Height = 155, Padding = new Padding(5) };
+            _topPanel = new Panel { Dock = DockStyle.Top, Height = 200, Padding = new Padding(5) };
             // Add group labels
             _topPanel.Controls.Add(_groupLabel1);
             _topPanel.Controls.Add(_groupLabel2);
@@ -198,6 +211,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_clearDirBtn);
             _topPanel.Controls.Add(_startBtn);
             _topPanel.Controls.Add(_locationsBtn);
+            _topPanel.Controls.Add(_musicBtn);
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
             // Add progress and status
@@ -379,6 +393,7 @@ namespace WeatherImageGenerator.Forms
             SetBtn(_openOutputBtn, buttonColor, neutralBtnText);
             SetBtn(_clearDirBtn, warningColor, warningBtnText);
             SetBtn(_locationsBtn, buttonColor, neutralBtnText);
+            SetBtn(_musicBtn, buttonColor, neutralBtnText);
             SetBtn(_settingsBtn, buttonColor, neutralBtnText);
             SetBtn(_aboutBtn, buttonColor, neutralBtnText);
             SetBtn(_clearLogBtn, dangerColor, coloredBtnText);
@@ -642,6 +657,9 @@ namespace WeatherImageGenerator.Forms
                         ShowFfmpegOutputInGui = config.Video?.ShowFfmpegOutputInGui ?? true,
                         EnableHardwareEncoding = config.Video?.EnableHardwareEncoding ?? false
                     };
+
+                    // Load music from configuration (handles random/specific selection)
+                    videoGenerator.LoadMusicFromConfig();
 
                     videoGenerator.GenerateVideo();
                 }

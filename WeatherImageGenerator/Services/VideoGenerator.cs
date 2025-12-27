@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using WeatherImageGenerator.Utilities;
+using WeatherImageGenerator.Models;
 
 namespace WeatherImageGenerator.Services
 {
@@ -82,6 +83,55 @@ namespace WeatherImageGenerator.Services
             ImageFolder = workingDirectory;
             OutputFile = Path.Combine(workingDirectory, "slideshow_v3.mp4");
             MusicFile = Path.Combine(workingDirectory, "music.mp3");
+        }
+
+        /// <summary>
+        /// Loads music file from configuration. If music management is configured, 
+        /// selects music based on settings (random or specific). Otherwise falls back to default MusicFile.
+        /// </summary>
+        public void LoadMusicFromConfig()
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var musicSettings = config.Music;
+
+                if (musicSettings != null && musicSettings.MusicTracks != null && musicSettings.MusicTracks.Count > 0)
+                {
+                    var selectedMusic = musicSettings.GetSelectedMusic();
+                    
+                    if (selectedMusic != null && selectedMusic.FileExists())
+                    {
+                        MusicFile = selectedMusic.FilePath;
+                        Logger.Log($"[MUSIC] Selected: {selectedMusic.Name} ({Path.GetFileName(MusicFile)})", 
+                            System.ConsoleColor.Magenta);
+                        return;
+                    }
+                    else if (selectedMusic != null)
+                    {
+                        Logger.Log($"[MUSIC] Selected music file not found: {selectedMusic.FilePath}", 
+                            System.ConsoleColor.Yellow);
+                    }
+                }
+                
+                // Fallback: check if default music.mp3 exists in working directory
+                var defaultMusic = Path.Combine(WorkingDirectory, "music.mp3");
+                if (File.Exists(defaultMusic))
+                {
+                    MusicFile = defaultMusic;
+                    Logger.Log($"[MUSIC] Using default: {Path.GetFileName(defaultMusic)}", 
+                        System.ConsoleColor.Cyan);
+                }
+                else
+                {
+                    Logger.Log("[MUSIC] No music file configured or found. Video will be generated without audio.", 
+                        System.ConsoleColor.Yellow);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[MUSIC] Error loading music from config: {ex.Message}", System.ConsoleColor.Yellow);
+            }
         }
 
         /// <summary>
