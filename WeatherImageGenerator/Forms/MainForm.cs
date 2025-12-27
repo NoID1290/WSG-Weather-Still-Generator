@@ -14,6 +14,8 @@ namespace WeatherImageGenerator.Forms
     public class MainForm : Form
     {
         private CancellationTokenSource? _cts;
+        private NotifyIcon? _notifyIcon;
+        private bool _isMinimizedToTray = false;
         // Store text together with the explicit LogLevel so rendering is deterministic
         private readonly System.Collections.Generic.List<(string Text, Logger.LogLevel Level)> _logBuffer = new System.Collections.Generic.List<(string Text, Logger.LogLevel Level)>();
         private ComboBox? _cmbFilter;
@@ -239,6 +241,11 @@ namespace WeatherImageGenerator.Forms
 
             var cfg = ConfigManager.LoadConfig();
             ApplyTheme(cfg.Theme);
+            
+            // Setup NotifyIcon for minimize to tray
+            InitializeNotifyIcon();
+            this.Resize += MainForm_Resize;
+            this.FormClosing += MainForm_FormClosing;
         }
 
         private void ApplyTheme(string? themeName)
@@ -408,6 +415,88 @@ namespace WeatherImageGenerator.Forms
             btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(backColor, 0.15f);
             btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(backColor, 0.15f);
             return btn;
+        }
+
+        private void InitializeNotifyIcon()
+        {
+            _notifyIcon = new NotifyIcon
+            {
+                Text = "WSG - WeatherStillGenerator",
+                Visible = false
+            };
+
+            // Use application icon or a default system icon
+            try
+            {
+                _notifyIcon.Icon = this.Icon ?? SystemIcons.Application;
+            }
+            catch
+            {
+                _notifyIcon.Icon = SystemIcons.Application;
+            }
+
+            // Create context menu for the tray icon
+            var contextMenu = new ContextMenuStrip();
+            var openItem = new ToolStripMenuItem("Open", null, (s, e) => RestoreFromTray());
+            var exitItem = new ToolStripMenuItem("Exit", null, (s, e) => Application.Exit());
+            contextMenu.Items.Add(openItem);
+            contextMenu.Items.Add(new ToolStripSeparator());
+            contextMenu.Items.Add(exitItem);
+            _notifyIcon.ContextMenuStrip = contextMenu;
+
+            // Double-click to restore
+            _notifyIcon.DoubleClick += (s, e) => RestoreFromTray();
+        }
+
+        private void MainForm_Resize(object? sender, EventArgs e)
+        {
+            var cfg = ConfigManager.LoadConfig();
+            if (cfg.MinimizeToTray && this.WindowState == FormWindowState.Minimized)
+            {
+                MinimizeToTray();
+            }
+        }
+
+        private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            var cfg = ConfigManager.LoadConfig();
+            // If MinimizeToTrayOnClose is enabled and the user clicked the X button (not from Application.Exit)
+            if (cfg.MinimizeToTrayOnClose && e.CloseReason == CloseReason.UserClosing && !_isMinimizedToTray)
+            {
+                e.Cancel = true;
+                MinimizeToTray();
+            }
+        }
+
+        private void MinimizeToTray()
+        {
+            this.Hide();
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Visible = true;
+                _isMinimizedToTray = true;
+            }
+        }
+
+        private void RestoreFromTray()
+        {
+            this.Show();
+            this.WindowState = FormWindowState.Normal;
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Visible = false;
+                _isMinimizedToTray = false;
+            }
+            this.Activate();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _notifyIcon?.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         private void OnAlertsFetched(System.Collections.Generic.List<AlertEntry> alerts)

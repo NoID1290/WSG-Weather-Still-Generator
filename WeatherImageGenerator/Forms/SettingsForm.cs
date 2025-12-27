@@ -30,6 +30,8 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkVerbose;
         CheckBox chkShowFfmpeg;
         CheckBox chkEnableHardwareEncoding; // New: toggle NVENC / hardware encoding
+        CheckBox chkMinimizeToTray; // Enable minimize to system tray
+        CheckBox chkMinimizeToTrayOnClose; // Minimize to tray when closing
         Label lblHwStatus;
         Label lblFfmpegInstalled;
         Button btnCheckHw;
@@ -72,7 +74,13 @@ namespace WeatherImageGenerator.Forms
             var btnBrowseVid = new Button { Text = "...", Left = 470, Top = gTop - 1, Width = 40, Height = 23 };
             btnBrowseVid.Click += (s, e) => BrowseClicked(txtVideoOutputDir);
 
-            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid });
+            gTop += rowH;
+            chkMinimizeToTray = new CheckBox { Text = "Minimize to system tray", Left = leftLabel, Top = gTop, Width = 300 };
+
+            gTop += rowH;
+            chkMinimizeToTrayOnClose = new CheckBox { Text = "Minimize to tray on close (X button)", Left = leftLabel, Top = gTop, Width = 300 };
+
+            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose });
 
             // --- Image Tab ---
             var tabImage = new TabPage("Image");
@@ -255,7 +263,10 @@ namespace WeatherImageGenerator.Forms
 
                 var theme = cfg.Theme ?? "Blue";
                 if (cmbTheme.Items.Contains(theme)) cmbTheme.SelectedItem = theme;
-                else cmbTheme.SelectedItem = "Blue"; 
+                else cmbTheme.SelectedItem = "Blue";
+
+                chkMinimizeToTray.Checked = cfg.MinimizeToTray;
+                chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose; 
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -368,6 +379,10 @@ namespace WeatherImageGenerator.Forms
 
                 // Persist theme choice
                 cfg.Theme = cmbTheme.SelectedItem?.ToString() ?? "Blue";
+
+                // Persist minimize to tray settings
+                cfg.MinimizeToTray = chkMinimizeToTray.Checked;
+                cfg.MinimizeToTrayOnClose = chkMinimizeToTrayOnClose.Checked;
 
                 ConfigManager.SaveConfig(cfg);
 

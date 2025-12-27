@@ -117,6 +117,12 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("Theme")]
         public string Theme { get; set; } = "Blue";
+
+        [JsonPropertyName("MinimizeToTray")]
+        public bool MinimizeToTray { get; set; } = false;
+
+        [JsonPropertyName("MinimizeToTrayOnClose")]
+        public bool MinimizeToTrayOnClose { get; set; } = false;
     }
 
     /// <summary>
