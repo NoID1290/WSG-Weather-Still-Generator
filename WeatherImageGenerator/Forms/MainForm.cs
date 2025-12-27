@@ -52,9 +52,10 @@ namespace WeatherImageGenerator.Forms
             var videoBtn = new Button { Text = "Video", Left = 310, Top = 10, Width = 70, Height = 30 };
             
             var openOutputBtn = new Button { Text = "Open Dir", Left = 385, Top = 10, Width = 70, Height = 30 };
-            var locationsBtn = new Button { Text = "Locations", Left = 460, Top = 10, Width = 80, Height = 30 };
-            var settingsBtn = new Button { Text = "Settings", Left = 545, Top = 10, Width = 70, Height = 30 };
-            var aboutBtn = new Button { Text = "About", Left = 620, Top = 10, Width = 70, Height = 30 };
+            var clearDirBtn = new Button { Text = "Clear Dir", Left = 460, Top = 10, Width = 70, Height = 30 };
+            var locationsBtn = new Button { Text = "Locations", Left = 535, Top = 10, Width = 80, Height = 30 };
+            var settingsBtn = new Button { Text = "Settings", Left = 620, Top = 10, Width = 70, Height = 30 };
+            var aboutBtn = new Button { Text = "About", Left = 695, Top = 10, Width = 70, Height = 30 };
 
             // Progress & Status (Row 2)
             _progress = new TextProgressBar { Left = 10, Top = 50, Width = 370, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
@@ -104,6 +105,7 @@ namespace WeatherImageGenerator.Forms
             startBtn.Click += (s, e) => StartClicked(startBtn, stopBtn);
             stopBtn.Click += (s, e) => StopClicked(startBtn, stopBtn);
             openOutputBtn.Click += (s, e) => OpenOutputDirectory();
+            clearDirBtn.Click += (s, e) => ClearOutputDirectory();
             videoBtn.Click += (s, e) => VideoClicked();
             fetchBtn.Click += (s, e) => FetchClicked(fetchBtn);
             stillBtn.Click += (s, e) => StillClicked(stillBtn);
@@ -154,6 +156,7 @@ namespace WeatherImageGenerator.Forms
             panel.Controls.Add(fetchBtn);
             panel.Controls.Add(stopBtn);
             panel.Controls.Add(openOutputBtn);
+            panel.Controls.Add(clearDirBtn);
             panel.Controls.Add(startBtn);
             panel.Controls.Add(locationsBtn);
             panel.Controls.Add(settingsBtn);
@@ -949,6 +952,85 @@ namespace WeatherImageGenerator.Forms
             {
                 Logger.Log($"Error opening output directory: {ex.Message}", Logger.LogLevel.Error);
                 MessageBox.Show($"Could not open output directory: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ClearOutputDirectory()
+        {
+            try
+            {
+                var result = MessageBox.Show(
+                    "This will delete all generated images and videos in the output directory. Are you sure?",
+                    "Clear Output Directory",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (result != DialogResult.Yes)
+                    return;
+
+                var config = ConfigManager.LoadConfig();
+                string imageDir = config.ImageGeneration?.OutputDirectory ?? "WeatherImages";
+                if (!System.IO.Path.IsPathRooted(imageDir))
+                {
+                    imageDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, imageDir);
+                }
+
+                string videoDir = config.Video?.OutputDirectory ?? imageDir;
+                if (!System.IO.Path.IsPathRooted(videoDir))
+                {
+                    videoDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, videoDir);
+                }
+
+                int deletedCount = 0;
+
+                // Delete image files
+                if (System.IO.Directory.Exists(imageDir))
+                {
+                    var imageExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
+                    foreach (var ext in imageExtensions)
+                    {
+                        foreach (var file in System.IO.Directory.GetFiles(imageDir, $"*{ext}"))
+                        {
+                            System.IO.File.Delete(file);
+                            deletedCount++;
+                        }
+                    }
+                }
+
+                // Delete video files (if video directory is different from image directory)
+                if (System.IO.Directory.Exists(videoDir) && !string.Equals(videoDir, imageDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    var videoExtensions = new[] { ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".webm" };
+                    foreach (var ext in videoExtensions)
+                    {
+                        foreach (var file in System.IO.Directory.GetFiles(videoDir, $"*{ext}"))
+                        {
+                            System.IO.File.Delete(file);
+                            deletedCount++;
+                        }
+                    }
+                }
+                else if (string.Equals(videoDir, imageDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Same directory, delete video files
+                    var videoExtensions = new[] { ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".webm" };
+                    foreach (var ext in videoExtensions)
+                    {
+                        foreach (var file in System.IO.Directory.GetFiles(videoDir, $"*{ext}"))
+                        {
+                            System.IO.File.Delete(file);
+                            deletedCount++;
+                        }
+                    }
+                }
+
+                Logger.Log($"Deleted {deletedCount} file(s) from output directory.", Logger.LogLevel.Info);
+                MessageBox.Show($"Successfully deleted {deletedCount} file(s).", "Clear Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error clearing output directory: {ex.Message}", Logger.LogLevel.Error);
+                MessageBox.Show($"Could not clear output directory: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
