@@ -37,55 +37,86 @@ namespace WeatherImageGenerator.Forms
 
         public MainForm()
         {
+            // Modern color scheme with enhanced readability
+            Color primaryColor = ColorTranslator.FromHtml("#2C3E50");
+            Color secondaryColor = ColorTranslator.FromHtml("#34495E");
+            Color accentColor = ColorTranslator.FromHtml("#3498DB");
+            Color successColor = ColorTranslator.FromHtml("#27AE60");
+            Color warningColor = ColorTranslator.FromHtml("#F39C12");
+            Color dangerColor = ColorTranslator.FromHtml("#E74C3C");
+            Color lightTextColor = ColorTranslator.FromHtml("#E8E8E8");  // Softer white for better readability
+            Color headerTextColor = ColorTranslator.FromHtml("#F8F8F2"); // Slightly warm white
+            Color labelTextColor = ColorTranslator.FromHtml("#BDC3C7");  // Softer gray for labels
+            Color bgColor = ColorTranslator.FromHtml("#1E1E1E");
 
             this.Text = "WSG - WeatherStillGenerator";
-            this.Width = 950;
-            this.Height = 600;
+            this.Width = 1100;
+            this.Height = 700;
+            this.BackColor = ColorTranslator.FromHtml("#2C3E50");
+            this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
+            this.StartPosition = FormStartPosition.CenterScreen;
 
-            var rich = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", BackColor = System.Drawing.Color.Black, ForeColor = System.Drawing.Color.LightGray, Font = new System.Drawing.Font("Segoe UI", 10F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical };
+            var rich = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", BackColor = bgColor, ForeColor = lightTextColor, Font = new System.Drawing.Font("Consolas", 9.5F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
+            // Note: RichTextBox with Dock=Fill doesn't support Region properly, so we skip rounding for it
             
-            // --- Top Panel Controls ---
-            var startBtn = new Button { Text = "Start", Left = 10, Top = 10, Width = 70, Height = 30 };
-            var stopBtn = new Button { Text = "Stop", Left = 85, Top = 10, Width = 70, Height = 30, Enabled = false };
-            var fetchBtn = new Button { Text = "Fetch", Left = 160, Top = 10, Width = 70, Height = 30 };
-            var stillBtn = new Button { Text = "Still", Left = 235, Top = 10, Width = 70, Height = 30 };
-            var videoBtn = new Button { Text = "Video", Left = 310, Top = 10, Width = 70, Height = 30 };
-            
-            var openOutputBtn = new Button { Text = "Open Dir", Left = 385, Top = 10, Width = 70, Height = 30 };
-            var clearDirBtn = new Button { Text = "Clear Dir", Left = 460, Top = 10, Width = 70, Height = 30 };
-            var locationsBtn = new Button { Text = "Locations", Left = 535, Top = 10, Width = 80, Height = 30 };
-            var settingsBtn = new Button { Text = "Settings", Left = 620, Top = 10, Width = 70, Height = 30 };
-            var aboutBtn = new Button { Text = "About", Left = 695, Top = 10, Width = 70, Height = 30 };
+            Color buttonColor = ColorTranslator.FromHtml("#34495E");
 
-            // Progress & Status (Row 2)
-            _progress = new TextProgressBar { Left = 10, Top = 50, Width = 370, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
-            _statusLabel = new Label { Left = 400, Top = 50, Width = 200, Text = "Idle", AutoSize = true };
-            _sleepLabel = new Label { Left = 400, Top = 70, Width = 200, Text = string.Empty, AutoSize = true };
-            _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 20, Text = "Last fetch: Never", Font = new Font("Segoe UI", 8F, FontStyle.Italic), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(5, 0, 0, 0) };
+            // === CONTROL GROUPS - Organized by Function ===
+            // Group 1: Control Operations (Left)
+            var groupLabel1 = new Label { Text = "CONTROL", Left = 15, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
+            var startBtn = CreateStyledButton("▶ Start", 15, 28, 95, 42, successColor, headerTextColor);
+            var stopBtn = CreateStyledButton("⏹ Stop", 120, 28, 95, 42, dangerColor, headerTextColor);
+            stopBtn.Enabled = false;
+            
+            // Group 2: Generation Operations (Center-Left)
+            var groupLabel2 = new Label { Text = "GENERATE", Left = 235, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
+            var fetchBtn = CreateStyledButton("🔄 Fetch", 235, 28, 95, 42, accentColor, headerTextColor);
+            var stillBtn = CreateStyledButton("📷 Still", 340, 28, 95, 42, accentColor, headerTextColor);
+            var videoBtn = CreateStyledButton("🎬 Video", 445, 28, 95, 42, accentColor, headerTextColor);
+            
+            // Group 3: File Operations (Center-Right)
+            var groupLabel3 = new Label { Text = "FILES", Left = 560, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
+            var openOutputBtn = CreateStyledButton("📁 Open", 560, 28, 95, 42, buttonColor, headerTextColor);
+            var clearDirBtn = CreateStyledButton("🗑 Clear", 665, 28, 95, 42, warningColor, headerTextColor);
+            
+            // Group 4: Configuration (Right)
+            var groupLabel4 = new Label { Text = "SETTINGS", Left = 780, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
+            var locationsBtn = CreateStyledButton("📍 Locations", 780, 28, 105, 42, buttonColor, headerTextColor);
+            var settingsBtn = CreateStyledButton("⚙ Settings", 895, 28, 95, 42, buttonColor, headerTextColor);
+            var aboutBtn = CreateStyledButton("ℹ About", 1000, 28, 85, 42, buttonColor, headerTextColor);
 
-            // --- Log Controls (Separate Panel) ---
-            var logPanel = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = SystemColors.Control };
+            // Progress & Status (Row 2) with Enhanced Readability
+            var progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
+            _progress = new TextProgressBar { Left = 15, Top = 100, Width = 520, Height = 30, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = headerTextColor };
             
-            var lblLog = new Label { Text = "Logs:", Left = 10, Top = 12, AutoSize = true };
+            var statusLabel2 = new Label { Text = "STATUS", Left = 555, Top = 80, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold), ForeColor = labelTextColor };
+            _statusLabel = new Label { Left = 555, Top = 100, Width = 250, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 11F, FontStyle.Bold), ForeColor = successColor, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
+            _sleepLabel = new Label { Left = 555, Top = 122, Width = 250, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), ForeColor = labelTextColor, BackColor = Color.Transparent };
+            _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 30, Text = "📡 Last fetch: Never", Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 6, 0, 0), ForeColor = headerTextColor, BackColor = ColorTranslator.FromHtml("#34495E") };
+
+            // --- Log Controls Panel with Enhanced Readability ---
+            var logPanel = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = primaryColor, Padding = new Padding(10, 8, 10, 8) };
             
-            _cmbFilter = new ComboBox { Left = 60, Top = 8, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
+            var lblLog = new Label { Text = "📋 LOGS", Left = 10, Top = 14, AutoSize = true, Font = new Font("Segoe UI", 10F, FontStyle.Bold), ForeColor = headerTextColor };
+            
+            _cmbFilter = new ComboBox { Left = 90, Top = 11, Width = 110, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = buttonColor, ForeColor = headerTextColor };
             _cmbFilter.Items.AddRange(new object[] { "All", "Errors", "Warnings", "Info" });
             _cmbFilter.SelectedIndex = 0;
             _cmbFilter.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _cmbVerbosity = new ComboBox { Left = 170, Top = 8, Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cmbVerbosity = new ComboBox { Left = 210, Top = 11, Width = 105, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = buttonColor, ForeColor = headerTextColor };
             _cmbVerbosity.Items.AddRange(new object[] { "Verbose", "Normal", "Minimal" });
             _cmbVerbosity.SelectedIndex = 1; // Normal
             _cmbVerbosity.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _chkCompact = new CheckBox { Left = 270, Top = 10, Width = 80, Text = "Compact" };
+            _chkCompact = new CheckBox { Left = 325, Top = 13, Width = 95, Text = "Compact", Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), ForeColor = headerTextColor, FlatStyle = FlatStyle.Flat };
             _chkCompact.CheckedChanged += (s, e) => RefreshLogView();
 
-            _txtSearch = new TextBox { Left = 360, Top = 8, Width = 200 };
-            _txtSearch.PlaceholderText = "Search logs...";
+            _txtSearch = new TextBox { Left = 430, Top = 12, Width = 280, Height = 26, Font = new Font("Segoe UI", 9.5F), BackColor = buttonColor, ForeColor = headerTextColor, BorderStyle = BorderStyle.FixedSingle };
+            _txtSearch.PlaceholderText = "🔍 Search logs...";
             _txtSearch.TextChanged += (s, e) => RefreshLogView();
 
-            var clearBtn = new Button { Text = "Clear", Left = 570, Top = 7, Width = 60, Height = 25 };
+            var clearBtn = CreateStyledButton("Clear", 720, 10, 75, 30, dangerColor, headerTextColor);
             clearBtn.Click += (s, e) => 
             {
                 lock (_logBuffer)
@@ -150,7 +181,13 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            var panel = new Panel { Dock = DockStyle.Top, Height = 90 };
+            var panel = new Panel { Dock = DockStyle.Top, Height = 155, BackColor = primaryColor, Padding = new Padding(5) };
+            // Add group labels
+            panel.Controls.Add(groupLabel1);
+            panel.Controls.Add(groupLabel2);
+            panel.Controls.Add(groupLabel3);
+            panel.Controls.Add(groupLabel4);
+            // Add buttons
             panel.Controls.Add(videoBtn);
             panel.Controls.Add(stillBtn);
             panel.Controls.Add(fetchBtn);
@@ -161,19 +198,22 @@ namespace WeatherImageGenerator.Forms
             panel.Controls.Add(locationsBtn);
             panel.Controls.Add(settingsBtn);
             panel.Controls.Add(aboutBtn);
+            // Add progress and status
+            panel.Controls.Add(progressLabel);
+            panel.Controls.Add(statusLabel2);
             panel.Controls.Add(_progress);
             panel.Controls.Add(_statusLabel);
             panel.Controls.Add(_sleepLabel);
             // _lastFetchLabel moved to splitContainer.Panel1
 
-            var splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
-            _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true };
-            _weatherList.Columns.Add("Location", 200);
-            _weatherList.Columns.Add("Temp", 80);
-            _weatherList.Columns.Add("Feels Like", 80);
-            _weatherList.Columns.Add("Condition", 150);
-            _weatherList.Columns.Add("Wind", 150);
-            _weatherList.Columns.Add("Alerts", 200);
+            var splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, BackColor = primaryColor };
+            _weatherList = new ListView { Dock = DockStyle.Fill, View = View.Details, GridLines = true, FullRowSelect = true, BackColor = ColorTranslator.FromHtml("#2C3E50"), ForeColor = headerTextColor, Font = new Font("Segoe UI", 10F, FontStyle.Regular), BorderStyle = BorderStyle.None };
+            _weatherList.Columns.Add("📍 Location", 220);
+            _weatherList.Columns.Add("🌡 Temp", 90);
+            _weatherList.Columns.Add("🤔 Feels Like", 100);
+            _weatherList.Columns.Add("☁ Condition", 160);
+            _weatherList.Columns.Add("💨 Wind", 160);
+            _weatherList.Columns.Add("⚠ Alerts", 240);
 
             splitContainer.Panel1.Controls.Add(_weatherList);
             splitContainer.Panel1.Controls.Add(_lastFetchLabel);
@@ -199,13 +239,40 @@ namespace WeatherImageGenerator.Forms
             // Let's just add them and see. Usually adding Top then Fill works.
             
             // Make console smaller (Panel2 is bottom)
-            splitContainer.SplitterDistance = 350;
+            splitContainer.SplitterDistance = 300;
+            splitContainer.SplitterWidth = 6;
+            splitContainer.Panel1.BackColor = secondaryColor;
+            splitContainer.Panel2.BackColor = primaryColor;
 
             this.Controls.Add(splitContainer);
             this.Controls.Add(panel);
 
             Program.WeatherDataFetched += OnWeatherDataFetched;
             Program.AlertsFetched += OnAlertsFetched;
+        }
+
+        private Button CreateStyledButton(string text, int left, int top, int width, int height, Color backColor, Color foreColor)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Left = left,
+                Top = top,
+                Width = width,
+                Height = height,
+                BackColor = backColor,
+                ForeColor = foreColor,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleCenter,
+                UseVisualStyleBackColor = false
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.BorderColor = ControlPaint.Light(backColor, 0.2f);
+            btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(backColor, 0.15f);
+            btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(backColor, 0.15f);
+            return btn;
         }
 
         private void OnAlertsFetched(System.Collections.Generic.List<AlertEntry> alerts)
