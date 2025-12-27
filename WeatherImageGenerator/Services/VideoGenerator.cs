@@ -82,7 +82,7 @@ namespace WeatherImageGenerator.Services
             WorkingDirectory = workingDirectory;
             ImageFolder = workingDirectory;
             OutputFile = Path.Combine(workingDirectory, "slideshow_v3.mp4");
-            MusicFile = Path.Combine(workingDirectory, "music.mp3");
+            MusicFile = ""; // Will be set by LoadMusicFromConfig()
         }
 
         /// <summary>
@@ -95,6 +95,14 @@ namespace WeatherImageGenerator.Services
             {
                 var config = ConfigManager.LoadConfig();
                 var musicSettings = config.Music;
+
+                // Check if music is enabled in settings
+                if (musicSettings != null && !musicSettings.EnableMusicInVideo)
+                {
+                    MusicFile = "";
+                    Logger.Log("[MUSIC] Music disabled in settings", System.ConsoleColor.Gray);
+                    return;
+                }
 
                 if (musicSettings != null && musicSettings.MusicTracks != null && musicSettings.MusicTracks.Count > 0)
                 {
@@ -114,7 +122,21 @@ namespace WeatherImageGenerator.Services
                     }
                 }
                 
-                // Fallback: check if default music.mp3 exists in working directory
+                // Fallback 1: Try first demo music file
+                var musicFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Music");
+                if (Directory.Exists(musicFolder))
+                {
+                    var demoFiles = Directory.GetFiles(musicFolder, "demo_*.mp3");
+                    if (demoFiles.Length > 0)
+                    {
+                        MusicFile = demoFiles[0];
+                        Logger.Log($"[MUSIC] Using demo music: {Path.GetFileName(MusicFile)}", 
+                            System.ConsoleColor.Cyan);
+                        return;
+                    }
+                }
+                
+                // Fallback 2: check if music.mp3 exists in working directory
                 var defaultMusic = Path.Combine(WorkingDirectory, "music.mp3");
                 if (File.Exists(defaultMusic))
                 {
@@ -124,6 +146,7 @@ namespace WeatherImageGenerator.Services
                 }
                 else
                 {
+                    MusicFile = ""; // No music file
                     Logger.Log("[MUSIC] No music file configured or found. Video will be generated without audio.", 
                         System.ConsoleColor.Yellow);
                 }

@@ -31,6 +31,7 @@ namespace WeatherImageGenerator.Forms
         private Label lblCount;
         private Label lblSelection;
         private GroupBox grpSelection;
+        private CheckBox chkEnableMusic;
         private readonly List<MusicEntry> _musicTracks;
 
         public MusicForm()
@@ -243,6 +244,23 @@ namespace WeatherImageGenerator.Forms
             grpSelection.Controls.Add(rbRandom);
             grpSelection.Controls.Add(rbSpecific);
 
+            // Enable/Disable music checkbox
+            chkEnableMusic = new CheckBox
+            {
+                Text = "✓ Enable music in video generation",
+                Left = 10,
+                Top = 465,
+                Width = 350,
+                Height = 25,
+                Checked = true,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                ForeColor = Color.DarkGreen
+            };
+            chkEnableMusic.CheckedChanged += (s, e) => 
+            {
+                chkEnableMusic.ForeColor = chkEnableMusic.Checked ? Color.DarkGreen : Color.Gray;
+            };
+
             // Bottom buttons
             btnSave = new Button
             {
@@ -271,7 +289,7 @@ namespace WeatherImageGenerator.Forms
             {
                 lblInfo, lstMusic, lblCount, lblName, txtMusicName,
                 lblPath, txtMusicPath, btnBrowse, btnAdd, btnEdit, btnRemove,
-                separator, btnMoveUp, btnMoveDown, grpSelection, btnSave, btnCancel
+                separator, btnMoveUp, btnMoveDown, grpSelection, chkEnableMusic, btnSave, btnCancel
             });
 
             this.AcceptButton = btnAdd;
@@ -303,6 +321,7 @@ namespace WeatherImageGenerator.Forms
                 // Set selection mode
                 rbRandom.Checked = musicSettings.UseRandomMusic;
                 rbSpecific.Checked = !musicSettings.UseRandomMusic;
+                chkEnableMusic.Checked = musicSettings.EnableMusicInVideo;
 
                 RefreshMusicList();
             }
@@ -595,6 +614,7 @@ namespace WeatherImageGenerator.Forms
                 config.Music.SelectedMusicIndex = rbSpecific.Checked && lstMusic.SelectedIndex >= 0
                     ? lstMusic.SelectedIndex
                     : -1;
+                config.Music.EnableMusicInVideo = chkEnableMusic.Checked;
 
                 ConfigManager.SaveConfig(config);
 
