@@ -100,10 +100,13 @@ namespace WeatherImageGenerator.Forms
             cmbImgFormat.SelectedIndex = 0;
 
             iTop += rowH;
-            chkEnableProvinceRadar = new CheckBox { Text = "Enable Province Radar Animation", Left = leftLabel, Top = iTop, Width = 250 };
+            chkEnableProvinceRadar = new CheckBox { Text = "Enable Province Radar Animation", Left = leftLabel, Top = iTop, Width = 250, Enabled = false };
 
             iTop += rowH;
-            chkEnableWeatherMaps = new CheckBox { Text = "Enable Weather Maps Generation", Left = leftLabel, Top = iTop, Width = 250 };
+            chkEnableWeatherMaps = new CheckBox { Text = "Enable Weather Maps Generation", Left = leftLabel, Top = iTop, Width = 250, Enabled = false };
+
+            iTop += rowH;
+            var lblRadarBroken = new Label { Text = "Note: Radar options are currently broken and disabled", Left = leftLabel + 10, Top = iTop, Width = 400, ForeColor = System.Drawing.Color.Red, AutoSize = false };
 
             iTop += rowH;
             var btnRegenIcons = new Button { Text = "Regenerate Icons", Left = leftLabel, Top = iTop, Width = 150, Height = 25 };
@@ -131,7 +134,7 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons });
+            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps, lblRadarBroken, btnRegenIcons });
 
             // --- Video Tab ---
             var tabVideo = new TabPage("Video");
