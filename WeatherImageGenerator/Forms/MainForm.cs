@@ -1056,7 +1056,17 @@ namespace WeatherImageGenerator.Forms
 
                     pb.Click += (s, e) => {
                         try {
-                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = file, UseShellExecute = true });
+                            // Get all media files for navigation
+                            var allFiles = System.IO.Directory.GetFiles(path)
+                                .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || 
+                                            f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || 
+                                            f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                                .OrderByDescending(f => System.IO.File.GetCreationTime(f))
+                                .Take(50)
+                                .ToArray();
+                            
+                            var viewer = new MediaViewerForm(file, allFiles);
+                            viewer.ShowDialog(this);
                         } catch (Exception ex) {
                             MessageBox.Show($"Could not open file: {ex.Message}");
                         }
