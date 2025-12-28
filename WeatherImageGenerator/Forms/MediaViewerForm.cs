@@ -51,6 +51,7 @@ namespace WeatherImageGenerator.Forms
         private Button? _playPauseBtn;
         private Process? _ffplayProcess;
         private bool _isVideoPlaying = false;
+        private int _videoControlHeight = 0;
 
         public MediaViewerForm(string filePath, string[] allMediaFiles)
         {
@@ -137,6 +138,9 @@ namespace WeatherImageGenerator.Forms
                 Visible = false
             };
             _mediaPanel.Controls.Add(_videoPanel);
+
+            // Ensure we resize any embedded video when the panel changes size
+            _videoPanel.Resize += VideoPanel_Resize;
 
             this.Controls.Add(_mediaPanel);
             this.Controls.Add(topPanel);
@@ -335,12 +339,15 @@ namespace WeatherImageGenerator.Forms
                 BackColor = Color.FromArgb(45, 45, 45)
             };
 
+            // remember control height to size the embedded player correctly
+            _videoControlHeight = controlPanel.Height;
+
             // Info label at top
             var infoLabel = new Label
             {
                 Left = 20,
                 Top = 10,
-                Width = controlPanel.Width - 40,
+                Width = Math.Max(0, controlPanel.ClientSize.Width - 40),
                 ForeColor = Color.White,
                 Text = "Click Play to watch the video inline",
                 Font = new Font("Segoe UI", 9F),
@@ -358,15 +365,22 @@ namespace WeatherImageGenerator.Forms
                 BackColor = Color.FromArgb(0, 120, 215),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.None
             };
-            _playPauseBtn.Left = (controlPanel.Width - _playPauseBtn.Width) / 2;
-            _playPauseBtn.Anchor = AnchorStyles.Top;
+            _playPauseBtn.Left = Math.Max(0, (controlPanel.ClientSize.Width - _playPauseBtn.Width) / 2);
             _playPauseBtn.FlatAppearance.BorderSize = 0;
             _playPauseBtn.Click += PlayPauseBtn_Click;
 
             controlPanel.Controls.Add(infoLabel);
             controlPanel.Controls.Add(_playPauseBtn);
+
+            // Re-center controls and update widths when control panel resizes
+            controlPanel.Resize += (s, e) =>
+            {
+                _playPauseBtn.Left = Math.Max(0, (controlPanel.ClientSize.Width - _playPauseBtn.Width) / 2);
+                infoLabel.Width = Math.Max(0, controlPanel.ClientSize.Width - 40);
+            };
 
             _videoPanel.Controls.Add(controlPanel);
             _pictureBox.BringToFront();
@@ -392,61 +406,177 @@ namespace WeatherImageGenerator.Forms
                     if (_pictureBox != null)
                         _pictureBox.Visible = false;
 
-                    // Start ffplay process
-                    var psi = new ProcessStartInfo
+                    // Start ffplay process with aspect-preserving scaling and letterboxing
+                    int playerWidth = Math.Max(2, _videoPanel.ClientSize.Width);
+                    int playerHeight = Math.Max(2, _videoPanel.ClientSize.Height - _videoControlHeight);
+
+                    // Use ffmpeg filters that preserve aspect ratio and pad to the desired size
+                    string vfPad = $"scale=w={playerWidth}:h=-2:force_original_aspect_ratio=decrease,pad=w={playerWidth}:h={playerHeight}:x=(ow-iw)/2:y=(oh-ih)/2";
+                    string vfNoPad = $"scale=w={playerWidth}:h=-2:force_original_aspect_ratio=decrease";
+
+                    try
                     {
-                        FileName = "ffplay",
-                        Arguments = $"-autoexit -noborder -loop 0 \"{_filePath}\"",
-                        UseShellExecute = false,
-                        CreateNoWindow = false
-                    };
-
-                    _ffplayProcess = Process.Start(psi);
-
-                    if (_ffplayProcess != null)
-                    {
-                        // Poll for the window handle
-                        IntPtr ffplayHandle = await GetFFPlayWindowHandleAsync(_ffplayProcess);
-
-                        if (ffplayHandle != IntPtr.Zero)
+                        var psi = new ProcessStartInfo
                         {
-                            // Embed the ffplay window into our video panel
-                            SetParent(ffplayHandle, _videoPanel.Handle);
+                            FileName = "ffplay",
+                            Arguments = $"-autoexit -noborder -loop 0 -vf \"{vfPad}\" \"{_filePath}\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardError = true,
+                            RedirectStandardOutput = true
+                        };
 
-                            // Remove window border and title bar
-                            int style = GetWindowLong(ffplayHandle, GWL_STYLE);
-                            style &= ~(WS_CAPTION | WS_BORDER);
-                            style |= WS_CHILD;
-                            SetWindowLong(ffplayHandle, GWL_STYLE, style);
+                        var outputSb = new System.Text.StringBuilder();
+                        var errorSb = new System.Text.StringBuilder();
 
-                            // Resize to fit the panel
-                            MoveWindow(ffplayHandle, 0, 0, _videoPanel.Width, _videoPanel.Height - 80, true);
+                        _ffplayProcess = Process.Start(psi);
 
-                            // Set up resize handler
-                            _videoPanel.Resize += VideoPanel_Resize;
+                        if (_ffplayProcess != null)
+                        {
+                            // capture output to help debugging if ffplay fails
+                            _ffplayProcess.OutputDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) outputSb.AppendLine(ea.Data); };
+                            _ffplayProcess.ErrorDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) errorSb.AppendLine(ea.Data); };
+                            _ffplayProcess.BeginOutputReadLine();
+                            _ffplayProcess.BeginErrorReadLine();
 
-                            // Monitor process exit
-                            _ffplayProcess.EnableRaisingEvents = true;
-                            _ffplayProcess.Exited += (s, ev) => 
+                            // Poll for the window handle
+                            IntPtr ffplayHandle = await GetFFPlayWindowHandleAsync(_ffplayProcess);
+
+                            if (ffplayHandle != IntPtr.Zero)
                             {
-                                if (this.InvokeRequired)
+                                // Embed the ffplay window into our video panel
+                                SetParent(ffplayHandle, _videoPanel.Handle);
+
+                                // Remove window border and title bar
+                                int style = GetWindowLong(ffplayHandle, GWL_STYLE);
+                                style &= ~(WS_CAPTION | WS_BORDER);
+                                style |= WS_CHILD;
+                                SetWindowLong(ffplayHandle, GWL_STYLE, style);
+
+                                // Size embedded video to current panel immediately
+                                VideoPanel_Resize(null, EventArgs.Empty);
+
+                                // Monitor process exit
+                                _ffplayProcess.EnableRaisingEvents = true;
+                                _ffplayProcess.Exited += (s, ev) => 
                                 {
-                                    this.Invoke(new Action(() => OnVideoEnded()));
+                                    if (this.InvokeRequired)
+                                    {
+                                        this.Invoke(new Action(() => OnVideoEnded()));
+                                    }
+                                    else
+                                    {
+                                        OnVideoEnded();
+                                    }
+                                };
+
+                                _playPauseBtn.Text = "⏸ Stop Video";
+                                _isVideoPlaying = true;
+                            }
+                            else
+                            {
+                                // Process started but didn't produce a window. Give more useful info.
+                                string stdErr = errorSb.ToString().Trim();
+                                string stdOut = outputSb.ToString().Trim();
+
+                                // If we detect the padding error from ffmpeg filters, retry without padding
+                                if (!string.IsNullOrEmpty(stdErr) && (stdErr.Contains("Padded dimensions cannot be smaller") || stdErr.Contains("Failed to configure input pad") || stdErr.Contains("Parsed_pad")))
+                                {
+                                    Logger.Log("ffplay pad error detected, retrying without pad.", Logger.LogLevel.Warning);
+                                    try
+                                    {
+                                        // Clean up previous process if it's still around
+                                        StopVideo();
+
+                                        var psi2 = new ProcessStartInfo
+                                        {
+                                            FileName = "ffplay",
+                                            Arguments = $"-autoexit -noborder -loop 0 -vf \"{vfNoPad}\" \"{_filePath}\"",
+                                            UseShellExecute = false,
+                                            CreateNoWindow = true,
+                                            RedirectStandardError = true,
+                                            RedirectStandardOutput = true
+                                        };
+
+                                        outputSb.Clear();
+                                        errorSb.Clear();
+
+                                        _ffplayProcess = Process.Start(psi2);
+                                        if (_ffplayProcess != null)
+                                        {
+                                            _ffplayProcess.OutputDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) outputSb.AppendLine(ea.Data); };
+                                            _ffplayProcess.ErrorDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) errorSb.AppendLine(ea.Data); };
+                                            _ffplayProcess.BeginOutputReadLine();
+                                            _ffplayProcess.BeginErrorReadLine();
+
+                                            IntPtr ffplayHandle2 = await GetFFPlayWindowHandleAsync(_ffplayProcess);
+
+                                            if (ffplayHandle2 != IntPtr.Zero)
+                                            {
+                                                SetParent(ffplayHandle2, _videoPanel.Handle);
+                                                int style2 = GetWindowLong(ffplayHandle2, GWL_STYLE);
+                                                style2 &= ~(WS_CAPTION | WS_BORDER);
+                                                style2 |= WS_CHILD;
+                                                SetWindowLong(ffplayHandle2, GWL_STYLE, style2);
+
+                                                VideoPanel_Resize(null, EventArgs.Empty);
+
+                                                _ffplayProcess.EnableRaisingEvents = true;
+                                                _ffplayProcess.Exited += (s, ev) =>
+                                                {
+                                                    if (this.InvokeRequired)
+                                                    {
+                                                        this.Invoke(new Action(() => OnVideoEnded()));
+                                                    }
+                                                    else
+                                                    {
+                                                        OnVideoEnded();
+                                                    }
+                                                };
+
+                                                _playPauseBtn.Text = "⏸ Stop Video";
+                                                _isVideoPlaying = true;
+                                            }
+                                            else
+                                            {
+                                                string details2 = errorSb.ToString().Trim();
+                                                Logger.Log($"ffplay failed to start window after fallback: {details2}", Logger.LogLevel.Warning);
+                                                MessageBox.Show($"Could not start ffplay:\n\n{details2}\n\nMake sure FFplay (part of FFmpeg) is installed and available in your PATH.", "Video Playback Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                                StopVideo();
+                                            }
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Logger.Log($"Fallback ffplay start failed: {ex.Message}", Logger.LogLevel.Error);
+                                        MessageBox.Show($"Could not start ffplay (fallback): {ex.Message}", "Video Playback Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                        StopVideo();
+                                    }
                                 }
                                 else
                                 {
-                                    OnVideoEnded();
-                                }
-                            };
+                                    string details = !string.IsNullOrEmpty(stdErr) ? stdErr : (!string.IsNullOrEmpty(stdOut) ? stdOut : "ffplay did not create a window."
+                                        + " It may not be installed, or it may have exited unexpectedly.");
 
-                            _playPauseBtn.Text = "⏸ Stop Video";
-                            _isVideoPlaying = true;
+                                    Logger.Log($"ffplay failed to start window: {details}", Logger.LogLevel.Warning);
+                                    MessageBox.Show($"Could not start ffplay:\n\n{details}\n\nMake sure FFplay (part of FFmpeg) is installed and available in your PATH.", "Video Playback Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                    StopVideo();
+                                }
+                            }
                         }
-                        else
-                        {
-                            MessageBox.Show("Could not get video player window handle. The video player may not have started correctly.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            StopVideo();
-                        }
+                    }
+                    catch (System.ComponentModel.Win32Exception winEx)
+                    {
+                        // Common when ffplay isn't found
+                        Logger.Log($"ffplay start failed: {winEx.Message}", Logger.LogLevel.Error);
+                        MessageBox.Show("FFplay not found. Please install FFmpeg (which includes ffplay) and add it to your system PATH.", "Video Playback Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        StopVideo();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"Failed to launch ffplay: {ex.Message}", Logger.LogLevel.Error);
+                        MessageBox.Show($"Could not launch video player.\n\nError: {ex.Message}", "Video Playback Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        StopVideo();
                     }
                 }
                 catch (Exception ex)
@@ -496,7 +626,9 @@ namespace WeatherImageGenerator.Forms
                 IntPtr ffplayHandle = _ffplayProcess.MainWindowHandle;
                 if (ffplayHandle != IntPtr.Zero)
                 {
-                    MoveWindow(ffplayHandle, 0, 0, _videoPanel.Width, _videoPanel.Height - 80, true);
+                    int width = _videoPanel.ClientSize.Width;
+                    int height = Math.Max(0, _videoPanel.ClientSize.Height - _videoControlHeight);
+                    MoveWindow(ffplayHandle, 0, 0, width, height, true);
                 }
             }
         }
