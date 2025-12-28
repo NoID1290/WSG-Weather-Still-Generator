@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.9.1228] - 2025-12-28
+
+### Fixed
+- Add video control buttons and time label to MediaViewerForm
+- Fix changelog formatting for version 0.8.7.1228
 ## [0.8.8.1228] - 2025-12-28
 
 ### Fixed
@@ -54,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
