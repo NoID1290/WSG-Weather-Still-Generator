@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.9.0.1228] - 2025-12-28
+
+### Changed
+- Refactor GalleryForm to use a class-level top panel and improve theme application logic
+- Add GalleryForm for displaying weather images and videos with refresh functionality
+- `Added quality preset selection to settings form and updated config manager and appsettings.json accordingly`
+- Adjust MainForm dimensions for improved layout
 ## [0.8.11.1228] - 2025-12-28
 
 ### Fixed
@@ -70,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
