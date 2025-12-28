@@ -538,8 +538,16 @@ namespace WeatherImageGenerator.Forms
             {
                 foreach (ListViewItem item in _weatherList.Items)
                 {
-                    // Simple case-insensitive match
-                    if (string.Equals(item.Text, alert.City, StringComparison.OrdinalIgnoreCase))
+                    // Accent-insensitive and case-insensitive match
+                    // Also check if either string contains the other (for "Quebec" vs "Quebec City")
+                    string normalizedItem = NormalizeForComparison(item.Text);
+                    string normalizedAlert = NormalizeForComparison(alert.City);
+                    
+                    bool isMatch = normalizedItem == normalizedAlert ||
+                                   normalizedItem.Contains(normalizedAlert) ||
+                                   normalizedAlert.Contains(normalizedItem);
+                    
+                    if (isMatch)
                     {
                         string existing = item.SubItems[5].Text;
                         string newAlert = $"{alert.Type}: {alert.Title}";
@@ -567,6 +575,25 @@ namespace WeatherImageGenerator.Forms
                     }
                 }
             }
+        }
+
+        // Helper method to normalize strings for accent-insensitive comparison
+        private static string NormalizeForComparison(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            
+            // Remove accents and convert to lowercase
+            var normalized = text.Normalize(System.Text.NormalizationForm.FormD);
+            var sb = new System.Text.StringBuilder();
+            foreach (var c in normalized)
+            {
+                var category = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
+                if (category != System.Globalization.UnicodeCategory.NonSpacingMark)
+                {
+                    sb.Append(c);
+                }
+            }
+            return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
         }
 
         private void SetSleepRemaining(TimeSpan ts)
