@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.Runtime.InteropServices;
 using WeatherImageGenerator.Utilities;
+using WeatherImageGenerator.Services;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -86,6 +87,7 @@ namespace WeatherImageGenerator.Forms
             this.BackColor = Color.Black;
             this.KeyPreview = true;
             this.KeyDown += MediaViewerForm_KeyDown;
+            this.FormClosed += MediaViewerForm_FormClosed;
 
             // Top panel with controls
             var topPanel = new Panel
@@ -532,6 +534,8 @@ namespace WeatherImageGenerator.Forms
 
                         if (_ffplayProcess != null)
                         {
+                            // Register with ExternalProcessManager for cleanup
+                            ExternalProcessManager.RegisterProcess(_ffplayProcess);
                             // capture output to help debugging if ffplay fails
                             _ffplayProcess.OutputDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) outputSb.AppendLine(ea.Data); };
                             _ffplayProcess.ErrorDataReceived += (s, ea) => 
@@ -641,6 +645,8 @@ namespace WeatherImageGenerator.Forms
                                         _ffplayProcess = Process.Start(psi2);
                                         if (_ffplayProcess != null)
                                         {
+                                            // Register with ExternalProcessManager for cleanup
+                                            ExternalProcessManager.RegisterProcess(_ffplayProcess);
                                             _ffplayProcess.OutputDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) outputSb.AppendLine(ea.Data); };
                                             _ffplayProcess.ErrorDataReceived += (s, ea) => 
                                             { 
@@ -825,12 +831,18 @@ namespace WeatherImageGenerator.Forms
 
         private void StopVideo()
         {
-            if (_ffplayProcess != null && !_ffplayProcess.HasExited)
+            if (_ffplayProcess != null)
             {
                 try
                 {
-                    _ffplayProcess.Kill();
-                    _ffplayProcess.WaitForExit(1000);
+                    // Unregister from ExternalProcessManager first
+                    ExternalProcessManager.UnregisterProcess(_ffplayProcess);
+                    
+                    if (!_ffplayProcess.HasExited)
+                    {
+                        _ffplayProcess.Kill();
+                        _ffplayProcess.WaitForExit(1000);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -921,6 +933,12 @@ namespace WeatherImageGenerator.Forms
             {
                 MessageBox.Show($"Could not open file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void MediaViewerForm_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            // Ensure ffplay process is stopped when form closes
+            StopVideo();
         }
 
         protected override void Dispose(bool disposing)
