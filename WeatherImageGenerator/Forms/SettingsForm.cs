@@ -471,6 +471,21 @@ namespace WeatherImageGenerator.Forms
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
                 chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
+                
+                // Load quality preset
+                var qualityPreset = cfg.Video?.QualityPreset ?? "Balanced";
+                var presetDisplay = qualityPreset switch
+                {
+                    "Ultra" => "Ultra (Best Quality)",
+                    "High" => "High Quality",
+                    "Balanced" => "Balanced",
+                    "Web" => "Web Optimized",
+                    "Low" => "Low Bandwidth",
+                    "Custom" => "Custom",
+                    _ => "Balanced"
+                };
+                if (cmbQualityPreset.Items.Contains(presetDisplay)) cmbQualityPreset.SelectedItem = presetDisplay;
+                else cmbQualityPreset.SelectedIndex = 2; // Default to Balanced
 
                 // Check hardware encoder availability asynchronously and display the result
                 Task.Run(() =>
@@ -600,6 +615,20 @@ namespace WeatherImageGenerator.Forms
                     }
                 }
                 v.EnableHardwareEncoding = chkEnableHardwareEncoding.Checked;
+                
+                // Save quality preset
+                var qualityPresetDisplay = cmbQualityPreset.SelectedItem?.ToString() ?? "Balanced";
+                v.QualityPreset = qualityPresetDisplay switch
+                {
+                    "Ultra (Best Quality)" => "Ultra",
+                    "High Quality" => "High",
+                    "Balanced" => "Balanced",
+                    "Web Optimized" => "Web",
+                    "Low Bandwidth" => "Low",
+                    "Custom" => "Custom",
+                    _ => "Balanced"
+                };
+                
                 cfg.Video = v;
 
                 // Persist theme choice

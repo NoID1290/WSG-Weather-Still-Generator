@@ -247,6 +247,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("doVideoGeneration")]
         public bool doVideoGeneration { get; set; } = true;
+
+        [JsonPropertyName("QualityPreset")]
+        public string? QualityPreset { get; set; } = "Balanced";
     }
 
     /// <summary>
