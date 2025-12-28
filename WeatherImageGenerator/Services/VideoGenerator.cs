@@ -49,9 +49,10 @@ namespace WeatherImageGenerator.Services
         public bool EnableHardwareEncoding { get; set; } = false;
 
         // Audio handling
-        public bool TrimToAudio { get; set; } = false;          // When true, end output when audio ends (-shortest)
+        public bool TrimToAudio { get; set; } = false;          // Deprecated: Audio is always trimmed to video duration
         public string AudioCodec { get; set; } = "aac";         // FFmpeg audio codec
         public string AudioBitrate { get; set; } = "192k";      // Audio bitrate for output
+        public double AudioFadeDuration { get; set; } = 2.0;    // Duration of audio fadeout at end (seconds)
 
         private int _width;
         private int _height;
@@ -561,15 +562,38 @@ namespace WeatherImageGenerator.Services
                 sb.Append($" -i \"{MusicFile}\"");
             }
 
-            // Add filter complex and map the filtered video output
-            sb.Append($" -filter_complex \"{filterComplex}\" -map \"[outv]\"");
-
-            // Map audio if present (after filter_complex and video mapping) and set codec/bitrate
+            // Calculate total video duration based on pictures
+            var effectiveCount = baseImages.Count;
+            double totalVideoDuration;
+            if (EnableFadeTransitions)
+            {
+                totalVideoDuration = StaticDuration * effectiveCount + FadeDuration * Math.Max(0, effectiveCount - 1);
+            }
+            else
+            {
+                totalVideoDuration = (StaticDuration + FadeDuration) * effectiveCount;
+            }
+            var videoDurStr = totalVideoDuration.ToString(_culture);
+            
+            // Build complete filter_complex with audio processing if present
+            string completeFilterComplex = filterComplex;
             if (hasAudio)
             {
                 // Audio index needs to account for the total number of video inputs
                 var audioIndex = baseImages.Count + radarFrames.Count;
-                sb.Append($" -map \"{audioIndex}:a\"");
+                
+                // Calculate fadeout start time (fadeduration seconds before end)
+                var fadeStartTime = Math.Max(0, totalVideoDuration - AudioFadeDuration);
+                var fadeStartStr = fadeStartTime.ToString(_culture);
+                var fadeDurStr = AudioFadeDuration.ToString(_culture);
+                
+                // Add audio filter: trim to video duration and fadeout at the end (needs semicolon separator)
+                completeFilterComplex += $";[{audioIndex}:a]atrim=end={videoDurStr},afade=t=out:st={fadeStartStr}:d={fadeDurStr}[outa]";
+                
+                // Map both video and audio outputs
+                sb.Append($" -filter_complex \"{completeFilterComplex}\" -map \"[outv]\" -map \"[outa]\"");
+                
+                // Set audio codec/bitrate
                 if (!string.IsNullOrWhiteSpace(AudioCodec))
                 {
                     sb.Append($" -c:a {AudioCodec}");
@@ -578,10 +602,11 @@ namespace WeatherImageGenerator.Services
                 {
                     sb.Append($" -b:a {AudioBitrate}");
                 }
-                if (TrimToAudio)
-                {
-                    sb.Append(" -shortest");
-                }
+            }
+            else
+            {
+                // No audio, just map the filtered video output
+                sb.Append($" -filter_complex \"{completeFilterComplex}\" -map \"[outv]\"");
             }
 
             // Video encoding settings
