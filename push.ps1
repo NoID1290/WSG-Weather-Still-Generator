@@ -27,6 +27,9 @@ param(
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
 #$repoRoot = git rev-parse --show-toplevel
 
+# Will populate with changelog content to use as GitHub release notes
+$releaseNotes = $null
+
 if (-not $?) {
     Write-Host "❌ Error: Not in a Git repository!" -ForegroundColor Red
     exit 1
@@ -124,9 +127,96 @@ if (Test-Path $assemblyInfoPath) {
     }
 }
 
-# Stage the updated file
+# Update CHANGELOG.md automatically
+if (-not $SkipVersion) {
+    Write-Host "[CHANGELOG] Updating CHANGELOG.md..." -ForegroundColor Cyan
+    
+    $changelogPath = "CHANGELOG.md"
+    $date = Get-Date -Format "yyyy-MM-dd"
+    
+    # Build the list of changes
+    $commitList = @()
+    
+    # Add the main commit message if it's not the default
+    if ($CommitMessage -and $CommitMessage -ne "Auto-commit: Version update") {
+        # Remove "Auto-commit: " prefix if present and add to list
+        $cleanMessage = $CommitMessage -replace "^Auto-commit:\s*", ""
+        $commitList += "- $cleanMessage"
+    }
+    
+    # Get additional commits since last tag (excluding version update commits)
+    $lastTag = git describe --tags --abbrev=0 2>$null
+    if ($lastTag) {
+        $commits = git log "$lastTag..HEAD" --pretty=format:"%s" --no-merges 2>$null
+        if ($commits) {
+            foreach ($commit in $commits) {
+                # Skip auto-commit and duplicate messages
+                if ($commit -notmatch "^Auto-commit:|^Release |^Version update") {
+                    $entry = "- $commit"
+                    if ($commitList -notcontains $entry) {
+                        $commitList += $entry
+                    }
+                }
+            }
+        }
+    }
+    
+    # If still no commits, use a default message
+    if ($commitList.Count -eq 0) {
+        $commitList = @("- Version bump")
+    }
+    
+    # Determine change category based on Type
+    $categorySection = switch ($Type) {
+        "frontend" { 
+            "### Added`n" + ($commitList -join "`n")
+        }
+        "backend" { 
+            "### Changed`n" + ($commitList -join "`n")
+        }
+        "fix" { 
+            "### Fixed`n" + ($commitList -join "`n")
+        }
+    }
+    
+    # Read current changelog
+    if (Test-Path $changelogPath) {
+        $content = Get-Content $changelogPath -Raw
+        
+        # Create new entry
+        $newEntry = @"
+
+## [$newVersion] - $date
+
+$categorySection
+
+"@
+
+        # Save for GitHub release notes
+        $releaseNotes = $newEntry.Trim()
+        
+        # Find where to insert (after the header, before the first version entry)
+        # Look for the first ## [ pattern which indicates a version entry
+        $pattern = "(?s)(# Changelog.*?)(## \[)"
+        if ($content -match $pattern) {
+            $newContent = $content -replace $pattern, "`$1$newEntry`$2"
+            Set-Content $changelogPath $newContent -Encoding UTF8
+            Write-Host "[SUCCESS] CHANGELOG.md updated with version $newVersion" -ForegroundColor Green
+        } else {
+            Write-Host "[WARNING] Could not find insertion point in CHANGELOG.md" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[WARNING] CHANGELOG.md not found" -ForegroundColor Yellow
+    }
+}
+
+# Stage the updated files
 Write-Host "[STAGING] Changes..." -ForegroundColor Cyan
 git add $projectFilePath
+if (-not $SkipVersion) {
+    git add "CHANGELOG.md"
+    git add $assemblyInfoPath
+}
 
 # Create commit message with version info
 $finalCommitMessage = "$CommitMessage (v$newVersion)"
@@ -188,18 +278,22 @@ if ($NoRelease) {
     # If GitHub CLI is available, create a GitHub release so shields using /v/release work
     $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
     if ($ghCmd) {
+        # Use changelog-derived notes when available
+        if (-not $releaseNotes) { $releaseNotes = "Automated release for $tagName" }
+
         # Check if release already exists
         $releaseCheck = gh release view $tagName 2>$null
         if (-not $releaseCheck) {
             Write-Host "[RELEASE] Creating GitHub release for $tagName" -ForegroundColor Cyan
-            gh release create $tagName --title "$tagName" --notes "Automated release for $tagName" --target $Branch
+            gh release create $tagName --title "$tagName" --notes $releaseNotes --target $Branch
             if ($?) {
                 Write-Host "[SUCCESS] GitHub release created: $tagName" -ForegroundColor Green
             } else {
                 Write-Host "[WARNING] Failed to create GitHub release via gh CLI" -ForegroundColor Yellow
             }
         } else {
-            Write-Host "[INFO] GitHub release $tagName already exists; skipping" -ForegroundColor Yellow
+            Write-Host "[INFO] GitHub release $tagName already exists; updating notes" -ForegroundColor Yellow
+            gh release edit $tagName --notes $releaseNotes
         }
     } else {
         Write-Host "[INFO] 'gh' CLI not found; skipping GitHub release creation" -ForegroundColor Yellow
