@@ -510,6 +510,13 @@ namespace WeatherImageGenerator
                         // Ensure GUI reaches 100% at completion
                         ProgressUpdated?.Invoke(100.0, "Cycle complete");
 
+                        // Memory and resource cleanup to prevent buildup over long runtime
+                        CleanupTempFiles();
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                        GC.Collect();
+                        LogMemoryUsage();
+
                         // Wait Logic
                         if (config.RefreshTimeMinutes > 0)
                         {
@@ -654,6 +661,54 @@ namespace WeatherImageGenerator
             {
                 Logger.Log($"[Warning] Failed to ensure icons exist: {ex.Message}", ConsoleColor.Yellow);
             }
+        }
+
+        /// <summary>
+        /// Cleanup temporary files to prevent temp storage buildup during long-running sessions
+        /// </summary>
+        private static void CleanupTempFiles()
+        {
+            try
+            {
+                string tempPath = Path.GetTempPath();
+                var oldFiles = Directory.GetFiles(tempPath, "ffmpeg_*.txt")
+                    .Concat(Directory.GetFiles(tempPath, "weather_*.tmp"))
+                    .Where(f => (DateTime.Now - File.GetCreationTime(f)).TotalHours > 24);
+                
+                int cleaned = 0;
+                foreach (var file in oldFiles)
+                {
+                    try
+                    {
+                        File.Delete(file);
+                        cleaned++;
+                    }
+                    catch { /* Ignore locked files */ }
+                }
+                
+                if (cleaned > 0)
+                {
+                    Logger.Log($"[CLEANUP] Removed {cleaned} old temporary files", ConsoleColor.Gray);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[CLEANUP] Error during temp file cleanup: {ex.Message}", ConsoleColor.Yellow);
+            }
+        }
+
+        /// <summary>
+        /// Log current memory usage for monitoring long-running performance
+        /// </summary>
+        private static void LogMemoryUsage()
+        {
+            try
+            {
+                var process = System.Diagnostics.Process.GetCurrentProcess();
+                long memoryMB = process.WorkingSet64 / (1024 * 1024);
+                Logger.Log($"[MEMORY] Current usage: {memoryMB} MB", ConsoleColor.Gray);
+            }
+            catch { /* Silent fail */ }
         }
     }
 }

@@ -983,7 +983,7 @@ namespace WeatherImageGenerator.Forms
                                 f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || 
                                 f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(f => System.IO.File.GetCreationTime(f))
-                    .Take(50); // Limit to recent 50
+                    .Take(30); // Reduced from 50 to 30 for better memory management
 
                 if (!files.Any())
                 {
@@ -1062,7 +1062,7 @@ namespace WeatherImageGenerator.Forms
                                             f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || 
                                             f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
                                 .OrderByDescending(f => System.IO.File.GetCreationTime(f))
-                                .Take(50)
+                                .Take(30) // Match the display limit
                                 .ToArray();
                             
                             var viewer = new MediaViewerForm(file, allFiles);
