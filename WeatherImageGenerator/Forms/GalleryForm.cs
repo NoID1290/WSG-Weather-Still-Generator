@@ -14,6 +14,7 @@ namespace WeatherImageGenerator.Forms
         private Button? _refreshBtn;
         private Button? _openOutputBtn;
         private Label? _statusLabel;
+        private Panel? _topPanel;
         
         // Theme colors (will be set from config)
         private Color _themeTextColor = Color.Black;
@@ -28,7 +29,7 @@ namespace WeatherImageGenerator.Forms
             this.StartPosition = FormStartPosition.CenterScreen;
 
             // Top panel with controls
-            var topPanel = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Color.WhiteSmoke };
+            _topPanel = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Color.WhiteSmoke };
             
             _refreshBtn = CreateStyledButton("🔄 Refresh", 10, 10, 100, 30, Color.Gray, Color.White);
             _refreshBtn.Click += (s, e) => RefreshGallery();
@@ -47,9 +48,9 @@ namespace WeatherImageGenerator.Forms
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
-            topPanel.Controls.Add(_refreshBtn);
-            topPanel.Controls.Add(_openOutputBtn);
-            topPanel.Controls.Add(_statusLabel);
+            _topPanel.Controls.Add(_refreshBtn);
+            _topPanel.Controls.Add(_openOutputBtn);
+            _topPanel.Controls.Add(_statusLabel);
 
             // Gallery panel
             _galleryPanel = new FlowLayoutPanel 
@@ -61,7 +62,7 @@ namespace WeatherImageGenerator.Forms
             };
 
             this.Controls.Add(_galleryPanel);
-            this.Controls.Add(topPanel);
+            this.Controls.Add(_topPanel);
 
             // Apply theme
             var config = ConfigManager.LoadConfig();
@@ -312,24 +313,60 @@ namespace WeatherImageGenerator.Forms
 
         private void ApplyTheme(string theme)
         {
+            Color primaryColor, secondaryColor, buttonColor, textColor, accentColor;
+            
             if (theme == "Dark")
             {
-                this.BackColor = Color.FromArgb(30, 30, 30);
-                _themeTextColor = Color.White;
-                _themeAccentColor = Color.FromArgb(0, 122, 204);
-                
-                if (_galleryPanel != null) _galleryPanel.BackColor = Color.FromArgb(45, 45, 45);
-                if (_statusLabel != null) _statusLabel.ForeColor = Color.White;
+                primaryColor = Color.FromArgb(30, 30, 30);
+                secondaryColor = Color.FromArgb(45, 45, 45);
+                buttonColor = Color.FromArgb(60, 60, 60);
+                textColor = Color.White;
+                accentColor = Color.FromArgb(0, 122, 204);
             }
             else
             {
-                this.BackColor = Color.White;
-                _themeTextColor = Color.Black;
-                _themeAccentColor = Color.Blue;
-                
-                if (_galleryPanel != null) _galleryPanel.BackColor = Color.White;
-                if (_statusLabel != null) _statusLabel.ForeColor = Color.Black;
+                primaryColor = Color.White;
+                secondaryColor = Color.WhiteSmoke;
+                buttonColor = Color.Gainsboro;
+                textColor = Color.Black;
+                accentColor = Color.Blue;
             }
+            
+            _themeTextColor = textColor;
+            _themeAccentColor = accentColor;
+            
+            this.BackColor = primaryColor;
+            
+            if (_topPanel != null)
+            {
+                _topPanel.BackColor = primaryColor;
+            }
+            
+            if (_galleryPanel != null)
+            {
+                _galleryPanel.BackColor = secondaryColor;
+            }
+            
+            if (_statusLabel != null)
+            {
+                _statusLabel.ForeColor = textColor;
+            }
+            
+            // Update button colors
+            void SetBtn(Button? b, Color bg, Color fg)
+            {
+                if (b != null)
+                {
+                    b.BackColor = bg;
+                    b.ForeColor = fg;
+                    b.FlatAppearance.BorderColor = ControlPaint.Light(bg, 0.2f);
+                    b.FlatAppearance.MouseOverBackColor = ControlPaint.Light(bg, 0.15f);
+                    b.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(bg, 0.15f);
+                }
+            }
+            
+            SetBtn(_refreshBtn, buttonColor, textColor);
+            SetBtn(_openOutputBtn, buttonColor, textColor);
         }
     }
 }

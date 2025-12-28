@@ -90,14 +90,14 @@ namespace WeatherImageGenerator.Forms
             _groupLabel3 = new Label { Text = "FILES", Left = 695, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _openOutputBtn = CreateStyledButton("📁 Open", 695, 28, 100, 38, Color.Gray, Color.White);
             _clearDirBtn = CreateStyledButton("🗑 Clear", 805, 28, 100, 38, Color.Gray, Color.White);
+            _galleryBtn = CreateStyledButton("🖼 Gallery", 695, 76, 100, 38, Color.Gray, Color.White);
             
-            // Row 2: Settings & Configuration (3 rows)
+            // Row 2: Settings & Configuration (2 rows)
             _groupLabel4 = new Label { Text = "SETTINGS", Left = 925, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _locationsBtn = CreateStyledButton("📍 Locations", 925, 28, 120, 38, Color.Gray, Color.White);
             _musicBtn = CreateStyledButton("🎵 Music", 1055, 28, 120, 38, Color.Gray, Color.White);
-            _galleryBtn = CreateStyledButton("🖼 Gallery", 925, 76, 120, 38, Color.Gray, Color.White);
-            _settingsBtn = CreateStyledButton("⚙ Settings", 1055, 76, 120, 38, Color.Gray, Color.White);
-            _aboutBtn = CreateStyledButton("ℹ About", 1055, 124, 120, 38, Color.Gray, Color.White);
+            _settingsBtn = CreateStyledButton("⚙ Settings", 925, 76, 120, 38, Color.Gray, Color.White);
+            _aboutBtn = CreateStyledButton("ℹ About", 1055, 76, 120, 38, Color.Gray, Color.White);
 
             // Progress & Status (Below buttons - adjusted for 2-row settings)
             _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
