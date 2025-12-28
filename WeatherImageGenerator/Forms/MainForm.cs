@@ -32,12 +32,9 @@ namespace WeatherImageGenerator.Forms
         private SplitContainer? _splitContainer;
         private TabControl? _tabControl;
         private TabPage? _logTab;
-        private TabPage? _galleryTab;
-        private FlowLayoutPanel? _galleryPanel;
-        private Button? _refreshGalleryBtn;
         private Panel? _topPanel;
         private Panel? _logPanel;
-        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn;
         private CancellationTokenSource? _operationCts;
         private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
@@ -94,12 +91,13 @@ namespace WeatherImageGenerator.Forms
             _openOutputBtn = CreateStyledButton("📁 Open", 695, 28, 100, 38, Color.Gray, Color.White);
             _clearDirBtn = CreateStyledButton("🗑 Clear", 805, 28, 100, 38, Color.Gray, Color.White);
             
-            // Row 2: Settings & Configuration (2 rows)
+            // Row 2: Settings & Configuration (3 rows)
             _groupLabel4 = new Label { Text = "SETTINGS", Left = 925, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _locationsBtn = CreateStyledButton("📍 Locations", 925, 28, 120, 38, Color.Gray, Color.White);
             _musicBtn = CreateStyledButton("🎵 Music", 1055, 28, 120, 38, Color.Gray, Color.White);
-            _settingsBtn = CreateStyledButton("⚙ Settings", 925, 76, 120, 38, Color.Gray, Color.White);
-            _aboutBtn = CreateStyledButton("ℹ About", 1055, 76, 120, 38, Color.Gray, Color.White);
+            _galleryBtn = CreateStyledButton("🖼 Gallery", 925, 76, 120, 38, Color.Gray, Color.White);
+            _settingsBtn = CreateStyledButton("⚙ Settings", 1055, 76, 120, 38, Color.Gray, Color.White);
+            _aboutBtn = CreateStyledButton("ℹ About", 1055, 124, 120, 38, Color.Gray, Color.White);
 
             // Progress & Status (Below buttons - adjusted for 2-row settings)
             _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
@@ -211,6 +209,12 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
+            _galleryBtn.Click += (s, e) =>
+            {
+                var galleryForm = new GalleryForm();
+                galleryForm.Show();
+            };
+
             _topPanel = new Panel { Dock = DockStyle.Top, Height = 200, Padding = new Padding(5) };
             // Add group labels
             _topPanel.Controls.Add(_groupLabel1);
@@ -228,6 +232,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_startBtn);
             _topPanel.Controls.Add(_locationsBtn);
             _topPanel.Controls.Add(_musicBtn);
+            _topPanel.Controls.Add(_galleryBtn);
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
             // Add progress and status
@@ -258,29 +263,13 @@ namespace WeatherImageGenerator.Forms
             // Initialize TabControl
             _tabControl = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9F) };
 
-            // 1. Logs Tab
+            // Logs Tab
             _logTab = new TabPage("📋 Logs");
             _logTab.Controls.Add(_logPanel);
             _logTab.Controls.Add(_logBox);
             _logBox.BringToFront(); 
 
-            // 2. Gallery Tab
-            _galleryTab = new TabPage("🖼 Gallery");
-            
-            var galleryTopPanel = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.WhiteSmoke };
-            _refreshGalleryBtn = CreateStyledButton("🔄 Refresh", 10, 5, 80, 30, Color.Gray, Color.White);
-            _refreshGalleryBtn.Click += (s, e) => RefreshGallery();
-            galleryTopPanel.Controls.Add(_refreshGalleryBtn);
-
-            _galleryPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
-
-            _galleryTab.Controls.Add(_galleryPanel);
-            _galleryTab.Controls.Add(galleryTopPanel);
-            galleryTopPanel.BringToFront();
-
             _tabControl.TabPages.Add(_logTab);
-            _tabControl.TabPages.Add(_galleryTab);
-            _tabControl.SelectedIndexChanged += (s, e) => { if (_tabControl.SelectedTab == _galleryTab) RefreshGallery(); };
 
             _splitContainer.Panel2.Controls.Add(_tabControl);
             
@@ -415,21 +404,6 @@ namespace WeatherImageGenerator.Forms
                     page.ForeColor = headerTextColor;
                 }
             }
-            
-            if (_galleryPanel != null) _galleryPanel.BackColor = secondaryColor;
-            if (_refreshGalleryBtn != null) SetBtn(_refreshGalleryBtn, buttonColor, neutralBtnText);
-            
-            // Also update the gallery top panel if we can find it
-            if (_galleryTab != null)
-            {
-                foreach (Control c in _galleryTab.Controls)
-                {
-                    if (c is Panel p && p != _galleryPanel) // This is the top panel
-                    {
-                        p.BackColor = primaryColor;
-                    }
-                }
-            }
 
             // Labels
             void SetLabel(Label? l, Color c) { if (l != null) l.ForeColor = c; }
@@ -462,10 +436,10 @@ namespace WeatherImageGenerator.Forms
             SetBtn(_clearDirBtn, warningColor, warningBtnText);
             SetBtn(_locationsBtn, buttonColor, neutralBtnText);
             SetBtn(_musicBtn, buttonColor, neutralBtnText);
+            SetBtn(_galleryBtn, buttonColor, neutralBtnText);
             SetBtn(_settingsBtn, buttonColor, neutralBtnText);
             SetBtn(_aboutBtn, buttonColor, neutralBtnText);
             SetBtn(_clearLogBtn, dangerColor, coloredBtnText);
-            SetBtn(_refreshGalleryBtn, buttonColor, neutralBtnText);
 
             // Combos & Inputs
             void SetCombo(ComboBox? c) { if (c != null) { c.BackColor = buttonColor; c.ForeColor = neutralBtnText; } }
@@ -934,160 +908,6 @@ namespace WeatherImageGenerator.Forms
             else
             {
                 RefreshLogView();
-            }
-        }
-
-        private void RefreshGallery()
-        {
-            if (_galleryPanel == null) return;
-            
-            // Suspend layout to avoid flickering
-            _galleryPanel.SuspendLayout();
-            
-            // Dispose old images to free memory
-            foreach (Control c in _galleryPanel.Controls)
-            {
-                if (c is Panel p)
-                {
-                    foreach (Control pc in p.Controls)
-                    {
-                        if (pc is PictureBox pb && pb.Image != null)
-                        {
-                            pb.Image.Dispose();
-                        }
-                    }
-                }
-                c.Dispose();
-            }
-            _galleryPanel.Controls.Clear();
-
-            try
-            {
-                var config = ConfigManager.LoadConfig();
-                string path = config.ImageGeneration?.OutputDirectory ?? "WeatherImages";
-                if (!System.IO.Path.IsPathRooted(path))
-                {
-                    path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), path);
-                }
-
-                if (!System.IO.Directory.Exists(path)) 
-                {
-                    var lbl = new Label { Text = "Output directory does not exist yet.", AutoSize = true, Margin = new Padding(20) };
-                    _galleryPanel.Controls.Add(lbl);
-                    _galleryPanel.ResumeLayout();
-                    return;
-                }
-
-                var files = System.IO.Directory.GetFiles(path)
-                    .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || 
-                                f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || 
-                                f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(f => System.IO.File.GetCreationTime(f))
-                    .Take(30); // Reduced from 50 to 30 for better memory management
-
-                if (!files.Any())
-                {
-                    var lbl = new Label { Text = "No images or videos found.", AutoSize = true, Margin = new Padding(20) };
-                    _galleryPanel.Controls.Add(lbl);
-                }
-
-                foreach (var file in files)
-                {
-                    var container = new Panel { Width = 160, Height = 140, Margin = new Padding(5), BackColor = _themeTextColor == Color.White ? Color.FromArgb(60, 60, 60) : Color.WhiteSmoke };
-                    
-                    var pb = new PictureBox 
-                    { 
-                        Width = 150, 
-                        Height = 100, 
-                        SizeMode = PictureBoxSizeMode.Zoom, 
-                        Top = 5, 
-                        Left = 5,
-                        BackColor = Color.Black,
-                        Cursor = Cursors.Hand
-                    };
-
-                    var lbl = new Label 
-                    { 
-                        Text = System.IO.Path.GetFileName(file), 
-                        Top = 110, 
-                        Left = 5, 
-                        Width = 150, 
-                        Height = 25,
-                        AutoEllipsis = true,
-                        TextAlign = ContentAlignment.MiddleCenter,
-                        Font = new Font("Segoe UI", 8F),
-                        ForeColor = _themeTextColor
-                    };
-
-                    if (file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Placeholder for video
-                        // Draw a simple "VIDEO" placeholder
-                        var bmp = new Bitmap(150, 100);
-                        using (var g = Graphics.FromImage(bmp))
-                        {
-                            g.Clear(Color.DarkBlue);
-                            g.DrawString("VIDEO", new Font("Segoe UI", 12, FontStyle.Bold), Brushes.White, new PointF(50, 40));
-                        }
-                        pb.Image = bmp;
-                    }
-                    else
-                    {
-                        try 
-                        {
-                            // Load image without locking file
-                            using (var bmpTemp = new Bitmap(file))
-                            {
-                                pb.Image = new Bitmap(bmpTemp);
-                            }
-                        }
-                        catch 
-                        {
-                            // Fallback if image is corrupted or locked
-                            var bmp = new Bitmap(150, 100);
-                            using (var g = Graphics.FromImage(bmp))
-                            {
-                                g.Clear(Color.Red);
-                                g.DrawString("ERROR", new Font("Segoe UI", 10, FontStyle.Bold), Brushes.White, new PointF(50, 40));
-                            }
-                            pb.Image = bmp;
-                        }
-                    }
-
-                    pb.Click += (s, e) => {
-                        try {
-                            // Get all media files for navigation
-                            var allFiles = System.IO.Directory.GetFiles(path)
-                                .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || 
-                                            f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || 
-                                            f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                                .OrderByDescending(f => System.IO.File.GetCreationTime(f))
-                                .Take(30) // Match the display limit
-                                .ToArray();
-                            
-                            var viewer = new MediaViewerForm(file, allFiles);
-                            viewer.ShowDialog(this);
-                        } catch (Exception ex) {
-                            MessageBox.Show($"Could not open file: {ex.Message}");
-                        }
-                    };
-
-                    // Add tooltip
-                    var tt = new ToolTip();
-                    tt.SetToolTip(pb, file);
-
-                    container.Controls.Add(pb);
-                    container.Controls.Add(lbl);
-                    _galleryPanel.Controls.Add(container);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"Error refreshing gallery: {ex.Message}", Logger.LogLevel.Error);
-            }
-            finally
-            {
-                _galleryPanel.ResumeLayout();
             }
         }
 
