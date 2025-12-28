@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Enhance video playback handling with aspect ratio preservation and improved error logging
-## [0.8.7.1228] - 2025-12-28
+
 
 ### Fixed
 - `Updated appsettings.json with changes to VideoCodec and Theme`
