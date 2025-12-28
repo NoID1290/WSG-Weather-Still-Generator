@@ -58,6 +58,10 @@ namespace WeatherImageGenerator.Forms
         private double _videoRange = 20.0;
         private bool _videoActive = false;
 
+        // Store fetched weather data for detail views
+        private OpenMeteo.WeatherForecast?[]? _cachedForecasts;
+        private System.Collections.Generic.List<AlertEntry>? _cachedAlerts;
+
         public MainForm()
         {
             this.Text = "WSG - WeatherStillGenerator";
@@ -242,6 +246,7 @@ namespace WeatherImageGenerator.Forms
             _weatherList.Columns.Add("☁ Condition", 200);
             _weatherList.Columns.Add("💨 Wind", 160);
             _weatherList.Columns.Add("⚠ Alerts", 400);
+            _weatherList.DoubleClick += WeatherList_DoubleClick;
 
             _splitContainer.Panel1.Controls.Add(_weatherList);
             _splitContainer.Panel1.Controls.Add(_lastFetchLabel);
@@ -586,6 +591,9 @@ namespace WeatherImageGenerator.Forms
                 _weatherList.BeginInvoke(new Action(() => OnAlertsFetched(alerts)));
                 return;
             }
+
+            // Cache the alerts for detail view
+            _cachedAlerts = alerts;
 
             // Clear previous alerts in the list
             foreach (ListViewItem item in _weatherList.Items)
@@ -1407,6 +1415,9 @@ namespace WeatherImageGenerator.Forms
                 return;
             }
 
+            // Cache the forecasts for detail view
+            _cachedForecasts = forecasts;
+
             if (_lastFetchLabel != null)
             {
                 _lastFetchLabel.Text = $"Last fetch: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
@@ -1446,6 +1457,28 @@ namespace WeatherImageGenerator.Forms
                     _weatherList.Items.Add(item);
                 }
             }
+        }
+
+        private void WeatherList_DoubleClick(object? sender, EventArgs e)
+        {
+            if (_weatherList == null || _weatherList.SelectedItems.Count == 0) return;
+            
+            int selectedIndex = _weatherList.SelectedIndices[0];
+            var config = ConfigManager.LoadConfig();
+            var locations = config.Locations?.GetLocationsArray() ?? new string[0];
+            
+            string locationName = (selectedIndex < locations.Length) ? locations[selectedIndex] : $"Location {selectedIndex}";
+            
+            // Get forecast for this location
+            OpenMeteo.WeatherForecast? forecast = null;
+            if (_cachedForecasts != null && selectedIndex < _cachedForecasts.Length)
+            {
+                forecast = _cachedForecasts[selectedIndex];
+            }
+            
+            // Show the details form
+            var detailsForm = new WeatherDetailsForm(locationName, forecast, _cachedAlerts ?? new System.Collections.Generic.List<AlertEntry>());
+            detailsForm.ShowDialog(this);
         }
 
         private string DegreesToCardinal(double? degrees)
