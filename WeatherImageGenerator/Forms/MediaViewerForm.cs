@@ -31,6 +31,18 @@ namespace WeatherImageGenerator.Forms
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+        private const uint WM_KEYDOWN = 0x0100;
+        private const uint WM_KEYUP = 0x0101;
+        private const int VK_LEFT = 0x25;
+        private const int VK_RIGHT = 0x27;
+        private const int VK_SPACE = 0x20;
+
         private const int GWL_STYLE = -16;
         private const int WS_VISIBLE = 0x10000000;
         private const int WS_CHILD = 0x40000000;
@@ -49,6 +61,8 @@ namespace WeatherImageGenerator.Forms
         private string[] _mediaFiles;
         private int _currentIndex;
         private Button? _playPauseBtn;
+        private Button? _stopBtn;
+        private Label? _timeLabel;
         private Process? _ffplayProcess;
         private bool _isVideoPlaying = false;
         private int _videoControlHeight = 0;
@@ -351,39 +365,122 @@ namespace WeatherImageGenerator.Forms
                 ForeColor = Color.White,
                 Text = "Click Play to watch the video inline",
                 Font = new Font("Segoe UI", 9F),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                TextAlign = ContentAlignment.TopCenter
             };
 
-            // Play button - centered
+            // Button container to center buttons
+            var btnContainer = new Panel
+            {
+                Height = 40,
+                Width = 300,
+                Top = 35,
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.None
+            };
+            btnContainer.Left = (controlPanel.ClientSize.Width - btnContainer.Width) / 2;
+
+            // Play Button
             _playPauseBtn = new Button
             {
-                Text = "▶ Play Video",
-                Width = 150,
+                Text = "▶ Play",
+                Width = 100,
                 Height = 40,
-                Top = 35,
+                Left = 40,
+                Top = 0,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(0, 120, 215),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                Anchor = AnchorStyles.None
+                Cursor = Cursors.Hand
             };
-            _playPauseBtn.Left = Math.Max(0, (controlPanel.ClientSize.Width - _playPauseBtn.Width) / 2);
             _playPauseBtn.FlatAppearance.BorderSize = 0;
             _playPauseBtn.Click += PlayPauseBtn_Click;
 
+            // Stop Button
+            _stopBtn = new Button
+            {
+                Text = "⏹",
+                Width = 50,
+                Height = 40,
+                Left = 150,
+                Top = 0,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(192, 0, 0),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Enabled = false
+            };
+            _stopBtn.FlatAppearance.BorderSize = 0;
+            _stopBtn.Click += (s, e) => StopVideo();
+
+            // Time Label
+            _timeLabel = new Label
+            {
+                Text = "00:00",
+                Width = 60,
+                Height = 40,
+                Left = 210,
+                Top = 10,
+                ForeColor = Color.White,
+                Font = new Font("Consolas", 10F),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            btnContainer.Controls.Add(_playPauseBtn);
+            btnContainer.Controls.Add(_stopBtn);
+            btnContainer.Controls.Add(_timeLabel);
+
             controlPanel.Controls.Add(infoLabel);
-            controlPanel.Controls.Add(_playPauseBtn);
+            controlPanel.Controls.Add(btnContainer);
 
             // Re-center controls and update widths when control panel resizes
             controlPanel.Resize += (s, e) =>
             {
-                _playPauseBtn.Left = Math.Max(0, (controlPanel.ClientSize.Width - _playPauseBtn.Width) / 2);
+                btnContainer.Left = Math.Max(0, (controlPanel.ClientSize.Width - btnContainer.Width) / 2);
                 infoLabel.Width = Math.Max(0, controlPanel.ClientSize.Width - 40);
             };
 
             _videoPanel.Controls.Add(controlPanel);
             _pictureBox.BringToFront();
+        }
+
+        private void SendKeyToFFPlay(int key)
+        {
+            if (_ffplayProcess != null && !_ffplayProcess.HasExited)
+            {
+                IntPtr handle = _ffplayProcess.MainWindowHandle;
+                if (handle != IntPtr.Zero)
+                {
+                    uint scanCode = MapVirtualKey((uint)key, 0);
+                    
+                    // lParam construction for WM_KEYDOWN:
+                    // Bits 0-15: Repeat count (1)
+                    // Bits 16-23: Scan code
+                    // Bit 24: Extended key
+                    // Bit 29: Context code (0)
+                    // Bit 30: Previous key state (0)
+                    // Bit 31: Transition state (0)
+                    
+                    uint lParamDown = 0x00000001 | (scanCode << 16);
+                    
+                    if (key == VK_LEFT || key == VK_RIGHT)
+                    {
+                        lParamDown |= 0x01000000; // Extended key
+                    }
+
+                    PostMessage(handle, WM_KEYDOWN, (IntPtr)key, (IntPtr)lParamDown);
+                    
+                    // lParam construction for WM_KEYUP:
+                    // Bit 30 (Previous key state) = 1
+                    // Bit 31 (Transition state) = 1
+                    // 0xC0000000 sets bits 30 and 31
+                    uint lParamUp = lParamDown | 0xC0000000;
+                    
+                    PostMessage(handle, WM_KEYUP, (IntPtr)key, (IntPtr)lParamUp);
+                }
+            }
         }
 
         private async void PlayPauseBtn_Click(object? sender, EventArgs e)
@@ -392,10 +489,12 @@ namespace WeatherImageGenerator.Forms
 
             if (_isVideoPlaying)
             {
-                // Stop the video
-                StopVideo();
-                _playPauseBtn.Text = "▶ Play Video";
-                _isVideoPlaying = false;
+                // Pause/Resume
+                SendKeyToFFPlay(VK_SPACE);
+                if (_playPauseBtn.Text.Contains("Pause"))
+                    _playPauseBtn.Text = "▶ Play";
+                else
+                    _playPauseBtn.Text = "⏸ Pause";
             }
             else
             {
@@ -419,7 +518,7 @@ namespace WeatherImageGenerator.Forms
                         var psi = new ProcessStartInfo
                         {
                             FileName = "ffplay",
-                            Arguments = $"-autoexit -noborder -loop 0 -vf \"{vfPad}\" \"{_filePath}\"",
+                            Arguments = $"-autoexit -noborder -stats -loop 0 -vf \"{vfPad}\" \"{_filePath}\"",
                             UseShellExecute = false,
                             CreateNoWindow = true,
                             RedirectStandardError = true,
@@ -435,7 +534,44 @@ namespace WeatherImageGenerator.Forms
                         {
                             // capture output to help debugging if ffplay fails
                             _ffplayProcess.OutputDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) outputSb.AppendLine(ea.Data); };
-                            _ffplayProcess.ErrorDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) errorSb.AppendLine(ea.Data); };
+                            _ffplayProcess.ErrorDataReceived += (s, ea) => 
+                            { 
+                                if (!string.IsNullOrEmpty(ea.Data)) 
+                                {
+                                    errorSb.AppendLine(ea.Data);
+                                    
+                                    // Parse time from stderr
+                                    // Example: 4.64 A-V: -0.003 fd=   0 aq=    0KB vq=    0KB sq=    0B f=0/0
+                                    // Or just check if the line starts with a number and contains typical ffplay status indicators
+                                    if (ea.Data.Contains("A-V:") || ea.Data.Contains("fd=") || ea.Data.Contains("aq="))
+                                    {
+                                        try
+                                        {
+                                            // Split by space and remove empty entries to handle multiple spaces
+                                            string[] parts = ea.Data.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                            
+                                            // The first part should be the timestamp
+                                            if (parts.Length > 0 && double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double seconds))
+                                            {
+                                                TimeSpan ts = TimeSpan.FromSeconds(seconds);
+                                                string timeStr = ts.ToString(@"mm\:ss");
+                                                if (_timeLabel != null && !_timeLabel.IsDisposed)
+                                                {
+                                                    if (_timeLabel.InvokeRequired)
+                                                    {
+                                                        _timeLabel.BeginInvoke(new Action(() => _timeLabel.Text = timeStr));
+                                                    }
+                                                    else
+                                                    {
+                                                        _timeLabel.Text = timeStr;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        catch { /* Ignore parsing errors */ }
+                                    }
+                                } 
+                            };
                             _ffplayProcess.BeginOutputReadLine();
                             _ffplayProcess.BeginErrorReadLine();
 
@@ -470,8 +606,9 @@ namespace WeatherImageGenerator.Forms
                                     }
                                 };
 
-                                _playPauseBtn.Text = "⏸ Stop Video";
+                                _playPauseBtn.Text = "⏸ Pause";
                                 _isVideoPlaying = true;
+                                if (_stopBtn != null) _stopBtn.Enabled = true;
                             }
                             else
                             {
@@ -491,7 +628,7 @@ namespace WeatherImageGenerator.Forms
                                         var psi2 = new ProcessStartInfo
                                         {
                                             FileName = "ffplay",
-                                            Arguments = $"-autoexit -noborder -loop 0 -vf \"{vfNoPad}\" \"{_filePath}\"",
+                                            Arguments = $"-autoexit -noborder -stats -loop 0 -vf \"{vfNoPad}\" \"{_filePath}\"",
                                             UseShellExecute = false,
                                             CreateNoWindow = true,
                                             RedirectStandardError = true,
@@ -505,7 +642,43 @@ namespace WeatherImageGenerator.Forms
                                         if (_ffplayProcess != null)
                                         {
                                             _ffplayProcess.OutputDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) outputSb.AppendLine(ea.Data); };
-                                            _ffplayProcess.ErrorDataReceived += (s, ea) => { if (!string.IsNullOrEmpty(ea.Data)) errorSb.AppendLine(ea.Data); };
+                                            _ffplayProcess.ErrorDataReceived += (s, ea) => 
+                                            { 
+                                                if (!string.IsNullOrEmpty(ea.Data)) 
+                                                {
+                                                    errorSb.AppendLine(ea.Data);
+                                                    
+                                                    // Parse time from stderr
+                                                    // Example: 4.64 A-V: -0.003 fd=   0 aq=    0KB vq=    0KB sq=    0B f=0/0
+                                                    if (ea.Data.Contains("A-V:") || ea.Data.Contains("fd=") || ea.Data.Contains("aq="))
+                                                    {
+                                                        try
+                                                        {
+                                                            // Split by space and remove empty entries to handle multiple spaces
+                                                            string[] parts = ea.Data.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                                            
+                                                            // The first part should be the timestamp
+                                                            if (parts.Length > 0 && double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double seconds))
+                                                            {
+                                                                TimeSpan ts = TimeSpan.FromSeconds(seconds);
+                                                                string timeStr = ts.ToString(@"mm\:ss");
+                                                                if (_timeLabel != null && !_timeLabel.IsDisposed)
+                                                                {
+                                                                    if (_timeLabel.InvokeRequired)
+                                                                    {
+                                                                        _timeLabel.BeginInvoke(new Action(() => _timeLabel.Text = timeStr));
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        _timeLabel.Text = timeStr;
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        catch { /* Ignore parsing errors */ }
+                                                    }
+                                                } 
+                                            };
                                             _ffplayProcess.BeginOutputReadLine();
                                             _ffplayProcess.BeginErrorReadLine();
 
@@ -534,8 +707,9 @@ namespace WeatherImageGenerator.Forms
                                                     }
                                                 };
 
-                                                _playPauseBtn.Text = "⏸ Stop Video";
+                                                _playPauseBtn.Text = "⏸ Pause";
                                                 _isVideoPlaying = true;
+                                                if (_stopBtn != null) _stopBtn.Enabled = true;
                                             }
                                             else
                                             {
@@ -638,8 +812,11 @@ namespace WeatherImageGenerator.Forms
             _isVideoPlaying = false;
             if (_playPauseBtn != null)
             {
-                _playPauseBtn.Text = "▶ Play Video";
+                _playPauseBtn.Text = "▶ Play";
             }
+            if (_stopBtn != null) _stopBtn.Enabled = false;
+            if (_timeLabel != null) _timeLabel.Text = "00:00";
+
             if (_pictureBox != null)
             {
                 _pictureBox.Visible = true;
@@ -665,6 +842,11 @@ namespace WeatherImageGenerator.Forms
                     _ffplayProcess = null;
                 }
             }
+
+            _isVideoPlaying = false;
+            if (_playPauseBtn != null) _playPauseBtn.Text = "▶ Play";
+            if (_stopBtn != null) _stopBtn.Enabled = false;
+            if (_timeLabel != null) _timeLabel.Text = "00:00";
 
             if (_pictureBox != null)
             {
