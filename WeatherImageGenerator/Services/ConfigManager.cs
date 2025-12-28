@@ -395,6 +395,12 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("enableMusicInVideo")]
         public bool EnableMusicInVideo { get; set; } = true;
 
+        [JsonPropertyName("autoTrimMusic")]
+        public bool AutoTrimMusic { get; set; } = true;
+
+        [JsonPropertyName("audioFadeDuration")]
+        public double AudioFadeDuration { get; set; } = 2.0;
+
         /// <summary>
         /// Gets the selected music entry, or a random one if UseRandomMusic is true
         /// </summary>

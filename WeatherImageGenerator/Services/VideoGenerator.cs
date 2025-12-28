@@ -50,6 +50,7 @@ namespace WeatherImageGenerator.Services
 
         // Audio handling
         public bool TrimToAudio { get; set; } = false;          // Deprecated: Audio is always trimmed to video duration
+        public bool AutoTrimMusic { get; set; } = true;         // Enable automatic trimming of audio to video duration
         public string AudioCodec { get; set; } = "aac";         // FFmpeg audio codec
         public string AudioBitrate { get; set; } = "192k";      // Audio bitrate for output
         public double AudioFadeDuration { get; set; } = 2.0;    // Duration of audio fadeout at end (seconds)
@@ -96,6 +97,13 @@ namespace WeatherImageGenerator.Services
             {
                 var config = ConfigManager.LoadConfig();
                 var musicSettings = config.Music;
+
+                // Load audio settings from config
+                if (musicSettings != null)
+                {
+                    AutoTrimMusic = musicSettings.AutoTrimMusic;
+                    AudioFadeDuration = musicSettings.AudioFadeDuration;
+                }
 
                 // Check if music is enabled in settings
                 if (musicSettings != null && !musicSettings.EnableMusicInVideo)
@@ -582,13 +590,22 @@ namespace WeatherImageGenerator.Services
                 // Audio index needs to account for the total number of video inputs
                 var audioIndex = baseImages.Count + radarFrames.Count;
                 
-                // Calculate fadeout start time (fadeduration seconds before end)
-                var fadeStartTime = Math.Max(0, totalVideoDuration - AudioFadeDuration);
-                var fadeStartStr = fadeStartTime.ToString(_culture);
-                var fadeDurStr = AudioFadeDuration.ToString(_culture);
-                
-                // Add audio filter: trim to video duration and fadeout at the end (needs semicolon separator)
-                completeFilterComplex += $";[{audioIndex}:a]atrim=end={videoDurStr},afade=t=out:st={fadeStartStr}:d={fadeDurStr}[outa]";
+                // Apply audio trimming and fadeout if enabled
+                if (AutoTrimMusic)
+                {
+                    // Calculate fadeout start time (fadeduration seconds before end)
+                    var fadeStartTime = Math.Max(0, totalVideoDuration - AudioFadeDuration);
+                    var fadeStartStr = fadeStartTime.ToString(_culture);
+                    var fadeDurStr = AudioFadeDuration.ToString(_culture);
+                    
+                    // Add audio filter: trim to video duration and fadeout at the end (needs semicolon separator)
+                    completeFilterComplex += $";[{audioIndex}:a]atrim=end={videoDurStr},afade=t=out:st={fadeStartStr}:d={fadeDurStr}[outa]";
+                }
+                else
+                {
+                    // No trimming, just pass through the audio
+                    completeFilterComplex += $";[{audioIndex}:a]acopy[outa]";
+                }
                 
                 // Map both video and audio outputs
                 sb.Append($" -filter_complex \"{completeFilterComplex}\" -map \"[outv]\" -map \"[outa]\"");

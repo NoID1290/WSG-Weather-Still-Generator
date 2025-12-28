@@ -32,6 +32,8 @@ namespace WeatherImageGenerator.Forms
         private Label lblSelection;
         private GroupBox grpSelection;
         private CheckBox chkEnableMusic;
+        private CheckBox chkAutoTrimMusic;
+        private NumericUpDown numFadeoutDuration;
         private readonly List<MusicEntry> _musicTracks;
 
         public MusicForm()
@@ -45,7 +47,7 @@ namespace WeatherImageGenerator.Forms
         {
             this.Text = "Manage Music";
             this.Width = 650;
-            this.Height = 600;
+            this.Height = 640;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
@@ -261,12 +263,62 @@ namespace WeatherImageGenerator.Forms
                 chkEnableMusic.ForeColor = chkEnableMusic.Checked ? Color.DarkGreen : Color.Gray;
             };
 
+            // Auto-trim music checkbox
+            chkAutoTrimMusic = new CheckBox
+            {
+                Text = "✓ Auto-trim music (Music cut at the end)",
+                Left = 10,
+                Top = 495,
+                Width = 350,
+                Height = 25,
+                Checked = true,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
+                ForeColor = Color.DarkSlateGray
+            };
+
+            // Fade-out duration label and numeric updown
+            var lblFadeout = new Label
+            {
+                Text = "Fade-out duration:",
+                Left = 10,
+                Top = 525,
+                Width = 130,
+                Height = 25,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            numFadeoutDuration = new NumericUpDown
+            {
+                Left = 145,
+                Top = 525,
+                Width = 80,
+                Height = 25,
+                DecimalPlaces = 1,
+                Minimum = 0,
+                Maximum = 10,
+                Value = 2.0M,
+                Increment = 0.5M,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular)
+            };
+
+            var lblSeconds = new Label
+            {
+                Text = "seconds",
+                Left = 230,
+                Top = 525,
+                Width = 60,
+                Height = 25,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
             // Bottom buttons
             btnSave = new Button
             {
                 Text = "Save",
                 Left = 380,
-                Top = 470,
+                Top = 520,
                 Width = 110,
                 Height = 40,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
@@ -278,7 +330,7 @@ namespace WeatherImageGenerator.Forms
             {
                 Text = "Cancel",
                 Left = 500,
-                Top = 470,
+                Top = 520,
                 Width = 110,
                 Height = 40,
                 Font = new Font("Segoe UI", 10F),
@@ -289,7 +341,8 @@ namespace WeatherImageGenerator.Forms
             {
                 lblInfo, lstMusic, lblCount, lblName, txtMusicName,
                 lblPath, txtMusicPath, btnBrowse, btnAdd, btnEdit, btnRemove,
-                separator, btnMoveUp, btnMoveDown, grpSelection, chkEnableMusic, btnSave, btnCancel
+                separator, btnMoveUp, btnMoveDown, grpSelection, chkEnableMusic, 
+                chkAutoTrimMusic, lblFadeout, numFadeoutDuration, lblSeconds, btnSave, btnCancel
             });
 
             this.AcceptButton = btnAdd;
@@ -322,6 +375,8 @@ namespace WeatherImageGenerator.Forms
                 rbRandom.Checked = musicSettings.UseRandomMusic;
                 rbSpecific.Checked = !musicSettings.UseRandomMusic;
                 chkEnableMusic.Checked = musicSettings.EnableMusicInVideo;
+                chkAutoTrimMusic.Checked = musicSettings.AutoTrimMusic;
+                numFadeoutDuration.Value = (decimal)musicSettings.AudioFadeDuration;
 
                 RefreshMusicList();
             }
@@ -615,6 +670,8 @@ namespace WeatherImageGenerator.Forms
                     ? lstMusic.SelectedIndex
                     : -1;
                 config.Music.EnableMusicInVideo = chkEnableMusic.Checked;
+                config.Music.AutoTrimMusic = chkAutoTrimMusic.Checked;
+                config.Music.AudioFadeDuration = (double)numFadeoutDuration.Value;
 
                 ConfigManager.SaveConfig(config);
 
