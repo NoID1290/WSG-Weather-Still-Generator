@@ -420,6 +420,12 @@ namespace WeatherImageGenerator.Forms
                 {
                     "Mode1080p" => "1920x1080 (Full HD)",
                     "Mode4K" => "3840x2160 (4K/UHD)",
+                    "Mode1440p" => "2560x1440 (2K/QHD)",
+                    "Mode900p" => "1600x900 (HD+)",
+                    "Mode720p" => "1280x720 (HD)",
+                    "Mode540p" => "960x540 (qHD)",
+                    "Mode480p" => "854x480 (FWVGA)",
+                    "ModeVGA" => "640x480 (VGA)",
                     "ModeVertical" => "1920x1080 (Full HD)", // Map old vertical to 1080p
                     _ => "1920x1080 (Full HD)"
                 };
@@ -546,13 +552,13 @@ namespace WeatherImageGenerator.Forms
                 v.ResolutionMode = resDisplay switch
                 {
                     "3840x2160 (4K/UHD)" => "Mode4K",
-                    "2560x1440 (2K/QHD)" => "Mode1080p", // Use 1080p mode
+                    "2560x1440 (2K/QHD)" => "Mode1440p",
                     "1920x1080 (Full HD)" => "Mode1080p",
-                    "1600x900 (HD+)" => "Mode1080p",
-                    "1280x720 (HD)" => "Mode1080p",
-                    "960x540 (qHD)" => "Mode1080p",
-                    "854x480 (FWVGA)" => "Mode1080p",
-                    "640x480 (VGA)" => "Mode1080p",
+                    "1600x900 (HD+)" => "Mode900p",
+                    "1280x720 (HD)" => "Mode720p",
+                    "960x540 (qHD)" => "Mode540p",
+                    "854x480 (FWVGA)" => "Mode480p",
+                    "640x480 (VGA)" => "ModeVGA",
                     _ => "Mode1080p"
                 };
                 

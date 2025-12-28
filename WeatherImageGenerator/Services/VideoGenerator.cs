@@ -391,9 +391,33 @@ namespace WeatherImageGenerator.Services
                     _width = 3840;
                     _height = 2160;
                     break;
+                case ResolutionMode.Mode1440p:
+                    _width = 2560;
+                    _height = 1440;
+                    break;
                 case ResolutionMode.ModeVertical:
                     _width = 1080;
                     _height = 1920;
+                    break;
+                case ResolutionMode.Mode900p:
+                    _width = 1600;
+                    _height = 900;
+                    break;
+                case ResolutionMode.Mode720p:
+                    _width = 1280;
+                    _height = 720;
+                    break;
+                case ResolutionMode.Mode540p:
+                    _width = 960;
+                    _height = 540;
+                    break;
+                case ResolutionMode.Mode480p:
+                    _width = 854;
+                    _height = 480;
+                    break;
+                case ResolutionMode.ModeVGA:
+                    _width = 640;
+                    _height = 480;
                     break;
                 case ResolutionMode.Mode1080p:
                 default:
@@ -1109,7 +1133,13 @@ namespace WeatherImageGenerator.Services
     {
         Mode1080p,
         Mode4K,
-        ModeVertical
+        ModeVertical,
+        Mode1440p,
+        Mode900p,
+        Mode720p,
+        Mode540p,
+        Mode480p,
+        ModeVGA
     }
 
     public enum HardwareEncoderType
