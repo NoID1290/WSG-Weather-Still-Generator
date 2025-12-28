@@ -68,6 +68,9 @@ namespace WeatherImageGenerator.Services
         private string _lastFfmpegProgress = "";
         private DateTime _lastFfmpegProgressLog = DateTime.MinValue;
 
+        // Track the running external ffmpeg process (if any) so we can cancel it
+        private Process? _runningProcess;
+
         // Estimated totals for progress calculation
         private double _expectedTotalSeconds = 0;
         private double _expectedTotalFrames = 1;
@@ -762,8 +765,10 @@ namespace WeatherImageGenerator.Services
                     process.ErrorDataReceived += (s, e) => { if (e.Data != null) HandleFfmpegLine(e.Data, true); };
 
                     try
-                    { 
+                    {
                         process.Start();
+                        _runningProcess = process;
+                        ExternalProcessManager.RegisterProcess(process);
                         process.BeginOutputReadLine();
                         process.BeginErrorReadLine();
                         process.WaitForExit();
@@ -791,10 +796,19 @@ namespace WeatherImageGenerator.Services
                             cmdProc.ErrorDataReceived += (s, e) => { if (e.Data != null) HandleFfmpegLine(e.Data, true); };
 
                             cmdProc.Start();
+                            _runningProcess = cmdProc;
+                            ExternalProcessManager.RegisterProcess(cmdProc);
                             cmdProc.BeginOutputReadLine();
                             cmdProc.BeginErrorReadLine();
                             cmdProc.WaitForExit();
+                            try { ExternalProcessManager.UnregisterProcess(cmdProc); } catch { }
+                            _runningProcess = null;
                         }
+                    }
+                    finally
+                    {
+                        try { ExternalProcessManager.UnregisterProcess(process); } catch { }
+                        _runningProcess = null;
                     }
                 }
 
@@ -816,6 +830,21 @@ namespace WeatherImageGenerator.Services
                 Logger.Log($"[ERROR] Exception occurred: {ex.Message}", System.ConsoleColor.Red);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Attempts to cancel any running ffmpeg process used by this VideoGenerator.
+        /// </summary>
+        public void Cancel()
+        {
+            try
+            {
+                if (_runningProcess != null && !_runningProcess.HasExited)
+                {
+                    _runningProcess.Kill();
+                }
+            }
+            catch { }
         }
 
         /// <summary>

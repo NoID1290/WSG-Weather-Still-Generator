@@ -601,9 +601,17 @@ namespace WeatherImageGenerator.Services
                 WorkingDirectory = workingDir
             };
 
-            using (var p = Process.Start(psi))
+            var p = Process.Start(psi);
+            if (p == null) return;
+            Services.ExternalProcessManager.RegisterProcess(p);
+            try
             {
-                p?.WaitForExit();
+                p.WaitForExit();
+            }
+            finally
+            {
+                Services.ExternalProcessManager.UnregisterProcess(p);
+                try { p.Dispose(); } catch { }
             }
         }
 

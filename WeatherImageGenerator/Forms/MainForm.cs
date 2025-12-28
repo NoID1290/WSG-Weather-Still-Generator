@@ -37,7 +37,9 @@ namespace WeatherImageGenerator.Forms
         private Button? _refreshGalleryBtn;
         private Panel? _topPanel;
         private Panel? _logPanel;
-        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn;
+        private CancellationTokenSource? _operationCts;
+        private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
 
         // Theme colors for dynamic updates
@@ -80,18 +82,20 @@ namespace WeatherImageGenerator.Forms
             _fetchBtn = CreateStyledButton("🔄 Fetch", 245, 28, 100, 38, Color.Gray, Color.White);
             _stillBtn = CreateStyledButton("📷 Still", 355, 28, 100, 38, Color.Gray, Color.White);
             _videoBtn = CreateStyledButton("🎬 Video", 465, 28, 100, 38, Color.Gray, Color.White);
+            _cancelBtn = CreateStyledButton("✖ Cancel", 575, 28, 100, 38, Color.DarkRed, Color.White);
+            _cancelBtn.Enabled = false;
             
             // Group 3: File Operations
-            _groupLabel3 = new Label { Text = "FILES", Left = 585, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _openOutputBtn = CreateStyledButton("📁 Open", 585, 28, 100, 38, Color.Gray, Color.White);
-            _clearDirBtn = CreateStyledButton("🗑 Clear", 695, 28, 100, 38, Color.Gray, Color.White);
+            _groupLabel3 = new Label { Text = "FILES", Left = 695, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _openOutputBtn = CreateStyledButton("📁 Open", 695, 28, 100, 38, Color.Gray, Color.White);
+            _clearDirBtn = CreateStyledButton("🗑 Clear", 805, 28, 100, 38, Color.Gray, Color.White);
             
             // Row 2: Settings & Configuration (2 rows)
-            _groupLabel4 = new Label { Text = "SETTINGS", Left = 815, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _locationsBtn = CreateStyledButton("📍 Locations", 815, 28, 120, 38, Color.Gray, Color.White);
-            _musicBtn = CreateStyledButton("🎵 Music", 945, 28, 120, 38, Color.Gray, Color.White);
-            _settingsBtn = CreateStyledButton("⚙ Settings", 815, 76, 120, 38, Color.Gray, Color.White);
-            _aboutBtn = CreateStyledButton("ℹ About", 945, 76, 120, 38, Color.Gray, Color.White);
+            _groupLabel4 = new Label { Text = "SETTINGS", Left = 925, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _locationsBtn = CreateStyledButton("📍 Locations", 925, 28, 120, 38, Color.Gray, Color.White);
+            _musicBtn = CreateStyledButton("🎵 Music", 1055, 28, 120, 38, Color.Gray, Color.White);
+            _settingsBtn = CreateStyledButton("⚙ Settings", 925, 76, 120, 38, Color.Gray, Color.White);
+            _aboutBtn = CreateStyledButton("ℹ About", 1055, 76, 120, 38, Color.Gray, Color.White);
 
             // Progress & Status (Below buttons - adjusted for 2-row settings)
             _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
@@ -148,6 +152,7 @@ namespace WeatherImageGenerator.Forms
             _videoBtn.Click += (s, e) => VideoClicked();
             _fetchBtn.Click += (s, e) => FetchClicked(_fetchBtn);
             _stillBtn.Click += (s, e) => StillClicked(_stillBtn);
+            _cancelBtn.Click += (s, e) => CancelOperationsClicked();
 
             // Subscribe to only the leveled event and receive the explicit LogLevel (fixes coloring detection)
             Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text, level);
@@ -213,6 +218,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_stillBtn);
             _topPanel.Controls.Add(_fetchBtn);
             _topPanel.Controls.Add(_stopBtn);
+            _topPanel.Controls.Add(_cancelBtn);
             _topPanel.Controls.Add(_openOutputBtn);
             _topPanel.Controls.Add(_clearDirBtn);
             _topPanel.Controls.Add(_startBtn);
@@ -746,11 +752,23 @@ namespace WeatherImageGenerator.Forms
                     // Load music from configuration (handles random/specific selection)
                     videoGenerator.LoadMusicFromConfig();
 
+                    _operationCts?.Dispose();
+                    _operationCts = new CancellationTokenSource();
+                    _runningVideoGenerator = videoGenerator;
+                    SetCancelState(true);
+
                     videoGenerator.GenerateVideo();
                 }
                 catch (Exception ex)
                 {
                     Logger.Log($"[ERROR] Manual video generation error: {ex.Message}", ConsoleColor.Red);
+                }
+                finally
+                {
+                    _runningVideoGenerator = null;
+                    _operationCts?.Dispose();
+                    _operationCts = null;
+                    SetCancelState(false);
                 }
             });
         }
@@ -758,11 +776,14 @@ namespace WeatherImageGenerator.Forms
         private void FetchClicked(Button fetchBtn)
         {
             fetchBtn.Enabled = false;
+            _operationCts?.Dispose();
+            _operationCts = new CancellationTokenSource();
+            SetCancelState(true);
             Task.Run(async () => 
             {
                 try
                 {
-                    await Program.FetchDataOnlyAsync();
+                    await Program.FetchDataOnlyAsync(_operationCts.Token);
                 }
                 catch (Exception ex)
                 {
@@ -774,6 +795,10 @@ namespace WeatherImageGenerator.Forms
                         fetchBtn.Invoke(new Action(() => fetchBtn.Enabled = true));
                     else
                         fetchBtn.Enabled = true;
+
+                    _operationCts?.Dispose();
+                    _operationCts = null;
+                    SetCancelState(false);
                 }
             });
         }
@@ -781,11 +806,14 @@ namespace WeatherImageGenerator.Forms
         private void StillClicked(Button stillBtn)
         {
             stillBtn.Enabled = false;
+            _operationCts?.Dispose();
+            _operationCts = new CancellationTokenSource();
+            SetCancelState(true);
             Task.Run(async () => 
             {
                 try
                 {
-                    await Program.GenerateStillsOnlyAsync();
+                    await Program.GenerateStillsOnlyAsync(_operationCts.Token);
                 }
                 catch (Exception ex)
                 {
@@ -797,8 +825,35 @@ namespace WeatherImageGenerator.Forms
                         stillBtn.Invoke(new Action(() => stillBtn.Enabled = true));
                     else
                         stillBtn.Enabled = true;
+
+                    _operationCts?.Dispose();
+                    _operationCts = null;
+                    SetCancelState(false);
                 }
             });
+        }
+
+        private void CancelOperationsClicked()
+        {
+            Logger.Log("Cancel requested by user.");
+
+            try { _operationCts?.Cancel(); } catch { }
+            try { _runningVideoGenerator?.Cancel(); } catch { }
+
+            try { Services.ExternalProcessManager.CancelAll(); } catch { }
+
+            SetCancelState(false);
+        }
+
+        private void SetCancelState(bool enabled)
+        {
+            if (_cancelBtn == null) return;
+            if (_cancelBtn.InvokeRequired)
+            {
+                _cancelBtn.BeginInvoke(new Action(() => SetCancelState(enabled)));
+                return;
+            }
+            _cancelBtn.Enabled = enabled;
         }
 
         private void OnMessageLogged(string text, Logger.LogLevel level)
