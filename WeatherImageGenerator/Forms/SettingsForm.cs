@@ -15,6 +15,8 @@ namespace WeatherImageGenerator.Forms
         NumericUpDown numStatic;
         NumericUpDown numFade;
         CheckBox chkFade;
+        CheckBox chkUseTotalDuration;
+        NumericUpDown numTotalDuration;
         NumericUpDown numRefresh;
         ComboBox cmbTheme;
         NumericUpDown numImgWidth;
@@ -157,7 +159,17 @@ namespace WeatherImageGenerator.Forms
             numStatic = new NumericUpDown { Left = leftLabel + 135, Top = vTop, Width = 70, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
             var lblStaticHelp = new Label { Text = "Slide duration", Left = leftLabel + 210, Top = vTop + 3, Width = 90, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
 
+            // Total duration mode controls (allow user to enforce an overall total video time)
             vTop += rowH;
+            var lblTotal = new Label { Text = "Total Video Duration (s):", Left = leftLabel, Top = vTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numTotalDuration = new NumericUpDown { Left = leftLabel + 155, Top = vTop, Width = 80, Minimum = 1, Maximum = 86400, DecimalPlaces = 1, Increment = 1, Value = 60 };
+            // Place checkbox directly under Total (left column) and reserve a full row of spacing so following controls do not overlap
+            chkUseTotalDuration = new CheckBox { Text = "Enforce total duration", Left = leftLabel + 10, Top = vTop + rowH, Width = 200 };
+            chkUseTotalDuration.CheckedChanged += (s, e) => { numTotalDuration.Enabled = chkUseTotalDuration.Checked; numStatic.Enabled = !chkUseTotalDuration.Checked; };
+            numTotalDuration.Enabled = false; // disabled by default
+
+            // Reserve space for the checkbox (advance layout cursor by two rows)
+            vTop += (rowH * 2);
             var lblFade = new Label { Text = "Fade Duration (s):", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
             numFade = new NumericUpDown { Left = leftLabel + 135, Top = vTop, Width = 70, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M };
             chkFade = new CheckBox { Text = "Enable", Left = leftLabel + 210, Top = vTop, Width = 70 };
@@ -344,7 +356,7 @@ namespace WeatherImageGenerator.Forms
             tabVideo.Controls.AddRange(new Control[] { 
                 chkVideoGeneration, lblFfmpegInstalled, lblDivider1,
                 // Left column
-                lblTimingGroup, lblStatic, numStatic, lblStaticHelp,
+                lblTimingGroup, lblStatic, numStatic, lblStaticHelp, lblTotal, numTotalDuration, chkUseTotalDuration,
                 lblFade, numFade, chkFade, lblDivider2,
                 lblEncodingGroup, lblCodec, cmbCodec,
                 lblBitrate, cmbBitrate,
@@ -413,6 +425,12 @@ namespace WeatherImageGenerator.Forms
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
                 chkFade.Checked = cfg.Video?.EnableFadeTransitions ?? false;
+
+                // Total duration mode
+                chkUseTotalDuration.Checked = cfg.Video?.UseTotalDuration ?? false;
+                numTotalDuration.Value = (decimal)(cfg.Video?.TotalDurationSeconds ?? 60);
+                numTotalDuration.Enabled = chkUseTotalDuration.Checked;
+                numStatic.Enabled = !chkUseTotalDuration.Checked;
                 
                 // Map old ResolutionMode enum values to new display format
                 var resMode = cfg.Video?.ResolutionMode ?? "Mode1080p";
@@ -561,6 +579,9 @@ namespace WeatherImageGenerator.Forms
                 v.StaticDurationSeconds = (double)numStatic.Value;
                 v.FadeDurationSeconds = (double)numFade.Value;
                 v.EnableFadeTransitions = chkFade.Checked;
+                // Total duration mode settings
+                v.UseTotalDuration = chkUseTotalDuration.Checked;
+                v.TotalDurationSeconds = (double)numTotalDuration.Value;
                 
                 // Extract resolution mode from display text and map to enum value
                 var resDisplay = cmbResolution.SelectedItem?.ToString() ?? "1920x1080 (Full HD)";

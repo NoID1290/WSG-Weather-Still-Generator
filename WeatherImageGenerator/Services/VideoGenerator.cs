@@ -38,6 +38,10 @@ namespace WeatherImageGenerator.Services
         public bool EnableFadeTransitions { get; set; } = false;
         public bool UseOverlayMode { get; set; } = false;       // When true, overlay frames on static background
         public string StaticMapPath { get; set; } = "";         // Path to static background map
+
+        // New: allow setting a fixed total video duration and compute per-image still times to match it
+        public bool UseTotalDuration { get; set; } = false;
+        public double TotalDurationSeconds { get; set; } = 0;
         // When set, the radar overlay will only be enabled for the base image whose filename contains this string (case-insensitive)
         public string OverlayTargetFilename { get; set; } = "";
         public string VideoCodec { get; set; } = "libx264";     // FFmpeg video codec
@@ -273,13 +277,35 @@ namespace WeatherImageGenerator.Services
 
             // Set the expected totals properly now (baseImages used when overlay mode is on)
             var effectiveCount = UseOverlayMode ? (baseImages?.Count ?? 0) : images.Count;
-            if (EnableFadeTransitions)
+            if (UseTotalDuration && TotalDurationSeconds > 0 && effectiveCount > 0)
             {
-                _expectedTotalSeconds = StaticDuration * effectiveCount + FadeDuration * Math.Max(0, effectiveCount - 1);
+                // Compute per-image STATIC duration so that the total video matches the requested total duration.
+                double perStatic;
+                if (EnableFadeTransitions)
+                {
+                    double totalFade = FadeDuration * Math.Max(0, effectiveCount - 1);
+                    double available = TotalDurationSeconds - totalFade;
+                    perStatic = Math.Max(0.1, available / effectiveCount);
+                }
+                else
+                {
+                    double perClip = TotalDurationSeconds / effectiveCount;
+                    perStatic = Math.Max(0.1, perClip - FadeDuration);
+                }
+                Logger.Log($"[TIMING] Total duration mode: total={TotalDurationSeconds}s => static per image={perStatic:F2}s (fade={FadeDuration}s)");
+                StaticDuration = perStatic;
+                _expectedTotalSeconds = TotalDurationSeconds;
             }
             else
             {
-                _expectedTotalSeconds = (StaticDuration + FadeDuration) * effectiveCount;
+                if (EnableFadeTransitions)
+                {
+                    _expectedTotalSeconds = StaticDuration * effectiveCount + FadeDuration * Math.Max(0, effectiveCount - 1);
+                }
+                else
+                {
+                    _expectedTotalSeconds = (StaticDuration + FadeDuration) * effectiveCount;
+                }
             }
             _expectedTotalFrames = Math.Max(1.0, _expectedTotalSeconds * FrameRate);
 
@@ -597,10 +623,14 @@ namespace WeatherImageGenerator.Services
                 sb.Append($" -i \"{MusicFile}\"");
             }
 
-            // Calculate total video duration based on pictures
+            // Calculate total video duration based on pictures (or use configured total duration)
             var effectiveCount = baseImages.Count;
             double totalVideoDuration;
-            if (EnableFadeTransitions)
+            if (UseTotalDuration && TotalDurationSeconds > 0)
+            {
+                totalVideoDuration = TotalDurationSeconds;
+            }
+            else if (EnableFadeTransitions)
             {
                 totalVideoDuration = StaticDuration * effectiveCount + FadeDuration * Math.Max(0, effectiveCount - 1);
             }

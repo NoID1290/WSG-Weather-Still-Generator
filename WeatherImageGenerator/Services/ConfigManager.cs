@@ -215,6 +215,12 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("FadeDurationSeconds")]
         public double FadeDurationSeconds { get; set; } = 0.5;
 
+        [JsonPropertyName("UseTotalDuration")]
+        public bool UseTotalDuration { get; set; } = false;
+
+        [JsonPropertyName("TotalDurationSeconds")]
+        public double TotalDurationSeconds { get; set; } = 60;
+
         [JsonPropertyName("FrameRate")]
         public int FrameRate { get; set; } = 30;
 

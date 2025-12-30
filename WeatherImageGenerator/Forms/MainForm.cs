@@ -728,7 +728,9 @@ namespace WeatherImageGenerator.Forms
                         Container = container,
                         FfmpegVerbose = config.Video?.VerboseFfmpeg ?? false,
                         ShowFfmpegOutputInGui = config.Video?.ShowFfmpegOutputInGui ?? true,
-                        EnableHardwareEncoding = config.Video?.EnableHardwareEncoding ?? false
+                        EnableHardwareEncoding = config.Video?.EnableHardwareEncoding ?? false,
+                        UseTotalDuration = config.Video?.UseTotalDuration ?? false,
+                        TotalDurationSeconds = config.Video?.TotalDurationSeconds ?? 60
                     };
 
                     // Load music from configuration (handles random/specific selection)

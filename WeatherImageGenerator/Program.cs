@@ -616,6 +616,8 @@ namespace WeatherImageGenerator
                     ShowFfmpegOutputInGui = videoConfig.ShowFfmpegOutputInGui,
                     EnableHardwareEncoding = videoConfig.EnableHardwareEncoding,
                     UseOverlayMode = true,
+                    UseTotalDuration = videoConfig.UseTotalDuration,
+                    TotalDurationSeconds = videoConfig.TotalDurationSeconds,
                     StaticMapPath = Path.Combine(outputDir, config.WeatherImages?.StaticMapFilename ?? "STATIC_MAP.IGNORE")
                 };
 
