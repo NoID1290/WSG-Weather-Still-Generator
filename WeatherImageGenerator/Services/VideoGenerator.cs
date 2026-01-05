@@ -315,12 +315,34 @@ namespace WeatherImageGenerator.Services
                 OutputFile = Path.ChangeExtension(OutputFile, ext);
             }
 
-            // Build and execute FFmpeg command
-            var ffmpegCmd = BuildFFmpegCommand(baseImages, radarFrames, filterComplex);
+            // Build and execute FFmpeg command, directing output to a temporary file first so we can safely replace an in-use destination.
+            var finalOutput = OutputFile;
+            var tempOutput = GetTempOutputPath(finalOutput);
+            var ffmpegCmd = BuildFFmpegCommand(baseImages, radarFrames, filterComplex, tempOutput);
             if (FfmpegVerbose) Logger.Log($"[CMD] {ffmpegCmd}");
             try
             {
-                return ExecuteFFmpeg(ffmpegCmd);
+                var ffmpegSuccess = ExecuteFFmpeg(ffmpegCmd, tempOutput);
+                if (!ffmpegSuccess)
+                {
+                    // Remove any partial temp file on failure
+                    if (File.Exists(tempOutput))
+                    {
+                        try { File.Delete(tempOutput); } catch { }
+                    }
+                    return false;
+                }
+
+                // Try to atomically replace the final output. If the target is in use by another process, wait until it is free (up to a timeout).
+                var replaced = ReplaceOutputFileWithRetry(tempOutput, finalOutput, TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(1));
+                if (!replaced)
+                {
+                    Logger.Log($"[FAIL] Could not replace {finalOutput} after waiting for existing file to be free. Temporary output at: {tempOutput}", System.ConsoleColor.Red);
+                    return false;
+                }
+
+                Logger.Log($"[DONE] Video saved to: {finalOutput}", System.ConsoleColor.Cyan);
+                return true;
             }
             finally
             {
@@ -596,7 +618,7 @@ namespace WeatherImageGenerator.Services
             return string.Concat(filterParts);
         }
 
-        private string BuildFFmpegCommand(List<FileInfo> baseImages, List<FileInfo> radarFrames, string filterComplex)
+        private string BuildFFmpegCommand(List<FileInfo> baseImages, List<FileInfo> radarFrames, string filterComplex, string outputFile)
         {
             var sb = new StringBuilder();
             sb.Append("ffmpeg -y");
@@ -758,12 +780,12 @@ namespace WeatherImageGenerator.Services
             {
                 sb.Append(" -movflags +faststart");
             }
-            sb.Append($" \"{OutputFile}\"");
+            sb.Append($" \"{outputFile}\"");
 
             return sb.ToString();
         }
 
-        private bool ExecuteFFmpeg(string ffmpegCmd)
+        private bool ExecuteFFmpeg(string ffmpegCmd, string producedOutputFile)
         {
             Logger.Log("[RUNNING] Starting FFmpeg...", System.ConsoleColor.Green);
 
@@ -844,14 +866,14 @@ namespace WeatherImageGenerator.Services
 
                 Logger.Log("");
 
-                if (File.Exists(OutputFile))
+                if (File.Exists(producedOutputFile))
                 {
-                    Logger.Log($"[DONE] Video saved to: {OutputFile}", System.ConsoleColor.Cyan);
+                    Logger.Log($"[INFO] FFmpeg produced output file: {producedOutputFile}", System.ConsoleColor.DarkGray);
                     return true;
                 }
                 else
                 {
-                    Logger.Log("[FAIL] FFmpeg failed to create the file.", System.ConsoleColor.Red);
+                    Logger.Log("[FAIL] FFmpeg failed to create the output file.", System.ConsoleColor.Red);
                     return false;
                 }
             }
@@ -860,6 +882,92 @@ namespace WeatherImageGenerator.Services
                 Logger.Log($"[ERROR] Exception occurred: {ex.Message}", System.ConsoleColor.Red);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Create a temporary output path in the same directory as the final output, to ensure moves are on the same volume.
+        /// </summary>
+        private string GetTempOutputPath(string finalOutput)
+        {
+            var dir = Path.GetDirectoryName(finalOutput) ?? WorkingDirectory;
+            var ext = Path.GetExtension(finalOutput);
+            var baseName = Path.GetFileNameWithoutExtension(finalOutput);
+            var tempName = $"{baseName}.{Guid.NewGuid():N}.tmp{ext}";
+            return Path.Combine(dir, tempName);
+        }
+
+        /// <summary>
+        /// Returns true if the file is currently locked by another process (cannot be opened for exclusive read/write).
+        /// </summary>
+        private bool IsFileLocked(string path)
+        {
+            try
+            {
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+                return false;
+            }
+            catch (FileNotFoundException)
+            {
+                return false; // not existing => not locked
+            }
+            catch (IOException)
+            {
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to replace the final output file with the produced temp file, waiting until the target is no longer in use.
+        /// Returns true on success or false after timeout.
+        /// </summary>
+        private bool ReplaceOutputFileWithRetry(string tempPath, string finalPath, TimeSpan timeout, TimeSpan retryInterval)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < timeout)
+            {
+                try
+                {
+                    if (!File.Exists(tempPath))
+                    {
+                        Logger.Log($"[ERROR] Temporary output file missing: {tempPath}", System.ConsoleColor.Red);
+                        return false;
+                    }
+
+                    if (File.Exists(finalPath))
+                    {
+                        if (IsFileLocked(finalPath))
+                        {
+                            Logger.Log($"[INFO] Final file is in use: {finalPath}. Waiting...", System.ConsoleColor.Yellow);
+                            System.Threading.Thread.Sleep(retryInterval);
+                            continue;
+                        }
+
+                        try { File.Delete(finalPath); } catch (Exception ex) { Logger.Log($"[WARN] Failed to delete existing output file: {ex.Message}", System.ConsoleColor.Yellow); System.Threading.Thread.Sleep(retryInterval); continue; }
+                    }
+
+                    // Move temp into final location (same volume expected)
+                    File.Move(tempPath, finalPath);
+                    return true;
+                }
+                catch (IOException ex)
+                {
+                    Logger.Log($"[WARN] IO exception when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                    System.Threading.Thread.Sleep(retryInterval);
+                    continue;
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    Logger.Log($"[WARN] Access denied when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                    System.Threading.Thread.Sleep(retryInterval);
+                    continue;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
