@@ -1,5 +1,4 @@
 using System;
-
 namespace WeatherImageGenerator.Utilities
 {
     /// <summary>
@@ -11,8 +10,19 @@ namespace WeatherImageGenerator.Utilities
 
         public static event Action<string>? MessageLogged;
         public static event Action<string, LogLevel>? MessageLoggedWithLevel;
+        // Allow external callers to request that UI log widgets archive older logs to disk (subscribed by MainForm)
+        public static event Action? ArchiveRequested;
 
         private static readonly object _sync = new object();
+
+        /// <summary>
+        /// Request subscribed UI components to archive their logs to disk (non-blocking).
+        /// </summary>
+        public static void RequestArchive()
+        {
+            try { ArchiveRequested?.Invoke(); } catch { }
+        }
+
 
         public static void Log(string message, ConsoleColor? color = null)
         {

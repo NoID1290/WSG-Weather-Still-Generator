@@ -3,6 +3,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
+using System.Collections.Generic;
+using System.IO.Compression;
+using System.Text;
 using System.Windows.Forms;
 using System.Reflection;
 using System.Drawing;
@@ -38,6 +41,7 @@ namespace WeatherImageGenerator.Forms
         private CancellationTokenSource? _operationCts;
         private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
+        private System.Threading.Timer? _logArchiveTimer;
 
         // Theme colors for dynamic updates
         private Color _themeSuccessColor = Color.Green;
@@ -49,6 +53,11 @@ namespace WeatherImageGenerator.Forms
         // When Minimal verbosity is selected, show only the last N important lines
         private const int MinimalVisibleCount = 5;    // reduced for casual users (show only 5 lines)
 
+        // Log archival settings: when the on-screen log grows past this many lines
+        private const int LogArchiveThreshold = 2000;      // lines in RichTextBox before archiving triggers
+        private const int LogArchiveKeepRecent = 200;      // keep these many most-recent lines on-screen after archiving
+        private readonly string LogArchiveFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+        private readonly string LogArchiveFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", "archived_logs.b64");
 
         // Video phase mapping (when ffmpeg reports 0-100 we map it into [videoBase, 100])
         private double _videoBase = 80.0;
@@ -69,6 +78,11 @@ namespace WeatherImageGenerator.Forms
 
             _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9.5F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
             // Note: RichTextBox with Dock=Fill doesn't support Region properly, so we skip rounding for it
+
+            // Start a background timer that will periodically archive older logs to disk to avoid UI growth/crashes
+            _logArchiveTimer = new System.Threading.Timer(_ => {
+                try { TryArchiveLogsIfNeededSafe(); } catch { }
+            }, null, 30000, 30000); // every 30s
             
             // === CONTROL GROUPS - Reorganized for Better Layout ===
             // Row 1: Main Operations
@@ -158,6 +172,8 @@ namespace WeatherImageGenerator.Forms
 
             // Subscribe to only the leveled event and receive the explicit LogLevel (fixes coloring detection)
             Logger.MessageLoggedWithLevel += (text, level) => OnMessageLogged(text, level);
+            // Allow external requests to trigger a log archival (keeps UI responsive)
+            Logger.ArchiveRequested += () => TryArchiveLogsIfNeededSafe();
 
             // Subscribe to sleep updates from the background worker so we can show a countdown
             Program.SleepRemainingUpdated += (ts) => SetSleepRemaining(ts);
@@ -899,10 +915,10 @@ namespace WeatherImageGenerator.Forms
                     if (PassesFilter(text, filter, search, level, verbosity))
                     {
                         AppendColoredLine(rtb, text, search, level);
-                        // Periodically refresh to prune old lines from the view if it gets too long
-                        if (rtb.Lines.Length > 2000) 
+                        // Periodically refresh / archive to prune old lines from the view if it gets too long
+                        if (rtb.Lines.Length > LogArchiveThreshold)
                         {
-                            RefreshLogView();
+                            TryArchiveLogsIfNeeded(rtb);
                         }
                     }
                 }
@@ -1175,6 +1191,71 @@ namespace WeatherImageGenerator.Forms
 
             return false;
         }
+
+        // Safely invoked by the background timer to attempt archival when needed (switch to UI thread)
+        private void TryArchiveLogsIfNeededSafe()
+        {
+            if (this.IsDisposed) return;
+            var richArr = this.Controls.Find("logBox", true);
+            if (richArr.Length != 1 || !(richArr[0] is RichTextBox rtb)) return;
+            if (rtb.InvokeRequired)
+            {
+                rtb.BeginInvoke(new Action(() => TryArchiveLogsIfNeeded(rtb)));
+            }
+            else TryArchiveLogsIfNeeded(rtb);
+        }
+
+        // Check and archive older log entries (UI thread) if the RichTextBox exceeds threshold
+        private void TryArchiveLogsIfNeeded(RichTextBox rtb)
+        {
+            try
+            {
+                if (rtb == null) return;
+                if (rtb.Lines.Length <= LogArchiveThreshold) return;
+
+                // Snapshot and steal older entries from buffer while holding the lock
+                List<(string Text, Logger.LogLevel Level)> toArchive;
+                lock (_logBuffer)
+                {
+                    if (_logBuffer.Count <= LogArchiveKeepRecent) return; // nothing to archive
+                    int removeCount = Math.Max(0, _logBuffer.Count - LogArchiveKeepRecent);
+                    toArchive = _logBuffer.Take(removeCount).ToList();
+                    _logBuffer.RemoveRange(0, removeCount);
+                }
+
+                // Prepare the content to archive (concatenate text entries)
+                var content = string.Concat(toArchive.Select(e => e.Text));
+                int archivedLines = toArchive.Count;
+
+                // Refresh the visible view to show only remaining recent entries
+                RefreshLogView();
+
+                // Add a short info entry to the live log and then background-archive the content
+                Logger.Log($"[INFO] Archived {archivedLines} log lines to disk (logs/archived_logs.b64)", Logger.LogLevel.Info);
+                Task.Run(() => ArchiveToFile(content, archivedLines));
+            }
+            catch (Exception ex)
+            {
+                // Don't throw on archival failures - just log a warning and continue
+                Logger.Log($"[WARN] Log archive failed: {ex.Message}", Logger.LogLevel.Warning);
+            }
+        }
+
+        // Append content directly to the archive file (plain text, human-readable)
+        private void ArchiveToFile(string content, int count)
+        {
+            try
+            {
+                if (!Directory.Exists(LogArchiveFolder)) Directory.CreateDirectory(LogArchiveFolder);
+                var header = $"=== ARCHIVE {DateTime.UtcNow:O} lines={count} ==={Environment.NewLine}";
+                File.AppendAllText(LogArchiveFile, header + content + Environment.NewLine);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[WARN] Failed to write log archive: {ex.Message}", Logger.LogLevel.Warning);
+            }
+        }
+
 
         private void SetProgressMarquee(bool marquee)
         {

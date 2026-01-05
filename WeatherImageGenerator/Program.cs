@@ -405,6 +405,8 @@ namespace WeatherImageGenerator
                         if (allForecasts[0] == null) 
                         {
                             Logger.Log("Primary location data missing. Retrying in 1 minute...");
+                            // Archive current logs before waiting/retrying
+                            Logger.RequestArchive();
                             try { await Task.Delay(60000, cancellationToken); } catch (OperationCanceledException) { break; }
                             continue;
                         }
@@ -541,7 +543,10 @@ namespace WeatherImageGenerator
                                 }
                             }
 
-                            // Clear the GUI countdown when sleep completes
+// Request archival of logs for this completed cycle (keep UI small & avoid overflow)
+                        Logger.RequestArchive();
+
+                        // Clear the GUI countdown when sleep completes
                             SleepRemainingUpdated?.Invoke(TimeSpan.Zero);
                         }
                         else
@@ -573,6 +578,8 @@ namespace WeatherImageGenerator
                         Logger.Log($"Critical Global Error: {ex.Message}", ConsoleColor.Red);
                         // Notify GUI of failure
                         ProgressUpdated?.Invoke(0.0, "Error");
+                        // Archive logs now so we can capture the error and keep GUI small
+                        Logger.RequestArchive();
                         Logger.Log("Retrying in 1 minute...");
                         try { await Task.Delay(60000, cancellationToken); } catch (OperationCanceledException) { break; }
                     }
