@@ -1192,13 +1192,13 @@ namespace WeatherImageGenerator.Services
         /// Probes ffmpeg to see whether hardware encoders are available (NVENC, AMF, QSV).
         /// Returns true if an encoder name is present in the `ffmpeg -encoders` output. Provides a short message describing the result.
         /// </summary>
-        public static bool IsHardwareEncodingSupported(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 5000)
+        public static bool IsHardwareEncodingSupported(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 10000)
         {
             var type = GetHardwareEncoderType(out message, ffmpegExe, timeoutMs);
             return type != HardwareEncoderType.None;
         }
 
-        public static HardwareEncoderType GetHardwareEncoderType(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 5000)
+        public static HardwareEncoderType GetHardwareEncoderType(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 10000)
         {
             try
             {
@@ -1264,11 +1264,12 @@ namespace WeatherImageGenerator.Services
         {
             try
             {
-                // Try to encode a tiny dummy video to see if the hardware encoder actually initializes
+                // Try to encode a small dummy video to see if the hardware encoder actually initializes
+                // Note: Modern NVENC (RTX 40-series+) requires minimum 144x144, older hardware encoders may have different minimums
                 var psi = new ProcessStartInfo
                 {
                     FileName = ffmpegExe,
-                    Arguments = $"-hide_banner -y -f lavfi -i color=c=black:s=64x64:d=0.1 -c:v {encoderName} -f null -",
+                    Arguments = $"-hide_banner -y -f lavfi -i color=c=black:s=256x256:d=0.1 -c:v {encoderName} -f null -",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -1278,16 +1279,60 @@ namespace WeatherImageGenerator.Services
                 using (var p = Process.Start(psi))
                 {
                     if (p == null) return false;
+                    
+                    // Read output asynchronously to prevent buffer deadlock
+                    var outputBuilder = new System.Text.StringBuilder();
+                    var errorBuilder = new System.Text.StringBuilder();
+                    
+                    p.OutputDataReceived += (sender, e) => { if (e.Data != null) outputBuilder.AppendLine(e.Data); };
+                    p.ErrorDataReceived += (sender, e) => { if (e.Data != null) errorBuilder.AppendLine(e.Data); };
+                    
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
+                    
                     if (!p.WaitForExit(timeoutMs))
                     {
                         try { p.Kill(); } catch { }
                         return false;
                     }
+                    
+                    // Log detailed error for debugging if probe fails
+                    if (p.ExitCode != 0)
+                    {
+                        var errorText = errorBuilder.ToString();
+                        if (!string.IsNullOrWhiteSpace(errorText))
+                        {
+                            // Look for the actual error message (usually contains "Error" or "failed" or "not")
+                            var lines = errorText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                            var errorLines = lines.Where(l => 
+                                l.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                l.IndexOf("failed", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                l.IndexOf("cannot", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                l.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                l.IndexOf("unavailable", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                l.Contains("does not") ||
+                                l.Contains("Impossible")
+                            ).ToList();
+                            
+                            if (errorLines.Any())
+                            {
+                                Logger.Log($"[DEBUG] {encoderName} probe failed: {string.Join(" | ", errorLines)}", ConsoleColor.DarkGray);
+                            }
+                            else
+                            {
+                                // If no specific error found, show last few lines
+                                var lastLines = lines.Skip(Math.Max(0, lines.Length - 3)).Take(3);
+                                Logger.Log($"[DEBUG] {encoderName} probe failed (exit {p.ExitCode}): {string.Join(" | ", lastLines)}", ConsoleColor.DarkGray);
+                            }
+                        }
+                    }
+                    
                     return p.ExitCode == 0;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.Log($"[DEBUG] {encoderName} probe exception: {ex.Message}", ConsoleColor.DarkGray);
                 return false;
             }
         }
