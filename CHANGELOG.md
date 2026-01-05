@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.10.0.0105] - 2026-01-05
+
+### Changed
+- Implement log archival feature to manage UI log size and enhance performance
+- Throttle log messages and update progress during output file replacement retries
+- Add safety buffer to clip duration for smoother transitions
 ## [0.9.3.0105] - 2026-01-05
 
 ### Fixed
@@ -94,6 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
