@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.9.2.0105] - 2026-01-05
+
+### Fixed
+- Enhance video generation process with temporary output handling and retry logic for file replacement
+- 2026 date update
 ## [0.9.1.1230] - 2025-12-30
 
 ### Fixed
@@ -83,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
