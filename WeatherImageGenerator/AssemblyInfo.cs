@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("NoID Softwork")]
 [assembly: AssemblyProduct("WSG-WeatherStillGenerator")]
-[assembly: AssemblyCopyright("Copyright (c) NoID Softwork 2020-2025")]
+[assembly: AssemblyCopyright("Copyright (c) NoID Softwork 2020-2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
