@@ -928,6 +928,8 @@ namespace WeatherImageGenerator.Services
         private bool ReplaceOutputFileWithRetry(string tempPath, string finalPath, TimeSpan timeout, TimeSpan retryInterval)
         {
             var sw = Stopwatch.StartNew();
+            bool waitingMessageShown = false;
+            DateTime lastWarnLog = DateTime.MinValue;
             while (sw.Elapsed < timeout)
             {
                 try
@@ -942,12 +944,37 @@ namespace WeatherImageGenerator.Services
                     {
                         if (IsFileLocked(finalPath))
                         {
-                            Logger.Log($"[INFO] Final file is in use: {finalPath}. Waiting...", System.ConsoleColor.Yellow);
+                            // Log only once to avoid flooding the log; always update GUI progress/status
+                            if (!waitingMessageShown)
+                            {
+                                Logger.Log($"[INFO] Final file is in use: {finalPath}. Waiting until it is released...", System.ConsoleColor.Yellow);
+                                try { VideoProgressUpdated?.Invoke(99.0, $"Waiting for output file to be released: {Path.GetFileName(finalPath)}"); } catch { }
+                                waitingMessageShown = true;
+                            }
+                            else
+                            {
+                                // Update progress status bar without writing to the log each retry
+                                try { VideoProgressUpdated?.Invoke(99.0, $"Waiting for output file to be released: {Path.GetFileName(finalPath)}"); } catch { }
+                            }
+
                             System.Threading.Thread.Sleep(retryInterval);
                             continue;
                         }
 
-                        try { File.Delete(finalPath); } catch (Exception ex) { Logger.Log($"[WARN] Failed to delete existing output file: {ex.Message}", System.ConsoleColor.Yellow); System.Threading.Thread.Sleep(retryInterval); continue; }
+                        try { File.Delete(finalPath); } catch (Exception ex) {
+                            // Throttle repeated warnings about failing to delete the existing file
+                            if (!waitingMessageShown)
+                            {
+                                Logger.Log($"[WARN] Failed to delete existing output file: {ex.Message}", System.ConsoleColor.Yellow);
+                                try { VideoProgressUpdated?.Invoke(98.0, $"Retrying delete of output file: {Path.GetFileName(finalPath)}"); } catch { }
+                                waitingMessageShown = true;
+                            }
+                            else if ((DateTime.UtcNow - lastWarnLog).TotalSeconds > 30)
+                            {
+                                Logger.Log($"[WARN] Still unable to delete existing output file: {ex.Message}", System.ConsoleColor.Yellow);
+                                lastWarnLog = DateTime.UtcNow;
+                            }
+                            System.Threading.Thread.Sleep(retryInterval); continue; }
                     }
 
                     // Move temp into final location (same volume expected)
@@ -956,13 +983,33 @@ namespace WeatherImageGenerator.Services
                 }
                 catch (IOException ex)
                 {
-                    Logger.Log($"[WARN] IO exception when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                    if (!waitingMessageShown)
+                    {
+                        Logger.Log($"[WARN] IO exception when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                        try { VideoProgressUpdated?.Invoke(96.0, $"IO error while replacing output file: {Path.GetFileName(finalPath)}"); } catch { }
+                        waitingMessageShown = true;
+                    }
+                    else if ((DateTime.UtcNow - lastWarnLog).TotalSeconds > 30)
+                    {
+                        Logger.Log($"[WARN] IO exception when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                        lastWarnLog = DateTime.UtcNow;
+                    }
                     System.Threading.Thread.Sleep(retryInterval);
                     continue;
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    Logger.Log($"[WARN] Access denied when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                    if (!waitingMessageShown)
+                    {
+                        Logger.Log($"[WARN] Access denied when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                        try { VideoProgressUpdated?.Invoke(96.0, $"Access denied while replacing output file: {Path.GetFileName(finalPath)}"); } catch { }
+                        waitingMessageShown = true;
+                    }
+                    else if ((DateTime.UtcNow - lastWarnLog).TotalSeconds > 30)
+                    {
+                        Logger.Log($"[WARN] Access denied when replacing file: {ex.Message}", System.ConsoleColor.Yellow);
+                        lastWarnLog = DateTime.UtcNow;
+                    }
                     System.Threading.Thread.Sleep(retryInterval);
                     continue;
                 }
