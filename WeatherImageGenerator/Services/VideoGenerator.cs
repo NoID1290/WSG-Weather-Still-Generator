@@ -624,7 +624,8 @@ namespace WeatherImageGenerator.Services
             sb.Append("ffmpeg -y");
 
             // Add input files in this order: baseImages..., radarFrames..., [audio]
-            var clipDuration = StaticDuration + FadeDuration;
+            // Add a safety buffer (0.5s) to ensure the stream covers the full transition duration + potential rounding variations
+            var clipDuration = StaticDuration + FadeDuration + 0.5;
             var clipDurStr = clipDuration.ToString(_culture);
 
             foreach (var img in baseImages)
