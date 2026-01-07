@@ -52,6 +52,13 @@ namespace WeatherImageGenerator.Services
         // When true, attempt hardware accelerated encoding (NVENC) if available
         public bool EnableHardwareEncoding { get; set; } = false;
 
+        // CRF and advanced encoder controls
+        public bool UseCrfEncoding { get; set; } = true;      // When true, use -crf instead of bitrate when appropriate
+        public int CrfValue { get; set; } = 23;               // CRF value to use for quality-based encoding
+        public string? MaxBitrate { get; set; }               // Optional maxrate (e.g., "5M")
+        public string? BufferSize { get; set; }               // Optional bufsize (e.g., "10M")
+        public string EncoderPreset { get; set; } = "medium"; // Encoder preset (e.g., fast, medium, slow)
+
         // Audio handling
         public bool TrimToAudio { get; set; } = false;          // Deprecated: Audio is always trimmed to video duration
         public bool AutoTrimMusic { get; set; } = true;         // Enable automatic trimming of audio to video duration
@@ -726,11 +733,13 @@ namespace WeatherImageGenerator.Services
                     codec = isHevc ? "hevc_amf" : "h264_amf";
                     // AMF specific flags can be added here if needed, e.g. -usage transcoding
                     sb.Append($" -c:v {codec}");
+                    if (!string.IsNullOrWhiteSpace(EncoderPreset)) sb.Append($" -preset {EncoderPreset}");
                 }
                 else if (hwType == HardwareEncoderType.Qsv)
                 {
                     codec = isHevc ? "hevc_qsv" : "h264_qsv";
                     sb.Append($" -c:v {codec} -preset medium");
+                    if (!string.IsNullOrWhiteSpace(EncoderPreset)) sb.Append($" -preset {EncoderPreset}");
                 }
                 else
                 {
@@ -739,37 +748,41 @@ namespace WeatherImageGenerator.Services
                     sb.Append($" -c:v {codec}");
                 }
 
-                // Hardware encoders typically use bitrate targets rather than CRF — ensure we have a sensible default bitrate if none specified.
-                if (hwType != HardwareEncoderType.None)
+                // Hardware encoders typically use bitrate targets rather than CRF — prefer explicit bitrate or maxrate if provided.
+                if (!string.IsNullOrWhiteSpace(VideoBitrate))
                 {
-                    if (!string.IsNullOrWhiteSpace(VideoBitrate))
-                    {
-                        sb.Append($" -b:v {VideoBitrate}");
-                    }
-                    else
-                    {
-                        sb.Append(" -b:v 8M");
-                    }
+                    sb.Append($" -b:v {VideoBitrate}");
+                }
+                else if (!string.IsNullOrWhiteSpace(MaxBitrate))
+                {
+                    sb.Append($" -maxrate {MaxBitrate}");
                 }
                 else
                 {
-                    if (!string.IsNullOrWhiteSpace(VideoBitrate))
-                    {
-                        sb.Append($" -b:v {VideoBitrate}");
-                    }
-                    else
-                    {
-                        sb.Append(" -crf 23");
-                    }
+                    sb.Append(" -b:v 8M");
+                }
+
+                if (!string.IsNullOrWhiteSpace(BufferSize))
+                {
+                    sb.Append($" -bufsize {BufferSize}");
                 }
             }
             else
             {
                 sb.Append($" -c:v {codec}");
 
+                // Apply encoder preset for software encoding if provided
+                if (!string.IsNullOrWhiteSpace(EncoderPreset)) sb.Append($" -preset {EncoderPreset}");
+
                 if (!string.IsNullOrWhiteSpace(VideoBitrate))
                 {
                     sb.Append($" -b:v {VideoBitrate}");
+                    if (!string.IsNullOrWhiteSpace(MaxBitrate)) sb.Append($" -maxrate {MaxBitrate}");
+                    if (!string.IsNullOrWhiteSpace(BufferSize)) sb.Append($" -bufsize {BufferSize}");
+                }
+                else if (UseCrfEncoding)
+                {
+                    sb.Append($" -crf {CrfValue}");
                 }
                 else
                 {

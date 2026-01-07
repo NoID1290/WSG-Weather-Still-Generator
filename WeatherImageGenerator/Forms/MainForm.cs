@@ -763,6 +763,11 @@ namespace WeatherImageGenerator.Forms
                         FfmpegVerbose = config.Video?.VerboseFfmpeg ?? false,
                         ShowFfmpegOutputInGui = config.Video?.ShowFfmpegOutputInGui ?? true,
                         EnableHardwareEncoding = config.Video?.EnableHardwareEncoding ?? false,
+                        UseCrfEncoding = config.Video?.UseCrfEncoding ?? true,
+                        CrfValue = config.Video?.CrfValue ?? 23,
+                        MaxBitrate = config.Video?.MaxBitrate,
+                        BufferSize = config.Video?.BufferSize,
+                        EncoderPreset = config.Video?.EncoderPreset ?? "medium",
                         UseTotalDuration = config.Video?.UseTotalDuration ?? false,
                         TotalDurationSeconds = config.Video?.TotalDurationSeconds ?? 60
                     };

@@ -34,6 +34,13 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkVerbose;
         CheckBox chkShowFfmpeg;
         CheckBox chkEnableHardwareEncoding; // New: toggle NVENC / hardware encoding
+        // New video encoding controls
+        CheckBox chkUseCrfEncoding;
+        NumericUpDown numCrf;
+        ComboBox cmbEncoderPreset;
+        System.Windows.Forms.TextBox txtMaxBitrate;
+        System.Windows.Forms.TextBox txtBufferSize;
+        // End new controls
         CheckBox chkMinimizeToTray; // Enable minimize to system tray
         CheckBox chkMinimizeToTrayOnClose; // Minimize to tray when closing
         CheckBox chkAutoStartCycle; // Auto-start update cycle on application start
@@ -262,6 +269,22 @@ namespace WeatherImageGenerator.Forms
             vTop += rowH;
             lblHwStatus = new Label { Text = "Unknown", Left = leftLabel + 20, Top = vTop, Width = 260, ForeColor = System.Drawing.Color.Gray, AutoSize = true };
 
+            vTop += rowH;
+            var lblCrf = new Label { Text = "CRF:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            chkUseCrfEncoding = new CheckBox { Text = "Use CRF encoding (quality-based)", Left = leftLabel + 135, Top = vTop, Width = 220 };
+            numCrf = new NumericUpDown { Left = leftLabel + 360, Top = vTop, Width = 80, Minimum = 0, Maximum = 51, Value = 23 };
+
+            vTop += rowH;
+            var lblEncoderPreset = new Label { Text = "Encoder Preset:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbEncoderPreset = new ComboBox { Left = leftLabel + 135, Top = vTop, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbEncoderPreset.Items.AddRange(new object[] { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow" });
+            cmbEncoderPreset.SelectedIndex = 5; // medium
+
+            vTop += rowH;
+            var lblMaxRate = new Label { Text = "Max Bitrate:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtMaxBitrate = new TextBox { Left = leftLabel + 135, Top = vTop, Width = 145 };
+            var lblBuf = new Label { Text = "Buffer Size:", Left = leftLabel + 290, Top = vTop, Width = 90, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtBufferSize = new TextBox { Left = leftLabel + 380, Top = vTop, Width = 90 };
 
             
             // Quality preset change handler
@@ -320,6 +343,12 @@ namespace WeatherImageGenerator.Forms
             cmbCodec.SelectedIndexChanged += markCustom;
             cmbBitrate.SelectedIndexChanged += markCustom;
             numFps.ValueChanged += markCustom;
+            // New controls should mark preset as custom when changed
+            cmbEncoderPreset.SelectedIndexChanged += markCustom;
+            txtMaxBitrate.TextChanged += (s, e) => { if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5) cmbQualityPreset.SelectedIndex = 5; };
+            txtBufferSize.TextChanged += (s, e) => { if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5) cmbQualityPreset.SelectedIndex = 5; };
+            chkUseCrfEncoding.CheckedChanged += markCustom;
+            numCrf.ValueChanged += markCustom;
             
             btnCheckHw.Click += (s, e) =>
             {
@@ -365,6 +394,8 @@ namespace WeatherImageGenerator.Forms
                 lblEncodingGroup, lblCodec, cmbCodec,
                 lblBitrate, cmbBitrate,
                 chkEnableHardwareEncoding, lblHwStatus, btnCheckHw,
+                // Advanced encoder options
+                lblCrf, chkUseCrfEncoding, numCrf, lblEncoderPreset, cmbEncoderPreset, lblMaxRate, txtMaxBitrate, lblBuf, txtBufferSize,
                 // Right column
                 lblVideoFormat, lblQualityPreset, cmbQualityPreset,
                 lblResPreset, cmbResolution, 
@@ -494,7 +525,16 @@ namespace WeatherImageGenerator.Forms
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
                 chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
-                
+
+                // New encoder-related settings
+                chkUseCrfEncoding.Checked = cfg.Video?.UseCrfEncoding ?? true;
+                numCrf.Value = cfg.Video?.CrfValue ?? 23;
+                txtMaxBitrate.Text = cfg.Video?.MaxBitrate ?? string.Empty;
+                txtBufferSize.Text = cfg.Video?.BufferSize ?? string.Empty;
+                var preset = cfg.Video?.EncoderPreset ?? "medium";
+                if (cmbEncoderPreset.Items.Contains(preset)) cmbEncoderPreset.SelectedItem = preset;
+                else cmbEncoderPreset.SelectedIndex = 5;
+
                 // Load quality preset
                 var qualityPreset = cfg.Video?.QualityPreset ?? "Balanced";
                 var presetDisplay = qualityPreset switch
@@ -641,6 +681,13 @@ namespace WeatherImageGenerator.Forms
                     }
                 }
                 v.EnableHardwareEncoding = chkEnableHardwareEncoding.Checked;
+
+                // New encoding settings persistence
+                v.UseCrfEncoding = chkUseCrfEncoding.Checked;
+                v.CrfValue = (int)numCrf.Value;
+                v.MaxBitrate = string.IsNullOrWhiteSpace(txtMaxBitrate.Text) ? null : txtMaxBitrate.Text.Trim();
+                v.BufferSize = string.IsNullOrWhiteSpace(txtBufferSize.Text) ? null : txtBufferSize.Text.Trim();
+                v.EncoderPreset = cmbEncoderPreset.SelectedItem?.ToString() ?? "medium";
                 
                 // Save quality preset
                 var qualityPresetDisplay = cmbQualityPreset.SelectedItem?.ToString() ?? "Balanced";

@@ -259,6 +259,21 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("QualityPreset")]
         public string? QualityPreset { get; set; } = "Balanced";
+
+        [JsonPropertyName("UseCrfEncoding")]
+        public bool UseCrfEncoding { get; set; } = true;
+
+        [JsonPropertyName("CrfValue")]
+        public int CrfValue { get; set; } = 23;
+
+        [JsonPropertyName("MaxBitrate")]
+        public string? MaxBitrate { get; set; }
+
+        [JsonPropertyName("BufferSize")]
+        public string? BufferSize { get; set; }
+
+        [JsonPropertyName("EncoderPreset")]
+        public string? EncoderPreset { get; set; } = "medium";
     }
 
     /// <summary>
