@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.0.1.0106] - 2026-01-06
+
+### Fixed
+- Add advanced video encoding options: CRF encoding, bitrate, buffer size, and encoder preset
 ## [1.0.0.0106] - 2026-01-06
 
 ### Added
@@ -107,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
