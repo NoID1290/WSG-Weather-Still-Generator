@@ -36,6 +36,7 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkEnableHardwareEncoding; // New: toggle NVENC / hardware encoding
         CheckBox chkMinimizeToTray; // Enable minimize to system tray
         CheckBox chkMinimizeToTrayOnClose; // Minimize to tray when closing
+        CheckBox chkAutoStartCycle; // Auto-start update cycle on application start
         Label lblHwStatus;
         Label lblFfmpegInstalled;
         Button btnCheckHw;
@@ -84,7 +85,10 @@ namespace WeatherImageGenerator.Forms
             gTop += rowH;
             chkMinimizeToTrayOnClose = new CheckBox { Text = "Minimize to tray on close (X button)", Left = leftLabel, Top = gTop, Width = 300 };
 
-            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose });
+            gTop += rowH;
+            chkAutoStartCycle = new CheckBox { Text = "Auto start update cycle on application start", Left = leftLabel, Top = gTop, Width = 420 };
+
+            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose, chkAutoStartCycle });
 
             // --- Image Tab ---
             var tabImage = new TabPage("Image");
@@ -420,7 +424,8 @@ namespace WeatherImageGenerator.Forms
                 else cmbTheme.SelectedItem = "Blue";
 
                 chkMinimizeToTray.Checked = cfg.MinimizeToTray;
-                chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose; 
+                chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose;
+                chkAutoStartCycle.Checked = cfg.AutoStartCycle; // New setting: auto-start cycle on launch 
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -658,6 +663,9 @@ namespace WeatherImageGenerator.Forms
                 // Persist minimize to tray settings
                 cfg.MinimizeToTray = chkMinimizeToTray.Checked;
                 cfg.MinimizeToTrayOnClose = chkMinimizeToTrayOnClose.Checked;
+
+                // Persist new AutoStartCycle setting
+                cfg.AutoStartCycle = chkAutoStartCycle.Checked;
 
                 ConfigManager.SaveConfig(cfg);
 

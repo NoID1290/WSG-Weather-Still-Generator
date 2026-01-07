@@ -126,6 +126,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("MinimizeToTrayOnClose")]
         public bool MinimizeToTrayOnClose { get; set; } = false;
 
+        [JsonPropertyName("AutoStartCycle")]
+        public bool AutoStartCycle { get; set; } = false;
+
         [JsonPropertyName("Music")]
         public MusicSettings? Music { get; set; }
     }

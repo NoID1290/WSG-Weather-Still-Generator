@@ -126,6 +126,24 @@ namespace WeatherImageGenerator.Forms
             _logPanel = new Panel { Dock = DockStyle.Top, Height = 50, Padding = new Padding(10, 8, 10, 8) };
             
             _lblLog = new Label { Text = "📋 LOGS", Left = 10, Top = 14, AutoSize = true, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
+
+            // When the form is first shown, optionally auto-start the update cycle based on configuration
+            this.Shown += (s, e) =>
+            {
+                try
+                {
+                    var cfg = ConfigManager.LoadConfig();
+                    if (cfg.AutoStartCycle)
+                    {
+                        Logger.Log("AutoStartCycle enabled in config; starting update cycle.");
+                        StartClicked(_startBtn, _stopBtn);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Failed to auto-start cycle: {ex.Message}", Logger.LogLevel.Error);
+                }
+            };
             
             _cmbFilter = new ComboBox { Left = 90, Top = 11, Width = 110, Height = 28, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular) };
             _cmbFilter.Items.AddRange(new object[] { "All", "Errors", "Warnings", "Info" });
