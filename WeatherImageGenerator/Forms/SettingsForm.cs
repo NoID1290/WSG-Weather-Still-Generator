@@ -34,6 +34,8 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkVerbose;
         CheckBox chkShowFfmpeg;
         CheckBox chkEnableHardwareEncoding; // New: toggle NVENC / hardware encoding
+        CheckBox chkEnableExperimental; // Opt-in for experimental features
+        TabPage tabExperimental; // Experimental tab container
         // New video encoding controls
         CheckBox chkUseCrfEncoding;
         NumericUpDown numCrf;
@@ -380,6 +382,12 @@ namespace WeatherImageGenerator.Forms
             var lblDivider4 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
             
             vTop += 20;
+            // Experimental opt-in checkbox (controls the Experimental tab)
+            vTop += rowH;
+            chkEnableExperimental = new CheckBox { Text = "Enable Experimental Features", Left = leftLabel, Top = vTop, Width = 300 };
+            chkEnableExperimental.CheckedChanged += (s, e) => { if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked; };
+
+            vTop += 5;
             var lblDebugGroup2 = new Label { Text = "🔧 Debug Options", Left = leftLabel, Top = vTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
             
             vTop += 25;
@@ -394,8 +402,8 @@ namespace WeatherImageGenerator.Forms
                 lblEncodingGroup, lblCodec, cmbCodec,
                 lblBitrate, cmbBitrate,
                 chkEnableHardwareEncoding, lblHwStatus, btnCheckHw,
-                // Advanced encoder options
-                lblCrf, chkUseCrfEncoding, numCrf, lblEncoderPreset, cmbEncoderPreset, lblMaxRate, txtMaxBitrate, lblBuf, txtBufferSize,
+                // Add experimental toggle here so user can opt-in
+                chkEnableExperimental,
                 // Right column
                 lblVideoFormat, lblQualityPreset, cmbQualityPreset,
                 lblResPreset, cmbResolution, 
@@ -405,9 +413,18 @@ namespace WeatherImageGenerator.Forms
                 lblDivider4, lblDebugGroup2, chkVerbose, chkShowFfmpeg
             });
 
+            // --- Experimental Tab (moved from Video tab) ---
+            tabExperimental = new TabPage("Experimental");
+            var lblExpNote = new Label { Text = "⚠ Experimental options — disable for now", Left = 10, Top = 20, Width = 520, ForeColor = System.Drawing.Color.OrangeRed, AutoSize = false };
+            tabExperimental.Controls.AddRange(new Control[] {
+                lblExpNote, lblCrf, chkUseCrfEncoding, numCrf, lblEncoderPreset, cmbEncoderPreset, lblMaxRate, txtMaxBitrate, lblBuf, txtBufferSize
+            });
+            tabExperimental.Enabled = false; // Disabled by default until user opts-in
+
             tabControl.TabPages.Add(tabGeneral);
             tabControl.TabPages.Add(tabImage);
             tabControl.TabPages.Add(tabVideo);
+            tabControl.TabPages.Add(tabExperimental);
 
             var btnSave = new Button { Text = "Save", Left = 380, Top = 620, Width = 90, Height = 30 };
             var btnCancel = new Button { Text = "Cancel", Left = 480, Top = 620, Width = 90, Height = 30 };
@@ -534,6 +551,10 @@ namespace WeatherImageGenerator.Forms
                 var preset = cfg.Video?.EncoderPreset ?? "medium";
                 if (cmbEncoderPreset.Items.Contains(preset)) cmbEncoderPreset.SelectedItem = preset;
                 else cmbEncoderPreset.SelectedIndex = 5;
+
+                // Experimental opt-in state (disabled by default)
+                chkEnableExperimental.Checked = cfg.Video?.ExperimentalEnabled ?? false;
+                if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked;
 
                 // Load quality preset
                 var qualityPreset = cfg.Video?.QualityPreset ?? "Balanced";
@@ -688,6 +709,9 @@ namespace WeatherImageGenerator.Forms
                 v.MaxBitrate = string.IsNullOrWhiteSpace(txtMaxBitrate.Text) ? null : txtMaxBitrate.Text.Trim();
                 v.BufferSize = string.IsNullOrWhiteSpace(txtBufferSize.Text) ? null : txtBufferSize.Text.Trim();
                 v.EncoderPreset = cmbEncoderPreset.SelectedItem?.ToString() ?? "medium";
+
+                // Experimental opt-in persistence
+                v.ExperimentalEnabled = chkEnableExperimental.Checked;
                 
                 // Save quality preset
                 var qualityPresetDisplay = cmbQualityPreset.SelectedItem?.ToString() ?? "Balanced";

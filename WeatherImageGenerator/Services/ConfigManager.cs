@@ -274,6 +274,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("EncoderPreset")]
         public string? EncoderPreset { get; set; } = "medium";
+
+        [JsonPropertyName("ExperimentalEnabled")]
+        public bool ExperimentalEnabled { get; set; } = false;
     }
 
     /// <summary>
