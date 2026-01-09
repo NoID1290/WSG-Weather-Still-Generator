@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.0.2.0109] - 2026-01-09
+
+### Fixed
+- Add experimental tab to settings form and enable tab control
+- Disable CRF encoding option in video settings
+- Add experimental features toggle and configuration option
 ## [1.0.1.0106] - 2026-01-06
 
 ### Fixed
@@ -112,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
