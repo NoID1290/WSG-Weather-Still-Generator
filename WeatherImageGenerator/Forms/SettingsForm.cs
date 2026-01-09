@@ -421,6 +421,8 @@ namespace WeatherImageGenerator.Forms
             });
             tabExperimental.Enabled = false; // Disabled by default until user opts-in
 
+
+            // Add tabs to tab control
             tabControl.TabPages.Add(tabGeneral);
             tabControl.TabPages.Add(tabImage);
             tabControl.TabPages.Add(tabVideo);
