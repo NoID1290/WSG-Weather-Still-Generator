@@ -1,6 +1,6 @@
 # Test script for weather-still-api
 Write-Host "Running tests..." -ForegroundColor Green
-dotnet test OpenMeteo.sln --verbosity normal
+dotnet test WSG.sln --verbosity normal
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Tests completed successfully!" -ForegroundColor Green
 } else {

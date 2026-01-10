@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WeatherShared", "WeatherSha
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ECCC", "ECCC\ECCC.csproj", "{3A144035-C3C0-4D3D-8B87-5D8842E7B53E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WeatherImageGenerator", "WeatherImageGenerator\WeatherImageGenerator.csproj", "{A121F880-CDC9-4E58-986D-C867B5DF1CF7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,18 @@ Global
 		{3A144035-C3C0-4D3D-8B87-5D8842E7B53E}.Release|x64.Build.0 = Release|Any CPU
 		{3A144035-C3C0-4D3D-8B87-5D8842E7B53E}.Release|x86.ActiveCfg = Release|Any CPU
 		{3A144035-C3C0-4D3D-8B87-5D8842E7B53E}.Release|x86.Build.0 = Release|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Debug|x64.Build.0 = Debug|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Debug|x86.Build.0 = Debug|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Release|x64.ActiveCfg = Release|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Release|x64.Build.0 = Release|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Release|x86.ActiveCfg = Release|Any CPU
+		{A121F880-CDC9-4E58-986D-C867B5DF1CF7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

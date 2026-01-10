@@ -6,8 +6,8 @@ param(
 )
 
 if ($All) {
-    Write-Host "Building the full solution (OpenMeteo.sln) in $Configuration..." -ForegroundColor Green
-    dotnet build OpenMeteo.sln -c $Configuration -v normal
+    Write-Host "Building the full solution (WSG.sln) in $Configuration..." -ForegroundColor Green
+    dotnet build WSG.sln -c $Configuration -v normal
 } else {
     Write-Host "Building WeatherImageGenerator in $Configuration..." -ForegroundColor Green
     dotnet build WeatherImageGenerator\WeatherImageGenerator.csproj -c $Configuration -v normal
