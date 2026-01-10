@@ -57,7 +57,7 @@ namespace WeatherImageGenerator
                 var outputDir = Path.Combine(Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
                 using (var http = new System.Net.Http.HttpClient())
                 {
-                    ECCC.CreateProvinceRadarAnimation(http, outputDir, config.ECCC ?? new ECCCSettings()).GetAwaiter().GetResult();
+                    ECCC.CreateProvinceRadarAnimation(http, outputDir).GetAwaiter().GetResult();
                 }
 
                 Logger.Log("Province animation generation requested (one-off). Exiting.");
