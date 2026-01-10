@@ -543,14 +543,17 @@ namespace WeatherImageGenerator.Services
                 {
                     try
                     {
+                        // Use bundled FFmpeg from FFmpegLocator
+                        string ffmpegPath = FFmpegLocator.GetFFmpegPath();
+                        
                         // Build ffmpeg command to create GIF
                         // Use fps=5 and loop
                         string args = $"-y -framerate 5 -i \"{Path.Combine(tempDir, "frame_%03d.png")}\" -vf \"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2\" -loop 0 \"{gifOut}\"";
-                        RunExternalProcess("ffmpeg", args, outputDir);
+                        RunExternalProcess(ffmpegPath, args, outputDir);
 
                         // Also build MP4 copy (use libx264)
                         string args2 = $"-y -framerate 5 -i \"{Path.Combine(tempDir, "frame_%03d.png")}\" -c:v libx264 -pix_fmt yuv420p -vf \"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2\" \"{mp4Out}\"";
-                        RunExternalProcess("ffmpeg", args2, outputDir);
+                        RunExternalProcess(ffmpegPath, args2, outputDir);
                     }
                     catch (Exception ex)
                     {
@@ -619,9 +622,20 @@ namespace WeatherImageGenerator.Services
         {
             try
             {
+                // For ffmpeg, use the bundled version from FFmpegLocator
+                string exePath = exe;
+                if (exe.Equals("ffmpeg", StringComparison.OrdinalIgnoreCase))
+                {
+                    exePath = FFmpegLocator.GetFFmpegPath();
+                    if (File.Exists(exePath))
+                    {
+                        return true; // Bundled FFmpeg exists
+                    }
+                }
+                
                 var psi = new ProcessStartInfo
                 {
-                    FileName = exe,
+                    FileName = exePath,
                     Arguments = "-version",
                     RedirectStandardOutput = false,
                     RedirectStandardError = false,

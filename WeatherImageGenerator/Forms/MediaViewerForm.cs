@@ -280,9 +280,12 @@ namespace WeatherImageGenerator.Forms
                 // Extract a thumbnail from the video using FFmpeg
                 string tempThumb = Path.Combine(Path.GetTempPath(), $"thumb_{Guid.NewGuid()}.jpg");
                 
+                // Use bundled FFmpeg from FFmpegLocator
+                string ffmpegPath = FFmpegLocator.GetFFmpegPath();
+                
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "ffmpeg",
+                    FileName = ffmpegPath,
                     Arguments = $"-i \"{_filePath}\" -vframes 1 -q:v 2 \"{tempThumb}\"",
                     UseShellExecute = false,
                     CreateNoWindow = true,

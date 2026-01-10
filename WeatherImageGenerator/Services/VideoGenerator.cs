@@ -808,9 +808,21 @@ namespace WeatherImageGenerator.Services
                 // Try to run ffmpeg directly and capture output
                 string args = ffmpegCmd.StartsWith("ffmpeg ") ? ffmpegCmd.Substring(7) : ffmpegCmd;
 
+                // Use bundled FFmpeg from FFmpegLocator, fallback to PATH if not available
+                string ffmpegPath = FFmpegLocator.GetFFmpegPath();
+                if (!File.Exists(ffmpegPath))
+                {
+                    Logger.Log($"[WARNING] Bundled FFmpeg not found at {ffmpegPath}, falling back to system PATH", ConsoleColor.Yellow);
+                    ffmpegPath = "ffmpeg"; // Fallback to PATH
+                }
+                else
+                {
+                    Logger.Log($"[INFO] Using FFmpeg: {ffmpegPath}", ConsoleColor.DarkGray);
+                }
+
                 var processInfo = new ProcessStartInfo
                 {
-                    FileName = "ffmpeg",
+                    FileName = ffmpegPath,
                     Arguments = args,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -1190,14 +1202,17 @@ namespace WeatherImageGenerator.Services
         /// <summary>
         /// Checks if ffmpeg is installed and available in the system PATH.
         /// </summary>
-        public static bool IsFfmpegInstalled(out string version, string ffmpegExe = "ffmpeg", int timeoutMs = 5000)
+        public static bool IsFfmpegInstalled(out string version, string? ffmpegExe = null, int timeoutMs = 5000)
         {
             version = "Unknown";
             try
             {
+                // Use bundled FFmpeg path if not specified
+                string ffmpegPath = ffmpegExe ?? FFmpegLocator.GetFFmpegPath();
+                
                 var psi = new ProcessStartInfo
                 {
-                    FileName = ffmpegExe,
+                    FileName = ffmpegPath,
                     Arguments = "-version",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -1253,19 +1268,22 @@ namespace WeatherImageGenerator.Services
         /// Probes ffmpeg to see whether hardware encoders are available (NVENC, AMF, QSV).
         /// Returns true if an encoder name is present in the `ffmpeg -encoders` output. Provides a short message describing the result.
         /// </summary>
-        public static bool IsHardwareEncodingSupported(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 10000)
+        public static bool IsHardwareEncodingSupported(out string message, string? ffmpegExe = null, int timeoutMs = 10000)
         {
             var type = GetHardwareEncoderType(out message, ffmpegExe, timeoutMs);
             return type != HardwareEncoderType.None;
         }
 
-        public static HardwareEncoderType GetHardwareEncoderType(out string message, string ffmpegExe = "ffmpeg", int timeoutMs = 10000)
+        public static HardwareEncoderType GetHardwareEncoderType(out string message, string? ffmpegExe = null, int timeoutMs = 10000)
         {
             try
             {
+                // Use bundled FFmpeg path if not specified
+                string ffmpegPath = ffmpegExe ?? FFmpegLocator.GetFFmpegPath();
+                
                 var psi = new ProcessStartInfo
                 {
-                    FileName = ffmpegExe,
+                    FileName = ffmpegPath,
                     Arguments = "-hide_banner -encoders",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -1288,21 +1306,21 @@ namespace WeatherImageGenerator.Services
 
                     // Check for NVENC
                     if ((outText.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_nvenc", StringComparison.OrdinalIgnoreCase) >= 0) &&
-                        ProbeEncoder("h264_nvenc", ffmpegExe, timeoutMs))
+                        ProbeEncoder("h264_nvenc", ffmpegPath, timeoutMs))
                     {
                         message = "NVENC (NVIDIA) encoder found";
                         return HardwareEncoderType.Nvenc;
                     }
                     // Check for AMF
                     else if ((outText.IndexOf("h264_amf", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_amf", StringComparison.OrdinalIgnoreCase) >= 0) &&
-                             ProbeEncoder("h264_amf", ffmpegExe, timeoutMs))
+                             ProbeEncoder("h264_amf", ffmpegPath, timeoutMs))
                     {
                         message = "AMF (AMD) encoder found";
                         return HardwareEncoderType.Amf;
                     }
                     // Check for QSV
                     else if ((outText.IndexOf("h264_qsv", StringComparison.OrdinalIgnoreCase) >= 0 || outText.IndexOf("hevc_qsv", StringComparison.OrdinalIgnoreCase) >= 0) &&
-                             ProbeEncoder("h264_qsv", ffmpegExe, timeoutMs))
+                             ProbeEncoder("h264_qsv", ffmpegPath, timeoutMs))
                     {
                         message = "QSV (Intel) encoder found";
                         return HardwareEncoderType.Qsv;
