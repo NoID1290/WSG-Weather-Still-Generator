@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.1.0.0110] - 2026-01-10
+
+### Changed
+- Handle Dynamic Link and .NET10 update
+- Update target framework to net10.0 across all project files
+- Add WeatherShared and ECCC projects; refactor AlertEntry for shared use
+- Refactor FFmpeg integration to use bundled binaries and improve initialization process
+- Update changelog path in documentation and auto-push script
 ## [1.0.2.0109] - 2026-01-09
 
 ### Fixed
@@ -119,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
