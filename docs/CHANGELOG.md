@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.1.2.0110] - 2026-01-10
+
+### Fixed
+- Update ECCC project metadata and enhance push script for solution path
 ## [1.1.1.0110] - 2026-01-10
 
 ### Fixed
@@ -133,6 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
