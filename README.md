@@ -52,7 +52,7 @@ The system continuously fetches weather data, processes it into beautiful images
 
 - [Configuration Guide](CONFIG_README.md) - Detailed guide on ppsettings.json
 - [Push Script Guide](PUSH_SCRIPT_GUIDE.md) - How to use the auto-push script
-- [Changelog](CHANGELOG.md) - Version history
+- [Changelog](docs/CHANGELOG.md) - Version history
 
 ##  Project Structure
 

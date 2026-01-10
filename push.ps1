@@ -131,7 +131,7 @@ if (Test-Path $assemblyInfoPath) {
 if (-not $SkipVersion) {
     Write-Host "[CHANGELOG] Updating CHANGELOG.md..." -ForegroundColor Cyan
     
-    $changelogPath = "CHANGELOG.md"
+    $changelogPath = "docs\CHANGELOG.md"
     $date = Get-Date -Format "yyyy-MM-dd"
     
     # Build the list of changes
@@ -214,7 +214,7 @@ $categorySection
 Write-Host "[STAGING] Changes..." -ForegroundColor Cyan
 git add $projectFilePath
 if (-not $SkipVersion) {
-    git add "CHANGELOG.md"
+    git add $changelogPath
     git add $assemblyInfoPath
 }
 
