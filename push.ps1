@@ -350,11 +350,17 @@ if ($AttachAssets) {
     if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 
     # Build/publish
-    Write-Host "[BUILD] dotnet publish -c Release -o $publishDir" -ForegroundColor Cyan
-    dotnet publish $projectFilePath -c Release -o $publishDir
+    # We use -p:DebugType=None to suppress PDB generation for the main project
+    Write-Host "[BUILD] dotnet publish -c Release -o $publishDir -p:DebugType=None" -ForegroundColor Cyan
+    dotnet publish $projectFilePath -c Release -o $publishDir -p:DebugType=None
+
     if (-not $?) {
         Write-Host "[ERROR] dotnet publish failed; skipping artifact upload" -ForegroundColor Red
     } else {
+        # Cleanup any dev files that might have been copied (PDBs from dependencies, XML docs)
+        Write-Host "[CLEANUP] Ensuring no dev files (*.pdb, *.xml) in release" -ForegroundColor Cyan
+        Get-ChildItem -Path $publishDir -Include *.pdb,*.xml -Recurse | Remove-Item -Force -ErrorAction SilentlyContinue
+
         # Create zip
         $zipName = "WSG-Weather-Still-Generator-$newVersion.zip"
         $zipPath = Join-Path $artifactRoot $zipName
