@@ -25,7 +25,9 @@ param(
 )
 
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
+$ecccProjectFilePath = "ECCC\ECCC.csproj"
 $solutionPath = "WSG.sln"
+
 #$repoRoot = git rev-parse --show-toplevel
 
 # Will populate with changelog content to use as GitHub release notes
@@ -40,62 +42,92 @@ Write-Host "[START] Auto-push process..." -ForegroundColor Cyan
 Write-Host "[TYPE] Update type: $Type" -ForegroundColor Yellow
 Write-Host "[FLAGS] NoRelease: $NoRelease   AttachAssets: $AttachAssets   SkipVersion: $SkipVersion" -ForegroundColor Yellow
 
-# Read the project file
-[xml]$projectFile = Get-Content $projectFilePath
+function Update-ProjectVersion {
+    param (
+        [string]$Path,
+        [string]$Name,
+        [string]$UpdateType
+    )
 
-# Get current version
-$currentVersion = $projectFile.Project.PropertyGroup.Version
-Write-Host "[VERSION] Current version: $currentVersion" -ForegroundColor White
+    if (-not (Test-Path $Path)) {
+        Write-Host "[WARNING] Project $Name not found at $Path" -ForegroundColor Yellow
+        return $null
+    }
 
-# Parse version parts
-$versionParts = $currentVersion -split '\.'
-[int]$a = $versionParts[0]
-[int]$b = $versionParts[1]
-[int]$c = $versionParts[2]
+    # Read the project file
+    [xml]$proj = Get-Content $Path
 
-# Respect SkipVersion flag
-if ($SkipVersion) {
-    Write-Host "[INFO] SkipVersion is set; not incrementing version" -ForegroundColor Yellow
-    $newVersion = $currentVersion
-} else {
+    # Get current version
+    $ver = $proj.Project.PropertyGroup.Version
+    if (-not $ver) { $ver = "1.0.0.0101" } # Default if missing
+    
+    # Check if this update type applies to this project
+    # ECCC (Lib) shouldn't update on Frontend changes
+    if ($Name -eq "ECCC" -and $UpdateType -eq "frontend") {
+        Write-Host "[INFO] Skipping $Name version update (Frontend change only)" -ForegroundColor Gray
+        return $ver
+    }
+
+    Write-Host "[$Name] Current version: $ver" -ForegroundColor White
+
+    # Parse version parts
+    $parts = $ver -split '\.'
+    # Ensure we have at least 3 parts
+    while ($parts.Count -lt 3) { $parts += "0" }
+    
+    [int]$vA = $parts[0]
+    [int]$vB = $parts[1]
+    [int]$vC = $parts[2]
+
     # Increment based on update type
-    switch ($Type) {
+    switch ($UpdateType) {
         "frontend" {
-            $a++
-            $b = 0
-            $c = 0
-            Write-Host "[UPDATE] Frontend version incremented" -ForegroundColor Green
+            $vA++
+            $vB = 0
+            $vC = 0
+            Write-Host "[$Name] Frontend version incremented" -ForegroundColor Green
         }
         "backend" {
-            $b++
-            $c = 0
-            Write-Host "[UPDATE] Backend version incremented" -ForegroundColor Green
+            $vB++
+            $vC = 0
+            Write-Host "[$Name] Backend version incremented" -ForegroundColor Green
         }
         "fix" {
-            $c++
-            Write-Host "[UPDATE] Fix version incremented" -ForegroundColor Green
+            $vC++
+            Write-Host "[$Name] Fix version incremented" -ForegroundColor Green
         }
     }
 
     # Get today's date in MMDD format
     $today = Get-Date
-    $dateString = $today.ToString("MMdd")
+    $dateStr = $today.ToString("MMdd")
 
     # Create new version: a.b.c.MMDD
-    $newVersion = "$a.$b.$c.$dateString"
+    $newVer = "$vA.$vB.$vC.$dateStr"
+
+    # Update properties
+    $proj.Project.PropertyGroup.Version = $newVer
+    $proj.Project.PropertyGroup.AssemblyVersion = $newVer
+    $proj.Project.PropertyGroup.FileVersion = $newVer
+
+    # Save
+    $proj.Save($Path)
+    Write-Host "[$Name] Updated to: $newVer" -ForegroundColor Green
+    
+    return $newVer
 }
 
-# Update Version, AssemblyVersion, and FileVersion (unless skipping)
+# Update Versions
 if (-not $SkipVersion) {
-    $projectFile.Project.PropertyGroup.Version = $newVersion
-    $projectFile.Project.PropertyGroup.AssemblyVersion = $newVersion
-    $projectFile.Project.PropertyGroup.FileVersion = $newVersion
-
-    # Save the project file
-    $projectFile.Save($projectFilePath)
-    Write-Host "[SUCCESS] Version updated to: $newVersion" -ForegroundColor Green
+    $newWsgVersion = Update-ProjectVersion -Path $projectFilePath -Name "WSG" -UpdateType $Type
+    $newEcccVersion = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
+    
+    # Use WSG version for global tagging/changelog as it's the main app
+    $newVersion = $newWsgVersion
 } else {
-    Write-Host "[INFO] Skipping project file update due to SkipVersion" -ForegroundColor Yellow
+    Write-Host "[INFO] SkipVersion is set; not incrementing versions" -ForegroundColor Yellow
+    [xml]$p = Get-Content $projectFilePath
+    $newVersion = $p.Project.PropertyGroup.Version
 }
 
 
@@ -186,6 +218,7 @@ if (-not $SkipVersion) {
         
         # Create new entry
         $newEntry = @"
+    if (Test-Path $ecccProjectFilePath) { git add $ecccProjectFilePath }
 
 ## [$newVersion] - $date
 
