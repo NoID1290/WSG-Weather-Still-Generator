@@ -199,18 +199,8 @@ if (-not $SkipVersion) {
         $commitList = @("- Version bump")
     }
     
-    # Determine change category based on Type
-    $categorySection = switch ($Type) {
-        "frontend" { 
-            "### Added`n" + ($commitList -join "`n")
-        }
-        "backend" { 
-            "### Changed`n" + ($commitList -join "`n")
-        }
-        "fix" { 
-            "### Fixed`n" + ($commitList -join "`n")
-        }
-    }
+    # Use a single generic category for all changes
+    $categorySection = "### Changelog`n" + ($commitList -join "`n")
     
     # Read current changelog
     if (Test-Path $changelogPath) {
@@ -218,7 +208,6 @@ if (-not $SkipVersion) {
         
         # Create new entry
         $newEntry = @"
-    if (Test-Path $ecccProjectFilePath) { git add $ecccProjectFilePath }
 
 ## [$newVersion] - $date
 
