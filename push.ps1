@@ -25,6 +25,7 @@ param(
 )
 
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
+$solutionPath = "WSG.sln"
 #$repoRoot = git rev-parse --show-toplevel
 
 # Will populate with changelog content to use as GitHub release notes
@@ -213,6 +214,7 @@ $categorySection
 # Stage the updated files
 Write-Host "[STAGING] Changes..." -ForegroundColor Cyan
 git add $projectFilePath
+git add $solutionPath
 if (-not $SkipVersion) {
     git add $changelogPath
     git add $assemblyInfoPath

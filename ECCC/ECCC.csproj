@@ -5,7 +5,12 @@
     <AssemblyName>ECCC</AssemblyName>
     <RootNamespace>ECCC</RootNamespace>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
-    <AssemblyProduct>ECCC Weather API Wrapper</AssemblyProduct> 
+    <AssemblyProduct>ECCC Weather API Wrapper</AssemblyProduct>
+    <Copyright>Copyright © NoID Softwork 2026</Copyright>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Description>Library for accessing Environment and Climate Change Canada (ECCC) weather data.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
