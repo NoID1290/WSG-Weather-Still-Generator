@@ -7,11 +7,11 @@
     <Title>ECCC Weather API Wrapper</Title>
     <Product>ECCC Weather API Wrapper</Product>
     <Company>NoID Softwork</Company>
-    <Copyright>Copyright © NoID Softwork 2026</Copyright>
+    <Copyright>Copyright Â© NoID Softwork 2026</Copyright>
     <Description>Library for accessing Environment and Climate Change Canada (ECCC) weather data.</Description>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1.0110</Version>
+    <AssemblyVersion>1.0.1.0110</AssemblyVersion>
+    <FileVersion>1.0.1.0110</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
