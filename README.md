@@ -70,6 +70,12 @@ WSG-Weather-Still-Generator/
  update_version.ps1         # Versioning script
 `
 
+## Notes
+
+- **logs/** — consolidated runtime and build logs moved to `logs/`. These are ignored via `.gitignore`.
+- **docs/** — configuration and guides moved to `docs/` for clarity.
+- **WeatherImageGenerator/logs/** — module-specific logs moved here as well.
+
 ##  Getting Started
 
 1. **Build the project:**
