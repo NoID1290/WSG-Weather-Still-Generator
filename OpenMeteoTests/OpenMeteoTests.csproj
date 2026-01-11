@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
+    <ProjectReference Include="..\ECCC\ECCC.csproj" />
   </ItemGroup>
 
 </Project>

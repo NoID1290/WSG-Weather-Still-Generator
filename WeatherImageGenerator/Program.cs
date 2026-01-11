@@ -186,7 +186,7 @@ namespace WeatherImageGenerator
                 Logger.Log("Checking ECCC weather alerts...");
                 try
                 {
-                    List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
+                    List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient, locations);
                     Logger.Log($"✓ Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
@@ -245,7 +245,7 @@ namespace WeatherImageGenerator
                 List<AlertEntry> alerts = new List<AlertEntry>();
                 try
                 {
-                    alerts = await ECCC.FetchAllAlerts(httpClient);
+                    alerts = await ECCC.FetchAllAlerts(httpClient, locations);
                     Logger.Log($"✓ Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
@@ -388,7 +388,7 @@ namespace WeatherImageGenerator
                         Logger.Log("Checking ECCC weather alerts...");
                         try
                         {
-                            List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient);
+                            List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient, locations);
                             Logger.Log($"✓ Found {alerts.Count} active alerts.");
                             AlertsFetched?.Invoke(alerts);
                         }
@@ -491,7 +491,7 @@ namespace WeatherImageGenerator
                         */
                         
                         // 6. WEATHER ALERTS from ECCC
-                        ImageGenerator.GenerateAlertsImage(await ECCC.FetchAllAlerts(httpClient), outputDir);
+                        ImageGenerator.GenerateAlertsImage(await ECCC.FetchAllAlerts(httpClient, locations), outputDir);
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 

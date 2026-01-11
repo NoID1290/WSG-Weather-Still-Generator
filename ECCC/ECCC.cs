@@ -8,6 +8,8 @@ using System.IO;
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using System.Globalization;
+using System.Text;
 using WeatherImageGenerator.Models;
 
 namespace WeatherImageGenerator.Services
@@ -15,10 +17,17 @@ namespace WeatherImageGenerator.Services
     // Minimal, well-typed ECCC library implementation (extracted).
     public static class ECCC
     {
-        public static async Task<List<AlertEntry>> FetchAllAlerts(HttpClient client, EcccSettings? settings = null)
+        public static async Task<List<AlertEntry>> FetchAllAlerts(HttpClient client, IEnumerable<string>? wantedCities = null, EcccSettings? settings = null)
         {
             var cfg = settings ?? LoadSettings();
             var feeds = cfg.CityFeeds ?? new Dictionary<string, string>();
+            // If caller supplied a list of desired cities, filter the feeds to only those cities (normalize names)
+            if (wantedCities != null && wantedCities.Any())
+            {
+                var wantedSet = new HashSet<string>(wantedCities.Select(NormalizeCity));
+                feeds = feeds.Where(kv => wantedSet.Contains(NormalizeCity(kv.Key)))
+                             .ToDictionary(kv => kv.Key, kv => kv.Value);
+            }
             var result = new List<AlertEntry>();
             if (!client.DefaultRequestHeaders.Contains("User-Agent"))
                 client.DefaultRequestHeaders.Add("User-Agent", cfg.UserAgent ?? "Mozilla/5.0");
@@ -113,6 +122,15 @@ namespace WeatherImageGenerator.Services
             }
             catch (Exception ex) { Console.WriteLine($"[ECCC] Failed to load settings: {ex.Message}"); }
             return new EcccSettings();
+        }
+
+        // Normalize city names by removing diacritics, trimming and lowercasing to allow matching user-configured locations
+        private static string NormalizeCity(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            var normalized = s.Normalize(NormalizationForm.FormD);
+            var filtered = new string(normalized.Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray());
+            return filtered.Normalize(NormalizationForm.FormC).ToLowerInvariant().Trim();
         }
 
         public class EcccSettings
