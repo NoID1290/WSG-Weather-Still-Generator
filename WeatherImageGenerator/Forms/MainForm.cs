@@ -622,6 +622,12 @@ namespace WeatherImageGenerator.Forms
                     // Also check if either string contains the other (for "Quebec" vs "Quebec City")
                     string normalizedItem = NormalizeForComparison(item.Text);
                     string normalizedAlert = NormalizeForComparison(alert.City);
+
+                    // Don't attempt substring matches if either side is empty - empty string is contained in all strings.
+                    if (string.IsNullOrEmpty(normalizedItem) || string.IsNullOrEmpty(normalizedAlert))
+                    {
+                        continue;
+                    }
                     
                     bool isMatch = normalizedItem == normalizedAlert ||
                                    normalizedItem.Contains(normalizedAlert) ||
