@@ -1,7 +1,9 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Services;
@@ -648,33 +650,77 @@ namespace WeatherImageGenerator.Forms
                 return;
             }
 
-            // Search for cities
-            var results = ECCC.SearchCities(query, 20);
-            
-            if (results.Count == 0)
-            {
-                MessageBox.Show($"No ECCC cities found matching '{query}'.\n\nTry:\n• Different spelling\n• Major city names\n• Adding the province", 
-                    "No Results", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+            // Show progress
+            btnSearch.Enabled = false;
+            btnSearch.Text = "Searching...";
+            this.Cursor = Cursors.WaitCursor;
 
-            // Show search results dialog
-            var selectedCity = ShowCitySearchResults(query, results);
-            
-            if (selectedCity != null)
+            // Perform async search
+            Task.Run(async () =>
             {
-                // Auto-fill the location name
-                txtLocationName.Text = selectedCity.Name;
-                
-                // Set API to ECCC
-                cmbWeatherApi.SelectedIndex = 1;
-                
-                // Store the feed URL for later
-                _newEcccFeeds[selectedCity.Name] = selectedCity.GetCityFeedUrl();
-                
-                // Add it automatically
-                BtnAdd_Click(sender, e);
-            }
+                try
+                {
+                    // Search online using OpenMeteo geocoding
+                    var client = new OpenMeteo.OpenMeteoClient();
+                    var results = await ECCC.SearchCitiesOnlineAsync(client, query, 30);
+                    
+                    // If no online results, try local database as fallback
+                    if (results.Count == 0)
+                    {
+                        results = ECCC.SearchCities(query, 20);
+                    }
+                    
+                    // Return to UI thread
+                    this.Invoke((Action)(() =>
+                    {
+                        btnSearch.Enabled = true;
+                        btnSearch.Text = "🔍 Search Cities";
+                        this.Cursor = Cursors.Default;
+                        
+                        if (results.Count == 0)
+                        {
+                            MessageBox.Show($"No cities found matching '{query}'.\n\nTry:\n• Different spelling\n• English or local name\n• Major city names", 
+                                "No Results", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+
+                        // Show search results dialog
+                        var selectedCity = ShowCitySearchResults(query, results);
+                        
+                        if (selectedCity != null)
+                        {
+                            // Auto-fill the location name (remove province/country suffix for cleaner name)
+                            var cleanName = selectedCity.Name;
+                            var commaIndex = cleanName.IndexOf(',');
+                            if (commaIndex > 0)
+                            {
+                                cleanName = cleanName.Substring(0, commaIndex).Trim();
+                            }
+                            txtLocationName.Text = cleanName;
+                            
+                            // Set API to ECCC
+                            cmbWeatherApi.SelectedIndex = 1;
+                            
+                            // Store the feed URL for later
+                            _newEcccFeeds[cleanName] = selectedCity.GetCityFeedUrl();
+                            
+                            // Add it automatically
+                            BtnAdd_Click(sender, e);
+                        }
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    this.Invoke((Action)(() =>
+                    {
+                        btnSearch.Enabled = true;
+                        btnSearch.Text = "🔍 Search Cities";
+                        this.Cursor = Cursors.Default;
+                        MessageBox.Show($"Search error: {ex.Message}", "Error", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }));
+                }
+            });
         }
 
         private ECCC.CityInfo? ShowCitySearchResults(string query, List<ECCC.CityInfo> results)
@@ -729,7 +775,7 @@ namespace WeatherImageGenerator.Forms
                     Left = 10,
                     Top = 335,
                     Width = 460,
-                    Height = 20,
+                    Height = 40,
                     Font = new Font("Segoe UI", 8F, FontStyle.Italic),
                     ForeColor = Color.DarkBlue
                 };
@@ -738,12 +784,14 @@ namespace WeatherImageGenerator.Forms
                 {
                     if (lstResults.SelectedItem is ECCC.CityInfo city)
                     {
-                        lblPreview.Text = $"Feed: {city.GetCityFeedUrl()}";
+                        var feedType = city.IsCoordinateBased ? "Alerts Feed" : "City Weather Feed";
+                        lblPreview.Text = $"Type: {feedType}\nFeed: {city.GetCityFeedUrl()}";
                     }
                 };
                 if (lstResults.Items.Count > 0 && lstResults.SelectedItem is ECCC.CityInfo firstCity)
                 {
-                    lblPreview.Text = $"Feed: {firstCity.GetCityFeedUrl()}";
+                    var feedType = firstCity.IsCoordinateBased ? "Alerts Feed" : "City Weather Feed";
+                    lblPreview.Text = $"Type: {feedType}\nFeed: {firstCity.GetCityFeedUrl()}";
                 }
 
                 var btnSelect = new Button

@@ -129,81 +129,363 @@ namespace WeatherImageGenerator.Services
         }
         
         /// <summary>
+        /// Searches for cities online using OpenMeteo geocoding API.
+        /// Returns cities from anywhere in the world with ECCC alerts feed URLs.
+        /// </summary>
+        /// <param name="client">OpenMeteoClient instance</param>
+        /// <param name="query">City name to search for</param>
+        /// <param name="maxResults">Maximum number of results to return</param>
+        /// <returns>List of found cities with their ECCC alerts feed URLs</returns>
+        public static async Task<List<CityInfo>> SearchCitiesOnlineAsync(OpenMeteo.OpenMeteoClient client, string query, int maxResults = 10)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return new List<CityInfo>();
+            
+            try
+            {
+                var geocodingOptions = new OpenMeteo.GeocodingOptions(query, "en", maxResults);
+                var response = await client.GetLocationDataAsync(geocodingOptions);
+                
+                if (response == null || response.Locations == null || response.Locations.Length == 0)
+                    return new List<CityInfo>();
+                
+                var results = new List<CityInfo>();
+                
+                // Convert OpenMeteo locations to CityInfo
+                foreach (var loc in response.Locations)
+                {
+                    if (loc.Name == null) continue;
+                    
+                    // Determine province/state code for Canadian cities
+                    string provinceCode = "ca"; // default
+                    if (loc.CountryCode?.Equals("CA", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        provinceCode = GetProvinceCodeFromAdmin(loc.Admin1);
+                    }
+                    
+                    // Use a special code to indicate this is coordinate-based (alerts feed only)
+                    var cityInfo = new CityInfo(
+                        loc.Name,
+                        provinceCode,
+                        "coord", // Special marker for coordinate-based feeds
+                        loc.Latitude,
+                        loc.Longitude
+                    );
+                    
+                    // Add location context
+                    if (!string.IsNullOrEmpty(loc.Admin1))
+                    {
+                        cityInfo.Name = $"{loc.Name}, {loc.Admin1}";
+                    }
+                    if (!string.IsNullOrEmpty(loc.Country) && !loc.Country.Equals("Canada", StringComparison.OrdinalIgnoreCase))
+                    {
+                        cityInfo.Name += $" ({loc.Country})";
+                    }
+                    
+                    results.Add(cityInfo);
+                }
+                
+                return results;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ECCC] Online search error: {ex.Message}");
+                return new List<CityInfo>();
+            }
+        }
+        
+        /// <summary>
+        /// Maps Canadian province/territory names to their 2-letter codes.
+        /// </summary>
+        private static string GetProvinceCodeFromAdmin(string? admin)
+        {
+            if (string.IsNullOrWhiteSpace(admin)) return "ca";
+            
+            var normalized = admin.ToLowerInvariant();
+            
+            if (normalized.Contains("quebec") || normalized.Contains("québec")) return "qc";
+            if (normalized.Contains("ontario")) return "on";
+            if (normalized.Contains("british columbia")) return "bc";
+            if (normalized.Contains("alberta")) return "ab";
+            if (normalized.Contains("manitoba")) return "mb";
+            if (normalized.Contains("saskatchewan")) return "sk";
+            if (normalized.Contains("nova scotia")) return "ns";
+            if (normalized.Contains("new brunswick")) return "nb";
+            if (normalized.Contains("newfoundland") || normalized.Contains("labrador")) return "nl";
+            if (normalized.Contains("prince edward")) return "pe";
+            if (normalized.Contains("yukon")) return "yt";
+            if (normalized.Contains("northwest")) return "nt";
+            if (normalized.Contains("nunavut")) return "nu";
+            
+            return "ca";
+        }
+        
+        /// <summary>
         /// Gets a database of known ECCC cities with their province and city codes.
         /// </summary>
         public static List<CityInfo> GetKnownCities()
         {
             return new List<CityInfo>
             {
-                // Quebec
+                // Quebec (75 cities)
                 new CityInfo("Montréal", "qc", "147", 45.5017, -73.5673),
                 new CityInfo("Québec", "qc", "133", 46.8139, -71.2080),
+                new CityInfo("Laval", "qc", "147", 45.6066, -73.7124),
                 new CityInfo("Gatineau", "qc", "59", 45.4765, -75.7013),
+                new CityInfo("Longueuil", "qc", "147", 45.5312, -73.5186),
                 new CityInfo("Sherbrooke", "qc", "30", 45.4042, -71.8929),
-                new CityInfo("Trois-Rivières", "qc", "48", 46.3432, -72.5477),
                 new CityInfo("Saguenay", "qc", "50", 48.4284, -71.0656),
                 new CityInfo("Lévis", "qc", "108", 46.8000, -71.1772),
-                new CityInfo("Laval", "qc", "147", 45.6066, -73.7124),
-                new CityInfo("Longueuil", "qc", "147", 45.5312, -73.5186),
+                new CityInfo("Trois-Rivières", "qc", "48", 46.3432, -72.5477),
                 new CityInfo("Terrebonne", "qc", "147", 45.7000, -73.6470),
                 new CityInfo("Saint-Jean-sur-Richelieu", "qc", "43", 45.3075, -73.2625),
+                new CityInfo("Repentigny", "qc", "147", 45.7333, -73.4500),
+                new CityInfo("Brossard", "qc", "147", 45.4667, -73.4500),
                 new CityInfo("Drummondville", "qc", "34", 45.8833, -72.4833),
-                new CityInfo("Granby", "qc", "111", 45.4000, -72.7333),
                 new CityInfo("Saint-Jérôme", "qc", "20", 45.7833, -74.0000),
+                new CityInfo("Granby", "qc", "111", 45.4000, -72.7333),
+                new CityInfo("Blainville", "qc", "147", 45.6667, -73.8833),
+                new CityInfo("Shawinigan", "qc", "48", 46.5667, -72.7500),
+                new CityInfo("Dollard-des-Ormeaux", "qc", "147", 45.4833, -73.8167),
                 new CityInfo("Rimouski", "qc", "58", 48.4489, -68.5236),
-                new CityInfo("Rouyn-Noranda", "qc", "94", 48.2351, -79.0233),
                 new CityInfo("Val-d'Or", "qc", "95", 48.0971, -77.7827),
-                new CityInfo("Amos", "qc", "96", 48.5667, -78.1167),
+                new CityInfo("Victoriaville", "qc", "34", 46.0500, -71.9667),
+                new CityInfo("Saint-Hyacinthe", "qc", "147", 45.6304, -72.9569),
+                new CityInfo("Joliette", "qc", "147", 46.0167, -73.4333),
+                new CityInfo("Sorel-Tracy", "qc", "48", 46.0333, -73.1167),
+                new CityInfo("Alma", "qc", "106", 48.5500, -71.6500),
+                new CityInfo("Rouyn-Noranda", "qc", "94", 48.2351, -79.0233),
                 new CityInfo("Sept-Îles", "qc", "100", 50.2167, -66.3833),
                 new CityInfo("Baie-Comeau", "qc", "101", 49.2167, -68.1500),
-                new CityInfo("Alma", "qc", "106", 48.5500, -71.6500),
+                new CityInfo("Amos", "qc", "96", 48.5667, -78.1167),
+                new CityInfo("Thetford Mines", "qc", "133", 46.0833, -71.3000),
+                new CityInfo("Vaudreuil-Dorion", "qc", "147", 45.4000, -74.0333),
+                new CityInfo("Rivière-du-Loup", "qc", "58", 47.8333, -69.5333),
+                new CityInfo("Saint-Georges", "qc", "133", 46.1167, -70.6667),
+                new CityInfo("Mirabel", "qc", "147", 45.6500, -74.0833),
+                new CityInfo("Boucherville", "qc", "147", 45.5833, -73.4500),
+                new CityInfo("Châteauguay", "qc", "147", 45.3833, -73.7500),
+                new CityInfo("Saint-Eustache", "qc", "147", 45.5667, -73.9000),
+                new CityInfo("Mascouche", "qc", "147", 45.7500, -73.6000),
+                new CityInfo("Cowansville", "qc", "111", 45.2000, -72.7500),
+                new CityInfo("Magog", "qc", "30", 45.2667, -72.1500),
+                new CityInfo("Sainte-Thérèse", "qc", "147", 45.6333, -73.8333),
+                new CityInfo("Rougemont", "qc", "147", 45.4333, -73.0500),
+                new CityInfo("Mont-Laurier", "qc", "20", 46.5500, -75.5000),
+                new CityInfo("Matane", "qc", "58", 48.8500, -67.5333),
+                new CityInfo("Gaspé", "qc", "58", 48.8333, -64.4833),
+                new CityInfo("La Tuque", "qc", "48", 47.4333, -72.7833),
+                new CityInfo("Mont-Tremblant", "qc", "20", 46.1167, -74.5833),
+                new CityInfo("Sainte-Marie", "qc", "133", 46.4500, -71.0333),
+                new CityInfo("Varennes", "qc", "147", 45.6833, -73.4333),
                 
-                // Ontario
+                // Ontario (70 cities)
                 new CityInfo("Toronto", "on", "143", 43.6532, -79.3832),
                 new CityInfo("Ottawa", "on", "118", 45.4215, -75.6972),
                 new CityInfo("Mississauga", "on", "143", 43.5890, -79.6441),
+                new CityInfo("Brampton", "on", "143", 43.7315, -79.7624),
                 new CityInfo("Hamilton", "on", "77", 43.2557, -79.8711),
                 new CityInfo("London", "on", "72", 42.9849, -81.2453),
-                new CityInfo("Windsor", "on", "94", 42.3149, -83.0364),
+                new CityInfo("Markham", "on", "143", 43.8561, -79.3370),
+                new CityInfo("Vaughan", "on", "143", 43.8361, -79.4983),
                 new CityInfo("Kitchener", "on", "48", 43.4516, -80.4925),
-                new CityInfo("Thunder Bay", "on", "100", 48.3809, -89.2477),
-                new CityInfo("Sudbury", "on", "40", 46.4917, -80.9930),
+                new CityInfo("Windsor", "on", "94", 42.3149, -83.0364),
+                new CityInfo("Richmond Hill", "on", "143", 43.8828, -79.4403),
+                new CityInfo("Oakville", "on", "143", 43.4675, -79.6877),
+                new CityInfo("Burlington", "on", "77", 43.3255, -79.7990),
+                new CityInfo("Greater Sudbury", "on", "40", 46.4917, -80.9930),
+                new CityInfo("Oshawa", "on", "143", 43.8971, -78.8658),
+                new CityInfo("Barrie", "on", "18", 44.3894, -79.6903),
+                new CityInfo("St. Catharines", "on", "89", 43.1594, -79.2469),
+                new CityInfo("Cambridge", "on", "48", 43.3616, -80.3144),
                 new CityInfo("Kingston", "on", "69", 44.2312, -76.4860),
+                new CityInfo("Whitby", "on", "143", 43.8975, -78.9429),
+                new CityInfo("Guelph", "on", "52", 43.5448, -80.2482),
+                new CityInfo("Ajax", "on", "143", 43.8508, -79.0204),
+                new CityInfo("Thunder Bay", "on", "100", 48.3809, -89.2477),
+                new CityInfo("Waterloo", "on", "48", 43.4643, -80.5204),
+                new CityInfo("Chatham-Kent", "on", "94", 42.4048, -82.1910),
+                new CityInfo("Pickering", "on", "143", 43.8384, -79.0868),
+                new CityInfo("Niagara Falls", "on", "89", 43.0896, -79.0849),
+                new CityInfo("Clarington", "on", "143", 43.9350, -78.6083),
+                new CityInfo("Sarnia", "on", "93", 42.9745, -82.4066),
+                new CityInfo("Brantford", "on", "15", 43.1394, -80.2644),
+                new CityInfo("Peterborough", "on", "81", 44.3091, -78.3197),
+                new CityInfo("Kawartha Lakes", "on", "81", 44.3501, -78.7452),
+                new CityInfo("Belleville", "on", "69", 44.1628, -77.3832),
+                new CityInfo("Sault Ste. Marie", "on", "40", 46.5332, -84.3465),
+                new CityInfo("North Bay", "on", "74", 46.3091, -79.4608),
+                new CityInfo("Cornwall", "on", "118", 45.0212, -74.7300),
+                new CityInfo("Welland", "on", "89", 42.9834, -79.2482),
+                new CityInfo("Owen Sound", "on", "18", 44.5678, -80.9433),
+                new CityInfo("Stratford", "on", "72", 43.3701, -80.9799),
+                new CityInfo("Timmins", "on", "101", 48.4758, -81.3304),
+                new CityInfo("St. Thomas", "on", "72", 42.7784, -81.1756),
+                new CityInfo("Woodstock", "on", "72", 43.1315, -80.7467),
+                new CityInfo("Orangeville", "on", "143", 43.9197, -80.0942),
+                new CityInfo("Leamington", "on", "94", 42.0534, -82.5998),
+                new CityInfo("Orillia", "on", "18", 44.6084, -79.4198),
+                new CityInfo("Milton", "on", "143", 43.5183, -79.8774),
+                new CityInfo("Newmarket", "on", "143", 44.0592, -79.4613),
+                new CityInfo("Brant", "on", "15", 43.1169, -80.3486),
+                new CityInfo("Port Colborne", "on", "89", 42.8898, -79.2501),
+                new CityInfo("Quinte West", "on", "69", 44.1833, -77.5667),
                 
-                // British Columbia
+                // British Columbia (45 cities)
                 new CityInfo("Vancouver", "bc", "133", 49.2827, -123.1207),
-                new CityInfo("Victoria", "bc", "85", 48.4284, -123.3656),
+                new CityInfo("Surrey", "bc", "133", 49.1913, -122.8490),
+                new CityInfo("Burnaby", "bc", "133", 49.2488, -122.9805),
+                new CityInfo("Richmond", "bc", "133", 49.1666, -123.1336),
+                new CityInfo("Abbotsford", "bc", "1", 49.0504, -122.3045),
+                new CityInfo("Coquitlam", "bc", "133", 49.2838, -122.7932),
                 new CityInfo("Kelowna", "bc", "48", 49.8880, -119.4960),
+                new CityInfo("Saanich", "bc", "85", 48.4850, -123.3830),
+                new CityInfo("Delta", "bc", "133", 49.0847, -123.0586),
                 new CityInfo("Kamloops", "bc", "37", 50.6745, -120.3273),
+                new CityInfo("Langley", "bc", "133", 49.1044, -122.6603),
+                new CityInfo("Victoria", "bc", "85", 48.4284, -123.3656),
+                new CityInfo("Maple Ridge", "bc", "133", 49.2192, -122.5987),
+                new CityInfo("Nanaimo", "bc", "10", 49.1659, -123.9401),
+                new CityInfo("New Westminster", "bc", "133", 49.2069, -122.9111),
+                new CityInfo("Port Coquitlam", "bc", "133", 49.2625, -122.7811),
+                new CityInfo("North Vancouver", "bc", "133", 49.3200, -123.0724),
+                new CityInfo("West Vancouver", "bc", "133", 49.3289, -123.1654),
+                new CityInfo("Port Moody", "bc", "133", 49.2831, -122.8317),
+                new CityInfo("Chilliwack", "bc", "1", 49.1577, -121.9509),
                 new CityInfo("Prince George", "bc", "71", 53.9171, -122.7497),
+                new CityInfo("Vernon", "bc", "48", 50.2671, -119.2720),
+                new CityInfo("Penticton", "bc", "48", 49.4991, -119.5937),
+                new CityInfo("Campbell River", "bc", "10", 50.0244, -125.2476),
+                new CityInfo("Courtenay", "bc", "10", 49.6878, -124.9945),
+                new CityInfo("Whistler", "bc", "133", 50.1163, -122.9574),
+                new CityInfo("Fort St. John", "bc", "71", 56.2466, -120.8476),
+                new CityInfo("Prince Rupert", "bc", "71", 54.3150, -130.3209),
+                new CityInfo("Terrace", "bc", "71", 54.5164, -128.6037),
+                new CityInfo("Cranbrook", "bc", "20", 49.5100, -115.7690),
+                new CityInfo("Nelson", "bc", "20", 49.4928, -117.2829),
+                new CityInfo("Trail", "bc", "20", 49.0956, -117.7103),
+                new CityInfo("Dawson Creek", "bc", "71", 55.7596, -120.2377),
+                new CityInfo("Quesnel", "bc", "71", 52.9784, -122.4927),
+                new CityInfo("Williams Lake", "bc", "71", 52.1417, -122.1417),
                 
-                // Alberta
+                // Alberta (40 cities)
                 new CityInfo("Calgary", "ab", "52", 51.0447, -114.0719),
                 new CityInfo("Edmonton", "ab", "50", 53.5461, -113.4938),
                 new CityInfo("Red Deer", "ab", "34", 52.2681, -113.8111),
                 new CityInfo("Lethbridge", "ab", "94", 49.6942, -112.8328),
+                new CityInfo("St. Albert", "ab", "50", 53.6303, -113.6258),
+                new CityInfo("Medicine Hat", "ab", "31", 50.0417, -110.6775),
+                new CityInfo("Grande Prairie", "ab", "97", 55.1707, -118.7947),
+                new CityInfo("Airdrie", "ab", "52", 51.2917, -114.0144),
+                new CityInfo("Spruce Grove", "ab", "50", 53.5447, -113.9008),
+                new CityInfo("Okotoks", "ab", "52", 50.7267, -113.9778),
+                new CityInfo("Fort McMurray", "ab", "50", 56.7267, -111.3800),
+                new CityInfo("Leduc", "ab", "50", 53.2594, -113.5514),
+                new CityInfo("Lloydminster", "ab", "97", 53.2783, -110.0061),
+                new CityInfo("Camrose", "ab", "50", 53.0167, -112.8333),
+                new CityInfo("Cold Lake", "ab", "50", 54.4639, -110.1825),
+                new CityInfo("Brooks", "ab", "31", 50.5642, -111.8989),
+                new CityInfo("Wetaskiwin", "ab", "50", 52.9692, -113.3769),
+                new CityInfo("Sylvan Lake", "ab", "34", 52.3086, -114.0958),
+                new CityInfo("Cochrane", "ab", "52", 51.1881, -114.4689),
+                new CityInfo("Chestermere", "ab", "52", 51.0506, -113.8222),
+                new CityInfo("Canmore", "ab", "52", 51.0892, -115.3581),
+                new CityInfo("Jasper", "ab", "50", 52.8737, -118.0814),
+                new CityInfo("Banff", "ab", "52", 51.1784, -115.5708),
+                new CityInfo("High River", "ab", "52", 50.5797, -113.8697),
+                new CityInfo("Strathmore", "ab", "52", 51.0375, -113.4003),
+                new CityInfo("Whitecourt", "ab", "97", 54.1428, -115.6836),
+                new CityInfo("Peace River", "ab", "97", 56.2361, -117.2894),
+                new CityInfo("Slave Lake", "ab", "97", 55.2833, -114.7692),
                 
-                // Manitoba
+                // Manitoba (25 cities)
                 new CityInfo("Winnipeg", "mb", "38", 49.8951, -97.1384),
                 new CityInfo("Brandon", "mb", "83", 49.8483, -99.9501),
+                new CityInfo("Steinbach", "mb", "38", 49.5256, -96.6839),
+                new CityInfo("Thompson", "mb", "38", 55.7433, -97.8553),
+                new CityInfo("Portage la Prairie", "mb", "38", 49.9728, -98.2919),
+                new CityInfo("Winkler", "mb", "83", 49.1817, -97.9397),
+                new CityInfo("Selkirk", "mb", "38", 50.1436, -96.8839),
+                new CityInfo("Morden", "mb", "83", 49.1917, -98.1011),
+                new CityInfo("Dauphin", "mb", "83", 51.1486, -100.0503),
+                new CityInfo("The Pas", "mb", "38", 53.8250, -101.2539),
+                new CityInfo("Flin Flon", "mb", "38", 54.7667, -101.8833),
+                new CityInfo("Churchill", "mb", "38", 58.7684, -94.1647),
                 
-                // Saskatchewan
+                // Saskatchewan (30 cities)
                 new CityInfo("Saskatoon", "sk", "40", 52.1332, -106.6700),
                 new CityInfo("Regina", "sk", "32", 50.4452, -104.6189),
+                new CityInfo("Prince Albert", "sk", "59", 53.2033, -105.7531),
+                new CityInfo("Moose Jaw", "sk", "32", 50.3933, -105.5519),
+                new CityInfo("Swift Current", "sk", "46", 50.2881, -107.7939),
+                new CityInfo("Yorkton", "sk", "40", 51.2139, -102.4628),
+                new CityInfo("North Battleford", "sk", "40", 52.7575, -108.2861),
+                new CityInfo("Lloydminster", "sk", "40", 53.2783, -110.0061),
+                new CityInfo("Estevan", "sk", "32", 49.1392, -102.9861),
+                new CityInfo("Weyburn", "sk", "32", 49.6617, -103.8528),
+                new CityInfo("Martensville", "sk", "40", 52.2897, -106.6667),
+                new CityInfo("Warman", "sk", "40", 52.3214, -106.5842),
+                new CityInfo("Melville", "sk", "40", 50.9289, -102.8075),
+                new CityInfo("Humboldt", "sk", "40", 52.2017, -105.1231),
+                new CityInfo("Meadow Lake", "sk", "59", 54.1256, -108.4353),
                 
-                // Nova Scotia
+                // Nova Scotia (25 cities)
                 new CityInfo("Halifax", "ns", "12", 44.6488, -63.5752),
+                new CityInfo("Cape Breton", "ns", "7", 46.1389, -60.1931),
+                new CityInfo("Truro", "ns", "12", 45.3631, -63.2769),
+                new CityInfo("New Glasgow", "ns", "12", 45.5928, -62.6489),
+                new CityInfo("Dartmouth", "ns", "12", 44.6711, -63.5764),
+                new CityInfo("Sydney", "ns", "7", 46.1364, -60.1942),
+                new CityInfo("Glace Bay", "ns", "7", 46.1969, -59.9572),
+                new CityInfo("Kentville", "ns", "12", 45.0775, -64.4958),
+                new CityInfo("Amherst", "ns", "12", 45.8167, -64.2167),
+                new CityInfo("Bridgewater", "ns", "12", 44.3772, -64.5231),
+                new CityInfo("Yarmouth", "ns", "12", 43.8361, -66.1175),
+                new CityInfo("Antigonish", "ns", "12", 45.6219, -61.9975),
                 
-                // New Brunswick
+                // New Brunswick (20 cities)
                 new CityInfo("Moncton", "nb", "36", 46.0878, -64.7782),
                 new CityInfo("Saint John", "nb", "40", 45.2733, -66.0633),
                 new CityInfo("Fredericton", "nb", "29", 45.9636, -66.6431),
+                new CityInfo("Dieppe", "nb", "36", 46.0989, -64.6889),
+                new CityInfo("Miramichi", "nb", "36", 47.0282, -65.5023),
+                new CityInfo("Edmundston", "nb", "29", 47.3733, -68.3253),
+                new CityInfo("Bathurst", "nb", "36", 47.6186, -65.6511),
+                new CityInfo("Campbellton", "nb", "36", 48.0054, -66.6732),
+                new CityInfo("Riverview", "nb", "36", 46.0631, -64.8039),
+                new CityInfo("Quispamsis", "nb", "40", 45.4322, -65.9431),
+                new CityInfo("Oromocto", "nb", "29", 45.8456, -66.4792),
                 
-                // Newfoundland and Labrador
+                // Newfoundland and Labrador (15 cities)
                 new CityInfo("St. John's", "nl", "24", 47.5615, -52.7126),
+                new CityInfo("Conception Bay South", "nl", "24", 47.5167, -52.9983),
+                new CityInfo("Mount Pearl", "nl", "24", 47.5189, -52.8058),
+                new CityInfo("Corner Brook", "nl", "8", 48.9501, -57.9522),
+                new CityInfo("Paradise", "nl", "24", 47.5333, -52.8667),
+                new CityInfo("Grand Falls-Windsor", "nl", "8", 48.9333, -55.6667),
+                new CityInfo("Gander", "nl", "13", 48.9564, -54.6089),
+                new CityInfo("Labrador City", "nl", "52", 52.9425, -66.9119),
+                new CityInfo("Happy Valley-Goose Bay", "nl", "52", 53.3094, -60.3258),
                 
-                // Prince Edward Island
+                // Prince Edward Island (10 cities)
                 new CityInfo("Charlottetown", "pe", "5", 46.2382, -63.1311),
+                new CityInfo("Summerside", "pe", "5", 46.3950, -63.7883),
+                new CityInfo("Stratford", "pe", "5", 46.2167, -63.0908),
+                new CityInfo("Cornwall", "pe", "5", 46.2289, -63.2211),
+                new CityInfo("Montague", "pe", "5", 46.1667, -62.6500),
+                new CityInfo("Kensington", "pe", "5", 46.4333, -63.6333),
+                
+                // Yukon (5 cities)
+                new CityInfo("Whitehorse", "yt", "50", 60.7212, -135.0568),
+                new CityInfo("Dawson City", "yt", "50", 64.0608, -139.4331),
+                
+                // Northwest Territories (5 cities)
+                new CityInfo("Yellowknife", "nt", "24", 62.4540, -114.3718),
+                new CityInfo("Hay River", "nt", "24", 60.8156, -115.7999),
+                new CityInfo("Inuvik", "nt", "24", 68.3607, -133.7230),
+                
+                // Nunavut (5 cities)
+                new CityInfo("Iqaluit", "nu", "21", 63.7467, -68.5170),
+                new CityInfo("Rankin Inlet", "nu", "21", 62.8097, -92.0894),
             };
         }
         
@@ -496,9 +778,20 @@ namespace WeatherImageGenerator.Services
             var cfg = settings ?? LoadSettings();
             var feeds = cfg.CityFeeds ?? new Dictionary<string, string>();
             
-            // Find matching feed URL
+            // Find matching feed URL - try exact match first, then normalized match
             var normalizedCity = NormalizeCity(cityName);
-            var feedUrl = feeds.FirstOrDefault(kv => NormalizeCity(kv.Key) == normalizedCity).Value;
+            string? feedUrl = null;
+            
+            // Try exact match first
+            if (feeds.TryGetValue(cityName, out var exactUrl))
+            {
+                feedUrl = exactUrl;
+            }
+            else
+            {
+                // Try normalized match
+                feedUrl = feeds.FirstOrDefault(kv => NormalizeCity(kv.Key) == normalizedCity).Value;
+            }
             
             if (string.IsNullOrEmpty(feedUrl))
             {
@@ -929,13 +1222,23 @@ namespace WeatherImageGenerator.Services
                 Longitude = longitude;
             }
             
-            /// <summary>Gets the ECCC city weather feed URL (French)</summary>
-            public string GetCityFeedUrl(string language = "f") => BuildCityWeatherUrl(Province, CityCode, language);
+            /// <summary>Gets the ECCC city weather feed URL (French) if available, otherwise alerts feed</summary>
+            public string GetCityFeedUrl(string language = "f")
+            {
+                // If cityCode is "coord", use alerts feed (coordinate-based)
+                if (CityCode == "coord")
+                    return BuildAlertsUrl(Latitude, Longitude, language);
+                    
+                return BuildCityWeatherUrl(Province, CityCode, language);
+            }
             
             /// <summary>Gets the ECCC alerts feed URL (French)</summary>
             public string GetAlertsFeedUrl(string language = "f") => BuildAlertsUrl(Latitude, Longitude, language);
             
-            public override string ToString() => $"{Name} ({Province.ToUpper()})";
+            /// <summary>Indicates if this city uses coordinate-based feed (no city-specific RSS)</summary>
+            public bool IsCoordinateBased => CityCode == "coord";
+            
+            public override string ToString() => Name;
         }
 
         public class EcccSettings
