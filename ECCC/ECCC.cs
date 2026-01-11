@@ -102,6 +102,112 @@ namespace WeatherImageGenerator.Services
             => $"{BaseDatamartUrl}/{path.TrimStart('/')}";
         
         /// <summary>
+        /// Searches for Canadian cities by name and returns available ECCC city configurations.
+        /// </summary>
+        /// <param name="query">City name to search for (e.g., "Montreal", "Québec")</param>
+        /// <param name="maxResults">Maximum number of results to return</param>
+        /// <returns>List of matching city configurations with their ECCC feed URLs</returns>
+        public static List<CityInfo> SearchCities(string query, int maxResults = 10)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return new List<CityInfo>();
+            
+            var normalizedQuery = NormalizeCity(query);
+            var results = new List<CityInfo>();
+            
+            // Search through known cities
+            foreach (var city in GetKnownCities())
+            {
+                var normalizedCity = NormalizeCity(city.Name);
+                if (normalizedCity.Contains(normalizedQuery) || normalizedQuery.Contains(normalizedCity))
+                {
+                    results.Add(city);
+                    if (results.Count >= maxResults) break;
+                }
+            }
+            
+            return results;
+        }
+        
+        /// <summary>
+        /// Gets a database of known ECCC cities with their province and city codes.
+        /// </summary>
+        public static List<CityInfo> GetKnownCities()
+        {
+            return new List<CityInfo>
+            {
+                // Quebec
+                new CityInfo("Montréal", "qc", "147", 45.5017, -73.5673),
+                new CityInfo("Québec", "qc", "133", 46.8139, -71.2080),
+                new CityInfo("Gatineau", "qc", "59", 45.4765, -75.7013),
+                new CityInfo("Sherbrooke", "qc", "30", 45.4042, -71.8929),
+                new CityInfo("Trois-Rivières", "qc", "48", 46.3432, -72.5477),
+                new CityInfo("Saguenay", "qc", "50", 48.4284, -71.0656),
+                new CityInfo("Lévis", "qc", "108", 46.8000, -71.1772),
+                new CityInfo("Laval", "qc", "147", 45.6066, -73.7124),
+                new CityInfo("Longueuil", "qc", "147", 45.5312, -73.5186),
+                new CityInfo("Terrebonne", "qc", "147", 45.7000, -73.6470),
+                new CityInfo("Saint-Jean-sur-Richelieu", "qc", "43", 45.3075, -73.2625),
+                new CityInfo("Drummondville", "qc", "34", 45.8833, -72.4833),
+                new CityInfo("Granby", "qc", "111", 45.4000, -72.7333),
+                new CityInfo("Saint-Jérôme", "qc", "20", 45.7833, -74.0000),
+                new CityInfo("Rimouski", "qc", "58", 48.4489, -68.5236),
+                new CityInfo("Rouyn-Noranda", "qc", "94", 48.2351, -79.0233),
+                new CityInfo("Val-d'Or", "qc", "95", 48.0971, -77.7827),
+                new CityInfo("Amos", "qc", "96", 48.5667, -78.1167),
+                new CityInfo("Sept-Îles", "qc", "100", 50.2167, -66.3833),
+                new CityInfo("Baie-Comeau", "qc", "101", 49.2167, -68.1500),
+                new CityInfo("Alma", "qc", "106", 48.5500, -71.6500),
+                
+                // Ontario
+                new CityInfo("Toronto", "on", "143", 43.6532, -79.3832),
+                new CityInfo("Ottawa", "on", "118", 45.4215, -75.6972),
+                new CityInfo("Mississauga", "on", "143", 43.5890, -79.6441),
+                new CityInfo("Hamilton", "on", "77", 43.2557, -79.8711),
+                new CityInfo("London", "on", "72", 42.9849, -81.2453),
+                new CityInfo("Windsor", "on", "94", 42.3149, -83.0364),
+                new CityInfo("Kitchener", "on", "48", 43.4516, -80.4925),
+                new CityInfo("Thunder Bay", "on", "100", 48.3809, -89.2477),
+                new CityInfo("Sudbury", "on", "40", 46.4917, -80.9930),
+                new CityInfo("Kingston", "on", "69", 44.2312, -76.4860),
+                
+                // British Columbia
+                new CityInfo("Vancouver", "bc", "133", 49.2827, -123.1207),
+                new CityInfo("Victoria", "bc", "85", 48.4284, -123.3656),
+                new CityInfo("Kelowna", "bc", "48", 49.8880, -119.4960),
+                new CityInfo("Kamloops", "bc", "37", 50.6745, -120.3273),
+                new CityInfo("Prince George", "bc", "71", 53.9171, -122.7497),
+                
+                // Alberta
+                new CityInfo("Calgary", "ab", "52", 51.0447, -114.0719),
+                new CityInfo("Edmonton", "ab", "50", 53.5461, -113.4938),
+                new CityInfo("Red Deer", "ab", "34", 52.2681, -113.8111),
+                new CityInfo("Lethbridge", "ab", "94", 49.6942, -112.8328),
+                
+                // Manitoba
+                new CityInfo("Winnipeg", "mb", "38", 49.8951, -97.1384),
+                new CityInfo("Brandon", "mb", "83", 49.8483, -99.9501),
+                
+                // Saskatchewan
+                new CityInfo("Saskatoon", "sk", "40", 52.1332, -106.6700),
+                new CityInfo("Regina", "sk", "32", 50.4452, -104.6189),
+                
+                // Nova Scotia
+                new CityInfo("Halifax", "ns", "12", 44.6488, -63.5752),
+                
+                // New Brunswick
+                new CityInfo("Moncton", "nb", "36", 46.0878, -64.7782),
+                new CityInfo("Saint John", "nb", "40", 45.2733, -66.0633),
+                new CityInfo("Fredericton", "nb", "29", 45.9636, -66.6431),
+                
+                // Newfoundland and Labrador
+                new CityInfo("St. John's", "nl", "24", 47.5615, -52.7126),
+                
+                // Prince Edward Island
+                new CityInfo("Charlottetown", "pe", "5", 46.2382, -63.1311),
+            };
+        }
+        
+        /// <summary>
         /// Parses an ECCC feed URL into a structured data request.
         /// Supports City Weather and Alerts RSS feeds.
         /// </summary>
@@ -801,6 +907,35 @@ namespace WeatherImageGenerator.Services
             var normalized = s.Normalize(NormalizationForm.FormD);
             var filtered = new string(normalized.Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray());
             return filtered.Normalize(NormalizationForm.FormC).ToLowerInvariant().Trim();
+        }
+        
+        /// <summary>
+        /// Information about a Canadian city with ECCC data availability.
+        /// </summary>
+        public class CityInfo
+        {
+            public string Name { get; set; }
+            public string Province { get; set; }
+            public string CityCode { get; set; }
+            public double Latitude { get; set; }
+            public double Longitude { get; set; }
+            
+            public CityInfo(string name, string province, string cityCode, double latitude, double longitude)
+            {
+                Name = name;
+                Province = province;
+                CityCode = cityCode;
+                Latitude = latitude;
+                Longitude = longitude;
+            }
+            
+            /// <summary>Gets the ECCC city weather feed URL (French)</summary>
+            public string GetCityFeedUrl(string language = "f") => BuildCityWeatherUrl(Province, CityCode, language);
+            
+            /// <summary>Gets the ECCC alerts feed URL (French)</summary>
+            public string GetAlertsFeedUrl(string language = "f") => BuildAlertsUrl(Latitude, Longitude, language);
+            
+            public override string ToString() => $"{Name} ({Province.ToUpper()})";
         }
 
         public class EcccSettings

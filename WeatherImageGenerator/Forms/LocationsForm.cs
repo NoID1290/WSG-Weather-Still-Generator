@@ -24,9 +24,11 @@ namespace WeatherImageGenerator.Forms
         private Button btnMoveDown;
         private Button btnSave;
         private Button btnCancel;
+        private Button btnSearch;
         private Label lblCount;
         private Label lblSelectedApi;
         private readonly List<LocationEntry> _locations;
+        private Dictionary<string, string> _newEcccFeeds = new Dictionary<string, string>();
         private const int MaxLocations = 9; // Location0 through Location8
 
         public LocationsForm()
@@ -131,12 +133,23 @@ namespace WeatherImageGenerator.Forms
             cmbWeatherApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC" });
             cmbWeatherApi.SelectedIndex = 0; // Default to OpenMeteo
 
+            // Search button
+            btnSearch = new Button
+            {
+                Text = "🔍 Search Cities",
+                Left = 370,
+                Top = 155,
+                Width = 160,
+                Height = 30
+            };
+            btnSearch.Click += BtnSearch_Click;
+
             // Action buttons
             btnAdd = new Button
             {
                 Text = "Add",
                 Left = 370,
-                Top = 160,
+                Top = 195,
                 Width = 160,
                 Height = 30
             };
@@ -146,7 +159,7 @@ namespace WeatherImageGenerator.Forms
             {
                 Text = "Edit",
                 Left = 370,
-                Top = 200,
+                Top = 235,
                 Width = 160,
                 Height = 30,
                 Enabled = false
@@ -157,7 +170,7 @@ namespace WeatherImageGenerator.Forms
             {
                 Text = "Remove",
                 Left = 370,
-                Top = 240,
+                Top = 275,
                 Width = 160,
                 Height = 30,
                 Enabled = false
@@ -168,7 +181,7 @@ namespace WeatherImageGenerator.Forms
             var separator = new Label
             {
                 Left = 370,
-                Top = 280,
+                Top = 315,
                 Width = 160,
                 Height = 2,
                 BorderStyle = BorderStyle.Fixed3D
@@ -178,7 +191,7 @@ namespace WeatherImageGenerator.Forms
             {
                 Text = "Move Up ↑",
                 Left = 370,
-                Top = 290,
+                Top = 325,
                 Width = 160,
                 Height = 30,
                 Enabled = false
@@ -189,7 +202,7 @@ namespace WeatherImageGenerator.Forms
             {
                 Text = "Move Down ↓",
                 Left = 370,
-                Top = 330,
+                Top = 365,
                 Width = 160,
                 Height = 30,
                 Enabled = false
@@ -223,7 +236,7 @@ namespace WeatherImageGenerator.Forms
             this.Controls.AddRange(new Control[]
             {
                 lblInfo, lstLocations, lblCount, lblSelectedApi, lblNew, txtLocationName,
-                lblApi, cmbWeatherApi, btnAdd, btnEdit, btnRemove, separator, btnMoveUp, btnMoveDown,
+                lblApi, cmbWeatherApi, btnSearch, btnAdd, btnEdit, btnRemove, separator, btnMoveUp, btnMoveDown,
                 btnSave, btnCancel
             });
 
@@ -327,6 +340,44 @@ namespace WeatherImageGenerator.Forms
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtLocationName.Focus();
                 return;
+            }
+
+            // Check if input is an ECCC URL
+            if (locationName.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                locationName.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    // Attempt to parse the URL
+                    var request = ECCC.ParseFeedUrl(locationName);
+                    
+                    // It's a valid ECCC URL. Prompt for a friendly name.
+                    string defaultName = !string.IsNullOrEmpty(request.Province) && !string.IsNullOrEmpty(request.CityCode)
+                        ? $"{request.Province.ToUpper()}-{request.CityCode}"
+                        : "New Location";
+                        
+                    string? friendlyName = PromptForName(
+                        "ECCC Feed Detected", 
+                        "Enter a name for this location:", 
+                        defaultName);
+
+                    if (string.IsNullOrWhiteSpace(friendlyName)) return; // User cancelled or empty
+
+                    // Use the friendly name from now on
+                    locationName = friendlyName!;
+                    
+                    // Add to pending feeds to be saved later
+                    _newEcccFeeds[locationName] = txtLocationName.Text.Trim();
+                    
+                    // Force ECCC API selection
+                    cmbWeatherApi.SelectedIndex = 1; // ECCC
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"The URL provided does not appear to be a valid ECCC feed.\nError: {ex.Message}", 
+                        "Invalid URL", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
             }
 
             if (_locations.Count >= MaxLocations)
@@ -476,6 +527,20 @@ namespace WeatherImageGenerator.Forms
                 config.Locations.Location7Api = _locations.Count > 7 ? _locations[7].Api : WeatherApiType.OpenMeteo;
                 config.Locations.Location8Api = _locations.Count > 8 ? _locations[8].Api : WeatherApiType.OpenMeteo;
 
+                // Save pending ECCC feeds if any
+                if (_newEcccFeeds.Count > 0)
+                {
+                    if (config.ECCC == null) config.ECCC = new ECCCSettings();
+                    if (config.ECCC.CityFeeds == null) config.ECCC.CityFeeds = new Dictionary<string, string>();
+                    
+                    foreach (var kv in _newEcccFeeds)
+                    {
+                        config.ECCC.CityFeeds[kv.Key] = kv.Value;
+                    }
+                    
+                    Logger.Log($"✓ Added {_newEcccFeeds.Count} new ECCC feed(s) to configuration");
+                }
+
                 ConfigManager.SaveConfig(config);
 
                 MessageBox.Show("Locations saved successfully!", "Success", 
@@ -566,6 +631,209 @@ namespace WeatherImageGenerator.Forms
                         ? WeatherApiType.ECCC 
                         : WeatherApiType.OpenMeteo;
                     return (txtInput.Text.Trim(), selectedApi);
+                }
+                return null;
+            }
+        }
+
+        private void BtnSearch_Click(object? sender, EventArgs e)
+        {
+            string query = txtLocationName.Text.Trim();
+            
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                MessageBox.Show("Please enter a city name to search for.", "Search Required", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                txtLocationName.Focus();
+                return;
+            }
+
+            // Search for cities
+            var results = ECCC.SearchCities(query, 20);
+            
+            if (results.Count == 0)
+            {
+                MessageBox.Show($"No ECCC cities found matching '{query}'.\n\nTry:\n• Different spelling\n• Major city names\n• Adding the province", 
+                    "No Results", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Show search results dialog
+            var selectedCity = ShowCitySearchResults(query, results);
+            
+            if (selectedCity != null)
+            {
+                // Auto-fill the location name
+                txtLocationName.Text = selectedCity.Name;
+                
+                // Set API to ECCC
+                cmbWeatherApi.SelectedIndex = 1;
+                
+                // Store the feed URL for later
+                _newEcccFeeds[selectedCity.Name] = selectedCity.GetCityFeedUrl();
+                
+                // Add it automatically
+                BtnAdd_Click(sender, e);
+            }
+        }
+
+        private ECCC.CityInfo? ShowCitySearchResults(string query, List<ECCC.CityInfo> results)
+        {
+            using (var searchForm = new Form())
+            {
+                searchForm.Text = $"Search Results for '{query}'";
+                searchForm.Width = 500;
+                searchForm.Height = 450;
+                searchForm.FormBorderStyle = FormBorderStyle.FixedDialog;
+                searchForm.StartPosition = FormStartPosition.CenterParent;
+                searchForm.MaximizeBox = false;
+                searchForm.MinimizeBox = false;
+
+                var lblInfo = new Label
+                {
+                    Text = $"Found {results.Count} city/cities. Select one to add:",
+                    Left = 10,
+                    Top = 10,
+                    Width = 460,
+                    Height = 30,
+                    Font = new Font("Segoe UI", 9F)
+                };
+
+                var lstResults = new ListBox
+                {
+                    Left = 10,
+                    Top = 45,
+                    Width = 460,
+                    Height = 280,
+                    Font = new Font("Segoe UI", 10F)
+                };
+
+                foreach (var city in results)
+                {
+                    lstResults.Items.Add(city);
+                }
+                lstResults.DisplayMember = "ToString";
+                if (lstResults.Items.Count > 0) lstResults.SelectedIndex = 0;
+                lstResults.DoubleClick += (s, e) =>
+                {
+                    if (lstResults.SelectedItem != null)
+                    {
+                        searchForm.DialogResult = DialogResult.OK;
+                        searchForm.Close();
+                    }
+                };
+
+                var lblPreview = new Label
+                {
+                    Text = "",
+                    Left = 10,
+                    Top = 335,
+                    Width = 460,
+                    Height = 20,
+                    Font = new Font("Segoe UI", 8F, FontStyle.Italic),
+                    ForeColor = Color.DarkBlue
+                };
+
+                lstResults.SelectedIndexChanged += (s, e) =>
+                {
+                    if (lstResults.SelectedItem is ECCC.CityInfo city)
+                    {
+                        lblPreview.Text = $"Feed: {city.GetCityFeedUrl()}";
+                    }
+                };
+                if (lstResults.Items.Count > 0 && lstResults.SelectedItem is ECCC.CityInfo firstCity)
+                {
+                    lblPreview.Text = $"Feed: {firstCity.GetCityFeedUrl()}";
+                }
+
+                var btnSelect = new Button
+                {
+                    Text = "Select",
+                    Left = 280,
+                    Top = 365,
+                    Width = 100,
+                    Height = 35,
+                    Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                    DialogResult = DialogResult.OK
+                };
+
+                var btnCancelSearch = new Button
+                {
+                    Text = "Cancel",
+                    Left = 390,
+                    Top = 365,
+                    Width = 80,
+                    Height = 35,
+                    Font = new Font("Segoe UI", 10F),
+                    DialogResult = DialogResult.Cancel
+                };
+
+                searchForm.Controls.AddRange(new Control[] { lblInfo, lstResults, lblPreview, btnSelect, btnCancelSearch });
+                searchForm.AcceptButton = btnSelect;
+                searchForm.CancelButton = btnCancelSearch;
+
+                if (searchForm.ShowDialog() == DialogResult.OK && lstResults.SelectedItem is ECCC.CityInfo selected)
+                {
+                    return selected;
+                }
+                return null;
+            }
+        }
+
+        private string? PromptForName(string title, string prompt, string defaultValue = "")
+        {
+            using (var promptForm = new Form())
+            {
+                promptForm.Text = title;
+                promptForm.Width = 400;
+                promptForm.Height = 180;
+                promptForm.FormBorderStyle = FormBorderStyle.FixedDialog;
+                promptForm.StartPosition = FormStartPosition.CenterParent;
+                promptForm.MaximizeBox = false;
+                promptForm.MinimizeBox = false;
+
+                var lblPrompt = new Label
+                {
+                    Text = prompt,
+                    Left = 10,
+                    Top = 20,
+                    Width = 360
+                };
+
+                var txtInput = new TextBox
+                {
+                    Left = 10,
+                    Top = 45,
+                    Width = 360,
+                    Text = defaultValue
+                };
+                txtInput.SelectAll();
+
+                var btnOk = new Button
+                {
+                    Text = "OK",
+                    Left = 200,
+                    Top = 90,
+                    Width = 80,
+                    DialogResult = DialogResult.OK
+                };
+
+                var btnCancelPrompt = new Button
+                {
+                    Text = "Cancel",
+                    Left = 290,
+                    Top = 90,
+                    Width = 80,
+                    DialogResult = DialogResult.Cancel
+                };
+
+                promptForm.Controls.AddRange(new Control[] { lblPrompt, txtInput, btnOk, btnCancelPrompt });
+                promptForm.AcceptButton = btnOk;
+                promptForm.CancelButton = btnCancelPrompt;
+
+                if (promptForm.ShowDialog() == DialogResult.OK)
+                {
+                    return txtInput.Text.Trim();
                 }
                 return null;
             }
