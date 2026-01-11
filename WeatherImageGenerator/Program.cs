@@ -145,6 +145,32 @@ namespace WeatherImageGenerator
         // Event that reports the fetched alerts
         public static event Action<List<AlertEntry>>? AlertsFetched;
 
+        /// <summary>
+        /// Fetches weather data for a single location using the specified API
+        /// </summary>
+        private static async Task<WeatherForecast?> FetchWeatherForLocationAsync(
+            string locationName, 
+            WeatherApiType api, 
+            OpenMeteoClient openMeteoClient,
+            HttpClient httpClient)
+        {
+            string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+            Logger.Log($"[{apiName}] Fetching weather for {locationName}...");
+
+            switch (api)
+            {
+                case WeatherApiType.ECCC:
+                    // ECCC currently only provides alerts/radar, not full weather data
+                    // Fall back to OpenMeteo for actual forecast data, but log the preference
+                    Logger.Log($"[{apiName}] Note: ECCC API selected - using OpenMeteo for forecast data (ECCC provides alerts only)");
+                    return await openMeteoClient.QueryAsync(locationName);
+
+                case WeatherApiType.OpenMeteo:
+                default:
+                    return await openMeteoClient.QueryAsync(locationName);
+            }
+        }
+
         public static async Task FetchDataOnlyAsync(CancellationToken cancellationToken = default)
         {            EnsureIconsExist();            var config = ConfigManager.LoadConfig();
             OpenMeteoClient client = new OpenMeteoClient();
@@ -152,6 +178,7 @@ namespace WeatherImageGenerator
             using (HttpClient httpClient = new HttpClient())
             {
                 string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 Logger.Log($"Fetching weather data (Fetch Only)...");
                 ProgressUpdated?.Invoke(0, "Starting fetch only...");
 
@@ -162,20 +189,25 @@ namespace WeatherImageGenerator
                     if (cancellationToken.IsCancellationRequested) return;
 
                     string loc = locations[i];
+                    if (string.IsNullOrWhiteSpace(loc)) continue;
+
+                    var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
+                    string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+
                     try 
                     {
-                        allForecasts[i] = await client.QueryAsync(loc);
-                        Logger.Log($"✓ Fetched weather data for {loc}");
+                        allForecasts[i] = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
+                        Logger.Log($"✓ [{apiName}] Fetched weather data for {loc}");
                     }
                     catch (Exception ex)
                     {
-                        Logger.Log($"X Failed to fetch for {loc}: {ex.Message}");
+                        Logger.Log($"✗ [{apiName}] Failed to fetch for {loc}: {ex.Message}");
                     }
                     
                     if (locations.Length > 0)
                     {
                         var fetchPct = ((i + 1) / (double)locations.Length) * 80.0;
-                        ProgressUpdated?.Invoke(fetchPct, $"Fetching weather ({i + 1}/{locations.Length})");
+                        ProgressUpdated?.Invoke(fetchPct, $"[{apiName}] Fetching {loc} ({i + 1}/{locations.Length})");
                     }
                 }
 
@@ -183,16 +215,16 @@ namespace WeatherImageGenerator
 
                 if (cancellationToken.IsCancellationRequested) return;
 
-                Logger.Log("Checking ECCC weather alerts...");
+                Logger.Log("[ECCC] Checking weather alerts...");
                 try
                 {
                     List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient, locations);
-                    Logger.Log($"✓ Found {alerts.Count} active alerts.");
+                    Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"X Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [ECCC] Failed to fetch alerts: {ex.Message}");
                 }
 
                 ProgressUpdated?.Invoke(100, "Fetch complete");
@@ -208,6 +240,7 @@ namespace WeatherImageGenerator
             using (HttpClient httpClient = new HttpClient())
             {
                 string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 Logger.Log($"Fetching weather data (Stills Only)...");
                 ProgressUpdated?.Invoke(0, "Starting stills generation...");
 
@@ -219,20 +252,25 @@ namespace WeatherImageGenerator
                     if (cancellationToken.IsCancellationRequested) return;
 
                     string loc = locations[i];
+                    if (string.IsNullOrWhiteSpace(loc)) continue;
+
+                    var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
+                    string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+
                     try 
                     {
-                        allForecasts[i] = await client.QueryAsync(loc);
-                        Logger.Log($"✓ Fetched weather data for {loc}");
+                        allForecasts[i] = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
+                        Logger.Log($"✓ [{apiName}] Fetched weather data for {loc}");
                     }
                     catch (Exception ex)
                     {
-                        Logger.Log($"X Failed to fetch for {loc}: {ex.Message}");
+                        Logger.Log($"✗ [{apiName}] Failed to fetch for {loc}: {ex.Message}");
                     }
                     
                     if (locations.Length > 0)
                     {
                         var fetchPct = ((i + 1) / (double)locations.Length) * 15.0;
-                        ProgressUpdated?.Invoke(fetchPct, $"Fetching weather ({i + 1}/{locations.Length})");
+                        ProgressUpdated?.Invoke(fetchPct, $"[{apiName}] Fetching {loc} ({i + 1}/{locations.Length})");
                     }
                 }
 
@@ -241,17 +279,17 @@ namespace WeatherImageGenerator
                 if (cancellationToken.IsCancellationRequested) return;
 
                 // Fetch Alerts
-                Logger.Log("Checking ECCC weather alerts...");
+                Logger.Log("[ECCC] Checking weather alerts...");
                 List<AlertEntry> alerts = new List<AlertEntry>();
                 try
                 {
                     alerts = await ECCC.FetchAllAlerts(httpClient, locations);
-                    Logger.Log($"✓ Found {alerts.Count} active alerts.");
+                    Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"X Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [ECCC] Failed to fetch alerts: {ex.Message}");
                 }
 
                 if (allForecasts[0] == null) 
@@ -343,6 +381,7 @@ namespace WeatherImageGenerator
             {
                 // Load locations into an array for easier handling
                 string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
 
                 // Infinite loop to keep the program running
                 while (!cancellationToken.IsCancellationRequested)
@@ -362,14 +401,19 @@ namespace WeatherImageGenerator
                         for (int i = 0; i < locations.Length; i++)
                         {
                             string loc = locations[i];
+                            if (string.IsNullOrWhiteSpace(loc)) continue;
+
+                            var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
+                            string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+
                             try 
                             {
-                                allForecasts[i] = await client.QueryAsync(loc);
-                                Logger.Log($"✓ Fetched weather data for {loc}");
+                                allForecasts[i] = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
+                                Logger.Log($"✓ [{apiName}] Fetched weather data for {loc}");
                             }
                             catch (Exception ex)
                             {
-                                Logger.Log($"X Failed to fetch for {loc}: {ex.Message}");
+                                Logger.Log($"✗ [{apiName}] Failed to fetch for {loc}: {ex.Message}");
                                 dataFetchSuccess = false; 
                             }
 
@@ -377,7 +421,7 @@ namespace WeatherImageGenerator
                             if (locations.Length > 0)
                             {
                                 var fetchPct = ((i + 1) / (double)locations.Length) * 15.0;
-                                ProgressUpdated?.Invoke(fetchPct, $"Fetching weather ({i + 1}/{locations.Length})");
+                                ProgressUpdated?.Invoke(fetchPct, $"[{apiName}] Fetching {loc} ({i + 1}/{locations.Length})");
                             }
                         }
 
@@ -385,16 +429,16 @@ namespace WeatherImageGenerator
                         WeatherDataFetched?.Invoke(allForecasts);
 
                         // Fetch Weather Alert Data from ECCC
-                        Logger.Log("Checking ECCC weather alerts...");
+                        Logger.Log("[ECCC] Checking weather alerts...");
                         try
                         {
                             List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient, locations);
-                            Logger.Log($"✓ Found {alerts.Count} active alerts.");
+                            Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
                             AlertsFetched?.Invoke(alerts);
                         }
                         catch (Exception ex)
                         {
-                            Logger.Log($"X Failed to generate alerts image: {ex.Message}");
+                            Logger.Log($"✗ [ECCC] Failed to generate alerts image: {ex.Message}");
                         }
                        
                         
