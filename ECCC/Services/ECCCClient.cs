@@ -278,14 +278,30 @@ namespace ECCC.Services
                 System.Diagnostics.Debug.WriteLine("[ECCC] ✗ No temperature found in summary!");
             }
 
-            // Extract wind speed - format: "<b>Wind:</b> NE 28 km/h" or "<b>Vent:</b> NE 28 km/h"
+            // Extract wind speed and direction - formats:
+            // English: "<b>Wind:</b> WSW 24 km/h gust 35 km/h"
+            // French: "<b>Vents:</b> OSO 24 km/h rafale 35 km/h"
             var windMatch = System.Text.RegularExpressions.Regex.Match(
                 summary, 
-                @"<b>(?:Wind|Vent)\s*:\s*</b>\s*(?:[A-Z]+\s+)?(\d+(?:\.\d+)?)\s*km/h",
+                @"<b>(?:Wind|Vents?)\s*:\s*</b>\s*([A-Z]+)\s+(\d+(?:\.\d+)?)\s*km/h",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (windMatch.Success && double.TryParse(windMatch.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double wind))
+            if (windMatch.Success)
             {
-                current.WindSpeed = wind;
+                current.WindDirection = windMatch.Groups[1].Value.ToUpperInvariant();
+                if (double.TryParse(windMatch.Groups[2].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double wind))
+                {
+                    current.WindSpeed = wind;
+                }
+            }
+
+            // Extract wind gusts if available - format: "gust 35 km/h" or "rafale 35 km/h"
+            var gustMatch = System.Text.RegularExpressions.Regex.Match(
+                summary,
+                @"(?:gust|rafale)\s*(\d+(?:\.\d+)?)\s*km/h",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (gustMatch.Success && double.TryParse(gustMatch.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double gust))
+            {
+                current.WindGust = gust;
             }
 
             // Extract humidity - format: "<b>Humidity:</b> 94 %"
@@ -317,6 +333,62 @@ namespace ECCC.Services
             {
                 current.Condition = conditionMatch.Groups[1].Value.Trim();
                 current.WeatherCode = DetermineWeatherCode(current.Condition);
+            }
+
+            // Extract visibility - format: "<b>Visibility:</b> 24 km" or "<b>Visibilité:</b> 24 km"
+            var visibilityMatch = System.Text.RegularExpressions.Regex.Match(
+                summary,
+                @"<b>(?:Visibility|Visibilité)\s*:\s*</b>\s*(\d+(?:[.,]\d+)?)\s*km",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (visibilityMatch.Success)
+            {
+                var visStr = visibilityMatch.Groups[1].Value.Replace(",", ".");
+                if (double.TryParse(visStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double visibility))
+                {
+                    current.Visibility = visibility;
+                }
+            }
+
+            // Extract dew point - format: "<b>Dewpoint:</b> -5.7&deg;C" or "<b>Point de rosée:</b> -5,7&deg;C"
+            var dewPointMatch = System.Text.RegularExpressions.Regex.Match(
+                summary,
+                @"<b>(?:Dewpoint|Point de rosée)\s*:\s*</b>\s*(-?\d+(?:[.,]\d+)?)\s*(?:&deg;|°)?\s*C",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (dewPointMatch.Success)
+            {
+                var dewStr = dewPointMatch.Groups[1].Value.Replace(",", ".");
+                if (double.TryParse(dewStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double dewPoint))
+                {
+                    current.DewPoint = dewPoint;
+                }
+            }
+
+            // Extract wind chill (winter) - format: "<b>Wind Chill:</b> -15" or inline in current conditions
+            var windChillMatch = System.Text.RegularExpressions.Regex.Match(
+                summary,
+                @"<b>(?:Wind\s*[Cc]hill|Refroidissement\s*[ée]olien)\s*:\s*</b>\s*(-?\d+(?:[.,]\d+)?)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (windChillMatch.Success)
+            {
+                var wcStr = windChillMatch.Groups[1].Value.Replace(",", ".");
+                if (double.TryParse(wcStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double windChill))
+                {
+                    current.WindChill = windChill;
+                }
+            }
+
+            // Extract humidex (summer) - format: "<b>Humidex:</b> 35"
+            var humidexMatch = System.Text.RegularExpressions.Regex.Match(
+                summary,
+                @"<b>Humidex\s*:\s*</b>\s*(\d+(?:[.,]\d+)?)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (humidexMatch.Success)
+            {
+                var hxStr = humidexMatch.Groups[1].Value.Replace(",", ".");
+                if (double.TryParse(hxStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double humidex))
+                {
+                    current.Humidex = humidex;
+                }
             }
         }
 

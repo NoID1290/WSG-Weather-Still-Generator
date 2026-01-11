@@ -148,6 +148,7 @@ namespace WeatherImageGenerator
         /// <summary>
         /// Fetches weather data for a single location using the specified API.
         /// Returns (forecast, actualApiUsed) tuple.
+        /// When using ECCC, also fetches OpenMeteo data to fill in missing fields (hourly, precipitation, etc.)
         /// </summary>
         private static async Task<(WeatherForecast? Forecast, string ApiUsed)> FetchWeatherForLocationAsync(
             string locationName, 
@@ -164,8 +165,14 @@ namespace WeatherImageGenerator
                     // Set up ECCC API logging
                     ECCC.ECCCApi.Log = (msg) => Logger.Log(msg);
                     
-                    // Try to fetch from ECCC using the new API
-                    var ecccForecast = await ECCC.ECCCApi.GetWeatherAsync(httpClient, locationName);
+                    // Fetch ECCC and OpenMeteo in parallel for hybrid data
+                    var ecccTask = ECCC.ECCCApi.GetWeatherAsync(httpClient, locationName);
+                    var openMeteoTask = openMeteoClient.QueryAsync(locationName);
+                    
+                    await Task.WhenAll(ecccTask, openMeteoTask);
+                    
+                    var ecccForecast = ecccTask.Result;
+                    var openMeteoFallback = openMeteoTask.Result;
                     
                     // Accept ECCC data if we have either temperature or daily forecasts
                     if (ecccForecast != null && ecccForecast.Current != null)
@@ -176,8 +183,12 @@ namespace WeatherImageGenerator
                         
                         if (hasTemp || hasDaily)
                         {
-                            Logger.Log($"✓ [ECCC] Using ECCC data for {locationName} (temp={tempValue}°C)");
-                            return (ecccForecast, "ECCC");
+                            // Merge with OpenMeteo to fill missing data (hourly, precipitation, etc.)
+                            var mergedForecast = ECCC.Services.OpenMeteoConverter.MergeWithOpenMeteo(ecccForecast, openMeteoFallback);
+                            
+                            var hasHourly = mergedForecast.Hourly?.Time?.Length > 0;
+                            Logger.Log($"✓ [ECCC+OpenMeteo] Using hybrid data for {locationName} (temp={tempValue}°C, hourly={hasHourly})");
+                            return (mergedForecast, "ECCC+OpenMeteo");
                         }
                         else
                         {
@@ -185,10 +196,15 @@ namespace WeatherImageGenerator
                         }
                     }
                     
-                    // Fall back to OpenMeteo if ECCC fails
-                    Logger.Log($"[ECCC] Failed to fetch weather for {locationName}, falling back to OpenMeteo");
-                    var fallbackForecast = await openMeteoClient.QueryAsync(locationName);
-                    return (fallbackForecast, "OpenMeteo");
+                    // Fall back to pure OpenMeteo if ECCC fails completely
+                    if (openMeteoFallback != null)
+                    {
+                        Logger.Log($"[ECCC] Failed to fetch ECCC data for {locationName}, using OpenMeteo only");
+                        return (openMeteoFallback, "OpenMeteo");
+                    }
+                    
+                    Logger.Log($"[ECCC] Failed to fetch weather for {locationName} from any source");
+                    return (null, "None");
 
                 case WeatherApiType.OpenMeteo:
                 default:

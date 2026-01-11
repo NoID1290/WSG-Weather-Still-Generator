@@ -162,6 +162,7 @@ namespace ECCC.Models
         public double? Temperature { get; set; }
         public double? Humidity { get; set; }
         public double? WindSpeed { get; set; }
+        public double? WindGust { get; set; }
         public string? WindDirection { get; set; }
         public double? Pressure { get; set; }
         public string? Condition { get; set; }
