@@ -57,7 +57,7 @@ namespace WeatherImageGenerator
                 var outputDir = Path.Combine(Directory.GetCurrentDirectory(), config.ImageGeneration?.OutputDirectory ?? "WeatherImages");
                 using (var http = new System.Net.Http.HttpClient())
                 {
-                    ECCC.CreateProvinceRadarAnimation(http, outputDir).GetAwaiter().GetResult();
+                    WeatherImageGenerator.Services.ECCC.CreateProvinceRadarAnimation(http, outputDir).GetAwaiter().GetResult();
                 }
 
                 Logger.Log("Province animation generation requested (one-off). Exiting.");
@@ -161,14 +161,32 @@ namespace WeatherImageGenerator
             switch (api)
             {
                 case WeatherApiType.ECCC:
-                    // Try to fetch from ECCC first
-                    var ecccForecast = await ECCC.FetchWeatherForecastByCityAsync(httpClient, locationName);
-                    if (ecccForecast != null && ecccForecast.Current?.Temperature_2m != null)
+                    // Set up ECCC API logging
+                    ECCC.ECCCApi.Log = (msg) => Logger.Log(msg);
+                    
+                    // Try to fetch from ECCC using the new API
+                    var ecccForecast = await ECCC.ECCCApi.GetWeatherAsync(httpClient, locationName);
+                    
+                    // Accept ECCC data if we have either temperature or daily forecasts
+                    if (ecccForecast != null && ecccForecast.Current != null)
                     {
-                        return (ecccForecast, "ECCC");
+                        var tempValue = ecccForecast.Current.Temperature_2m ?? float.NaN;
+                        var hasTemp = !float.IsNaN(tempValue);
+                        var hasDaily = ecccForecast.Daily?.Time?.Length > 0;
+                        
+                        if (hasTemp || hasDaily)
+                        {
+                            Logger.Log($"✓ [ECCC] Using ECCC data for {locationName} (temp={tempValue}°C)");
+                            return (ecccForecast, "ECCC");
+                        }
+                        else
+                        {
+                            Logger.Log($"[ECCC] No temperature data parsed for {locationName}");
+                        }
                     }
-                    // Fall back to OpenMeteo if ECCC fails or no feed configured
-                    Logger.Log($"[ECCC] No feed configured for {locationName}, using OpenMeteo");
+                    
+                    // Fall back to OpenMeteo if ECCC fails
+                    Logger.Log($"[ECCC] Failed to fetch weather for {locationName}, falling back to OpenMeteo");
                     var fallbackForecast = await openMeteoClient.QueryAsync(locationName);
                     return (fallbackForecast, "OpenMeteo");
 
@@ -227,7 +245,7 @@ namespace WeatherImageGenerator
                 Logger.Log("[ECCC] Checking weather alerts...");
                 try
                 {
-                    List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient, locations);
+                    List<AlertEntry> alerts = await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations);
                     Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
@@ -293,7 +311,7 @@ namespace WeatherImageGenerator
                 List<AlertEntry> alerts = new List<AlertEntry>();
                 try
                 {
-                    alerts = await ECCC.FetchAllAlerts(httpClient, locations);
+                    alerts = await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations);
                     Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
@@ -351,7 +369,7 @@ namespace WeatherImageGenerator
                     try
                     {
                         Logger.Log("Fetching radar images...");
-                        await ECCC.FetchRadarImages(httpClient, outputDir);
+                        await WeatherImageGenerator.Services.ECCC.FetchRadarImages(httpClient, outputDir);
                         Logger.Log("✓ Radar images fetched.");
                     }
                     catch (Exception ex)
@@ -382,6 +400,9 @@ namespace WeatherImageGenerator
         {
             // Load configuration
             var config = ConfigManager.LoadConfig();
+            
+            // Set up ECCC logging callback
+            WeatherImageGenerator.Services.ECCC.Log = (msg) => Logger.Log(msg);
 
             // Initialize the API client
             OpenMeteoClient client = new OpenMeteoClient();
@@ -443,7 +464,7 @@ namespace WeatherImageGenerator
                         Logger.Log("[ECCC] Checking weather alerts...");
                         try
                         {
-                            List<AlertEntry> alerts = await ECCC.FetchAllAlerts(httpClient, locations);
+                            List<AlertEntry> alerts = await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations);
                             Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
                             AlertsFetched?.Invoke(alerts);
                         }
@@ -520,7 +541,7 @@ namespace WeatherImageGenerator
                             try
                             {
                                 Logger.Log("Fetching radar images...");
-                                await ECCC.FetchRadarImages(httpClient, outputDir);
+                                await WeatherImageGenerator.Services.ECCC.FetchRadarImages(httpClient, outputDir);
                                 Logger.Log("✓ Radar images fetched.");
                             }
                             catch (Exception ex)
@@ -546,7 +567,7 @@ namespace WeatherImageGenerator
                         */
                         
                         // 6. WEATHER ALERTS from ECCC
-                        ImageGenerator.GenerateAlertsImage(await ECCC.FetchAllAlerts(httpClient, locations), outputDir);
+                        ImageGenerator.GenerateAlertsImage(await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations), outputDir);
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 

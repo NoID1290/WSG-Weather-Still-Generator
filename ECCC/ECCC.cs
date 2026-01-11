@@ -17,10 +17,21 @@ namespace WeatherImageGenerator.Services
     // Minimal, well-typed ECCC library implementation (extracted).
     public static class ECCC
     {
+        /// <summary>Optional logging callback for diagnostic messages</summary>
+        public static Action<string>? Log { get; set; }
+        
+        private static void LogMessage(string message)
+        {
+            Log?.Invoke(message);
+        }
+        
         #region ECCC Base URLs and Endpoints
         
         /// <summary>Base URL for ECCC weather RSS feeds</summary>
         public const string BaseWeatherUrl = "https://weather.gc.ca";
+        
+        /// <summary>Base URL for ECCC official OGC API (JSON weather data)</summary>
+        public const string BaseApiUrl = "https://api.weather.gc.ca";
         
         /// <summary>Base URL for ECCC GeoMet WMS service</summary>
         public const string BaseGeoMetUrl = "https://geo.weather.gc.ca/geomet";
@@ -768,7 +779,246 @@ namespace WeatherImageGenerator.Services
         }
         
         /// <summary>
-        /// Fetches weather forecast by city name using the configured city feeds.
+        /// Fetches weather forecast from the official ECCC OGC API (JSON format).
+        /// This provides better structured data than RSS feeds.
+        /// </summary>
+        /// <param name="client">HttpClient instance</param>
+        /// <param name="cityId">ECCC city identifier (e.g., "qc-147" for Montreal)</param>
+        /// <param name="language">Language: "en" for English, "f" for French</param>
+        /// <returns>Parsed weather forecast in OpenMeteo-compatible format</returns>
+        public static async Task<OpenMeteo.WeatherForecast?> FetchWeatherFromApiAsync(
+            HttpClient client,
+            string cityId,
+            string language = "f")
+        {
+            try
+            {
+                var url = $"{BaseApiUrl}/collections/citypageweather-realtime/items?f=json&properties=identifier&identifier={cityId}&limit=1";
+                
+                if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+                    client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                
+                var jsonResponse = await client.GetStringAsync(url);
+                return ParseEcccApiJson(jsonResponse);
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[ECCC API] Error fetching weather for {cityId}: {ex.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Parses ECCC OGC API JSON response and converts to OpenMeteo format.
+        /// </summary>
+        private static OpenMeteo.WeatherForecast? ParseEcccApiJson(string jsonResponse)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(jsonResponse);
+                var root = doc.RootElement;
+                
+                // Navigate to the feature properties
+                if (!root.TryGetProperty("features", out var features) || features.GetArrayLength() == 0)
+                    return null;
+                    
+                var feature = features[0];
+                if (!feature.TryGetProperty("properties", out var props))
+                    return null;
+                
+                var forecast = new OpenMeteo.WeatherForecast
+                {
+                    Timezone = "America/Toronto",
+                    TimezoneAbbreviation = "EST",
+                    Current = new OpenMeteo.Current(),
+                    Daily = new OpenMeteo.Daily(),
+                    Hourly = new OpenMeteo.Hourly()
+                };
+                
+                // Extract current conditions
+                if (props.TryGetProperty("currentConditions", out var currentCond))
+                {
+                    if (currentCond.TryGetProperty("temperature", out var temp) && temp.TryGetProperty("value", out var tempVal))
+                        forecast.Current.Temperature_2m = (float)tempVal.GetDouble();
+                    
+                    if (currentCond.TryGetProperty("humidity", out var hum) && hum.TryGetProperty("value", out var humVal))
+                        forecast.Current.Relativehumidity_2m = humVal.GetInt32();
+                    
+                    if (currentCond.TryGetProperty("windSpeed", out var windSpd) && windSpd.TryGetProperty("value", out var wsVal))
+                        forecast.Current.Windspeed_10m = (float)wsVal.GetDouble();
+                    
+                    if (currentCond.TryGetProperty("pressure", out var pres) && pres.TryGetProperty("value", out var presVal))
+                        forecast.Current.Surface_pressure = (float)(presVal.GetDouble() * 10); // kPa to hPa
+                }
+                
+                // Extract daily forecasts
+                if (props.TryGetProperty("forecastGroup", out var forecastGrp) &&
+                    forecastGrp.TryGetProperty("forecast", out var forecasts))
+                {
+                    var tempMax = new List<float>();
+                    var tempMin = new List<float>();
+                    var times = new List<string>();
+                    var weatherCodes = new List<float>();
+                    
+                    foreach (var fc in forecasts.EnumerateArray())
+                    {
+                        if (fc.TryGetProperty("period", out var period))
+                        {
+                            var periodText = period.GetProperty("textForecastName").GetString() ?? "";
+                            times.Add(periodText);
+                        }
+                        
+                        // Check if this is a temperature entry
+                        if (fc.TryGetProperty("temperatures", out var temps))
+                        {
+                            var tempElem = temps.TryGetProperty("temperature", out var tempObj) ? tempObj : temps;
+                            if (tempElem.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                                tempElem.TryGetProperty("value", out var tVal))
+                            {
+                                var tempValue = (float)tVal.GetDouble();
+                                
+                                // Determine if this is min or max based on class attribute
+                                if (tempElem.TryGetProperty("class", out var cls) && 
+                                    cls.GetString()?.Contains("low", StringComparison.OrdinalIgnoreCase) == true)
+                                {
+                                    tempMin.Add(tempValue);
+                                    if (tempMax.Count < tempMin.Count) tempMax.Add(float.NaN);
+                                }
+                                else
+                                {
+                                    tempMax.Add(tempValue);
+                                    if (tempMin.Count < tempMax.Count) tempMin.Add(float.NaN);
+                                }
+                            }
+                        }
+                        
+                        weatherCodes.Add(0); // Default weather code
+                    }
+                    
+                    forecast.Daily.Temperature_2m_max = tempMax.ToArray();
+                    forecast.Daily.Temperature_2m_min = tempMin.ToArray();
+                    forecast.Daily.Time = times.ToArray();
+                    forecast.Daily.Weathercode = weatherCodes.ToArray();
+                }
+                
+                // Extract hourly forecasts
+                if (props.TryGetProperty("hourlyForecastGroup", out var hourlyGrp) &&
+                    hourlyGrp.TryGetProperty("hourlyForecast", out var hourlyForecasts))
+                {
+                    var hourlyTimes = new List<string>();
+                    var hourlyTemps = new List<float?>();
+                    var hourlyWindSpeeds = new List<float?>();
+                    
+                    foreach (var hf in hourlyForecasts.EnumerateArray())
+                    {
+                        if (hf.TryGetProperty("dateTimeUTC", out var dt))
+                            hourlyTimes.Add(dt.GetString() ?? "");
+                        
+                        if (hf.TryGetProperty("temperature", out var t) && t.TryGetProperty("value", out var tv))
+                            hourlyTemps.Add((float?)tv.GetDouble());
+                        else
+                            hourlyTemps.Add(null);
+                        
+                        if (hf.TryGetProperty("windSpeed", out var ws) && ws.TryGetProperty("value", out var wsv))
+                            hourlyWindSpeeds.Add((float?)wsv.GetDouble());
+                        else
+                            hourlyWindSpeeds.Add(null);
+                    }
+                    
+                    forecast.Hourly.Time = hourlyTimes.ToArray();
+                    forecast.Hourly.Temperature_2m = hourlyTemps.ToArray();
+                    forecast.Hourly.Windspeed_10m = hourlyWindSpeeds.ToArray();
+                }
+                
+                return forecast;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[ECCC API] Error parsing JSON: {ex.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Searches for a Canadian city online using the ECCC API and returns its identifier.
+        /// </summary>
+        /// <param name="client">HttpClient instance</param>
+        /// <param name="cityName">Name of the city to search for</param>
+        /// <returns>City identifier (e.g., "qc-147") or null if not found</returns>
+        public static async Task<string?> SearchCityIdOnlineAsync(HttpClient client, string cityName)
+        {
+            try
+            {
+                LogMessage($"[ECCC API] Starting city search for: {cityName}");
+                
+                // Query the ECCC API to find cities matching the name
+                var url = $"{BaseApiUrl}/collections/citypageweather-realtime/items?f=json&limit=1000";
+                LogMessage($"[ECCC API] Querying: {url}");
+                
+                if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+                    client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                
+                LogMessage($"[ECCC API] Fetching data from API...");
+                var jsonResponse = await client.GetStringAsync(url);
+                LogMessage($"[ECCC API] Received response, parsing JSON...");
+                using var doc = System.Text.Json.JsonDocument.Parse(jsonResponse);
+                var root = doc.RootElement;
+                
+                if (!root.TryGetProperty("features", out var features))
+                    return null;
+                
+                var normalizedSearch = NormalizeCity(cityName);
+                LogMessage($"[ECCC API] Normalized search term: {normalizedSearch}");
+                LogMessage($"[ECCC API] Searching through {features.GetArrayLength()} cities...");
+                
+                // Search through all features for matching city names
+                foreach (var feature in features.EnumerateArray())
+                {
+                    if (!feature.TryGetProperty("properties", out var props))
+                        continue;
+                    
+                    if (!props.TryGetProperty("location", out var location))
+                        continue;
+                    
+                    if (!location.TryGetProperty("name", out var nameElem))
+                        continue;
+                    
+                    var cityNameFromApi = nameElem.GetProperty("en").GetString() ?? "";
+                    var normalizedApiCity = NormalizeCity(cityNameFromApi);
+                    
+                    // Match if normalized names are equal or one contains the other
+                    if (normalizedApiCity == normalizedSearch || 
+                        normalizedApiCity.Contains(normalizedSearch) ||
+                        normalizedSearch.Contains(normalizedApiCity))
+                    {
+                        // Extract the identifier (e.g., "qc-147")
+                        if (feature.TryGetProperty("id", out var id))
+                        {
+                            var fullId = id.GetString() ?? "";
+                            // ID format is like "citypageweather-qc-147" - extract the city part
+                            var match = System.Text.RegularExpressions.Regex.Match(fullId, @"([a-z]{2}-\d+)");
+                            if (match.Success)
+                            {
+                                var cityId = match.Groups[1].Value;
+                                LogMessage($"[ECCC API] Found city ID for {cityName}: {cityId} ({cityNameFromApi})");
+                                return cityId;
+                            }
+                        }
+                    }
+                }
+                
+                LogMessage($"[ECCC API] No city ID found for: {cityName}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[ECCC API] Error searching for city {cityName}: {ex.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Fetches weather forecast by city name using online API lookup first, configured feeds as fallback.
         /// </summary>
         public static async Task<OpenMeteo.WeatherForecast?> FetchWeatherForecastByCityAsync(
             HttpClient client,
@@ -776,40 +1026,64 @@ namespace WeatherImageGenerator.Services
             EcccSettings? settings = null)
         {
             var cfg = settings ?? LoadSettings();
-            var feeds = cfg.CityFeeds ?? new Dictionary<string, string>();
-            
-            // Find matching feed URL - try exact match first, then normalized match
-            var normalizedCity = NormalizeCity(cityName);
-            string? feedUrl = null;
-            
-            // Try exact match first
-            if (feeds.TryGetValue(cityName, out var exactUrl))
-            {
-                feedUrl = exactUrl;
-            }
-            else
-            {
-                // Try normalized match
-                feedUrl = feeds.FirstOrDefault(kv => NormalizeCity(kv.Key) == normalizedCity).Value;
-            }
-            
-            if (string.IsNullOrEmpty(feedUrl))
-            {
-                Console.WriteLine($"[ECCC] No feed configured for city: {cityName}");
-                return null;
-            }
             
             try
             {
                 if (!client.DefaultRequestHeaders.Contains("User-Agent"))
                     client.DefaultRequestHeaders.Add("User-Agent", cfg.UserAgent ?? "Mozilla/5.0");
                 
-                var xml = await client.GetStringAsync(feedUrl);
-                return ParseEcccWeatherRss(xml);
+                // FIRST: Try searching online via API
+                LogMessage($"[ECCC] Searching online for {cityName}...");
+                var foundCityId = await SearchCityIdOnlineAsync(client, cityName);
+                
+                if (!string.IsNullOrEmpty(foundCityId))
+                {
+                    LogMessage($"[ECCC] Fetching weather from API for {cityName} ({foundCityId})");
+                    var apiResult = await FetchWeatherFromApiAsync(client, foundCityId);
+                    if (apiResult != null)
+                        return apiResult;
+                }
+                
+                // FALLBACK: Try configured feeds as last resort
+                LogMessage($"[ECCC] Online search failed, checking configured feeds...");
+                var feeds = cfg.CityFeeds ?? new Dictionary<string, string>();
+                var normalizedCity = NormalizeCity(cityName);
+                string? feedUrl = null;
+                
+                // Try exact match first
+                if (feeds.TryGetValue(cityName, out var exactUrl))
+                {
+                    feedUrl = exactUrl;
+                }
+                else
+                {
+                    // Try normalized match
+                    feedUrl = feeds.FirstOrDefault(kv => NormalizeCity(kv.Key) == normalizedCity).Value;
+                }
+                
+                if (!string.IsNullOrEmpty(feedUrl))
+                {
+                    LogMessage($"[ECCC] Using configured feed for {cityName}");
+                    var cityIdMatch = System.Text.RegularExpressions.Regex.Match(feedUrl, @"/city/([a-z]{2}-\d+)");
+                    if (cityIdMatch.Success)
+                    {
+                        var cityId = cityIdMatch.Groups[1].Value;
+                        var apiResult = await FetchWeatherFromApiAsync(client, cityId);
+                        if (apiResult != null)
+                            return apiResult;
+                    }
+                    
+                    // Fallback to RSS parsing
+                    var xml = await client.GetStringAsync(feedUrl);
+                    return ParseEcccWeatherRss(xml);
+                }
+                
+                LogMessage($"[ECCC] City not found in ECCC database or configured feeds: {cityName}");
+                return null;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ECCC] Error fetching weather for {cityName}: {ex.Message}");
+                LogMessage($"[ECCC] Error fetching weather for {cityName}: {ex.Message}");
                 return null;
             }
         }

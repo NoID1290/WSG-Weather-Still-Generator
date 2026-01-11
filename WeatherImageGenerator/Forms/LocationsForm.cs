@@ -351,7 +351,7 @@ namespace WeatherImageGenerator.Forms
                 try
                 {
                     // Attempt to parse the URL
-                    var request = ECCC.ParseFeedUrl(locationName);
+                    var request = WeatherImageGenerator.Services.ECCC.ParseFeedUrl(locationName);
                     
                     // It's a valid ECCC URL. Prompt for a friendly name.
                     string defaultName = !string.IsNullOrEmpty(request.Province) && !string.IsNullOrEmpty(request.CityCode)
@@ -662,12 +662,12 @@ namespace WeatherImageGenerator.Forms
                 {
                     // Search online using OpenMeteo geocoding
                     var client = new OpenMeteo.OpenMeteoClient();
-                    var results = await ECCC.SearchCitiesOnlineAsync(client, query, 30);
+                    var results = await WeatherImageGenerator.Services.ECCC.SearchCitiesOnlineAsync(client, query, 30);
                     
                     // If no online results, try local database as fallback
                     if (results.Count == 0)
                     {
-                        results = ECCC.SearchCities(query, 20);
+                        results = WeatherImageGenerator.Services.ECCC.SearchCities(query, 20);
                     }
                     
                     // Return to UI thread
@@ -723,7 +723,7 @@ namespace WeatherImageGenerator.Forms
             });
         }
 
-        private ECCC.CityInfo? ShowCitySearchResults(string query, List<ECCC.CityInfo> results)
+        private WeatherImageGenerator.Services.ECCC.CityInfo? ShowCitySearchResults(string query, List<WeatherImageGenerator.Services.ECCC.CityInfo> results)
         {
             using (var searchForm = new Form())
             {
@@ -782,13 +782,13 @@ namespace WeatherImageGenerator.Forms
 
                 lstResults.SelectedIndexChanged += (s, e) =>
                 {
-                    if (lstResults.SelectedItem is ECCC.CityInfo city)
+                    if (lstResults.SelectedItem is WeatherImageGenerator.Services.ECCC.CityInfo city)
                     {
                         var feedType = city.IsCoordinateBased ? "Alerts Feed" : "City Weather Feed";
                         lblPreview.Text = $"Type: {feedType}\nFeed: {city.GetCityFeedUrl()}";
                     }
                 };
-                if (lstResults.Items.Count > 0 && lstResults.SelectedItem is ECCC.CityInfo firstCity)
+                if (lstResults.Items.Count > 0 && lstResults.SelectedItem is WeatherImageGenerator.Services.ECCC.CityInfo firstCity)
                 {
                     var feedType = firstCity.IsCoordinateBased ? "Alerts Feed" : "City Weather Feed";
                     lblPreview.Text = $"Type: {feedType}\nFeed: {firstCity.GetCityFeedUrl()}";
@@ -820,7 +820,7 @@ namespace WeatherImageGenerator.Forms
                 searchForm.AcceptButton = btnSelect;
                 searchForm.CancelButton = btnCancelSearch;
 
-                if (searchForm.ShowDialog() == DialogResult.OK && lstResults.SelectedItem is ECCC.CityInfo selected)
+                if (searchForm.ShowDialog() == DialogResult.OK && lstResults.SelectedItem is WeatherImageGenerator.Services.ECCC.CityInfo selected)
                 {
                     return selected;
                 }
