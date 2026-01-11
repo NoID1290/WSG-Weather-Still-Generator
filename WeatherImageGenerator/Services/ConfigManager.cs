@@ -166,11 +166,127 @@ namespace WeatherImageGenerator.Services
         public string? Location8 { get; set; }
 
         /// <summary>
+        /// Weather API preference for Location0
+        /// </summary>
+        [JsonPropertyName("Location0Api")]
+        public Models.WeatherApiType Location0Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location1
+        /// </summary>
+        [JsonPropertyName("Location1Api")]
+        public Models.WeatherApiType Location1Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location2
+        /// </summary>
+        [JsonPropertyName("Location2Api")]
+        public Models.WeatherApiType Location2Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location3
+        /// </summary>
+        [JsonPropertyName("Location3Api")]
+        public Models.WeatherApiType Location3Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location4
+        /// </summary>
+        [JsonPropertyName("Location4Api")]
+        public Models.WeatherApiType Location4Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location5
+        /// </summary>
+        [JsonPropertyName("Location5Api")]
+        public Models.WeatherApiType Location5Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location6
+        /// </summary>
+        [JsonPropertyName("Location6Api")]
+        public Models.WeatherApiType Location6Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location7
+        /// </summary>
+        [JsonPropertyName("Location7Api")]
+        public Models.WeatherApiType Location7Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
+        /// Weather API preference for Location8
+        /// </summary>
+        [JsonPropertyName("Location8Api")]
+        public Models.WeatherApiType Location8Api { get; set; } = Models.WeatherApiType.OpenMeteo;
+
+        /// <summary>
         /// Returns all locations as an array
         /// </summary>
         public string[] GetLocationsArray()
         {
             return new[] { Location0, Location1, Location2, Location3, Location4, Location5, Location6, Location7, Location8 };
+        }
+
+        /// <summary>
+        /// Returns all location API preferences as an array
+        /// </summary>
+        public Models.WeatherApiType[] GetApiPreferencesArray()
+        {
+            return new[] { Location0Api, Location1Api, Location2Api, Location3Api, Location4Api, Location5Api, Location6Api, Location7Api, Location8Api };
+        }
+
+        /// <summary>
+        /// Returns all locations as LocationEntry objects with their API preferences
+        /// </summary>
+        public Models.LocationEntry[] GetLocationEntries()
+        {
+            var names = GetLocationsArray();
+            var apis = GetApiPreferencesArray();
+            var entries = new Models.LocationEntry[names.Length];
+            for (int i = 0; i < names.Length; i++)
+            {
+                entries[i] = new Models.LocationEntry(names[i] ?? string.Empty, apis[i]);
+            }
+            return entries;
+        }
+
+        /// <summary>
+        /// Sets the API preference for a specific location index
+        /// </summary>
+        public void SetApiPreference(int index, Models.WeatherApiType api)
+        {
+            switch (index)
+            {
+                case 0: Location0Api = api; break;
+                case 1: Location1Api = api; break;
+                case 2: Location2Api = api; break;
+                case 3: Location3Api = api; break;
+                case 4: Location4Api = api; break;
+                case 5: Location5Api = api; break;
+                case 6: Location6Api = api; break;
+                case 7: Location7Api = api; break;
+                case 8: Location8Api = api; break;
+            }
+        }
+
+        /// <summary>
+        /// Gets the API preference for a specific location index
+        /// </summary>
+        public Models.WeatherApiType GetApiPreference(int index)
+        {
+            return index switch
+            {
+                0 => Location0Api,
+                1 => Location1Api,
+                2 => Location2Api,
+                3 => Location3Api,
+                4 => Location4Api,
+                5 => Location5Api,
+                6 => Location6Api,
+                7 => Location7Api,
+                8 => Location8Api,
+                _ => Models.WeatherApiType.OpenMeteo
+            };
         }
     }
 

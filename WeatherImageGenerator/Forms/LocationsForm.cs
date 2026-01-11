@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 
@@ -15,6 +16,7 @@ namespace WeatherImageGenerator.Forms
     {
         private ListBox lstLocations;
         private TextBox txtLocationName;
+        private ComboBox cmbWeatherApi;
         private Button btnAdd;
         private Button btnEdit;
         private Button btnRemove;
@@ -23,21 +25,22 @@ namespace WeatherImageGenerator.Forms
         private Button btnSave;
         private Button btnCancel;
         private Label lblCount;
-        private readonly List<string> _locations;
+        private Label lblSelectedApi;
+        private readonly List<LocationEntry> _locations;
         private const int MaxLocations = 9; // Location0 through Location8
 
         public LocationsForm()
         {
             InitializeComponents();
-            _locations = new List<string>();
+            _locations = new List<LocationEntry>();
             LoadLocations();
         }
 
         private void InitializeComponents()
         {
             this.Text = "Manage Locations";
-            this.Width = 500;
-            this.Height = 500;
+            this.Width = 550;
+            this.Height = 550;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
@@ -49,7 +52,7 @@ namespace WeatherImageGenerator.Forms
                 Text = "Manage weather locations to fetch. Maximum 9 locations.",
                 Left = 10,
                 Top = 10,
-                Width = 460,
+                Width = 510,
                 Height = 30,
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular)
             };
@@ -59,7 +62,7 @@ namespace WeatherImageGenerator.Forms
             {
                 Left = 10,
                 Top = 50,
-                Width = 300,
+                Width = 350,
                 Height = 300,
                 SelectionMode = SelectionMode.One,
                 Font = new Font("Segoe UI", 10F)
@@ -72,37 +75,69 @@ namespace WeatherImageGenerator.Forms
             {
                 Left = 10,
                 Top = 355,
-                Width = 300,
+                Width = 350,
                 Text = "0 locations",
                 Font = new Font("Segoe UI", 8F, FontStyle.Italic)
+            };
+
+            // Selected location API label
+            lblSelectedApi = new Label
+            {
+                Left = 10,
+                Top = 375,
+                Width = 350,
+                Text = "",
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                ForeColor = Color.DarkBlue
             };
 
             // Input textbox
             var lblNew = new Label
             {
                 Text = "Location Name:",
-                Left = 320,
+                Left = 370,
                 Top = 50,
-                Width = 150,
+                Width = 160,
                 AutoSize = false
             };
 
             txtLocationName = new TextBox
             {
-                Left = 320,
+                Left = 370,
                 Top = 75,
-                Width = 150,
+                Width = 160,
                 PlaceholderText = "e.g., Montréal"
             };
             txtLocationName.KeyDown += TxtLocationName_KeyDown;
+
+            // Weather API dropdown
+            var lblApi = new Label
+            {
+                Text = "Weather API:",
+                Left = 370,
+                Top = 105,
+                Width = 160,
+                AutoSize = false
+            };
+
+            cmbWeatherApi = new ComboBox
+            {
+                Left = 370,
+                Top = 125,
+                Width = 160,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 9F)
+            };
+            cmbWeatherApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC" });
+            cmbWeatherApi.SelectedIndex = 0; // Default to OpenMeteo
 
             // Action buttons
             btnAdd = new Button
             {
                 Text = "Add",
-                Left = 320,
-                Top = 110,
-                Width = 150,
+                Left = 370,
+                Top = 160,
+                Width = 160,
                 Height = 30
             };
             btnAdd.Click += BtnAdd_Click;
@@ -110,9 +145,9 @@ namespace WeatherImageGenerator.Forms
             btnEdit = new Button
             {
                 Text = "Edit",
-                Left = 320,
-                Top = 150,
-                Width = 150,
+                Left = 370,
+                Top = 200,
+                Width = 160,
                 Height = 30,
                 Enabled = false
             };
@@ -121,9 +156,9 @@ namespace WeatherImageGenerator.Forms
             btnRemove = new Button
             {
                 Text = "Remove",
-                Left = 320,
-                Top = 190,
-                Width = 150,
+                Left = 370,
+                Top = 240,
+                Width = 160,
                 Height = 30,
                 Enabled = false
             };
@@ -132,9 +167,9 @@ namespace WeatherImageGenerator.Forms
             // Separator
             var separator = new Label
             {
-                Left = 320,
-                Top = 230,
-                Width = 150,
+                Left = 370,
+                Top = 280,
+                Width = 160,
                 Height = 2,
                 BorderStyle = BorderStyle.Fixed3D
             };
@@ -142,9 +177,9 @@ namespace WeatherImageGenerator.Forms
             btnMoveUp = new Button
             {
                 Text = "Move Up ↑",
-                Left = 320,
-                Top = 240,
-                Width = 150,
+                Left = 370,
+                Top = 290,
+                Width = 160,
                 Height = 30,
                 Enabled = false
             };
@@ -153,9 +188,9 @@ namespace WeatherImageGenerator.Forms
             btnMoveDown = new Button
             {
                 Text = "Move Down ↓",
-                Left = 320,
-                Top = 280,
-                Width = 150,
+                Left = 370,
+                Top = 330,
+                Width = 160,
                 Height = 30,
                 Enabled = false
             };
@@ -165,8 +200,8 @@ namespace WeatherImageGenerator.Forms
             btnSave = new Button
             {
                 Text = "Save",
-                Left = 250,
-                Top = 400,
+                Left = 300,
+                Top = 450,
                 Width = 100,
                 Height = 35,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
@@ -177,8 +212,8 @@ namespace WeatherImageGenerator.Forms
             btnCancel = new Button
             {
                 Text = "Cancel",
-                Left = 360,
-                Top = 400,
+                Left = 410,
+                Top = 450,
                 Width = 100,
                 Height = 35,
                 Font = new Font("Segoe UI", 10F),
@@ -187,8 +222,8 @@ namespace WeatherImageGenerator.Forms
 
             this.Controls.AddRange(new Control[]
             {
-                lblInfo, lstLocations, lblCount, lblNew, txtLocationName,
-                btnAdd, btnEdit, btnRemove, separator, btnMoveUp, btnMoveDown,
+                lblInfo, lstLocations, lblCount, lblSelectedApi, lblNew, txtLocationName,
+                lblApi, cmbWeatherApi, btnAdd, btnEdit, btnRemove, separator, btnMoveUp, btnMoveDown,
                 btnSave, btnCancel
             });
 
@@ -207,12 +242,12 @@ namespace WeatherImageGenerator.Forms
 
                 if (locationSettings != null)
                 {
-                    var locationArray = locationSettings.GetLocationsArray();
-                    foreach (var loc in locationArray)
+                    var entries = locationSettings.GetLocationEntries();
+                    foreach (var entry in entries)
                     {
-                        if (!string.IsNullOrWhiteSpace(loc))
+                        if (!string.IsNullOrWhiteSpace(entry.Name))
                         {
-                            _locations.Add(loc);
+                            _locations.Add(entry);
                         }
                     }
                 }
@@ -231,11 +266,28 @@ namespace WeatherImageGenerator.Forms
             lstLocations.Items.Clear();
             for (int i = 0; i < _locations.Count; i++)
             {
-                lstLocations.Items.Add($"{i + 1}. {_locations[i]}");
+                var entry = _locations[i];
+                string apiLabel = entry.Api == WeatherApiType.ECCC ? "[ECCC]" : "[OpenMeteo]";
+                lstLocations.Items.Add($"{i + 1}. {entry.Name} {apiLabel}");
             }
             
             lblCount.Text = $"{_locations.Count} / {MaxLocations} locations";
             UpdateButtonStates();
+            UpdateSelectedApiLabel();
+        }
+
+        private void UpdateSelectedApiLabel()
+        {
+            int selectedIndex = lstLocations.SelectedIndex;
+            if (selectedIndex >= 0 && selectedIndex < _locations.Count)
+            {
+                var entry = _locations[selectedIndex];
+                lblSelectedApi.Text = $"API: {entry.Api}";
+            }
+            else
+            {
+                lblSelectedApi.Text = "";
+            }
         }
 
         private void UpdateButtonStates()
@@ -253,6 +305,7 @@ namespace WeatherImageGenerator.Forms
         private void LstLocations_SelectedIndexChanged(object? sender, EventArgs e)
         {
             UpdateButtonStates();
+            UpdateSelectedApiLabel();
         }
 
         private void TxtLocationName_KeyDown(object? sender, KeyEventArgs e)
@@ -283,7 +336,7 @@ namespace WeatherImageGenerator.Forms
                 return;
             }
 
-            if (_locations.Any(l => l.Equals(locationName, StringComparison.OrdinalIgnoreCase)))
+            if (_locations.Any(l => l.Name.Equals(locationName, StringComparison.OrdinalIgnoreCase)))
             {
                 MessageBox.Show("This location already exists in the list.", "Duplicate Location", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -291,7 +344,12 @@ namespace WeatherImageGenerator.Forms
                 return;
             }
 
-            _locations.Add(locationName);
+            // Get selected API from combo box
+            WeatherApiType selectedApi = cmbWeatherApi.SelectedIndex == 1 
+                ? WeatherApiType.ECCC 
+                : WeatherApiType.OpenMeteo;
+
+            _locations.Add(new LocationEntry(locationName, selectedApi));
             RefreshLocationList();
             txtLocationName.Clear();
             txtLocationName.Focus();
@@ -305,12 +363,12 @@ namespace WeatherImageGenerator.Forms
             int selectedIndex = lstLocations.SelectedIndex;
             if (selectedIndex < 0) return;
 
-            string currentName = _locations[selectedIndex];
-            string? newName = PromptForLocationName("Edit Location", currentName);
+            var currentEntry = _locations[selectedIndex];
+            var result = PromptForLocationEntry("Edit Location", currentEntry.Name, currentEntry.Api);
 
-            if (newName == null) return; // User cancelled
+            if (result == null) return; // User cancelled
 
-            if (string.IsNullOrWhiteSpace(newName))
+            if (string.IsNullOrWhiteSpace(result.Value.Name))
             {
                 MessageBox.Show("Location name cannot be empty.", "Invalid Input", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -319,14 +377,14 @@ namespace WeatherImageGenerator.Forms
 
             // Check for duplicates (excluding current item)
             if (_locations.Where((l, i) => i != selectedIndex)
-                .Any(l => l.Equals(newName, StringComparison.OrdinalIgnoreCase)))
+                .Any(l => l.Name.Equals(result.Value.Name, StringComparison.OrdinalIgnoreCase)))
             {
                 MessageBox.Show("This location already exists in the list.", "Duplicate Location", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            _locations[selectedIndex] = newName;
+            _locations[selectedIndex] = new LocationEntry(result.Value.Name, result.Value.Api);
             RefreshLocationList();
             lstLocations.SelectedIndex = selectedIndex;
         }
@@ -336,7 +394,7 @@ namespace WeatherImageGenerator.Forms
             int selectedIndex = lstLocations.SelectedIndex;
             if (selectedIndex < 0) return;
 
-            string locationName = _locations[selectedIndex];
+            string locationName = _locations[selectedIndex].Name;
             var result = MessageBox.Show(
                 $"Remove '{locationName}' from the list?", 
                 "Confirm Remove", 
@@ -396,16 +454,27 @@ namespace WeatherImageGenerator.Forms
                     config.Locations = new LocationSettings();
                 }
 
-                // Set all locations from the list
-                config.Locations.Location0 = _locations.Count > 0 ? _locations[0] : null;
-                config.Locations.Location1 = _locations.Count > 1 ? _locations[1] : null;
-                config.Locations.Location2 = _locations.Count > 2 ? _locations[2] : null;
-                config.Locations.Location3 = _locations.Count > 3 ? _locations[3] : null;
-                config.Locations.Location4 = _locations.Count > 4 ? _locations[4] : null;
-                config.Locations.Location5 = _locations.Count > 5 ? _locations[5] : null;
-                config.Locations.Location6 = _locations.Count > 6 ? _locations[6] : null;
-                config.Locations.Location7 = _locations.Count > 7 ? _locations[7] : null;
-                config.Locations.Location8 = _locations.Count > 8 ? _locations[8] : null;
+                // Set all locations and API preferences from the list
+                config.Locations.Location0 = _locations.Count > 0 ? _locations[0].Name : null;
+                config.Locations.Location1 = _locations.Count > 1 ? _locations[1].Name : null;
+                config.Locations.Location2 = _locations.Count > 2 ? _locations[2].Name : null;
+                config.Locations.Location3 = _locations.Count > 3 ? _locations[3].Name : null;
+                config.Locations.Location4 = _locations.Count > 4 ? _locations[4].Name : null;
+                config.Locations.Location5 = _locations.Count > 5 ? _locations[5].Name : null;
+                config.Locations.Location6 = _locations.Count > 6 ? _locations[6].Name : null;
+                config.Locations.Location7 = _locations.Count > 7 ? _locations[7].Name : null;
+                config.Locations.Location8 = _locations.Count > 8 ? _locations[8].Name : null;
+
+                // Set API preferences
+                config.Locations.Location0Api = _locations.Count > 0 ? _locations[0].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location1Api = _locations.Count > 1 ? _locations[1].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location2Api = _locations.Count > 2 ? _locations[2].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location3Api = _locations.Count > 3 ? _locations[3].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location4Api = _locations.Count > 4 ? _locations[4].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location5Api = _locations.Count > 5 ? _locations[5].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location6Api = _locations.Count > 6 ? _locations[6].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location7Api = _locations.Count > 7 ? _locations[7].Api : WeatherApiType.OpenMeteo;
+                config.Locations.Location8Api = _locations.Count > 8 ? _locations[8].Api : WeatherApiType.OpenMeteo;
 
                 ConfigManager.SaveConfig(config);
 
@@ -422,13 +491,13 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
-        private string? PromptForLocationName(string title, string defaultValue)
+        private (string Name, WeatherApiType Api)? PromptForLocationEntry(string title, string defaultName, WeatherApiType defaultApi)
         {
             using (var promptForm = new Form())
             {
                 promptForm.Text = title;
                 promptForm.Width = 400;
-                promptForm.Height = 150;
+                promptForm.Height = 200;
                 promptForm.FormBorderStyle = FormBorderStyle.FixedDialog;
                 promptForm.StartPosition = FormStartPosition.CenterParent;
                 promptForm.MaximizeBox = false;
@@ -447,15 +516,33 @@ namespace WeatherImageGenerator.Forms
                     Left = 10,
                     Top = 45,
                     Width = 360,
-                    Text = defaultValue
+                    Text = defaultName
                 };
                 txtInput.SelectAll();
+
+                var lblApi = new Label
+                {
+                    Text = "Weather API:",
+                    Left = 10,
+                    Top = 75,
+                    Width = 100
+                };
+
+                var cmbApi = new ComboBox
+                {
+                    Left = 110,
+                    Top = 72,
+                    Width = 150,
+                    DropDownStyle = ComboBoxStyle.DropDownList
+                };
+                cmbApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC" });
+                cmbApi.SelectedIndex = defaultApi == WeatherApiType.ECCC ? 1 : 0;
 
                 var btnOk = new Button
                 {
                     Text = "OK",
                     Left = 200,
-                    Top = 75,
+                    Top = 115,
                     Width = 80,
                     DialogResult = DialogResult.OK
                 };
@@ -464,16 +551,23 @@ namespace WeatherImageGenerator.Forms
                 {
                     Text = "Cancel",
                     Left = 290,
-                    Top = 75,
+                    Top = 115,
                     Width = 80,
                     DialogResult = DialogResult.Cancel
                 };
 
-                promptForm.Controls.AddRange(new Control[] { lblPrompt, txtInput, btnOk, btnCancelPrompt });
+                promptForm.Controls.AddRange(new Control[] { lblPrompt, txtInput, lblApi, cmbApi, btnOk, btnCancelPrompt });
                 promptForm.AcceptButton = btnOk;
                 promptForm.CancelButton = btnCancelPrompt;
 
-                return promptForm.ShowDialog() == DialogResult.OK ? txtInput.Text.Trim() : null;
+                if (promptForm.ShowDialog() == DialogResult.OK)
+                {
+                    WeatherApiType selectedApi = cmbApi.SelectedIndex == 1 
+                        ? WeatherApiType.ECCC 
+                        : WeatherApiType.OpenMeteo;
+                    return (txtInput.Text.Trim(), selectedApi);
+                }
+                return null;
             }
         }
     }
