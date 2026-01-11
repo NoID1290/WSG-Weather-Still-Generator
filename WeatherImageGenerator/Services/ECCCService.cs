@@ -76,6 +76,44 @@ namespace WeatherImageGenerator.Services
             return await ECCC.FetchDataAsync(_client, request);
         }
 
+        /// <summary>
+        /// Fetches weather data from legacy CityFeeds URLs by parsing them into dynamic requests.
+        /// Automatically extracts parameters from the feed links.
+        /// </summary>
+        public async Task<List<ECCC.EcccDataResult>> FetchLegacyCityFeedsAsync()
+        {
+            var results = new List<ECCC.EcccDataResult>();
+            if (_settings.CityFeeds == null) return results;
+
+            foreach (var kv in _settings.CityFeeds)
+            {
+                var cityName = kv.Key;
+                var url = kv.Value;
+
+                try 
+                {
+                    // Automatic handle the feed link from ECCC
+                    var request = ECCC.ParseFeedUrl(url);
+                    request.Name = cityName; // Preserve the configured name
+                    
+                    var result = await ECCC.FetchDataAsync(_client, request);
+                    results.Add(result);
+                    
+                    if (result.Success)
+                        Logger.Log($"✓ [ECCC] Fetched legacy feed for {cityName}");
+                    else
+                        Logger.Log($"✗ [ECCC] Failed to fetch legacy feed for {cityName}: {result.ErrorMessage}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"✗ [ECCC] Error handling feed for {cityName}: {ex.Message}");
+                }
+                
+                await Task.Delay(_settings.DelayBetweenRequestsMs);
+            }
+            return results;
+        }
+
         #endregion
 
         #region Dynamic Alerts

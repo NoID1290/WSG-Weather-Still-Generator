@@ -16,6 +16,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
+    <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />

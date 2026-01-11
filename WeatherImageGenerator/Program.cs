@@ -146,27 +146,36 @@ namespace WeatherImageGenerator
         public static event Action<List<AlertEntry>>? AlertsFetched;
 
         /// <summary>
-        /// Fetches weather data for a single location using the specified API
+        /// Fetches weather data for a single location using the specified API.
+        /// Returns (forecast, actualApiUsed) tuple.
         /// </summary>
-        private static async Task<WeatherForecast?> FetchWeatherForLocationAsync(
+        private static async Task<(WeatherForecast? Forecast, string ApiUsed)> FetchWeatherForLocationAsync(
             string locationName, 
             WeatherApiType api, 
             OpenMeteoClient openMeteoClient,
             HttpClient httpClient)
         {
-            string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
-            Logger.Log($"[{apiName}] Fetching weather for {locationName}...");
+            string preferredApi = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+            Logger.Log($"[{preferredApi}] Fetching weather for {locationName}...");
 
             switch (api)
             {
                 case WeatherApiType.ECCC:
-                    // ECCC currently only provides alerts/radar, not full weather data
-                    // Fall back to OpenMeteo for actual forecast data
-                    return await openMeteoClient.QueryAsync(locationName);
+                    // Try to fetch from ECCC first
+                    var ecccForecast = await ECCC.FetchWeatherForecastByCityAsync(httpClient, locationName);
+                    if (ecccForecast != null && ecccForecast.Current?.Temperature_2m != null)
+                    {
+                        return (ecccForecast, "ECCC");
+                    }
+                    // Fall back to OpenMeteo if ECCC fails or no feed configured
+                    Logger.Log($"[ECCC] No feed configured for {locationName}, using OpenMeteo");
+                    var fallbackForecast = await openMeteoClient.QueryAsync(locationName);
+                    return (fallbackForecast, "OpenMeteo");
 
                 case WeatherApiType.OpenMeteo:
                 default:
-                    return await openMeteoClient.QueryAsync(locationName);
+                    var forecast = await openMeteoClient.QueryAsync(locationName);
+                    return (forecast, "OpenMeteo");
             }
         }
 
@@ -195,8 +204,9 @@ namespace WeatherImageGenerator
 
                     try 
                     {
-                        allForecasts[i] = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
-                        Logger.Log($"✓ [{apiName}] Fetched weather data for {loc}");
+                        var (forecast, actualApi) = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
+                        allForecasts[i] = forecast;
+                        Logger.Log($"✓ [{actualApi}] Fetched weather data for {loc}");
                     }
                     catch (Exception ex)
                     {
@@ -206,7 +216,7 @@ namespace WeatherImageGenerator
                     if (locations.Length > 0)
                     {
                         var fetchPct = ((i + 1) / (double)locations.Length) * 80.0;
-                        ProgressUpdated?.Invoke(fetchPct, $"[{apiName}] Fetching {loc} ({i + 1}/{locations.Length})");
+                        ProgressUpdated?.Invoke(fetchPct, $"Fetching {loc} ({i + 1}/{locations.Length})");
                     }
                 }
 
@@ -258,8 +268,9 @@ namespace WeatherImageGenerator
 
                     try 
                     {
-                        allForecasts[i] = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
-                        Logger.Log($"✓ [{apiName}] Fetched weather data for {loc}");
+                        var (forecast, actualApi) = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
+                        allForecasts[i] = forecast;
+                        Logger.Log($"✓ [{actualApi}] Fetched weather data for {loc}");
                     }
                     catch (Exception ex)
                     {
@@ -269,7 +280,7 @@ namespace WeatherImageGenerator
                     if (locations.Length > 0)
                     {
                         var fetchPct = ((i + 1) / (double)locations.Length) * 15.0;
-                        ProgressUpdated?.Invoke(fetchPct, $"[{apiName}] Fetching {loc} ({i + 1}/{locations.Length})");
+                        ProgressUpdated?.Invoke(fetchPct, $"Fetching {loc} ({i + 1}/{locations.Length})");
                     }
                 }
 
@@ -407,8 +418,9 @@ namespace WeatherImageGenerator
 
                             try 
                             {
-                                allForecasts[i] = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
-                                Logger.Log($"✓ [{apiName}] Fetched weather data for {loc}");
+                                var (forecast, actualApi) = await FetchWeatherForLocationAsync(loc, api, client, httpClient);
+                                allForecasts[i] = forecast;
+                                Logger.Log($"✓ [{actualApi}] Fetched weather data for {loc}");
                             }
                             catch (Exception ex)
                             {
@@ -420,7 +432,7 @@ namespace WeatherImageGenerator
                             if (locations.Length > 0)
                             {
                                 var fetchPct = ((i + 1) / (double)locations.Length) * 15.0;
-                                ProgressUpdated?.Invoke(fetchPct, $"[{apiName}] Fetching {loc} ({i + 1}/{locations.Length})");
+                                ProgressUpdated?.Invoke(fetchPct, $"Fetching {loc} ({i + 1}/{locations.Length})");
                             }
                         }
 
