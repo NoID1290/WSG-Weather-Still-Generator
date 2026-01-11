@@ -522,6 +522,85 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("UserAgent")]
         public string? UserAgent { get; set; }
+
+        // Dynamic URL generation settings
+        [JsonPropertyName("DefaultLanguage")]
+        public string DefaultLanguage { get; set; } = "f";
+
+        [JsonPropertyName("DefaultProvince")]
+        public string DefaultProvince { get; set; } = "qc";
+
+        [JsonPropertyName("DynamicCities")]
+        public List<DynamicCityConfig>? DynamicCities { get; set; }
+
+        [JsonPropertyName("DynamicLayers")]
+        public List<DynamicLayerConfig>? DynamicLayers { get; set; }
+
+        [JsonPropertyName("DefaultBoundingBox")]
+        public BoundingBoxConfig? DefaultBoundingBox { get; set; }
+    }
+
+    /// <summary>
+    /// Configuration for a dynamically-configured city
+    /// </summary>
+    public class DynamicCityConfig
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("province")]
+        public string Province { get; set; } = "qc";
+
+        [JsonPropertyName("cityCode")]
+        public string CityCode { get; set; } = "";
+
+        [JsonPropertyName("latitude")]
+        public double Latitude { get; set; }
+
+        [JsonPropertyName("longitude")]
+        public double Longitude { get; set; }
+
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Configuration for a dynamically-configured WMS layer
+    /// </summary>
+    public class DynamicLayerConfig
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("layer")]
+        public string Layer { get; set; } = "";
+
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
+
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Bounding box configuration
+    /// </summary>
+    public class BoundingBoxConfig
+    {
+        [JsonPropertyName("minLat")]
+        public double MinLat { get; set; }
+
+        [JsonPropertyName("minLon")]
+        public double MinLon { get; set; }
+
+        [JsonPropertyName("maxLat")]
+        public double MaxLat { get; set; }
+
+        [JsonPropertyName("maxLon")]
+        public double MaxLon { get; set; }
+
+        public (double MinLat, double MinLon, double MaxLat, double MaxLon) ToTuple()
+            => (MinLat, MinLon, MaxLat, MaxLon);
     }
 
     /// <summary>

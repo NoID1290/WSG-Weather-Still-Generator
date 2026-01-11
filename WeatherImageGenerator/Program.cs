@@ -161,8 +161,7 @@ namespace WeatherImageGenerator
             {
                 case WeatherApiType.ECCC:
                     // ECCC currently only provides alerts/radar, not full weather data
-                    // Fall back to OpenMeteo for actual forecast data, but log the preference
-                    Logger.Log($"[{apiName}] Note: ECCC API selected - using OpenMeteo for forecast data (ECCC provides alerts only)");
+                    // Fall back to OpenMeteo for actual forecast data
                     return await openMeteoClient.QueryAsync(locationName);
 
                 case WeatherApiType.OpenMeteo:
