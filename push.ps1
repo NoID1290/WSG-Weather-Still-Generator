@@ -305,6 +305,49 @@ if ($NoRelease) {
         # Use changelog-derived notes when available
         if (-not $releaseNotes) { $releaseNotes = "Automated release for $tagName" }
 
+        # If AttachAssets is set, gather all changelog entries since the last GitHub release
+        if ($AttachAssets) {
+            Write-Host "[RELEASE NOTES] Gathering all changes since last release..." -ForegroundColor Cyan
+            
+            # Get the last GitHub release tag (not just any tag)
+            $lastReleaseTag = gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>$null
+            
+            if ($lastReleaseTag) {
+                Write-Host "[RELEASE NOTES] Last release was: $lastReleaseTag" -ForegroundColor Yellow
+                
+                # Extract changelog entries from CHANGELOG.md between current and last release
+                $changelogPath = "docs\CHANGELOG.md"
+                if (Test-Path $changelogPath) {
+                    $changelogContent = Get-Content $changelogPath -Raw
+                    
+                    # Extract version number from last release tag (remove 'v' prefix)
+                    $lastReleaseVersion = $lastReleaseTag -replace '^v', ''
+                    
+                    # Find all entries between now and last release
+                    # Pattern: ## [version] - date ... until ## [lastReleaseVersion]
+                    $pattern = "(?s)(## \[$([regex]::Escape($newVersion))\].*?)(?=## \[$([regex]::Escape($lastReleaseVersion))\]|$)"
+                    
+                    if ($changelogContent -match $pattern) {
+                        $releaseNotes = $matches[1].Trim()
+                        Write-Host "[RELEASE NOTES] Collected changelog entries since $lastReleaseTag" -ForegroundColor Green
+                    } else {
+                        # Fallback: get all commits since last release
+                        Write-Host "[RELEASE NOTES] Parsing commits since $lastReleaseTag..." -ForegroundColor Yellow
+                        $allCommits = git log "$lastReleaseTag..HEAD" --pretty=format:"- %s" --no-merges 2>$null
+                        if ($allCommits) {
+                            # Filter out auto-commit messages
+                            $filteredCommits = $allCommits | Where-Object { $_ -notmatch "^- Auto-commit:|^- Release |^- Version update" }
+                            if ($filteredCommits) {
+                                $releaseNotes = "## [$newVersion]`n`n### Changelog`n" + ($filteredCommits -join "`n")
+                            }
+                        }
+                    }
+                }
+            } else {
+                Write-Host "[RELEASE NOTES] No previous release found; using current changelog only" -ForegroundColor Yellow
+            }
+        }
+
         # Check if release already exists
         $releaseCheck = gh release view $tagName 2>$null
         if (-not $releaseCheck) {
