@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -19,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -28,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -38,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -45,6 +69,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -55,6 +85,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -64,6 +100,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -74,6 +116,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -83,6 +131,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -93,6 +147,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -102,6 +162,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -112,6 +178,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -119,6 +191,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -129,6 +207,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -138,6 +222,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -148,6 +238,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.4.0110] - 2026-01-10
 
 ### Changelog
@@ -157,6 +253,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -167,6 +269,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -176,6 +284,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -186,6 +300,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -193,6 +313,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -203,6 +329,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -212,6 +344,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -222,6 +360,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -231,6 +375,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -241,6 +391,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -250,6 +406,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -260,6 +422,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -267,6 +435,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -277,6 +451,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -286,6 +466,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -296,6 +482,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.3.0110] - 2026-01-10
 
 ### Changelog
@@ -304,6 +496,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -314,6 +512,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -323,6 +527,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -333,6 +543,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -340,6 +556,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -350,6 +572,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -359,6 +587,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -369,6 +603,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -378,6 +618,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -388,6 +634,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -397,6 +649,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -407,6 +665,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -414,6 +678,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -424,6 +694,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -433,6 +709,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -443,6 +725,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.2.0110] - 2026-01-10
 
 ### Changelog
@@ -451,6 +739,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -461,6 +755,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -470,6 +770,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -480,6 +786,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -487,6 +799,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -497,6 +815,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -506,6 +830,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -516,6 +846,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -525,6 +861,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -535,6 +877,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -544,6 +892,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -554,6 +908,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -561,6 +921,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -571,6 +937,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -580,6 +952,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -590,6 +968,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.1.0110] - 2026-01-10
 
 ### Changelog
@@ -598,6 +982,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -608,6 +998,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -617,6 +1013,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -627,6 +1029,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -634,6 +1042,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -644,6 +1058,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -653,6 +1073,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -663,6 +1089,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -672,6 +1104,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -682,6 +1120,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -691,6 +1135,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -701,6 +1151,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -708,6 +1164,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -718,6 +1180,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -727,6 +1195,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -737,6 +1211,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.0.0110] - 2026-01-10
 
 ### Changelog
@@ -749,6 +1229,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -759,6 +1245,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -768,6 +1260,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -778,6 +1276,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -785,6 +1289,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -795,6 +1305,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -804,6 +1320,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -814,6 +1336,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -823,6 +1351,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -833,6 +1367,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -842,6 +1382,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -852,6 +1398,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -859,6 +1411,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -869,6 +1427,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -878,6 +1442,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -888,6 +1458,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.0.2.0109] - 2026-01-09
 
 ### Changelog
@@ -898,6 +1474,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -908,6 +1490,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -917,6 +1505,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -927,6 +1521,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -934,6 +1534,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -944,6 +1550,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -953,6 +1565,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -963,6 +1581,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -972,6 +1596,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -982,6 +1612,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -991,6 +1627,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1001,6 +1643,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1008,6 +1656,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1018,6 +1672,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1027,6 +1687,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1037,6 +1703,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.0.1.0106] - 2026-01-06
 
 ### Changelog
@@ -1045,6 +1717,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1055,6 +1733,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1064,6 +1748,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1074,6 +1764,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1081,6 +1777,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1091,6 +1793,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1100,6 +1808,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1110,6 +1824,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -1119,6 +1839,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1129,6 +1855,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1138,6 +1870,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1148,6 +1886,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1155,6 +1899,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1165,6 +1915,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1174,6 +1930,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1184,6 +1946,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.0.0.0106] - 2026-01-06
 
 ### Changelog
@@ -1193,6 +1961,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1203,6 +1977,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1212,6 +1992,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1222,6 +2008,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1229,6 +2021,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1239,6 +2037,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1248,6 +2052,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1258,6 +2068,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -1267,6 +2083,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1277,6 +2099,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1286,6 +2114,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1296,6 +2130,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1303,6 +2143,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1313,6 +2159,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1322,6 +2174,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1332,6 +2190,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.10.0.0105] - 2026-01-05
 
 ### Changelog
@@ -1342,6 +2206,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1352,6 +2222,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1361,6 +2237,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1371,6 +2253,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1378,6 +2266,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1388,6 +2282,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1397,6 +2297,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1407,6 +2313,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -1416,6 +2328,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1426,6 +2344,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1435,6 +2359,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1445,6 +2375,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1452,6 +2388,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1462,6 +2404,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1471,6 +2419,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1481,6 +2435,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.9.3.0105] - 2026-01-05
 
 ### Changelog
@@ -1489,6 +2449,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1499,6 +2465,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1508,6 +2480,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1518,6 +2496,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1525,6 +2509,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1535,6 +2525,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1544,6 +2540,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1554,6 +2556,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -1563,6 +2571,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1573,6 +2587,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1582,6 +2602,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1592,6 +2618,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1599,6 +2631,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1609,6 +2647,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1618,6 +2662,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1628,6 +2678,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.9.2.0105] - 2026-01-05
 
 ### Changelog
@@ -1637,6 +2693,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1647,6 +2709,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1656,6 +2724,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1666,6 +2740,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1673,6 +2753,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1683,6 +2769,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1692,6 +2784,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1702,6 +2800,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -1711,6 +2815,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1721,6 +2831,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1730,6 +2846,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1740,6 +2862,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1747,6 +2875,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1757,6 +2891,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1766,6 +2906,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1776,6 +2922,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.9.1.1230] - 2025-12-30
 
 ### Changelog
@@ -1784,6 +2936,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1794,6 +2952,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1803,6 +2967,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1813,6 +2983,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1820,6 +2996,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1830,6 +3012,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1839,6 +3027,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1849,6 +3043,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -1858,6 +3058,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1868,6 +3074,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1877,6 +3089,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1887,6 +3105,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1894,6 +3118,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1904,6 +3134,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1913,6 +3149,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1923,6 +3165,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.9.0.1228] - 2025-12-28
 
 ### Changelog
@@ -1934,6 +3182,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1944,6 +3198,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1953,6 +3213,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1963,6 +3229,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -1970,6 +3242,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1980,6 +3258,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -1989,6 +3273,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -1999,6 +3289,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -2008,6 +3304,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2018,6 +3320,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2027,6 +3335,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2037,6 +3351,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2044,6 +3364,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2054,6 +3380,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2063,6 +3395,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2073,6 +3411,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.8.11.1228] - 2025-12-28
 
 ### Changelog
@@ -2081,6 +3425,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2091,6 +3441,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2100,6 +3456,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2110,6 +3472,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2117,6 +3485,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2127,6 +3501,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2136,6 +3516,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2146,6 +3532,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -2155,6 +3547,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2165,6 +3563,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2174,6 +3578,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2184,6 +3594,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2191,6 +3607,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2201,6 +3623,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2210,6 +3638,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2220,6 +3654,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.8.10.1228] - 2025-12-28
 
 ### Changelog
@@ -2228,6 +3668,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2238,6 +3684,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2247,6 +3699,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2257,6 +3715,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2264,6 +3728,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2274,6 +3744,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2283,6 +3759,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2293,6 +3775,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -2302,6 +3790,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2312,6 +3806,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2321,6 +3821,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2331,6 +3837,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2338,6 +3850,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2348,6 +3866,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2357,6 +3881,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2367,6 +3897,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.8.9.1228] - 2025-12-28
 
 ### Changelog
@@ -2376,6 +3912,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2386,6 +3928,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2395,6 +3943,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2405,6 +3959,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2412,6 +3972,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2422,6 +3988,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2431,6 +4003,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2441,6 +4019,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -2450,6 +4034,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2460,6 +4050,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2469,6 +4065,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2479,6 +4081,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2486,6 +4094,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2496,6 +4110,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2505,6 +4125,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2515,6 +4141,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.8.8.1228] - 2025-12-28
 
 ### Changelog
@@ -2527,6 +4159,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2537,6 +4175,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2546,6 +4190,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2556,6 +4206,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2563,6 +4219,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2573,6 +4235,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2582,6 +4250,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2592,6 +4266,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -2601,6 +4281,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2611,6 +4297,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2620,6 +4312,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2630,6 +4328,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2637,6 +4341,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2647,6 +4357,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2656,6 +4372,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2666,6 +4388,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.8.6.1228] - 2025-12-28
 
 ### Changelog
@@ -2676,6 +4404,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2686,6 +4420,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2695,6 +4435,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2705,6 +4451,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2712,6 +4464,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2722,6 +4480,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2731,6 +4495,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2741,6 +4511,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -2750,6 +4526,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2760,6 +4542,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2769,6 +4557,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2779,6 +4573,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2786,6 +4586,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2796,6 +4602,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2805,6 +4617,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2815,6 +4633,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.7.8.1226] - 2025-12-26
 
 ### Changelog
@@ -2845,6 +4669,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2855,6 +4685,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2864,6 +4700,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2874,6 +4716,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2881,6 +4729,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2891,6 +4745,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2900,6 +4760,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2910,6 +4776,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.5.0110] - 2026-01-10
 
 ### Changelog
@@ -2919,6 +4791,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2929,6 +4807,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2938,6 +4822,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2948,6 +4838,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.6.0110] - 2026-01-10
 
 ### Changelog
@@ -2955,6 +4851,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update version numbers to 1.0.3.0110 in ECCC.csproj
 
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2965,6 +4867,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.1.7.0110] - 2026-01-10
 
 ### Changelog
@@ -2974,6 +4882,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhance ECCC alert fetching to support filtering by desired cities and update appsettings for location changes
 - Update version numbers to 1.0.4.0110 in ECCC.csproj
 
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [1.2.0.0110] - 2026-01-10
 
 ### Changelog
@@ -2984,12 +4898,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement dynamic URL generation and data fetching for ECCC weather services
 - Add functionality to gather release notes from changelog and commits since last release
 - Bump version to 1.0.5.0110 in ECCC project
+
+## [1.2.1.0111] - 2026-01-11
+
+### Changelog
+- feat: Enhance weather data handling by adding wind gusts and merging ECCC with OpenMeteo data
+- chore: Update version to 2.1.0.0110 in ECCC project file
 ## [0.6.15.1225] - 2025-12-25
 
 ### Changelog
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
 
 
 
