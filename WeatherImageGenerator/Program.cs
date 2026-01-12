@@ -200,16 +200,82 @@ namespace WeatherImageGenerator
                     if (openMeteoFallback != null)
                     {
                         Logger.Log($"[ECCC] Failed to fetch ECCC data for {locationName}, using OpenMeteo only");
-                        return (openMeteoFallback, "OpenMeteo");
+                        return (openMeteoFallback, "OpenMeteo (fallback)");
                     }
                     
-                    Logger.Log($"[ECCC] Failed to fetch weather for {locationName} from any source");
+                    // Retry OpenMeteo once more as last resort
+                    try
+                    {
+                        Logger.Log($"[ECCC] Retrying OpenMeteo for {locationName}...");
+                        await Task.Delay(500);
+                        var retryForecast = await openMeteoClient.QueryAsync(locationName);
+                        if (retryForecast != null)
+                        {
+                            Logger.Log($"✓ [OpenMeteo Retry] Successfully fetched weather for {locationName}");
+                            return (retryForecast, "OpenMeteo (retry)");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[OpenMeteo Retry] Also failed for {locationName}: {ex.Message}");
+                    }
+                    
+                    Logger.Log($"✗ Failed to fetch weather for {locationName} from any source");
                     return (null, "None");
 
                 case WeatherApiType.OpenMeteo:
                 default:
-                    var forecast = await openMeteoClient.QueryAsync(locationName);
-                    return (forecast, "OpenMeteo");
+                    // Try OpenMeteo with retry and ECCC fallback
+                    WeatherForecast? omForecast = null;
+                    
+                    // First attempt
+                    try
+                    {
+                        omForecast = await openMeteoClient.QueryAsync(locationName);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[OpenMeteo] First attempt failed for {locationName}: {ex.Message}");
+                    }
+                    
+                    // Retry once if first attempt failed
+                    if (omForecast == null)
+                    {
+                        try
+                        {
+                            await Task.Delay(500); // Brief delay before retry
+                            omForecast = await openMeteoClient.QueryAsync(locationName);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"[OpenMeteo] Retry failed for {locationName}: {ex.Message}");
+                        }
+                    }
+                    
+                    if (omForecast != null)
+                    {
+                        return (omForecast, "OpenMeteo");
+                    }
+                    
+                    // Fallback to ECCC if OpenMeteo fails completely
+                    Logger.Log($"[OpenMeteo] Falling back to ECCC for {locationName}...");
+                    try
+                    {
+                        ECCC.ECCCApi.Log = (msg) => Logger.Log(msg);
+                        var ecccFallback = await ECCC.ECCCApi.GetWeatherAsync(httpClient, locationName);
+                        if (ecccFallback != null && ecccFallback.Current != null)
+                        {
+                            Logger.Log($"✓ [ECCC Fallback] Successfully fetched weather for {locationName}");
+                            return (ecccFallback, "ECCC (fallback)");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[ECCC Fallback] Also failed for {locationName}: {ex.Message}");
+                    }
+                    
+                    Logger.Log($"✗ Failed to fetch weather for {locationName} from any source");
+                    return (null, "None");
             }
         }
 

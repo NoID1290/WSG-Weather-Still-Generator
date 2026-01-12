@@ -409,22 +409,35 @@ namespace ECCC.Services
                 var today = DateTime.Today;
                 forecast.Date = today.ToString("yyyy-MM-dd");
                 
-                // Try to determine which day this is
-                var dayNames = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
-                                       "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi" };
-                foreach (var day in dayNames)
+                var lowerTitle = title.ToLowerInvariant();
+                
+                // Handle "Today", "Tonight", "This afternoon", etc. - all map to today
+                if (lowerTitle.StartsWith("today") || lowerTitle.StartsWith("tonight") || 
+                    lowerTitle.StartsWith("this ") || lowerTitle.StartsWith("aujourd'hui") ||
+                    lowerTitle.StartsWith("ce soir") || lowerTitle.StartsWith("cet "))
                 {
-                    if (title.StartsWith(day, StringComparison.OrdinalIgnoreCase))
+                    forecast.Date = today.ToString("yyyy-MM-dd");
+                }
+                else
+                {
+                    // Try to determine which day this is
+                    var dayNames = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+                                           "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi" };
+                    foreach (var day in dayNames)
                     {
-                        var targetDay = Array.FindIndex(new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" },
-                            d => d.Equals(day, StringComparison.OrdinalIgnoreCase) || 
-                                 GetFrenchDayName(d).Equals(day, StringComparison.OrdinalIgnoreCase));
-                        if (targetDay >= 0)
+                        if (title.StartsWith(day, StringComparison.OrdinalIgnoreCase))
                         {
-                            var daysUntil = (targetDay - (int)today.DayOfWeek + 7) % 7;
-                            forecast.Date = today.AddDays(daysUntil).ToString("yyyy-MM-dd");
+                            var targetDay = Array.FindIndex(new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" },
+                                d => d.Equals(day, StringComparison.OrdinalIgnoreCase) || 
+                                     GetFrenchDayName(d).Equals(day, StringComparison.OrdinalIgnoreCase));
+                            if (targetDay >= 0)
+                            {
+                                var daysUntil = (targetDay - (int)today.DayOfWeek + 7) % 7;
+                                // If daysUntil is 0, it could be today or next week - assume today for current week
+                                forecast.Date = today.AddDays(daysUntil).ToString("yyyy-MM-dd");
+                            }
+                            break;
                         }
-                        break;
                     }
                 }
 

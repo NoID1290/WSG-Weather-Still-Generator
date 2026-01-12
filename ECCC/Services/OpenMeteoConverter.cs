@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using ECCC.Models;
 
@@ -106,15 +107,51 @@ namespace ECCC.Services
                 forecast.Current = new OpenMeteo.Current();
             }
 
-            // Convert daily forecasts
+            // Convert daily forecasts - consolidate day/night entries by date
             if (ecccData.DailyForecasts != null && ecccData.DailyForecasts.Count > 0)
             {
+                // Group forecasts by date and merge day/night data
+                var consolidatedByDate = new Dictionary<string, (double? high, double? low, string? condition, int? code)>();
+                
+                foreach (var f in ecccData.DailyForecasts)
+                {
+                    var date = f.Date ?? "";
+                    if (string.IsNullOrEmpty(date)) continue;
+                    
+                    if (!consolidatedByDate.TryGetValue(date, out var existing))
+                    {
+                        // First entry for this date
+                        consolidatedByDate[date] = (f.HighTemperature, f.LowTemperature, f.Condition, f.WeatherCode);
+                    }
+                    else
+                    {
+                        // Merge with existing - take non-null values
+                        var newHigh = existing.high ?? f.HighTemperature;
+                        var newLow = existing.low ?? f.LowTemperature;
+                        // Prefer daytime condition (first entry usually)
+                        var newCondition = existing.condition ?? f.Condition;
+                        var newCode = existing.code ?? f.WeatherCode;
+                        
+                        // If current entry has High temp, it's likely the daytime forecast - prefer its condition
+                        if (f.HighTemperature.HasValue && !existing.high.HasValue)
+                        {
+                            newCondition = f.Condition ?? existing.condition;
+                            newCode = f.WeatherCode ?? existing.code;
+                        }
+                        
+                        consolidatedByDate[date] = (newHigh, newLow, newCondition, newCode);
+                    }
+                }
+                
+                // Sort by date and build arrays
+                var sortedDates = consolidatedByDate.Keys.OrderBy(d => d).ToList();
+                
                 forecast.Daily = new OpenMeteo.Daily
                 {
-                    Time = ecccData.DailyForecasts.Select(f => f.Date ?? "").ToArray(),
-                    Temperature_2m_max = ecccData.DailyForecasts.Select(f => (float)(f.HighTemperature ?? float.NaN)).ToArray(),
-                    Temperature_2m_min = ecccData.DailyForecasts.Select(f => (float)(f.LowTemperature ?? float.NaN)).ToArray(),
-                    Weathercode = ecccData.DailyForecasts.Select(f => (float)(f.WeatherCode ?? 0)).ToArray()
+                    Time = sortedDates.ToArray(),
+                    Temperature_2m_max = sortedDates.Select(d => (float)(consolidatedByDate[d].high ?? float.NaN)).ToArray(),
+                    Temperature_2m_min = sortedDates.Select(d => (float)(consolidatedByDate[d].low ?? float.NaN)).ToArray(),
+                    Weathercode = sortedDates.Select(d => (float)(consolidatedByDate[d].code ?? 0)).ToArray()
                 };
             }
             else
@@ -323,6 +360,63 @@ namespace ECCC.Services
             {
                 ecccForecast.Daily = openMeteoForecast.Daily;
                 ecccForecast.DailyUnits = openMeteoForecast.DailyUnits;
+            }
+            // Merge daily temperatures - fill NaN values from OpenMeteo
+            else if (ecccForecast.Daily != null && openMeteoForecast.Daily != null)
+            {
+                var ecDaily = ecccForecast.Daily;
+                var omDaily = openMeteoForecast.Daily;
+                
+                // Check if ECCC daily temps are all NaN and need filling from OpenMeteo
+                bool needTempFill = ecDaily.Temperature_2m_max != null && 
+                                    ecDaily.Temperature_2m_max.All(t => float.IsNaN(t));
+                
+                if (needTempFill && omDaily.Time != null && ecDaily.Time != null)
+                {
+                    // Create a lookup for OpenMeteo temps by date
+                    var omTempsByDate = new Dictionary<string, (float max, float min)>();
+                    for (int i = 0; i < omDaily.Time.Length; i++)
+                    {
+                        var date = omDaily.Time[i];
+                        var max = omDaily.Temperature_2m_max?[i] ?? float.NaN;
+                        var min = omDaily.Temperature_2m_min?[i] ?? float.NaN;
+                        if (!string.IsNullOrEmpty(date))
+                            omTempsByDate[date] = (max, min);
+                    }
+                    
+                    // Fill ECCC temps from OpenMeteo by matching dates
+                    var maxTemps = ecDaily.Temperature_2m_max?.ToArray() ?? new float[0];
+                    var minTemps = ecDaily.Temperature_2m_min?.ToArray() ?? new float[0];
+                    
+                    for (int i = 0; i < ecDaily.Time.Length; i++)
+                    {
+                        var date = ecDaily.Time[i];
+                        if (!string.IsNullOrEmpty(date) && omTempsByDate.TryGetValue(date, out var temps))
+                        {
+                            if (i < maxTemps.Length && float.IsNaN(maxTemps[i]))
+                                maxTemps[i] = temps.max;
+                            if (i < minTemps.Length && float.IsNaN(minTemps[i]))
+                                minTemps[i] = temps.min;
+                        }
+                    }
+                    
+                    ecDaily.Temperature_2m_max = maxTemps;
+                    ecDaily.Temperature_2m_min = minTemps;
+                }
+                
+                // Also fill other missing daily fields from OpenMeteo
+                if (ecDaily.Precipitation_sum == null && omDaily.Precipitation_sum != null)
+                    ecDaily.Precipitation_sum = omDaily.Precipitation_sum;
+                if (ecDaily.Windspeed_10m_max == null && omDaily.Windspeed_10m_max != null)
+                    ecDaily.Windspeed_10m_max = omDaily.Windspeed_10m_max;
+                if (ecDaily.Windgusts_10m_max == null && omDaily.Windgusts_10m_max != null)
+                    ecDaily.Windgusts_10m_max = omDaily.Windgusts_10m_max;
+                if (ecDaily.Winddirection_10m_dominant == null && omDaily.Winddirection_10m_dominant != null)
+                    ecDaily.Winddirection_10m_dominant = omDaily.Winddirection_10m_dominant;
+                    
+                // Copy units if missing
+                if (ecccForecast.DailyUnits == null && openMeteoForecast.DailyUnits != null)
+                    ecccForecast.DailyUnits = openMeteoForecast.DailyUnits;
             }
 
             // Merge CurrentUnits - fill any missing unit strings
