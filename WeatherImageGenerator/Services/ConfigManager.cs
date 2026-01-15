@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using WeatherImageGenerator.Utilities;
 using WeatherImageGenerator.Models;
+using EAS;
 
 namespace WeatherImageGenerator.Services
 {
@@ -107,6 +108,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("Alerts")]
         public AlertsSettings? Alerts { get; set; }
+
+        [JsonPropertyName("AlertReady")]
+        public AlertReadyOptions? AlertReady { get; set; }
 
         [JsonPropertyName("WeatherImages")]
         public WeatherImagesSettings? WeatherImages { get; set; }

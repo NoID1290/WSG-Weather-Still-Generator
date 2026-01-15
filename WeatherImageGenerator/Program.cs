@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using OpenMeteo; // NuGet: OpenMeteo
+using EAS;
 using WeatherImageGenerator.Utilities;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Forms;
@@ -279,6 +280,71 @@ namespace WeatherImageGenerator
             }
         }
 
+        /// <summary>
+        /// Fetches alerts from ECCC and Alert Ready, applies optional filtering and de-duplicates the results.
+        /// </summary>
+        private static async Task<List<AlertEntry>> FetchCombinedAlertsAsync(HttpClient httpClient, string[] locations, AppSettings config)
+        {
+            var alerts = new List<AlertEntry>();
+
+            try
+            {
+                var ecccAlerts = await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations);
+                Logger.Log($"✓ [ECCC] Found {ecccAlerts.Count} active alerts.");
+                alerts.AddRange(ecccAlerts);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"✗ [ECCC] Failed to fetch alerts: {ex.Message}");
+            }
+
+            var alertReadyOptions = config.AlertReady ?? new AlertReadyOptions { Enabled = false };
+            if (alertReadyOptions.Enabled)
+            {
+                if (alertReadyOptions.FeedUrls?.Any(u => !string.IsNullOrWhiteSpace(u)) == true)
+                {
+                    var arClient = new AlertReadyClient(httpClient, alertReadyOptions)
+                    {
+                        Log = msg => Logger.Log($"[AlertReady] {msg}")
+                    };
+
+                    try
+                    {
+                        var arAlerts = await arClient.FetchAlertsAsync(locations);
+                        Logger.Log($"✓ [AlertReady] Found {arAlerts.Count} active alerts.");
+                        alerts.AddRange(arAlerts);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Logger.Log("[AlertReady] Enabled but no feed URLs configured; skipping.");
+                }
+            }
+
+            return DeduplicateAlerts(alerts);
+        }
+
+        private static List<AlertEntry> DeduplicateAlerts(IEnumerable<AlertEntry> alerts)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var list = new List<AlertEntry>();
+
+            foreach (var alert in alerts)
+            {
+                var key = $"{alert.City}|{alert.Title}|{alert.Summary}";
+                if (seen.Add(key))
+                {
+                    list.Add(alert);
+                }
+            }
+
+            return list;
+        }
+
         public static async Task FetchDataOnlyAsync(CancellationToken cancellationToken = default)
         {            EnsureIconsExist();            var config = ConfigManager.LoadConfig();
             OpenMeteoClient client = new OpenMeteoClient();
@@ -324,16 +390,16 @@ namespace WeatherImageGenerator
 
                 if (cancellationToken.IsCancellationRequested) return;
 
-                Logger.Log("[ECCC] Checking weather alerts...");
+                Logger.Log("[Alerts] Checking alerts from all sources...");
                 try
                 {
-                    List<AlertEntry> alerts = await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations);
-                    Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
+                    var alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
+                    Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"✗ [ECCC] Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
                 }
 
                 ProgressUpdated?.Invoke(100, "Fetch complete");
@@ -389,17 +455,17 @@ namespace WeatherImageGenerator
                 if (cancellationToken.IsCancellationRequested) return;
 
                 // Fetch Alerts
-                Logger.Log("[ECCC] Checking weather alerts...");
+                Logger.Log("[Alerts] Checking alerts from all sources...");
                 List<AlertEntry> alerts = new List<AlertEntry>();
                 try
                 {
-                    alerts = await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations);
-                    Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
+                    alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
+                    Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"✗ [ECCC] Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
                 }
 
                 if (allForecasts[0] == null) 
@@ -542,21 +608,19 @@ namespace WeatherImageGenerator
                         // Notify GUI that weather data has been fetched
                         WeatherDataFetched?.Invoke(allForecasts);
 
-                        // Fetch Weather Alert Data from ECCC
-                        Logger.Log("[ECCC] Checking weather alerts...");
+                        // Fetch Weather Alert Data (ECCC + Alert Ready)
+                        var alerts = new List<AlertEntry>();
+                        Logger.Log("[Alerts] Checking alerts from all sources...");
                         try
                         {
-                            List<AlertEntry> alerts = await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations);
-                            Logger.Log($"✓ [ECCC] Found {alerts.Count} active alerts.");
+                            alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
+                            Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
                             AlertsFetched?.Invoke(alerts);
                         }
                         catch (Exception ex)
                         {
-                            Logger.Log($"✗ [ECCC] Failed to generate alerts image: {ex.Message}");
+                            Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
                         }
-                       
-                        
-                        
 
 
 
@@ -648,8 +712,8 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
                         */
                         
-                        // 6. WEATHER ALERTS from ECCC
-                        ImageGenerator.GenerateAlertsImage(await WeatherImageGenerator.Services.ECCC.FetchAllAlerts(httpClient, locations), outputDir);
+                        // 6. WEATHER ALERTS (ECCC + Alert Ready)
+                        ImageGenerator.GenerateAlertsImage(alerts, outputDir);
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 

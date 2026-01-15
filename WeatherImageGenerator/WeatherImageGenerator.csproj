@@ -17,6 +17,7 @@
     <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
     <ProjectReference Include="..\ECCC\ECCC.csproj" />
+    <ProjectReference Include="..\EAS\EAS.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
