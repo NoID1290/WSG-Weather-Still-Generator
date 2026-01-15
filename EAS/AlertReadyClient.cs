@@ -50,6 +50,10 @@ namespace EAS
         /// <summary>If true, keep only high-risk alerts (Severe/Extreme).</summary>
         [JsonPropertyName("HighRiskOnly")]
         public bool HighRiskOnly { get; set; } = true;
+
+        /// <summary>If true, exclude weather/meteorological alerts (handled by ECCC).</summary>
+        [JsonPropertyName("ExcludeWeatherAlerts")]
+        public bool ExcludeWeatherAlerts { get; set; } = true;
     }
 
     /// <summary>
@@ -186,6 +190,14 @@ namespace EAS
 
             var info = SelectInfo(alertElement);
             if (info == null) return null;
+
+            // Skip weather alerts if ECCC handles them
+            if (_options.ExcludeWeatherAlerts)
+            {
+                var category = GetValue(info, "category");
+                if (string.Equals(category, "Met", StringComparison.OrdinalIgnoreCase))
+                    return null;
+            }
 
             var senderName = GetValue(alertElement, "senderName");
             var eventName = GetValue(info, "event");
