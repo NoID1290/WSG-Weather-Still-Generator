@@ -328,6 +328,44 @@ namespace WeatherImageGenerator
             return DeduplicateAlerts(alerts);
         }
 
+        /// <summary>
+        /// Fetches Alert Ready (NAAD) alerts only, filtered per options, de-duplicated.
+        /// </summary>
+        private static async Task<List<AlertEntry>> FetchAlertReadyOnlyAsync(HttpClient httpClient, string[] locations, AppSettings config)
+        {
+            var list = new List<AlertEntry>();
+            var alertReadyOptions = config.AlertReady ?? new AlertReadyOptions { Enabled = false };
+            if (!alertReadyOptions.Enabled)
+            {
+                Logger.Log("[AlertReady] Disabled; returning empty list.");
+                return list;
+            }
+
+            if (alertReadyOptions.FeedUrls?.Any(u => !string.IsNullOrWhiteSpace(u)) == true)
+            {
+                var arClient = new AlertReadyClient(httpClient, alertReadyOptions)
+                {
+                    Log = msg => Logger.Log($"[AlertReady] {msg}")
+                };
+
+                try
+                {
+                    list = await arClient.FetchAlertsAsync(locations);
+                    Logger.Log($"✓ [AlertReady] Found {list.Count} active alerts.");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
+                }
+            }
+            else
+            {
+                Logger.Log("[AlertReady] Enabled but no feed URLs configured; returning empty set.");
+            }
+
+            return DeduplicateAlerts(list);
+        }
+
         private static List<AlertEntry> DeduplicateAlerts(IEnumerable<AlertEntry> alerts)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -390,16 +428,16 @@ namespace WeatherImageGenerator
 
                 if (cancellationToken.IsCancellationRequested) return;
 
-                Logger.Log("[Alerts] Checking alerts from all sources...");
+                Logger.Log("[AlertReady] Checking NAAD alerts (QC/CA, high risk)...");
                 try
                 {
-                    var alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
-                    Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
+                    var alerts = await FetchAlertReadyOnlyAsync(httpClient, locations, config);
+                    Logger.Log($"✓ [AlertReady] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
                 }
 
                 ProgressUpdated?.Invoke(100, "Fetch complete");
@@ -454,18 +492,18 @@ namespace WeatherImageGenerator
 
                 if (cancellationToken.IsCancellationRequested) return;
 
-                // Fetch Alerts
-                Logger.Log("[Alerts] Checking alerts from all sources...");
+                // Fetch Alert Ready alerts only (not ECCC weather alerts)
+                Logger.Log("[AlertReady] Checking NAAD alerts (QC/CA, high risk)...");
                 List<AlertEntry> alerts = new List<AlertEntry>();
                 try
                 {
-                    alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
-                    Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
+                    alerts = await FetchAlertReadyOnlyAsync(httpClient, locations, config);
+                    Logger.Log($"✓ [AlertReady] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
                 }
 
                 if (allForecasts[0] == null) 
@@ -608,18 +646,18 @@ namespace WeatherImageGenerator
                         // Notify GUI that weather data has been fetched
                         WeatherDataFetched?.Invoke(allForecasts);
 
-                        // Fetch Weather Alert Data (ECCC + Alert Ready)
+                        // Fetch Alert Ready alerts only (QC/CA high-risk)
                         var alerts = new List<AlertEntry>();
-                        Logger.Log("[Alerts] Checking alerts from all sources...");
+                        Logger.Log("[AlertReady] Checking NAAD alerts (QC/CA, high risk)...");
                         try
                         {
-                            alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
-                            Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
+                            alerts = await FetchAlertReadyOnlyAsync(httpClient, locations, config);
+                            Logger.Log($"✓ [AlertReady] Found {alerts.Count} active alerts.");
                             AlertsFetched?.Invoke(alerts);
                         }
                         catch (Exception ex)
                         {
-                            Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
+                            Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
                         }
 
 
@@ -712,7 +750,7 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
                         */
                         
-                        // 6. WEATHER ALERTS (ECCC + Alert Ready)
+                        // 6. WEATHER ALERTS (Alert Ready only)
                         ImageGenerator.GenerateAlertsImage(alerts, outputDir);
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");

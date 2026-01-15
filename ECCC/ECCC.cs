@@ -10,6 +10,7 @@ using System.Net;
 using System.Text.Json;
 using System.Globalization;
 using System.Text;
+using ECCC.Data;
 using WeatherImageGenerator.Models;
 
 namespace WeatherImageGenerator.Services
@@ -1364,10 +1365,32 @@ namespace WeatherImageGenerator.Services
         {
             var cfg = settings ?? LoadSettings();
             var feeds = cfg.CityFeeds ?? new Dictionary<string, string>();
-            // If caller supplied a list of desired cities, filter the feeds to only those cities (normalize names)
+            var alertLanguage = string.IsNullOrWhiteSpace(cfg.AlertLanguage) ? "f" : cfg.AlertLanguage.Trim().ToLowerInvariant();
+
+            // If caller supplied a list of desired cities, ensure we have feeds for them (dynamic fallback).
             if (wantedCities != null && wantedCities.Any())
             {
-                var wantedSet = new HashSet<string>(wantedCities.Select(NormalizeCity));
+                var wantedList = wantedCities.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+                var wantedSet = new HashSet<string>(wantedList.Select(NormalizeCity));
+                var feedKeySet = new HashSet<string>(feeds.Keys.Select(NormalizeCity));
+
+                foreach (var city in wantedList)
+                {
+                    var normalized = NormalizeCity(city);
+                    if (feedKeySet.Contains(normalized)) continue;
+
+                    var cityInfo = CityDatabase.GetCityByName(city);
+                    if (cityInfo == null)
+                    {
+                        LogMessage($"[ECCC] No city match for '{city}' in CityDatabase; skipping dynamic alerts feed.");
+                        continue;
+                    }
+
+                    feeds[city] = cityInfo.GetAlertsFeedUrl(alertLanguage);
+                    feedKeySet.Add(normalized);
+                }
+
+                // Filter to only wanted cities (normalize names)
                 feeds = feeds.Where(kv => wantedSet.Contains(NormalizeCity(kv.Key)))
                              .ToDictionary(kv => kv.Key, kv => kv.Value);
             }
@@ -1519,6 +1542,7 @@ namespace WeatherImageGenerator.Services
         {
             public Dictionary<string,string>? CityFeeds { get; set; }
             public Dictionary<string,string>? RadarFeeds { get; set; }
+            public string? AlertLanguage { get; set; } = "f";
             public int DelayBetweenRequestsMs { get; set; } = 200;
             public bool EnableCityRadar { get; set; } = false;
             public bool EnableProvinceRadar { get; set; } = true;
