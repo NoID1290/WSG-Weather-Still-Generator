@@ -62,9 +62,9 @@ function Update-ProjectVersion {
     $ver = $proj.Project.PropertyGroup.Version
     if (-not $ver) { $ver = "1.0.0.0101" } # Default if missing
     
-    # Checkand EAS (Libs) shouldn't update on Frontend changes
-    if (($Name -eq "ECCC" -or $Name -eq "EAS")'t update on Frontend changes
-    if ($Name -eq "ECCC" -and $UpdateType -eq "frontend") {
+    # Check if this update type applies to this project
+    # ECCC and EAS (Libs) shouldn't update on Frontend changes
+    if (($Name -eq "ECCC" -or $Name -eq "EAS") -and $UpdateType -eq "frontend") {
         Write-Host "[INFO] Skipping $Name version update (Frontend change only)" -ForegroundColor Gray
         return $ver
     }
