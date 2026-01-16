@@ -167,66 +167,94 @@ if (-not $SkipVersion) {
     $changelogPath = "docs\CHANGELOG.md"
     $date = Get-Date -Format "yyyy-MM-dd"
     
-    # Build the list of changes
-    $commitList = @()
-    
-    # Add the main commit message if it's not the default
-    if ($CommitMessage -and $CommitMessage -ne "Auto-commit: Version update") {
-        # Remove "Auto-commit: " prefix if present and add to list
-        $cleanMessage = $CommitMessage -replace "^Auto-commit:\s*", ""
-        $commitList += "- $cleanMessage"
-    }
-    
-    # Get additional commits since last tag (excluding version update commits)
-    $lastTag = git describe --tags --abbrev=0 2>$null
-    if ($lastTag) {
-        $commits = git log "$lastTag..HEAD" --pretty=format:"%s" --no-merges 2>$null
-        if ($commits) {
-            foreach ($commit in $commits) {
-                # Skip auto-commit and duplicate messages
-                if ($commit -notmatch "^Auto-commit:|^Release |^Version update") {
-                    $entry = "- $commit"
-                    if ($commitList -notcontains $entry) {
-                        $commitList += $entry
-                    }
-                }
-            }
-        }
-    }
-    
-    # If still no commits, use a default message
-    if ($commitList.Count -eq 0) {
-        $commitList = @("- Version bump")
-    }
-    
-    # Use a single generic category for all changes
-    $categorySection = "### Changelog`n" + ($commitList -join "`n")
-    
-    # Read current changelog
+    # Read current changelog first to check for existing version
     if (Test-Path $changelogPath) {
         $content = Get-Content $changelogPath -Raw
         
-        # Create new entry
-        $newEntry = @"
-
+        # Check if this version already exists in the changelog
+        $versionPattern = [regex]::Escape("## [$newVersion]")
+        if ($content -match $versionPattern) {
+            Write-Host "[INFO] Version $newVersion already exists in CHANGELOG.md; skipping update" -ForegroundColor Yellow
+            # Still set release notes from existing entry for GitHub release
+            $existingPattern = "(?s)(## \[$([regex]::Escape($newVersion))\].*?)(?=\n## \[|$)"
+            if ($content -match $existingPattern) {
+                $releaseNotes = $matches[1].Trim()
+            }
+        } else {
+            # Build the list of changes
+            $commitList = @()
+            
+            # Add the main commit message if it's not the default
+            if ($CommitMessage -and $CommitMessage -ne "Auto-commit: Version update") {
+                # Remove "Auto-commit: " prefix if present and add to list
+                $cleanMessage = $CommitMessage -replace "^Auto-commit:\s*", ""
+                $commitList += "- $cleanMessage"
+            }
+            
+            # Get additional commits since last tag (excluding version update commits)
+            $lastTag = git describe --tags --abbrev=0 2>$null
+            if ($lastTag) {
+                $commits = git log "$lastTag..HEAD" --pretty=format:"%s" --no-merges 2>$null
+                if ($commits) {
+                    foreach ($commit in $commits) {
+                        # Skip auto-commit and duplicate messages
+                        if ($commit -notmatch "^Auto-commit:|^Release |^Version update") {
+                            $entry = "- $commit"
+                            if ($commitList -notcontains $entry) {
+                                $commitList += $entry
+                            }
+                        }
+                    }
+                }
+            }
+            
+            # If still no commits, use a default message
+            if ($commitList.Count -eq 0) {
+                $commitList = @("- Version bump")
+            }
+            
+            # Use a single generic category for all changes
+            $categorySection = "### Changelog`n" + ($commitList -join "`n")
+            
+            # Create new entry
+            $newEntry = @"
 ## [$newVersion] - $date
 
 $categorySection
-
 "@
 
-        # Save for GitHub release notes
-        $releaseNotes = $newEntry.Trim()
-        
-        # Find where to insert (after the header, before the first version entry)
-        # Look for the first ## [ pattern which indicates a version entry
-        $pattern = "(?s)(# Changelog.*?)(## \[)"
-        if ($content -match $pattern) {
-            $newContent = $content -replace $pattern, "`$1$newEntry`$2"
-            Set-Content $changelogPath $newContent -Encoding UTF8
-            Write-Host "[SUCCESS] CHANGELOG.md updated with version $newVersion" -ForegroundColor Green
-        } else {
-            Write-Host "[WARNING] Could not find insertion point in CHANGELOG.md" -ForegroundColor Yellow
+            # Save for GitHub release notes
+            $releaseNotes = $newEntry.Trim()
+            
+            # Find the header section and first version entry
+            # Split content: keep header lines, then insert new entry, then rest
+            $lines = $content -split "`n"
+            $headerEndIndex = -1
+            
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+                $line = $lines[$i].Trim()
+                # Find first version heading (## [x.x.x.x])
+                if ($line -match '^\#\# \[[\d\.]+\]') {
+                    $headerEndIndex = $i
+                    break
+                }
+            }
+            
+            if ($headerEndIndex -gt 0) {
+                # Build new content: header + new entry + rest
+                $headerPart = ($lines[0..($headerEndIndex - 1)] -join "`n").TrimEnd()
+                $restPart = ($lines[$headerEndIndex..($lines.Count - 1)] -join "`n")
+                $newContent = "$headerPart`n`n$newEntry`n`n$restPart"
+                Set-Content $changelogPath $newContent -Encoding UTF8
+                Write-Host "[SUCCESS] CHANGELOG.md updated with version $newVersion" -ForegroundColor Green
+            } elseif ($headerEndIndex -eq -1) {
+                # No existing versions, append after header
+                $newContent = $content.TrimEnd() + "`n`n$newEntry`n"
+                Set-Content $changelogPath $newContent -Encoding UTF8
+                Write-Host "[SUCCESS] CHANGELOG.md updated with version $newVersion (first entry)" -ForegroundColor Green
+            } else {
+                Write-Host "[WARNING] Could not find insertion point in CHANGELOG.md" -ForegroundColor Yellow
+            }
         }
     } else {
         Write-Host "[WARNING] CHANGELOG.md not found" -ForegroundColor Yellow
