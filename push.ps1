@@ -26,6 +26,7 @@ param(
 
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
 $ecccProjectFilePath = "ECCC\ECCC.csproj"
+$easProjectFilePath = "EAS\EAS.csproj"
 $solutionPath = "WSG.sln"
 
 #$repoRoot = git rev-parse --show-toplevel
@@ -61,8 +62,8 @@ function Update-ProjectVersion {
     $ver = $proj.Project.PropertyGroup.Version
     if (-not $ver) { $ver = "1.0.0.0101" } # Default if missing
     
-    # Check if this update type applies to this project
-    # ECCC (Lib) shouldn't update on Frontend changes
+    # Checkand EAS (Libs) shouldn't update on Frontend changes
+    if (($Name -eq "ECCC" -or $Name -eq "EAS")'t update on Frontend changes
     if ($Name -eq "ECCC" -and $UpdateType -eq "frontend") {
         Write-Host "[INFO] Skipping $Name version update (Frontend change only)" -ForegroundColor Gray
         return $ver
@@ -120,6 +121,7 @@ function Update-ProjectVersion {
 # Update Versions
 if (-not $SkipVersion) {
     $newWsgVersion = Update-ProjectVersion -Path $projectFilePath -Name "WSG" -UpdateType $Type
+    $newEasVersion = Update-ProjectVersion -Path $easProjectFilePath -Name "EAS" -UpdateType $Type
     $newEcccVersion = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
     
     # Use WSG version for global tagging/changelog as it's the main app
@@ -264,6 +266,8 @@ $categorySection
 # Stage the updated files
 Write-Host "[STAGING] Changes..." -ForegroundColor Cyan
 git add $projectFilePath
+git add $ecccProjectFilePath
+git add $easProjectFilePath
 git add $solutionPath
 if (-not $SkipVersion) {
     git add $changelogPath
