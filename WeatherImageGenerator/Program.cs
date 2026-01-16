@@ -65,6 +65,20 @@ namespace WeatherImageGenerator
                 return;
             }
 
+            if (args.Contains("--test-emergency-alerts"))
+            {
+                AllocConsole();
+                try
+                {
+                    TestEmergencyAlerts.RunTest().GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    FreeConsole();
+                }
+                return;
+            }
+
             // If user supplies --nogui, run as console as before
             if (args.Contains("--nogui"))
             {

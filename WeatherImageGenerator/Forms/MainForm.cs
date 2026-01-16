@@ -37,7 +37,7 @@ namespace WeatherImageGenerator.Forms
         private TabPage? _logTab;
         private Panel? _topPanel;
         private Panel? _logPanel;
-        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn;
         private CancellationTokenSource? _operationCts;
         private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
@@ -105,6 +105,7 @@ namespace WeatherImageGenerator.Forms
             _openOutputBtn = CreateStyledButton("📁 Open", 695, 28, 100, 38, Color.Gray, Color.White);
             _clearDirBtn = CreateStyledButton("🗑 Clear", 805, 28, 100, 38, Color.Gray, Color.White);
             _galleryBtn = CreateStyledButton("🖼 Gallery", 695, 76, 100, 38, Color.Gray, Color.White);
+            _testAlertBtn = CreateStyledButton("🧪 Test Alert", 805, 76, 100, 38, Color.DarkOrange, Color.White);
             
             // Row 2: Settings & Configuration (2 rows)
             _groupLabel4 = new Label { Text = "SETTINGS", Left = 925, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
@@ -249,6 +250,11 @@ namespace WeatherImageGenerator.Forms
                 galleryForm.Show();
             };
 
+            _testAlertBtn.Click += async (s, e) =>
+            {
+                await GenerateTestAlertAsync();
+            };
+
             _topPanel = new Panel { Dock = DockStyle.Top, Height = 200, Padding = new Padding(5) };
             // Add group labels
             _topPanel.Controls.Add(_groupLabel1);
@@ -267,6 +273,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_locationsBtn);
             _topPanel.Controls.Add(_musicBtn);
             _topPanel.Controls.Add(_galleryBtn);
+            _topPanel.Controls.Add(_testAlertBtn);
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
             // Add progress and status
@@ -1599,6 +1606,99 @@ namespace WeatherImageGenerator.Forms
             {
                 Logger.Log($"Error clearing output directory: {ex.Message}", Logger.LogLevel.Error);
                 MessageBox.Show($"Could not clear output directory: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Generates a test emergency alert (AMBER Alert) for testing the EAS system.
+        /// </summary>
+        private async Task GenerateTestAlertAsync()
+        {
+            _testAlertBtn!.Enabled = false;
+            _testAlertBtn.Text = "⏳ Generating...";
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    Logger.Log("Generating test emergency alert...", Logger.LogLevel.Info);
+
+                    // Create output directory
+                    string outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestAlerts");
+                    if (!Directory.Exists(outputDir))
+                    {
+                        Directory.CreateDirectory(outputDir);
+                    }
+
+                    // Get current config for language
+                    var cfg = ConfigManager.LoadConfig();
+                    string language = cfg.AlertReady?.PreferredLanguage ?? "fr-CA";
+
+                    // Generate test alert XML
+                    string testAlertXml = EAS.TestAlertGenerator.GenerateAmberAlert(language);
+
+                    // Parse the alert
+                    var httpClient = new System.Net.Http.HttpClient();
+                    var options = new EAS.AlertReadyOptions
+                    {
+                        Enabled = true,
+                        ExcludeWeatherAlerts = true,
+                        PreferredLanguage = language,
+                        Jurisdictions = new List<string> { "QC", "ON", "CA" },
+                        HighRiskOnly = false
+                    };
+
+                    var client = new EAS.AlertReadyClient(httpClient, options);
+                    client.Log = (msg) => Logger.Log($"[AlertReady] {msg}", Logger.LogLevel.Debug);
+
+                    // Use reflection to call the private ParseAlerts method
+                    var parseMethod = client.GetType().GetMethod("ParseAlerts", 
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    
+                    var alerts = parseMethod?.Invoke(client, new object[] { testAlertXml, new List<string>() }) 
+                        as List<AlertEntry>;
+
+                    if (alerts != null && alerts.Count > 0)
+                    {
+                        Logger.Log($"Parsed {alerts.Count} test alert(s). Generating media...", Logger.LogLevel.Info);
+
+                        var generatedFiles = EmergencyAlertGenerator.GenerateEmergencyAlerts(
+                            alerts,
+                            outputDir,
+                            language
+                        );
+
+                        Logger.Log($"Generated {generatedFiles.Count} file(s) in TestAlerts folder.", Logger.LogLevel.Info);
+
+                        // Open the output folder
+                        if (generatedFiles.Count > 0)
+                        {
+                            try
+                            {
+                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = outputDir,
+                                    UseShellExecute = true
+                                });
+                            }
+                            catch { /* best-effort */ }
+                        }
+                    }
+                    else
+                    {
+                        Logger.Log("Failed to parse test alert.", Logger.LogLevel.Warning);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Test alert generation failed: {ex.Message}", Logger.LogLevel.Error);
+                MessageBox.Show($"Failed to generate test alert: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _testAlertBtn!.Enabled = true;
+                _testAlertBtn.Text = "🧪 Test Alert";
             }
         }
     }
