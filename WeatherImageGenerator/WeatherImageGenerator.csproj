@@ -4,9 +4,9 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
-    <Version>1.2.3.0115</Version>
-    <AssemblyVersion>1.2.3.0115</AssemblyVersion>
-    <FileVersion>1.2.3.0115</FileVersion>
+    <Version>1.2.4.0115</Version>
+    <AssemblyVersion>1.2.4.0115</AssemblyVersion>
+    <FileVersion>1.2.4.0115</FileVersion>
     <RootNamespace>WeatherImageGenerator</RootNamespace>
     <AssemblyName>WSG</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
