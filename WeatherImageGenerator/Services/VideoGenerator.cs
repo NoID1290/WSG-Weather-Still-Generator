@@ -325,7 +325,7 @@ namespace WeatherImageGenerator.Services
             // Build and execute FFmpeg command, directing output to a temporary file first so we can safely replace an in-use destination.
             var finalOutput = OutputFile;
             var tempOutput = GetTempOutputPath(finalOutput);
-            var ffmpegCmd = BuildFFmpegCommand(baseImages, radarFrames, filterComplex, tempOutput);
+            var ffmpegCmd = BuildFFmpegCommand(baseImages ?? new List<FileInfo>(), radarFrames, filterComplex ?? string.Empty, tempOutput);
             if (FfmpegVerbose) Logger.Log($"[CMD] {ffmpegCmd}");
             try
             {
@@ -1067,7 +1067,7 @@ namespace WeatherImageGenerator.Services
             var d = data.Trim();
 
             // Parse common progress tokens emitted by ffmpeg (frame=, fps=, time=, bitrate=, speed=)
-            string frame = null, fps = null, time = null, speed = null, bitrate = null;
+            string? frame = null, fps = null, time = null, speed = null, bitrate = null;
             var parts = d.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
             {

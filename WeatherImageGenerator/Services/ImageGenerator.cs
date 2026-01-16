@@ -217,7 +217,7 @@ namespace WeatherImageGenerator.Services
             currentBitmap.Dispose();
         }
 
-        public static void GenerateMapsImage(WeatherForecast?[] allData, string[] locationNames, string outputDir)
+        public static void GenerateMapsImage(WeatherForecast?[] allData, string?[] locationNames, string outputDir)
         {
             var config = ConfigManager.LoadConfig();
             var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
@@ -282,7 +282,7 @@ namespace WeatherImageGenerator.Services
                     for (int i = 0; i < 7 && i < allData.Length; i++)
                     {
                         var data = allData[i];
-                        string locName = locationNames[i];
+                        string? locName = locationNames[i];
 
                         // Get position from config if available
                         PointF cityPosition = new PointF(0, 0);
@@ -441,11 +441,11 @@ namespace WeatherImageGenerator.Services
         public static void GenerateDetailedWeatherImage(WeatherForecast weatherData, string outputDir, int cityIndex, string locationName)
         {
             // Redirect to the new batch renderer for consistent look & feel (single-item batch)
-            GenerateDetailedWeatherImageBatch(new[] { (Forecast: (WeatherForecast?)weatherData, Name: locationName, Index: cityIndex) }, outputDir, cityIndex);
+            GenerateDetailedWeatherImageBatch(new[] { (Forecast: (WeatherForecast?)weatherData, Name: (string?)locationName, Index: cityIndex) }, outputDir, cityIndex);
         }
 
         // New: render up to 3 cities per detailed image with improved layout and fonts
-        public static void GenerateDetailedWeatherImageBatch((WeatherForecast? Forecast, string Name, int Index)[] cities, string outputDir, int batchIndex)
+        public static void GenerateDetailedWeatherImageBatch((WeatherForecast? Forecast, string? Name, int Index)[] cities, string outputDir, int batchIndex)
         {
             // Filter out cities with empty/null names (no location set)
             var validCities = cities.Where(c => !string.IsNullOrWhiteSpace(c.Name)).ToArray();
@@ -506,7 +506,7 @@ namespace WeatherImageGenerator.Services
                         if (i < validCities.Length)
                         {
                             var item = validCities[i];
-                            string cityName = item.Name;
+                            string cityName = item.Name ?? "Unknown";
 
                         // Header (city name)
                         graphics.DrawString(cityName, cityFont, whiteBrush, new PointF(x + 20, y + 20));
@@ -537,7 +537,7 @@ namespace WeatherImageGenerator.Services
                             // Small details
                             float detailY = y + 190;
                             graphics.DrawString($"Humidity: {cur.Relativehumidity_2m}%", labelFont, whiteBrush, new PointF(x + 20, detailY));
-                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast.CurrentUnits?.Windspeed_10m} {DegreesToCardinal(cur.Winddirection_10m)}", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
+                            graphics.DrawString($"Wind: {cur.Windspeed_10m} {item.Forecast?.CurrentUnits?.Windspeed_10m} {DegreesToCardinal(cur.Winddirection_10m)}", labelFont, whiteBrush, new PointF(x + 20, detailY + 22));
                             graphics.DrawString($"Pressure: {cur.Surface_pressure} hPa", labelFont, whiteBrush, new PointF(x + 20, detailY + 44));
 
                             // 5-Day Forecast Section

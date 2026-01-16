@@ -226,7 +226,7 @@ namespace WeatherImageGenerator.Services
         /// <summary>
         /// Returns all locations as an array
         /// </summary>
-        public string[] GetLocationsArray()
+        public string?[] GetLocationsArray()
         {
             return new[] { Location0, Location1, Location2, Location3, Location4, Location5, Location6, Location7, Location8 };
         }

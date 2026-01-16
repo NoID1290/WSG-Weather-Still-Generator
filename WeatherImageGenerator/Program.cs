@@ -345,7 +345,7 @@ namespace WeatherImageGenerator
         /// <summary>
         /// Fetches Alert Ready (NAAD) alerts only, filtered per options, de-duplicated.
         /// </summary>
-        private static async Task<List<AlertEntry>> FetchAlertReadyOnlyAsync(HttpClient httpClient, string[] locations, AppSettings config)
+        private static async Task<List<AlertEntry>> FetchAlertReadyOnlyAsync(HttpClient httpClient, string?[] locations, AppSettings config)
         {
             var list = new List<AlertEntry>();
             var alertReadyOptions = config.AlertReady ?? new AlertReadyOptions { Enabled = false };
@@ -364,7 +364,7 @@ namespace WeatherImageGenerator
 
                 try
                 {
-                    list = await arClient.FetchAlertsAsync(locations);
+                    list = await arClient.FetchAlertsAsync(locations.Where(l => l != null).Cast<string>());
                     Logger.Log($"✓ [AlertReady] Found {list.Count} active alerts.");
                 }
                 catch (Exception ex)
@@ -403,7 +403,7 @@ namespace WeatherImageGenerator
 
             using (HttpClient httpClient = new HttpClient())
             {
-                string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 Logger.Log($"Fetching weather data (Fetch Only)...");
                 ProgressUpdated?.Invoke(0, "Starting fetch only...");
@@ -414,7 +414,7 @@ namespace WeatherImageGenerator
                 {
                     if (cancellationToken.IsCancellationRequested) return;
 
-                    string loc = locations[i];
+                    string? loc = locations[i];
                     if (string.IsNullOrWhiteSpace(loc)) continue;
 
                     var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
@@ -466,7 +466,7 @@ namespace WeatherImageGenerator
 
             using (HttpClient httpClient = new HttpClient())
             {
-                string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 Logger.Log($"Fetching weather data (Stills Only)...");
                 ProgressUpdated?.Invoke(0, "Starting stills generation...");
@@ -478,7 +478,7 @@ namespace WeatherImageGenerator
                 {
                     if (cancellationToken.IsCancellationRequested) return;
 
-                    string loc = locations[i];
+                    string? loc = locations[i];
                     if (string.IsNullOrWhiteSpace(loc)) continue;
 
                     var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
@@ -548,7 +548,7 @@ namespace WeatherImageGenerator
                     int start = batch * detailedPerImage;
                     int end = Math.Min(locations.Length, start + detailedPerImage);
 
-                    var batchItems = new List<(WeatherForecast? Forecast, string Name, int Index)>();
+                    var batchItems = new List<(WeatherForecast? Forecast, string? Name, int Index)>();
                     for (int j = start; j < end; j++)
                     {
                         batchItems.Add((allForecasts[j], locations[j], j));
@@ -611,7 +611,7 @@ namespace WeatherImageGenerator
             using (HttpClient httpClient = new HttpClient())
             {
                 // Load locations into an array for easier handling
-                string[] locations = config.Locations?.GetLocationsArray() ?? new string[0];
+                string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
 
                 // Infinite loop to keep the program running
@@ -626,12 +626,11 @@ namespace WeatherImageGenerator
                         
                         // Array to store results for all locations
                         WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
-                        bool dataFetchSuccess = true;
 
                         // Fetch weather data for each location
                         for (int i = 0; i < locations.Length; i++)
                         {
-                            string loc = locations[i];
+                            string? loc = locations[i];
                             if (string.IsNullOrWhiteSpace(loc)) continue;
 
                             var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
@@ -646,7 +645,6 @@ namespace WeatherImageGenerator
                             catch (Exception ex)
                             {
                                 Logger.Log($"✗ [{apiName}] Failed to fetch for {loc}: {ex.Message}");
-                                dataFetchSuccess = false; 
                             }
 
                             // Report incremental fetch progress (15% of total cycle)
@@ -718,7 +716,7 @@ namespace WeatherImageGenerator
                             int start = batch * detailedPerImage;
                             int end = Math.Min(locations.Length, start + detailedPerImage);
 
-                            var batchItems = new List<(WeatherForecast? Forecast, string Name, int Index)>();
+                            var batchItems = new List<(WeatherForecast? Forecast, string? Name, int Index)>();
                             for (int j = start; j < end; j++)
                             {
                                 batchItems.Add((allForecasts[j], locations[j], j));

@@ -1448,9 +1448,9 @@ namespace WeatherImageGenerator.Forms
             
             int selectedIndex = _weatherList.SelectedIndices[0];
             var config = ConfigManager.LoadConfig();
-            var locations = config.Locations?.GetLocationsArray() ?? new string[0];
+            var locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
             
-            string locationName = (selectedIndex < locations.Length) ? locations[selectedIndex] : $"Location {selectedIndex}";
+            string locationName = (selectedIndex < locations.Length) ? (locations[selectedIndex] ?? $"Location {selectedIndex}") : $"Location {selectedIndex}";
             
             // Get forecast for this location
             OpenMeteo.WeatherForecast? forecast = null;
@@ -1481,7 +1481,7 @@ namespace WeatherImageGenerator.Forms
                 _videoRange = Math.Max(0.0, 100.0 - _videoBase);
             }
 
-            SetOverallProgress(pct, status);
+            SetOverallProgress(pct, status ?? string.Empty);
         }
 
         // Called when ffmpeg/video reports a fine-grained percent (0-100)
@@ -1491,12 +1491,12 @@ namespace WeatherImageGenerator.Forms
             if (_videoActive)
             {
                 var overall = _videoBase + (pct / 100.0) * _videoRange;
-                SetOverallProgress(overall, status);
+                SetOverallProgress(overall, status ?? string.Empty);
             }
             else
             {
                 // No mapping known; show raw percent
-                SetOverallProgress(pct, status);
+                SetOverallProgress(pct, status ?? string.Empty);
             }
         }
 
@@ -1813,7 +1813,7 @@ namespace WeatherImageGenerator.Forms
                 return;
             }
 
-            UpdateNaadConnectionStatus(e.Status, e.Message);
+            UpdateNaadConnectionStatus(e.Status, e.Message ?? string.Empty);
         }
 
         private void OnNaadHeartbeat(object? sender, HeartbeatEventArgs e)
