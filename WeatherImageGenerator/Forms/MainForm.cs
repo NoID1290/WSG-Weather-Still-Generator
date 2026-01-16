@@ -12,6 +12,7 @@ using System.Drawing;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 using WeatherImageGenerator.Models;
+using EAS;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -42,6 +43,15 @@ namespace WeatherImageGenerator.Forms
         private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
         private System.Threading.Timer? _logArchiveTimer;
+
+        // NAAD Status Panel
+        private Panel? _naadPanel;
+        private Label? _naadTitleLabel;
+        private Label? _naadConnectionLabel;
+        private Label? _naadHeartbeatLabel;
+        private Label? _naadAlertLabel;
+        private AlertReadyClient? _naadClient;
+        private CancellationTokenSource? _naadCts;
 
         // Theme colors for dynamic updates
         private Color _themeSuccessColor = Color.Green;
@@ -99,13 +109,13 @@ namespace WeatherImageGenerator.Forms
             _videoBtn = CreateStyledButton("🎬 Video", 465, 28, 100, 38, Color.Gray, Color.White);
             _cancelBtn = CreateStyledButton("✖ Cancel", 575, 28, 100, 38, Color.DarkRed, Color.White);
             _cancelBtn.Enabled = false;
+            _testAlertBtn = CreateStyledButton("🧪 Emergency Test Alert", 245, 76, 210, 38, Color.DarkOrange, Color.White);
             
             // Group 3: File Operations
             _groupLabel3 = new Label { Text = "FILES", Left = 695, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _openOutputBtn = CreateStyledButton("📁 Open", 695, 28, 100, 38, Color.Gray, Color.White);
             _clearDirBtn = CreateStyledButton("🗑 Clear", 805, 28, 100, 38, Color.Gray, Color.White);
             _galleryBtn = CreateStyledButton("🖼 Gallery", 695, 76, 100, 38, Color.Gray, Color.White);
-            _testAlertBtn = CreateStyledButton("🧪 Test Alert", 805, 76, 100, 38, Color.DarkOrange, Color.White);
             
             // Row 2: Settings & Configuration (2 rows)
             _groupLabel4 = new Label { Text = "SETTINGS", Left = 925, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
@@ -117,7 +127,18 @@ namespace WeatherImageGenerator.Forms
             // Progress & Status (Below buttons - adjusted for 2-row settings)
             _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _progress = new TextProgressBar { Left = 15, Top = 144, Width = 600, Height = 28, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
-            
+
+            // NAAD Status Panel (next to status area)
+            _naadPanel = new Panel { Left = 15, Top = 178, Width = 600, Height = 18, BackColor = Color.Transparent };
+            _naadTitleLabel = new Label { Text = "📡 NAAD:", Left = 0, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _naadConnectionLabel = new Label { Text = "⚪ Offline", Left = 55, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Regular) };
+            _naadHeartbeatLabel = new Label { Text = "💓 --:--:--", Left = 160, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Regular) };
+            _naadAlertLabel = new Label { Text = "⚠ 0 alerts", Left = 280, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Regular) };
+            _naadPanel.Controls.Add(_naadTitleLabel);
+            _naadPanel.Controls.Add(_naadConnectionLabel);
+            _naadPanel.Controls.Add(_naadHeartbeatLabel);
+            _naadPanel.Controls.Add(_naadAlertLabel);
+
             _statusLabel2 = new Label { Text = "STATUS", Left = 635, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _statusLabel = new Label { Left = 635, Top = 144, Width = 440, Height = 28, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 10F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
             _sleepLabel = new Label { Left = 635, Top = 174, Width = 440, Height = 20, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9.5F, FontStyle.Regular), BackColor = Color.Transparent };
@@ -139,10 +160,21 @@ namespace WeatherImageGenerator.Forms
                         Logger.Log("AutoStartCycle enabled in config; starting update cycle.");
                         StartClicked(_startBtn, _stopBtn);
                     }
+                    
+                    // Start NAAD listener if AlertReady is enabled
+                    Logger.Log($"AlertReady config: Enabled={cfg.AlertReady?.Enabled}, FeedUrls={cfg.AlertReady?.FeedUrls?.Count ?? 0}", Logger.LogLevel.Info);
+                    if (cfg.AlertReady?.Enabled == true)
+                    {
+                        StartNaadListener(cfg);
+                    }
+                    else
+                    {
+                        Logger.Log("AlertReady is not enabled in config.", Logger.LogLevel.Info);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"Failed to auto-start cycle: {ex.Message}", Logger.LogLevel.Error);
+                    Logger.Log($"Failed to auto-start: {ex.Message}", Logger.LogLevel.Error);
                 }
             };
             
@@ -267,13 +299,13 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_fetchBtn);
             _topPanel.Controls.Add(_stopBtn);
             _topPanel.Controls.Add(_cancelBtn);
+            _topPanel.Controls.Add(_testAlertBtn);
             _topPanel.Controls.Add(_openOutputBtn);
             _topPanel.Controls.Add(_clearDirBtn);
             _topPanel.Controls.Add(_startBtn);
             _topPanel.Controls.Add(_locationsBtn);
             _topPanel.Controls.Add(_musicBtn);
             _topPanel.Controls.Add(_galleryBtn);
-            _topPanel.Controls.Add(_testAlertBtn);
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
             // Add progress and status
@@ -282,6 +314,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_progress);
             _topPanel.Controls.Add(_statusLabel);
             _topPanel.Controls.Add(_sleepLabel);
+            _topPanel.Controls.Add(_naadPanel);
             // _lastFetchLabel moved to splitContainer.Panel1
 
             _splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
@@ -593,6 +626,7 @@ namespace WeatherImageGenerator.Forms
         {
             if (disposing)
             {
+                StopNaadListener();
                 _notifyIcon?.Dispose();
             }
             base.Dispose(disposing);
@@ -1699,6 +1733,171 @@ namespace WeatherImageGenerator.Forms
             {
                 _testAlertBtn!.Enabled = true;
                 _testAlertBtn.Text = "🧪 Test Alert";
+            }
+        }
+
+        private void StartNaadListener(AppSettings cfg)
+        {
+            if (_naadClient != null) return;
+
+            try
+            {
+                Logger.Log("Starting NAAD/Alert Ready listener...", Logger.LogLevel.Info);
+
+                var feedUrls = cfg.AlertReady?.FeedUrls ?? new List<string>
+                {
+                    "tcp://streaming1.naad-adna.pelmorex.com:8080",
+                    "tcp://streaming2.naad-adna.pelmorex.com:8080"
+                };
+
+                Logger.Log($"NAAD Feed URLs: {string.Join(", ", feedUrls)}", Logger.LogLevel.Info);
+
+                var httpClient = new System.Net.Http.HttpClient();
+                var options = new AlertReadyOptions
+                {
+                    Enabled = true,
+                    FeedUrls = feedUrls,
+                    ExcludeWeatherAlerts = cfg.AlertReady?.ExcludeWeatherAlerts ?? true,
+                    PreferredLanguage = cfg.AlertReady?.PreferredLanguage ?? "fr-CA",
+                    Jurisdictions = cfg.AlertReady?.Jurisdictions ?? new List<string> { "QC" },
+                    HighRiskOnly = cfg.AlertReady?.HighRiskOnly ?? false,
+                    AreaFilters = cfg.AlertReady?.AreaFilters
+                };
+
+                _naadClient = new AlertReadyClient(httpClient, options);
+                _naadClient.Log = (msg) => Logger.Log($"[NAAD] {msg}", Logger.LogLevel.Info);
+
+                // Subscribe to events
+                _naadClient.ConnectionStatusChanged += OnNaadConnectionChanged;
+                _naadClient.HeartbeatReceived += OnNaadHeartbeat;
+                _naadClient.AlertReceived += OnNaadAlertReceived;
+
+                UpdateNaadConnectionStatus(NaadConnectionStatus.Connecting, "Connecting...");
+
+                // Start TCP stream listeners
+                _naadCts = new CancellationTokenSource();
+                _naadClient.StartTcpStreams();
+
+                Logger.Log("NAAD TCP stream listeners started.", Logger.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to start NAAD listener: {ex.Message}", Logger.LogLevel.Error);
+                UpdateNaadConnectionStatus(NaadConnectionStatus.Disconnected, ex.Message);
+            }
+        }
+
+        private void StopNaadListener()
+        {
+            if (_naadClient == null) return;
+
+            try
+            {
+                _naadCts?.Cancel();
+                _naadClient.Dispose();
+                _naadClient = null;
+                UpdateNaadConnectionStatus(NaadConnectionStatus.Disconnected, "Stopped");
+                Logger.Log("NAAD listener stopped.", Logger.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error stopping NAAD listener: {ex.Message}", Logger.LogLevel.Warning);
+            }
+        }
+
+        private void OnNaadConnectionChanged(object? sender, ConnectionStatusEventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => OnNaadConnectionChanged(sender, e));
+                return;
+            }
+
+            UpdateNaadConnectionStatus(e.Status, e.Message);
+        }
+
+        private void OnNaadHeartbeat(object? sender, HeartbeatEventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => OnNaadHeartbeat(sender, e));
+                return;
+            }
+
+            var localTime = e.Timestamp.ToLocalTime();
+            _naadHeartbeatLabel!.Text = $"💓 {localTime:HH:mm:ss}";
+            _naadHeartbeatLabel.ForeColor = _themeTextColor;
+        }
+
+        private void OnNaadAlertReceived(object? sender, AlertReceivedEventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => OnNaadAlertReceived(sender, e));
+                return;
+            }
+
+            _naadAlertLabel!.Text = $"⚠ {e.TotalActiveAlerts} alert{(e.TotalActiveAlerts != 1 ? "s" : "")}";
+            _naadAlertLabel.ForeColor = e.TotalActiveAlerts > 0 ? Color.OrangeRed : _themeTextColor;
+
+            // Log the alert
+            Logger.Log($"[NAAD] Alert received: {e.Alert?.Title}", Logger.LogLevel.Info);
+
+            // Generate alert media automatically
+            if (e.Alert != null)
+            {
+                _ = Task.Run(() => GenerateAlertMediaAsync(e.Alert));
+            }
+        }
+
+        private void UpdateNaadConnectionStatus(NaadConnectionStatus status, string message)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(() => UpdateNaadConnectionStatus(status, message));
+                return;
+            }
+
+            switch (status)
+            {
+                case NaadConnectionStatus.Connected:
+                    _naadConnectionLabel!.Text = "🟢 Connected";
+                    _naadConnectionLabel.ForeColor = _themeSuccessColor;
+                    break;
+                case NaadConnectionStatus.Connecting:
+                    _naadConnectionLabel!.Text = "🟡 Connecting...";
+                    _naadConnectionLabel.ForeColor = _themeWarningColor;
+                    break;
+                case NaadConnectionStatus.Disconnected:
+                    _naadConnectionLabel!.Text = "🔴 Offline";
+                    _naadConnectionLabel.ForeColor = _themeDangerColor;
+                    break;
+            }
+        }
+
+        private async Task GenerateAlertMediaAsync(AlertEntry alert)
+        {
+            try
+            {
+                var cfg = ConfigManager.LoadConfig();
+                string outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AlertOutput");
+                if (!Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+
+                string language = cfg.AlertReady?.PreferredLanguage ?? "fr-CA";
+
+                Logger.Log($"Generating media for alert: {alert.Title}", Logger.LogLevel.Info);
+
+                var alerts = new List<AlertEntry> { alert };
+                var generatedFiles = EmergencyAlertGenerator.GenerateEmergencyAlerts(alerts, outputDir, language);
+
+                Logger.Log($"Generated {generatedFiles.Count} file(s) for alert: {alert.Title}", Logger.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to generate alert media: {ex.Message}", Logger.LogLevel.Error);
             }
         }
     }

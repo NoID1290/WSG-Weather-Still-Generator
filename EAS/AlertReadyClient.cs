@@ -17,6 +17,45 @@ using WeatherImageGenerator.Models;
 namespace EAS
 {
     /// <summary>
+    /// Connection status for NAAD TCP streams
+    /// </summary>
+    public enum NaadConnectionStatus
+    {
+        Disconnected,
+        Connecting,
+        Connected
+    }
+
+    /// <summary>
+    /// Event args for heartbeat received
+    /// </summary>
+    public class HeartbeatEventArgs : EventArgs
+    {
+        public DateTime Timestamp { get; set; }
+        public int ReferencedAlertCount { get; set; }
+    }
+
+    /// <summary>
+    /// Event args for connection status changes
+    /// </summary>
+    public class ConnectionStatusEventArgs : EventArgs
+    {
+        public NaadConnectionStatus Status { get; set; }
+        public string? Host { get; set; }
+        public int Port { get; set; }
+        public string? Message { get; set; }
+    }
+
+    /// <summary>
+    /// Event args for alert received from stream
+    /// </summary>
+    public class AlertReceivedEventArgs : EventArgs
+    {
+        public AlertEntry? Alert { get; set; }
+        public int TotalActiveAlerts { get; set; }
+    }
+
+    /// <summary>
     /// Settings for the Alert Ready (NAAD) CAP-CP feeds.
     /// </summary>
     public class AlertReadyOptions
@@ -69,14 +108,38 @@ namespace EAS
         private readonly CancellationTokenSource _streamCts = new();
         private readonly HashSet<string> _seenIdentifiers = new();
         private readonly object _lockObj = new();
+        private bool _streamsStarted = false;
+
+        // Connection tracking
+        private NaadConnectionStatus _connectionStatus = NaadConnectionStatus.Disconnected;
+        private DateTimeOffset _lastHeartbeat = DateTimeOffset.MinValue;
+        private int _activeAlertCount = 0;
 
         public Action<string>? Log { get; set; }
+
+        /// <summary>Event fired when a heartbeat is received from NAAD</summary>
+        public event EventHandler<HeartbeatEventArgs>? HeartbeatReceived;
+
+        /// <summary>Event fired when connection status changes</summary>
+        public event EventHandler<ConnectionStatusEventArgs>? ConnectionStatusChanged;
+
+        /// <summary>Event fired when an alert is received from the stream</summary>
+        public event EventHandler<AlertReceivedEventArgs>? AlertReceived;
+
+        /// <summary>Current connection status</summary>
+        public NaadConnectionStatus ConnectionStatus => _connectionStatus;
+
+        /// <summary>Last heartbeat received time</summary>
+        public DateTimeOffset LastHeartbeat => _lastHeartbeat;
+
+        /// <summary>Number of active alerts in queue</summary>
+        public int ActiveAlertCount => _activeAlertCount;
 
         public AlertReadyClient(HttpClient httpClient, AlertReadyOptions? options = null)
         {
             _httpClient = httpClient;
             _options = options ?? new AlertReadyOptions();
-            StartTcpStreams();
+            // Don't auto-start - let caller control when to start via StartTcpStreams()
         }
 
         /// <summary>
@@ -400,15 +463,33 @@ namespace EAS
             Log?.Invoke(message);
         }
 
-        private void StartTcpStreams()
+        /// <summary>
+        /// Starts listening to NAAD TCP stream feeds.
+        /// </summary>
+        public void StartTcpStreams()
         {
-            if (!_options.Enabled) return;
+            if (_streamsStarted)
+            {
+                LogMessage("TCP streams already started, ignoring duplicate call.");
+                return;
+            }
+            _streamsStarted = true;
+            
+            if (!_options.Enabled)
+            {
+                LogMessage("NAAD streaming disabled in options.");
+                return;
+            }
 
             var tcpUrls = _options.FeedUrls?
                 .Where(u => u?.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase) == true)
                 .ToList();
 
-            if (tcpUrls == null || tcpUrls.Count == 0) return;
+            if (tcpUrls == null || tcpUrls.Count == 0)
+            {
+                LogMessage("No TCP URLs configured for NAAD streaming.");
+                return;
+            }
 
             foreach (var url in tcpUrls)
             {
@@ -423,43 +504,68 @@ namespace EAS
             var host = uri.Host;
             var port = uri.Port;
 
-            LogMessage($"Starting TCP stream listener for {host}:{port}");
+            OnConnectionStatusChanged(NaadConnectionStatus.Connecting, host, port, "Connecting...");
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 TcpClient? client = null;
-                Stream? stream = null;
+                NetworkStream? stream = null;
 
                 try
                 {
                     client = new TcpClient();
+                    // Configure TCP keep-alive to maintain connection
+                    client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                    client.ReceiveTimeout = 0; // No timeout - wait indefinitely for data
+                    client.SendTimeout = 30000;
+                    
+                    OnConnectionStatusChanged(NaadConnectionStatus.Connecting, host, port, "Connecting...");
                     await client.ConnectAsync(host, port, cancellationToken);
-                    LogMessage($"Connected to {host}:{port}");
+                    LogMessage($"Connected to {host}");
+                    OnConnectionStatusChanged(NaadConnectionStatus.Connected, host, port, "Connected");
 
                     stream = client.GetStream();
-                    var reader = new StreamReader(stream, Encoding.UTF8);
-                    var buffer = new StringBuilder();
+                    var buffer = new byte[8192];
+                    var xmlBuffer = new StringBuilder();
 
-                    while (!cancellationToken.IsCancellationRequested)
+                    while (!cancellationToken.IsCancellationRequested && client.Connected)
                     {
-                        var data = new char[4096];
-                        var bytesRead = await reader.ReadAsync(data, 0, data.Length);
-
-                        if (bytesRead == 0)
+                        // Check if data is available before reading
+                        if (stream.DataAvailable || client.Connected)
                         {
-                            LogMessage($"Connection closed by {host}:{port}");
-                            break;
-                        }
+                            var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
 
-                        buffer.Append(data, 0, bytesRead);
-                        ProcessBuffer(buffer);
+                            if (bytesRead == 0)
+                            {
+                                // Wait a bit before checking again - server might just be idle
+                                await Task.Delay(100, cancellationToken);
+                                continue;
+                            }
+
+                            var data = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                            xmlBuffer.Append(data);
+                            ProcessBuffer(xmlBuffer);
+                        }
+                        else
+                        {
+                            await Task.Delay(100, cancellationToken);
+                        }
                     }
+                    
+                    LogMessage($"Connection closed by {host}:{port}");
+                    OnConnectionStatusChanged(NaadConnectionStatus.Disconnected, host, port, "Connection closed");
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    break;
                 }
                 catch (Exception ex)
                 {
                     if (!cancellationToken.IsCancellationRequested)
                     {
                         LogMessage($"TCP stream error for {host}:{port}: {ex.Message}");
+                        OnConnectionStatusChanged(NaadConnectionStatus.Disconnected, host, port, ex.Message);
                     }
                 }
                 finally
@@ -471,9 +577,22 @@ namespace EAS
                 if (!cancellationToken.IsCancellationRequested)
                 {
                     LogMessage($"Reconnecting to {host}:{port} in 30 seconds...");
+                    OnConnectionStatusChanged(NaadConnectionStatus.Disconnected, host, port, "Reconnecting in 30s...");
                     await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
                 }
             }
+        }
+
+        private void OnConnectionStatusChanged(NaadConnectionStatus status, string host, int port, string message)
+        {
+            _connectionStatus = status;
+            ConnectionStatusChanged?.Invoke(this, new ConnectionStatusEventArgs
+            {
+                Status = status,
+                Host = host,
+                Port = port,
+                Message = message
+            });
         }
 
         private void ProcessBuffer(StringBuilder buffer)
@@ -518,7 +637,7 @@ namespace EAS
                 // Handle NAADS heartbeat messages
                 if (sender.Contains("NAADS-Heartbeat", StringComparison.OrdinalIgnoreCase))
                 {
-                    LogMessage("Received NAADS heartbeat");
+                    LogMessage("♥ Heartbeat");
                     ProcessHeartbeat(alertElement);
                     return;
                 }
@@ -534,7 +653,15 @@ namespace EAS
                 if (alert != null)
                 {
                     _streamAlerts.Enqueue(alert);
+                    _activeAlertCount++;
                     LogMessage($"Queued alert from TCP stream: {alert.Title}");
+                    
+                    // Fire alert received event
+                    AlertReceived?.Invoke(this, new AlertReceivedEventArgs
+                    {
+                        Alert = alert,
+                        TotalActiveAlerts = _activeAlertCount
+                    });
                 }
             }
             catch (Exception ex)
@@ -547,10 +674,23 @@ namespace EAS
         {
             // NAADS heartbeat contains references to recent alerts that can be downloaded via HTTP
             var references = GetValue(alertElement, "references");
+            
+            // Count referenced alerts
+            var refParts = string.IsNullOrWhiteSpace(references) 
+                ? Array.Empty<string>() 
+                : references.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            
+            // Fire heartbeat event
+            _lastHeartbeat = DateTimeOffset.UtcNow;
+            HeartbeatReceived?.Invoke(this, new HeartbeatEventArgs
+            {
+                Timestamp = _lastHeartbeat.UtcDateTime,
+                ReferencedAlertCount = refParts.Length
+            });
+            
             if (string.IsNullOrWhiteSpace(references)) return;
 
             // References format: "sender,identifier,sent sender2,identifier2,sent2 ..."
-            var refParts = references.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var refPart in refParts)
             {
                 var parts = refPart.Split(',');
@@ -591,7 +731,7 @@ namespace EAS
                     {
                         var xml = await _httpClient.GetStringAsync(url);
                         ProcessAlertXml(xml);
-                        LogMessage($"Downloaded heartbeat alert: {identifier}");
+                        // Alert downloaded silently
                         return;
                     }
                     catch
