@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6.0116] - 2026-01-16
+
+### Changelog
+- feat: Add EAS project path to push script and update versioning logic
+- Enhance changelog update process in push.ps1
+- refactor: Update nullable reference types and clean up code for better safety and readability
+- chore: Update version to 2.1.5.0116 in ECCC project file
+
 ## [1.2.5.0116] - 2026-01-16
 
 ### Changelog
@@ -213,3 +221,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
+
