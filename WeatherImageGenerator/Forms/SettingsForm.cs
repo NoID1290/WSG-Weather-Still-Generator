@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -746,11 +747,14 @@ namespace WeatherImageGenerator.Forms
                 Task.Run(() =>
                 {
                     bool valid = FFmpegLocator.ValidateConfiguration(out var msg);
-                    this.Invoke((Action)(() =>
+                    if (this.IsHandleCreated)
                     {
-                        lblFfmpegStatus.Text = msg;
-                        lblFfmpegStatus.ForeColor = valid ? System.Drawing.Color.Green : System.Drawing.Color.Orange;
-                    }));
+                        this.Invoke((Action)(() =>
+                        {
+                            lblFfmpegStatus.Text = msg;
+                            lblFfmpegStatus.ForeColor = valid ? Color.Green : Color.Orange;
+                        }));
+                    }
                 });
             }
             catch (Exception ex)

@@ -2006,10 +2006,11 @@ namespace WeatherImageGenerator.Forms
                 this.Text = "About Weather Image Generator";
                 this.FormBorderStyle = FormBorderStyle.FixedDialog;
                 this.StartPosition = FormStartPosition.CenterParent;
-                this.Width = 600;
-                this.Height = 500;
+                this.Width = 700;
+                this.Height = 600;
                 this.MaximizeBox = false;
                 this.MinimizeBox = false;
+                this.BackColor = Color.WhiteSmoke;
 
                 var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
                 var product = asm.GetCustomAttribute<AssemblyProductAttribute>()?.Product
@@ -2019,111 +2020,218 @@ namespace WeatherImageGenerator.Forms
                               ?? asm.GetName().Version?.ToString() ?? "Unknown";
                 var copyright = asm.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? string.Empty;
 
-                // --- Tab Control Setup ---
-                var tabControl = new TabControl
-                {
-                    Dock = DockStyle.Top,
-                    Height = 400
-                };
-
-                // --- Tab 1: General Info ---
-                var tabGeneral = new TabPage("General");
-                
-                var lblProduct = new Label { Text = product, Font = new Font("Segoe UI", 14F, FontStyle.Bold), Left = 20, Top = 20, Width = 520, Height = 30 };
-                var lblVersion = new Label { Text = $"Version: {version}", Left = 20, Top = 60, Width = 520, Font = new Font("Segoe UI", 10F) };
-                var lblCopyright = new Label { Text = copyright, Left = 20, Top = 85, Width = 520, Font = new Font("Segoe UI", 10F) };
-
-                var githubUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator";
+                // Get theme accent color
                 var aboutCfg = ConfigManager.LoadConfig();
                 var aboutTheme = aboutCfg.Theme ?? "Blue";
-                Color aboutAccent = aboutTheme.ToLowerInvariant() switch
+                Color accentColor = aboutTheme.ToLowerInvariant() switch
                 {
                     "light" => ColorTranslator.FromHtml("#1976D2"),
                     "dark" => ColorTranslator.FromHtml("#61AFEF"),
                     "green" => ColorTranslator.FromHtml("#27AE60"),
                     _ => ColorTranslator.FromHtml("#3498DB")
                 };
-                var linkGithub = new LinkLabel { Text = "GitHub Repository", Left = 20, Top = 120, Width = 520, LinkColor = aboutAccent, Font = new Font("Segoe UI", 10F) };
+
+                // --- Tab Control Setup ---
+                var tabControl = new TabControl
+                {
+                    Dock = DockStyle.Top,
+                    Height = 520
+                };
+
+                // --- Tab 1: General Info ---
+                var tabGeneral = new TabPage("General") { BackColor = Color.White };
+                
+                var lblProduct = new Label 
+                { 
+                    Text = product, 
+                    Font = new Font("Segoe UI", 16F, FontStyle.Bold), 
+                    Left = 25, Top = 25, Width = 620, Height = 35,
+                    ForeColor = accentColor
+                };
+                var lblVersion = new Label 
+                { 
+                    Text = $"Version: {version}", 
+                    Left = 25, Top = 70, Width = 620, 
+                    Font = new Font("Segoe UI", 10.5F) 
+                };
+                var lblCopyright = new Label 
+                { 
+                    Text = copyright, 
+                    Left = 25, Top = 95, Width = 620, 
+                    Font = new Font("Segoe UI", 9.5F),
+                    ForeColor = Color.DimGray
+                };
+
+                var githubUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator";
+                var linkGithub = new LinkLabel 
+                { 
+                    Text = "🔗 GitHub Repository", 
+                    Left = 25, Top = 130, Width = 620, 
+                    LinkColor = accentColor,
+                    ActiveLinkColor = Color.FromArgb(Math.Max(0, accentColor.R - 40), Math.Max(0, accentColor.G - 40), Math.Max(0, accentColor.B - 40)),
+                    Font = new Font("Segoe UI", 10.5F, FontStyle.Underline)
+                };
                 linkGithub.LinkClicked += (s, e) => OpenUrl(githubUrl);
 
                 var lblDesc = new Label 
                 { 
-                    Text = "A tool to generate weather forecast images and videos using data from Open-Meteo and alerts from Environment Canada.",
-                    Left = 20, Top = 160, Width = 520, Height = 60,
+                    Text = "A comprehensive tool to generate beautiful weather forecast images and videos with support for:\n\n" +
+                           "• Real-time weather data from Open-Meteo and Environment Canada\n" +
+                           "• Emergency alerts from Alert Ready (NAAD)\n" +
+                           "• High-quality text-to-speech for Canadian French and English\n" +
+                           "• Video generation with background music and transitions\n" +
+                           "• Multiple themes and customizable layouts",
+                    Left = 25, Top = 175, Width = 620, Height = 280,
                     Font = new Font("Segoe UI", 10F)
                 };
 
                 tabGeneral.Controls.AddRange(new Control[] { lblProduct, lblVersion, lblCopyright, linkGithub, lblDesc });
 
                 // --- Tab 2: Credits & Attribution ---
-                var tabCredits = new TabPage("Credits");
-                var flowCredits = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(15), FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
+                var tabCredits = new TabPage("Credits & Licenses") { BackColor = Color.White };
+                var flowCredits = new FlowLayoutPanel 
+                { 
+                    Dock = DockStyle.Fill, 
+                    AutoScroll = true, 
+                    Padding = new Padding(20), 
+                    FlowDirection = FlowDirection.TopDown, 
+                    WrapContents = false, 
+                    BackColor = Color.White 
+                };
 
                 // Local helpers for UI construction
                 GroupBox CreateGroup(string title, params Control[] ctrls)
                 {
-                    var gb = new GroupBox { Text = title, Font = new Font("Segoe UI", 10F, FontStyle.Bold), Width = 540, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = new Padding(0, 0, 0, 15) };
-                    var pnl = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(10, 25, 10, 10) };
-                    foreach (var c in ctrls) { c.Margin = new Padding(0, 0, 0, 5); pnl.Controls.Add(c); }
+                    var gb = new GroupBox 
+                    { 
+                        Text = title, 
+                        Font = new Font("Segoe UI", 11F, FontStyle.Bold), 
+                        Width = 620, 
+                        AutoSize = true, 
+                        AutoSizeMode = AutoSizeMode.GrowAndShrink, 
+                        Margin = new Padding(0, 0, 0, 18),
+                        ForeColor = accentColor
+                    };
+                    var pnl = new FlowLayoutPanel 
+                    { 
+                        Dock = DockStyle.Fill, 
+                        FlowDirection = FlowDirection.TopDown, 
+                        AutoSize = true, 
+                        AutoSizeMode = AutoSizeMode.GrowAndShrink, 
+                        Padding = new Padding(15, 30, 15, 15) 
+                    };
+                    foreach (var c in ctrls) { c.Margin = new Padding(0, 0, 0, 6); pnl.Controls.Add(c); }
                     gb.Controls.Add(pnl);
                     return gb;
                 }
                 
-                LinkLabel MkLink(string txt, string url) {
-                    var l = new LinkLabel { Text = txt, AutoSize = true, Font = new Font("Segoe UI", 9.5F), LinkColor = Color.FromArgb(0, 102, 204) };
+                LinkLabel MkLink(string txt, string url) 
+                {
+                    var l = new LinkLabel 
+                    { 
+                        Text = txt, 
+                        AutoSize = true, 
+                        Font = new Font("Segoe UI", 9.5F), 
+                        LinkColor = accentColor,
+                        ActiveLinkColor = Color.FromArgb(Math.Max(0, accentColor.R - 40), Math.Max(0, accentColor.G - 40), Math.Max(0, accentColor.B - 40))
+                    };
                     l.LinkClicked += (s, e) => OpenUrl(url);
                     return l;
                 }
                 
-                Label MkLbl(string txt, bool bold = false, bool italic = false) {
+                Label MkLbl(string txt, bool bold = false, bool italic = false) 
+                {
                     var style = FontStyle.Regular;
                     if (bold) style |= FontStyle.Bold;
                     if (italic) style |= FontStyle.Italic;
-                    return new Label { Text = txt, AutoSize = true, Font = new Font("Segoe UI", 9F, style), ForeColor = italic ? Color.DimGray : Color.Black };
+                    return new Label 
+                    { 
+                        Text = txt, 
+                        AutoSize = true, 
+                        MaximumSize = new Size(580, 0),
+                        Font = new Font("Segoe UI", 9.5F, style), 
+                        ForeColor = italic ? Color.Gray : Color.FromArgb(64, 64, 64)
+                    };
                 }
+
+                Label Spacer() => new Label { Height = 8 };
 
                 // 1. Development
                 var grpDev = CreateGroup("Development",
-                    MkLbl("Author: NoID Softwork", true),
-                    MkLink("GitHub Repository", "https://github.com/NoID1290/WSG-Weather-Still-Generator"),
-                    MkLbl("License: MIT License", false, true),
-                    MkLbl("Built with .NET 10.0")
+                    MkLbl("Created by: NoID Softwork", true),
+                    MkLink("🔗 GitHub: https://github.com/NoID1290/WSG-Weather-Still-Generator", "https://github.com/NoID1290/WSG-Weather-Still-Generator"),
+                    MkLbl("License: MIT License (see License tab)", false, true),
+                    MkLbl("Framework: .NET 10.0 with Windows Forms", false, true)
                 );
 
-                // 2. Weather Data
-                var grpData = CreateGroup("Weather Data Sources",
-                    MkLbl("Open-Meteo.com", true),
+                // 2. Weather Data APIs
+                var grpData = CreateGroup("Weather Data APIs",
+                    MkLbl("Open-Meteo", true),
                     MkLink("https://open-meteo.com/", "https://open-meteo.com/"),
-                    MkLbl("License: Creative Commons Attribution 4.0 (CC-BY 4.0)", false, true),
-                    new Label { Height = 10 }, // spacer
-                    MkLbl("Environment and Climate Change Canada", true),
+                    MkLbl("Free weather forecast API with global coverage", false),
+                    MkLbl("License: Creative Commons Attribution 4.0 International (CC BY 4.0)", false, true),
+                    Spacer(),
+                    MkLbl("Environment and Climate Change Canada (ECCC)", true),
                     MkLink("https://weather.gc.ca/", "https://weather.gc.ca/"),
-                    MkLbl("License: Open Government Licence - Canada", false, true)
+                    MkLbl("Official Canadian weather data and forecasts", false),
+                    MkLbl("License: Open Government Licence - Canada", false, true),
+                    Spacer(),
+                    MkLbl("Alert Ready / NAAD", true),
+                    MkLink("https://alerts.pelmorex.com/", "https://alerts.pelmorex.com/"),
+                    MkLbl("National Alert Aggregation & Dissemination system for emergency alerts", false),
+                    MkLbl("License: Public emergency alert data", false, true)
                 );
 
-                // 3. Multimedia
-                var grpMedia = CreateGroup("Multimedia",
+                // 3. Libraries & Components
+                var grpLibs = CreateGroup("Third-Party Libraries",
+                    MkLbl("Open-Meteo .NET Library by AlienDwarf", true),
+                    MkLink("https://github.com/AlienDwarf/open-meteo-dotnet", "https://github.com/AlienDwarf/open-meteo-dotnet"),
+                    MkLbl("License: MIT License", false, true),
+                    Spacer(),
+                    MkLbl("Xabe.FFmpeg.Downloader", true),
+                    MkLbl("Automatic FFmpeg binary downloader for .NET", false),
+                    MkLbl("License: MIT License", false, true)
+                );
+
+                // 4. Multimedia & Services
+                var grpMedia = CreateGroup("Multimedia & Services",
                     MkLbl("FFmpeg Project", true),
                     MkLink("https://ffmpeg.org/", "https://ffmpeg.org/"),
-                    MkLbl("License: LGPL v2.1", false, true),
+                    MkLbl("Complete, cross-platform solution for video and audio processing", false),
+                    MkLbl("License: LGPL v2.1+ (or GPL v2+ with specific builds)", false, true),
                     MkLbl("FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.", false, true),
-                    new Label { Height = 10 }, // spacer
-                    MkLbl("Music", true),
-                    MkLbl("Kevin MacLeod (incompetech.com)", false),
+                    Spacer(),
+                    MkLbl("Microsoft Edge TTS (Text-to-Speech)", true),
+                    MkLbl("Neural text-to-speech API for high-quality voice synthesis", false),
+                    MkLbl("Supports Canadian French and English voices", false),
+                    MkLbl("License: Microsoft Azure Cognitive Services", false, true),
+                    Spacer(),
+                    MkLbl("Background Music by Kevin MacLeod", true),
                     MkLink("https://incompetech.com/", "https://incompetech.com/"),
-                    MkLbl("Licensed under Creative Commons: By Attribution 3.0", false, true),
+                    MkLbl("Royalty-free music for video backgrounds", false),
+                    MkLbl("License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)", false, true),
                     MkLink("http://creativecommons.org/licenses/by/3.0/", "http://creativecommons.org/licenses/by/3.0/")
                 );
 
-                flowCredits.Controls.AddRange(new Control[] { grpDev, grpData, grpMedia });
+                flowCredits.Controls.AddRange(new Control[] { grpDev, grpData, grpLibs, grpMedia });
                 tabCredits.Controls.Add(flowCredits);
 
                 // --- Tab 3: License ---
-                var tabLicense = new TabPage("License");
-                var txtLicense = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9F) };
+                var tabLicense = new TabPage("License") { BackColor = Color.White };
+                var txtLicense = new TextBox 
+                { 
+                    Dock = DockStyle.Fill, 
+                    Multiline = true, 
+                    ReadOnly = true, 
+                    ScrollBars = ScrollBars.Vertical, 
+                    Font = new Font("Consolas", 9.5F),
+                    BorderStyle = BorderStyle.None,
+                    BackColor = Color.White,
+                    Padding = new Padding(10)
+                };
                 txtLicense.Text = @"MIT License
 
-Copyright (c) 2020-2026 NoID Softwork 
+Copyright (c) 2020-2026 NoID Softwork
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the ""Software""), to deal
@@ -2145,21 +2253,58 @@ SOFTWARE.";
                 tabLicense.Controls.Add(txtLicense);
 
                 // --- Tab 4: Disclaimer ---
-                var tabDisclaimer = new TabPage("Disclaimer");
-                var txtDisclaimer = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Segoe UI", 10F) };
-                txtDisclaimer.Text = @"IMPORTANT DISCLAIMER:
+                var tabDisclaimer = new TabPage("Disclaimer") { BackColor = Color.White };
+                var txtDisclaimer = new TextBox 
+                { 
+                    Dock = DockStyle.Fill, 
+                    Multiline = true, 
+                    ReadOnly = true, 
+                    ScrollBars = ScrollBars.Vertical, 
+                    Font = new Font("Segoe UI", 10.5F),
+                    BorderStyle = BorderStyle.None,
+                    BackColor = Color.White,
+                    Padding = new Padding(15)
+                };
+                txtDisclaimer.Text = @"⚠️ IMPORTANT DISCLAIMER
 
-1. Not for Safety-Critical Use:
-This application is for informational and educational purposes only. It should NOT be used for safety-critical decisions, navigation, or protection of life and property.
+1. Not for Safety-Critical Use
+   This application is for informational and educational purposes only. 
+   It should NOT be used for safety-critical decisions, navigation, emergency 
+   response, or protection of life and property.
 
-2. Data Accuracy:
-Weather data is retrieved from third-party sources (Open-Meteo, ECCC) and may contain errors, delays, or inaccuracies. The generated images and videos may not reflect the most current conditions.
+2. Data Accuracy
+   Weather data is retrieved from third-party sources (Open-Meteo, Environment 
+   and Climate Change Canada) and may contain errors, delays, or inaccuracies. 
+   The generated images and videos may not reflect the most current meteorological 
+   conditions.
 
-3. Official Sources:
-Always consult official sources (e.g., Environment Canada, National Weather Service, local authorities) for severe weather alerts and emergency information.
+3. Emergency Alerts
+   While this application provides access to Alert Ready emergency alerts, 
+   users should always verify critical information through official government 
+   channels and local emergency management authorities.
 
-4. No Warranty:
-The authors and contributors of this software provide it ""AS IS"" without any warranty of any kind. We are not responsible for any damages or losses resulting from the use of this software.";
+4. Official Sources
+   Always consult official sources for severe weather warnings and emergency 
+   information:
+   • Environment and Climate Change Canada (weather.gc.ca)
+   • National Weather Service (weather.gov)
+   • Local emergency management authorities
+   • Provincial/territorial emergency alert systems
+
+5. Text-to-Speech
+   The quality and accuracy of synthesized speech may vary. Do not rely solely 
+   on audio output for critical weather information.
+
+6. No Warranty
+   The authors and contributors provide this software ""AS IS"" without warranty 
+   of any kind, express or implied. We are not responsible for any damages, 
+   losses, or consequences resulting from the use of this software.
+
+7. Third-Party Services
+   This application relies on external APIs and services which may experience 
+   downtime, rate limiting, or changes without notice.
+
+By using this software, you acknowledge and accept these limitations.";
                 tabDisclaimer.Controls.Add(txtDisclaimer);
 
                 tabControl.TabPages.Add(tabGeneral);
@@ -2167,11 +2312,33 @@ The authors and contributors of this software provide it ""AS IS"" without any w
                 tabControl.TabPages.Add(tabLicense);
                 tabControl.TabPages.Add(tabDisclaimer);
 
-                var ok = new Button { Text = "OK", Left = 490, Top = 420, Width = 80, Height = 30 };
+                // Bottom button panel with better styling
+                var btnPanel = new Panel
+                {
+                    Dock = DockStyle.Bottom,
+                    Height = 60,
+                    BackColor = Color.WhiteSmoke
+                };
+
+                var ok = new Button 
+                { 
+                    Text = "OK", 
+                    Left = 590, 
+                    Top = 15, 
+                    Width = 90, 
+                    Height = 35,
+                    Font = new Font("Segoe UI", 10F),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = accentColor,
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+                ok.FlatAppearance.BorderSize = 0;
                 ok.Click += (s, e) => this.Close();
+                btnPanel.Controls.Add(ok);
 
                 this.Controls.Add(tabControl);
-                this.Controls.Add(ok);
+                this.Controls.Add(btnPanel);
 
                 this.KeyPreview = true;
                 this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) this.Close(); };
