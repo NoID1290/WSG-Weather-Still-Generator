@@ -4,9 +4,9 @@
     <Nullable>enable</Nullable>
     <AssemblyName>EAS</AssemblyName>
     <RootNamespace>EAS</RootNamespace>
-    <Version>1.0.1.0116</Version>
-    <AssemblyVersion>1.0.1.0116</AssemblyVersion>
-    <FileVersion>1.0.1.0116</FileVersion>
+    <Version>1.0.2.0116</Version>
+    <AssemblyVersion>1.0.2.0116</AssemblyVersion>
+    <FileVersion>1.0.2.0116</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
