@@ -29,6 +29,9 @@ namespace WeatherImageGenerator
         [STAThread]
         static void Main(string[] args)
         {
+            // Initialize FFmpeg settings from configuration early
+            FFmpegLocator.ConfigureFromSettings();
+
             // Helper flags for testing
             if (args.Contains("--create-test-images"))
             {

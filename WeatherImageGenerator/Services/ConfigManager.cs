@@ -135,6 +135,27 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("Music")]
         public MusicSettings? Music { get; set; }
+
+        [JsonPropertyName("FFmpeg")]
+        public FFmpegSettings? FFmpeg { get; set; }
+    }
+
+    /// <summary>
+    /// FFmpeg configuration settings
+    /// </summary>
+    public class FFmpegSettings
+    {
+        /// <summary>
+        /// The source to use for FFmpeg binaries: Bundled, SystemPath, or Custom.
+        /// </summary>
+        [JsonPropertyName("Source")]
+        public string Source { get; set; } = "Bundled";
+
+        /// <summary>
+        /// Custom path to FFmpeg directory (only used when Source is "Custom").
+        /// </summary>
+        [JsonPropertyName("CustomPath")]
+        public string? CustomPath { get; set; }
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 
@@ -43,6 +44,14 @@ namespace WeatherImageGenerator.Forms
         System.Windows.Forms.TextBox txtMaxBitrate;
         System.Windows.Forms.TextBox txtBufferSize;
         // End new controls
+        // FFmpeg source controls
+        ComboBox cmbFfmpegSource;
+        TextBox txtFfmpegCustomPath;
+        Button btnBrowseFfmpegPath;
+        Label lblFfmpegStatus;
+        Button btnValidateFfmpeg;
+        Button btnClearFfmpegCache;
+        // End FFmpeg source controls
         CheckBox chkMinimizeToTray; // Enable minimize to system tray
         CheckBox chkMinimizeToTrayOnClose; // Minimize to tray when closing
         CheckBox chkAutoStartCycle; // Auto-start update cycle on application start
@@ -421,11 +430,118 @@ namespace WeatherImageGenerator.Forms
             });
             tabExperimental.Enabled = false; // Disabled by default until user opts-in
 
+            // --- FFmpeg Tab ---
+            var tabFfmpeg = new TabPage("FFmpeg");
+            int fTop = 20;
+
+            var lblFfmpegSource = new Label { Text = "🎬 FFmpeg Source", Left = leftLabel, Top = fTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+
+            fTop += 30;
+            var lblFfmpegSourceDesc = new Label { Text = "Choose where to get FFmpeg binaries from:", Left = leftLabel, Top = fTop, Width = 400, AutoSize = false };
+
+            fTop += 25;
+            var lblSource = new Label { Text = "Source:", Left = leftLabel, Top = fTop, Width = 80, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbFfmpegSource = new ComboBox { Left = leftField, Top = fTop, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbFfmpegSource.Items.AddRange(new object[] { 
+                "Bundled (Auto-download)", 
+                "System PATH", 
+                "Custom Path" 
+            });
+            cmbFfmpegSource.SelectedIndex = 0;
+
+            fTop += rowH + 5;
+            var lblCustomPath = new Label { Text = "Custom Path:", Left = leftLabel, Top = fTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtFfmpegCustomPath = new TextBox { Left = leftField, Top = fTop, Width = 350, Enabled = false };
+            btnBrowseFfmpegPath = new Button { Text = "...", Left = leftField + 355, Top = fTop - 1, Width = 40, Height = 23, Enabled = false };
+            btnBrowseFfmpegPath.Click += (s, e) => {
+                using (var dlg = new FolderBrowserDialog())
+                {
+                    dlg.Description = "Select FFmpeg directory (containing ffmpeg.exe)";
+                    if (dlg.ShowDialog() == DialogResult.OK)
+                    {
+                        txtFfmpegCustomPath.Text = dlg.SelectedPath;
+                    }
+                }
+            };
+
+            // Enable/disable custom path based on source selection
+            cmbFfmpegSource.SelectedIndexChanged += (s, e) => {
+                bool isCustom = cmbFfmpegSource.SelectedIndex == 2;
+                txtFfmpegCustomPath.Enabled = isCustom;
+                btnBrowseFfmpegPath.Enabled = isCustom;
+            };
+
+            fTop += rowH + 10;
+            var lblFfmpegDivider = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = fTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+
+            fTop += 20;
+            var lblFfmpegStatusGroup = new Label { Text = "📋 Status", Left = leftLabel, Top = fTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+
+            fTop += 30;
+            lblFfmpegStatus = new Label { Text = "Not validated", Left = leftLabel, Top = fTop, Width = 500, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
+
+            fTop += rowH;
+            btnValidateFfmpeg = new Button { Text = "Validate FFmpeg", Left = leftLabel, Top = fTop, Width = 130, Height = 28 };
+            btnValidateFfmpeg.Click += (s, e) => {
+                ValidateFfmpegConfiguration();
+            };
+
+            btnClearFfmpegCache = new Button { Text = "Clear Bundled Cache", Left = leftLabel + 140, Top = fTop, Width = 150, Height = 28 };
+            btnClearFfmpegCache.Click += (s, e) => {
+                var result = MessageBox.Show(
+                    "This will delete the downloaded FFmpeg binaries. They will be re-downloaded when needed.\n\nContinue?",
+                    "Clear FFmpeg Cache",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                if (result == DialogResult.Yes)
+                {
+                    FFmpegLocator.ClearCache();
+                    lblFfmpegStatus.Text = "Cache cleared. FFmpeg will be re-downloaded when needed.";
+                    lblFfmpegStatus.ForeColor = System.Drawing.Color.Orange;
+                }
+            };
+
+            fTop += rowH + 15;
+            var lblFfmpegDivider2 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = fTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+
+            fTop += 20;
+            var lblFfmpegHelp = new Label { Text = "ℹ Help", Left = leftLabel, Top = fTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+
+            fTop += 25;
+            var lblHelpText = new Label { 
+                Text = "• Bundled: Automatically downloads FFmpeg to AppData (recommended)\n" +
+                       "• System PATH: Uses FFmpeg installed on your system (must be in PATH)\n" +
+                       "• Custom Path: Specify a folder containing ffmpeg.exe",
+                Left = leftLabel, 
+                Top = fTop, 
+                Width = 500, 
+                Height = 60, 
+                AutoSize = false 
+            };
+
+            fTop += 70;
+            var lblBundledPath = new Label { 
+                Text = $"Bundled location: {FFmpegLocator.FFmpegDirectory}",
+                Left = leftLabel, 
+                Top = fTop, 
+                Width = 550, 
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.DarkGray,
+                Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f)
+            };
+
+            tabFfmpeg.Controls.AddRange(new Control[] {
+                lblFfmpegSource, lblFfmpegSourceDesc, lblSource, cmbFfmpegSource,
+                lblCustomPath, txtFfmpegCustomPath, btnBrowseFfmpegPath,
+                lblFfmpegDivider, lblFfmpegStatusGroup, lblFfmpegStatus, btnValidateFfmpeg, btnClearFfmpegCache,
+                lblFfmpegDivider2, lblFfmpegHelp, lblHelpText, lblBundledPath
+            });
 
             // Add tabs to tab control
             tabControl.TabPages.Add(tabGeneral);
             tabControl.TabPages.Add(tabImage);
             tabControl.TabPages.Add(tabVideo);
+            tabControl.TabPages.Add(tabFfmpeg);
             tabControl.TabPages.Add(tabExperimental);
 
             var btnSave = new Button { Text = "Save", Left = 380, Top = 620, Width = 90, Height = 30 };
@@ -612,6 +728,30 @@ namespace WeatherImageGenerator.Forms
                         }
                     }));
                 });
+
+                // Load FFmpeg settings
+                var ffmpegSource = cfg.FFmpeg?.Source?.ToLowerInvariant() ?? "bundled";
+                cmbFfmpegSource.SelectedIndex = ffmpegSource switch
+                {
+                    "bundled" => 0,
+                    "systempath" => 1,
+                    "custom" => 2,
+                    _ => 0
+                };
+                txtFfmpegCustomPath.Text = cfg.FFmpeg?.CustomPath ?? "";
+                txtFfmpegCustomPath.Enabled = cmbFfmpegSource.SelectedIndex == 2;
+                btnBrowseFfmpegPath.Enabled = cmbFfmpegSource.SelectedIndex == 2;
+
+                // Validate FFmpeg configuration asynchronously
+                Task.Run(() =>
+                {
+                    bool valid = FFmpegLocator.ValidateConfiguration(out var msg);
+                    this.Invoke((Action)(() =>
+                    {
+                        lblFfmpegStatus.Text = msg;
+                        lblFfmpegStatus.ForeColor = valid ? System.Drawing.Color.Green : System.Drawing.Color.Orange;
+                    }));
+                });
             }
             catch (Exception ex)
             {
@@ -740,6 +880,30 @@ namespace WeatherImageGenerator.Forms
                 // Persist new AutoStartCycle setting
                 cfg.AutoStartCycle = chkAutoStartCycle.Checked;
 
+                // Persist FFmpeg settings
+                var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();
+                ffmpeg.Source = cmbFfmpegSource.SelectedIndex switch
+                {
+                    0 => "Bundled",
+                    1 => "SystemPath",
+                    2 => "Custom",
+                    _ => "Bundled"
+                };
+                ffmpeg.CustomPath = cmbFfmpegSource.SelectedIndex == 2 ? txtFfmpegCustomPath.Text : null;
+                cfg.FFmpeg = ffmpeg;
+
+                // Apply FFmpeg settings immediately
+                FFmpegLocator.SetSource(
+                    cmbFfmpegSource.SelectedIndex switch
+                    {
+                        0 => Models.FFmpegSource.Bundled,
+                        1 => Models.FFmpegSource.SystemPath,
+                        2 => Models.FFmpegSource.Custom,
+                        _ => Models.FFmpegSource.Bundled
+                    },
+                    ffmpeg.CustomPath
+                );
+
                 ConfigManager.SaveConfig(cfg);
 
                 this.DialogResult = DialogResult.OK; 
@@ -749,6 +913,45 @@ namespace WeatherImageGenerator.Forms
                 Logger.Log($"Failed to save settings: {ex.Message}", Logger.LogLevel.Error);
                 MessageBox.Show($"Failed to save settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void ValidateFfmpegConfiguration()
+        {
+            // Temporarily apply settings to validate
+            var tempSource = cmbFfmpegSource.SelectedIndex switch
+            {
+                0 => Models.FFmpegSource.Bundled,
+                1 => Models.FFmpegSource.SystemPath,
+                2 => Models.FFmpegSource.Custom,
+                _ => Models.FFmpegSource.Bundled
+            };
+            var tempCustomPath = cmbFfmpegSource.SelectedIndex == 2 ? txtFfmpegCustomPath.Text : null;
+
+            // Store current settings
+            var currentSource = FFmpegLocator.CurrentSource;
+            var currentCustomPath = FFmpegLocator.CustomPath;
+
+            // Apply temporary settings
+            FFmpegLocator.SetSource(tempSource, tempCustomPath);
+
+            // Validate
+            bool valid = FFmpegLocator.ValidateConfiguration(out var message);
+            
+            // Also try to get version if valid
+            if (valid && tempSource != Models.FFmpegSource.Bundled || File.Exists(FFmpegLocator.FFmpegExecutable))
+            {
+                bool hasVersion = VideoGenerator.IsFfmpegInstalled(out var version);
+                if (hasVersion)
+                {
+                    message += $"\nVersion: {version}";
+                }
+            }
+
+            lblFfmpegStatus.Text = message;
+            lblFfmpegStatus.ForeColor = valid ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+
+            // Restore original settings (they'll be saved when user clicks Save)
+            FFmpegLocator.SetSource(currentSource, currentCustomPath);
         }
 
         private string ToRelative(string? path, string fallback)

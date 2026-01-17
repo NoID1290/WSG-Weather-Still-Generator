@@ -4,6 +4,8 @@ using System.IO;
 using System.Net.Http;
 using System.IO.Compression;
 using System.Threading.Tasks;
+using WeatherImageGenerator.Services;
+using WeatherImageGenerator.Models;
 
 namespace WeatherImageGenerator.Utilities
 {
@@ -16,6 +18,8 @@ namespace WeatherImageGenerator.Utilities
         private static bool _isInitialized = false;
         private static readonly object _initLock = new object();
         private static string? _ffmpegPath;
+        private static FFmpegSource _currentSource = FFmpegSource.Bundled;
+        private static string? _customPath;
 
         // FFmpeg download URLs (using BtbN builds which are reliable and up-to-date)
         private const string FFmpegDownloadUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip";
@@ -319,25 +323,169 @@ namespace WeatherImageGenerator.Utilities
         }
 
         /// <summary>
-        /// Gets the path to use for FFmpeg execution.
-        /// Prefers bundled version, falls back to system installation.
+        /// Configures the FFmpeg source from application settings.
+        /// Call this at application startup after loading config.
+        /// </summary>
+        public static void ConfigureFromSettings()
+        {
+            try
+            {
+                var cfg = ConfigManager.LoadConfig();
+                var ffmpegSettings = cfg.FFmpeg;
+                
+                if (ffmpegSettings != null)
+                {
+                    _currentSource = ffmpegSettings.Source?.ToLowerInvariant() switch
+                    {
+                        "bundled" => FFmpegSource.Bundled,
+                        "systempath" => FFmpegSource.SystemPath,
+                        "custom" => FFmpegSource.Custom,
+                        _ => FFmpegSource.Bundled
+                    };
+                    _customPath = ffmpegSettings.CustomPath;
+                    
+                    Logger.Log($"[FFmpeg] Configured source: {_currentSource}" + 
+                        (_currentSource == FFmpegSource.Custom ? $" ({_customPath})" : ""), ConsoleColor.DarkGray);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[FFmpeg] Failed to load settings, using defaults: {ex.Message}", ConsoleColor.Yellow);
+                _currentSource = FFmpegSource.Bundled;
+            }
+        }
+
+        /// <summary>
+        /// Sets the FFmpeg source programmatically.
+        /// </summary>
+        public static void SetSource(FFmpegSource source, string? customPath = null)
+        {
+            _currentSource = source;
+            _customPath = customPath;
+            _isInitialized = false; // Force re-initialization
+            Logger.Log($"[FFmpeg] Source changed to: {source}" + 
+                (source == FFmpegSource.Custom ? $" ({customPath})" : ""), ConsoleColor.DarkGray);
+        }
+
+        /// <summary>
+        /// Gets the current FFmpeg source setting.
+        /// </summary>
+        public static FFmpegSource CurrentSource => _currentSource;
+
+        /// <summary>
+        /// Gets the custom FFmpeg path if set.
+        /// </summary>
+        public static string? CustomPath => _customPath;
+
+        /// <summary>
+        /// Gets the path to use for FFmpeg execution based on the configured source.
         /// </summary>
         public static string GetFFmpegPath()
         {
-            // First check if bundled FFmpeg exists
-            if (File.Exists(FFmpegExecutable))
+            switch (_currentSource)
             {
-                _isInitialized = true;
-                return FFmpegExecutable;
+                case FFmpegSource.SystemPath:
+                    // Only look in system PATH
+                    var systemPath = TryFindSystemFFmpeg();
+                    if (!string.IsNullOrEmpty(systemPath))
+                    {
+                        Logger.Log($"[FFmpeg] Using system PATH: {systemPath}", ConsoleColor.DarkGray);
+                        return systemPath;
+                    }
+                    Logger.Log("[FFmpeg] WARNING: System PATH selected but FFmpeg not found in PATH!", ConsoleColor.Yellow);
+                    return "ffmpeg"; // Return bare command, let the system try to find it
+                    
+                case FFmpegSource.Custom:
+                    // Use custom user-specified path
+                    if (!string.IsNullOrEmpty(_customPath))
+                    {
+                        var customExe = Path.Combine(_customPath, "ffmpeg.exe");
+                        if (File.Exists(customExe))
+                        {
+                            Logger.Log($"[FFmpeg] Using custom path: {customExe}", ConsoleColor.DarkGray);
+                            return customExe;
+                        }
+                        // Maybe they specified the exe directly?
+                        if (File.Exists(_customPath) && _customPath.EndsWith("ffmpeg.exe", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Logger.Log($"[FFmpeg] Using custom executable: {_customPath}", ConsoleColor.DarkGray);
+                            return _customPath;
+                        }
+                        Logger.Log($"[FFmpeg] WARNING: Custom path specified but ffmpeg.exe not found at: {_customPath}", ConsoleColor.Yellow);
+                    }
+                    else
+                    {
+                        Logger.Log("[FFmpeg] WARNING: Custom source selected but no path specified!", ConsoleColor.Yellow);
+                    }
+                    // Fall through to bundled as fallback
+                    goto case FFmpegSource.Bundled;
+                    
+                case FFmpegSource.Bundled:
+                default:
+                    // First check if bundled FFmpeg exists
+                    if (File.Exists(FFmpegExecutable))
+                    {
+                        _isInitialized = true;
+                        return FFmpegExecutable;
+                    }
+
+                    // Try system FFmpeg as fallback
+                    var fallbackPath = TryFindSystemFFmpeg();
+                    if (!string.IsNullOrEmpty(fallbackPath))
+                        return fallbackPath;
+
+                    // Return the expected bundled path (caller should check if it exists)
+                    return FFmpegExecutable;
             }
+        }
 
-            // Try system FFmpeg
-            var systemPath = TryFindSystemFFmpeg();
-            if (!string.IsNullOrEmpty(systemPath))
-                return systemPath;
-
-            // Return the expected bundled path (caller should check if it exists)
-            return FFmpegExecutable;
+        /// <summary>
+        /// Validates the current FFmpeg configuration.
+        /// </summary>
+        /// <returns>True if FFmpeg is available with current settings, false otherwise.</returns>
+        public static bool ValidateConfiguration(out string message)
+        {
+            var path = GetFFmpegPath();
+            
+            if (_currentSource == FFmpegSource.SystemPath)
+            {
+                // For system path, we need to check if it's actually in PATH
+                var systemPath = TryFindSystemFFmpeg();
+                if (string.IsNullOrEmpty(systemPath))
+                {
+                    message = "FFmpeg not found in system PATH. Please install FFmpeg and add it to your PATH.";
+                    return false;
+                }
+                message = $"Using FFmpeg from system PATH: {systemPath}";
+                return true;
+            }
+            else if (_currentSource == FFmpegSource.Custom)
+            {
+                if (string.IsNullOrEmpty(_customPath))
+                {
+                    message = "Custom path is not specified.";
+                    return false;
+                }
+                
+                var customExe = Path.Combine(_customPath, "ffmpeg.exe");
+                if (!File.Exists(customExe) && !File.Exists(_customPath))
+                {
+                    message = $"FFmpeg not found at custom path: {_customPath}";
+                    return false;
+                }
+                message = $"Using FFmpeg from custom path: {_customPath}";
+                return true;
+            }
+            else // Bundled
+            {
+                if (File.Exists(FFmpegExecutable))
+                {
+                    message = $"Using bundled FFmpeg: {FFmpegExecutable}";
+                    return true;
+                }
+                message = "Bundled FFmpeg not yet downloaded. It will be downloaded automatically when needed.";
+                return true; // Return true because it will auto-download
+            }
         }
 
         /// <summary>
