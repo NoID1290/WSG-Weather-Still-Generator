@@ -215,8 +215,8 @@ if (-not $SkipVersion) {
                 $commitList = @("- Version bump")
             }
             
-            # Use a single generic category for all changes
-            $categorySection = "### Changelog`n" + ($commitList -join "`n")
+            # Build the list directly (no subheading to avoid MD024 duplicate heading warnings)
+            $categorySection = ($commitList -join "`n")
             
             # Create new entry
             $newEntry = @"
