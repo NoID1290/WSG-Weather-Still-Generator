@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3.0117] - 2026-01-17
+
+- feat: enhance UI elements and improve layout in MainForm and SettingsForm
+- refactor: streamline version update calls in push script
+
 ## [1.3.2.0117] - 2026-01-17
 
 - feat: add FFmpeg configuration settings and UI controls for source selection
