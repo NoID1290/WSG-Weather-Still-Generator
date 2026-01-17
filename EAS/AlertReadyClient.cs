@@ -634,10 +634,9 @@ namespace EAS
                     }
                 }
 
-                // Handle NAADS heartbeat messages
+                // Handle NAADS heartbeat messages (no logging to avoid log spam)
                 if (sender.Contains("NAADS-Heartbeat", StringComparison.OrdinalIgnoreCase))
                 {
-                    LogMessage("♥ Heartbeat");
                     ProcessHeartbeat(alertElement);
                     return;
                 }

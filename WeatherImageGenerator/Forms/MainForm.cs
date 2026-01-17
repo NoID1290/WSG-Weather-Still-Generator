@@ -128,12 +128,12 @@ namespace WeatherImageGenerator.Forms
             _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _progress = new TextProgressBar { Left = 15, Top = 144, Width = 600, Height = 28, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 10F, FontStyle.Bold) };
 
-            // NAAD Status Panel (next to status area)
-            _naadPanel = new Panel { Left = 15, Top = 178, Width = 600, Height = 18, BackColor = Color.Transparent };
-            _naadTitleLabel = new Label { Text = "📡 NAAD:", Left = 0, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _naadConnectionLabel = new Label { Text = "⚪ Offline", Left = 55, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Regular) };
-            _naadHeartbeatLabel = new Label { Text = "💓 --:--:--", Left = 160, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Regular) };
-            _naadAlertLabel = new Label { Text = "⚠ 0 alerts", Left = 280, Top = 0, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Regular) };
+            // NAAD Status Panel (enhanced layout with better visibility)
+            _naadPanel = new Panel { Left = 15, Top = 178, Width = 600, Height = 24, BackColor = Color.Transparent, Padding = new Padding(2) };
+            _naadTitleLabel = new Label { Text = "📡 NAAD", Left = 0, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            _naadConnectionLabel = new Label { Text = "⚪ Offline", Left = 70, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            _naadHeartbeatLabel = new Label { Text = "💓 --:--:--", Left = 190, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Regular) };
+            _naadAlertLabel = new Label { Text = "⚠ 0 alerts", Left = 310, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
             _naadPanel.Controls.Add(_naadTitleLabel);
             _naadPanel.Controls.Add(_naadConnectionLabel);
             _naadPanel.Controls.Add(_naadHeartbeatLabel);
@@ -522,6 +522,13 @@ namespace WeatherImageGenerator.Forms
             if (_chkCompact != null) _chkCompact.ForeColor = headerTextColor;
             if (_txtSearch != null) { _txtSearch.BackColor = buttonColor; _txtSearch.ForeColor = neutralBtnText; }
             if (_progress != null) _progress.ForeColor = headerTextColor;
+
+            // NAAD Panel theme colors
+            if (_naadTitleLabel != null) _naadTitleLabel.ForeColor = headerTextColor;
+            if (_naadHeartbeatLabel != null) _naadHeartbeatLabel.ForeColor = labelTextColor;
+            // Connection and alert labels are updated dynamically based on status, but set default colors
+            if (_naadConnectionLabel != null && _naadClient == null) _naadConnectionLabel.ForeColor = labelTextColor;
+            if (_naadAlertLabel != null) _naadAlertLabel.ForeColor = _naadAlertLabel.Text.Contains("0 alert") ? labelTextColor : warningColor;
         
         }
 
@@ -1838,7 +1845,7 @@ namespace WeatherImageGenerator.Forms
             }
 
             _naadAlertLabel!.Text = $"⚠ {e.TotalActiveAlerts} alert{(e.TotalActiveAlerts != 1 ? "s" : "")}";
-            _naadAlertLabel.ForeColor = e.TotalActiveAlerts > 0 ? Color.OrangeRed : _themeTextColor;
+            _naadAlertLabel.ForeColor = e.TotalActiveAlerts > 0 ? _themeWarningColor : _themeTextColor;
 
             // Log the alert
             Logger.Log($"[NAAD] Alert received: {e.Alert?.Title}", Logger.LogLevel.Info);
