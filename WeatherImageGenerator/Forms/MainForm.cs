@@ -1739,7 +1739,7 @@ namespace WeatherImageGenerator.Forms
             finally
             {
                 _testAlertBtn!.Enabled = true;
-                _testAlertBtn.Text = "🧪 Test Alert";
+                _testAlertBtn.Text = "🧪 Emergency Test Alert";
             }
         }
 
@@ -2087,7 +2087,7 @@ namespace WeatherImageGenerator.Forms
                     MkLbl("Author: NoID Softwork", true),
                     MkLink("GitHub Repository", "https://github.com/NoID1290/WSG-Weather-Still-Generator"),
                     MkLbl("License: MIT License", false, true),
-                    MkLbl("Built with .NET 8.0")
+                    MkLbl("Built with .NET 10.0")
                 );
 
                 // 2. Weather Data
