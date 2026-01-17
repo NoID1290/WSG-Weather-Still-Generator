@@ -245,14 +245,17 @@ $categorySection
             if ($headerEndIndex -gt 0) {
                 # Build new content: header + new entry + rest
                 $headerPart = ($lines[0..($headerEndIndex - 1)] -join "`n").TrimEnd()
-                $restPart = ($lines[$headerEndIndex..($lines.Count - 1)] -join "`n")
-                $newContent = "$headerPart`n`n$newEntry`n`n$restPart"
-                Set-Content $changelogPath $newContent -Encoding UTF8
+                $restPart = ($lines[$headerEndIndex..($lines.Count - 1)] -join "`n").TrimEnd()
+                $newContent = "$headerPart`n`n$newEntry`n`n$restPart`n"
+                # Remove any multiple consecutive blank lines for MD012 compliance
+                $newContent = $newContent -replace '(\r?\n){3,}', "`n`n"
+                Set-Content $changelogPath $newContent -Encoding UTF8 -NoNewline
                 Write-Host "[SUCCESS] CHANGELOG.md updated with version $newVersion" -ForegroundColor Green
             } elseif ($headerEndIndex -eq -1) {
                 # No existing versions, append after header
                 $newContent = $content.TrimEnd() + "`n`n$newEntry`n"
-                Set-Content $changelogPath $newContent -Encoding UTF8
+                $newContent = $newContent -replace '(\r?\n){3,}', "`n`n"
+                Set-Content $changelogPath $newContent -Encoding UTF8 -NoNewline
                 Write-Host "[SUCCESS] CHANGELOG.md updated with version $newVersion (first entry)" -ForegroundColor Green
             } else {
                 Write-Host "[WARNING] Could not find insertion point in CHANGELOG.md" -ForegroundColor Yellow

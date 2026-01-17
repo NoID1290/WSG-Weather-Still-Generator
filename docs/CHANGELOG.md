@@ -192,4 +192,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the refactored Weather Still Generator.
 - Basic image generation for current weather and forecasts.
 - Alert system integration with Environment Canada.
-
