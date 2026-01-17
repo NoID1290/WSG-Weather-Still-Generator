@@ -4,5 +4,14 @@
     <Nullable>enable</Nullable>
     <AssemblyName>WeatherShared</AssemblyName>
     <RootNamespace>WeatherShared</RootNamespace>
+    <Title>Weather Shared Library</Title>
+    <Product>Weather Shared Library</Product>
+    <Company>NoID Softwork</Company>
+    <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
+    <Description>Shared data models and utilities for weather applications.</Description>
+    <Version>1.0.0.0117</Version>
+    <AssemblyVersion>1.0.0.0117</AssemblyVersion>
+    <FileVersion>1.0.0.0117</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>

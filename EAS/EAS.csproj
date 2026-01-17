@@ -4,9 +4,15 @@
     <Nullable>enable</Nullable>
     <AssemblyName>EAS</AssemblyName>
     <RootNamespace>EAS</RootNamespace>
+    <Title>Emergency Alert System</Title>
+    <Product>Emergency Alert System</Product>
+    <Company>NoID Softwork</Company>
+    <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
+    <Description>Library for handling Emergency Alert System (EAS) alerts and text-to-speech functionality.</Description>
     <Version>1.1.0.0117</Version>
     <AssemblyVersion>1.1.0.0117</AssemblyVersion>
     <FileVersion>1.1.0.0117</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
