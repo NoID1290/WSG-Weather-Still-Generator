@@ -122,9 +122,9 @@ function Update-ProjectVersion {
 # Update Versions
 if (-not $SkipVersion) {
     $newWsgVersion = Update-ProjectVersion -Path $projectFilePath -Name "WSG" -UpdateType $Type
-    $newEasVersion = Update-ProjectVersion -Path $easProjectFilePath -Name "EAS" -UpdateType $Type
-    $newEcccVersion = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
-    $newWeatherSharedVersion = Update-ProjectVersion -Path $weatherSharedProjectFilePath -Name "WeatherShared" -UpdateType $Type
+    $null = Update-ProjectVersion -Path $easProjectFilePath -Name "EAS" -UpdateType $Type
+    $null = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
+    $null = Update-ProjectVersion -Path $weatherSharedProjectFilePath -Name "WeatherShared" -UpdateType $Type
     
     # Use WSG version for global tagging/changelog as it's the main app
     $newVersion = $newWsgVersion
