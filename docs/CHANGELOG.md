@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.3.0.0117] - 2026-01-17
 
+- ffmpeg bundle integration
+- fix: Remove OpenMeteoTests project from solution file to streamline project structure
+- feat: Update location data for release purpose
 - docs: Update README.md for improved clarity and structure, enhancing feature descriptions and visual appeal
 - fix: Improve CHANGELOG.md update process to ensure compliance and prevent multiple blank lines
 
