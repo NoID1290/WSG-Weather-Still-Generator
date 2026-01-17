@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1.0117] - 2026-01-17
+
+- feat: update project files for EAS and WeatherShared with additional metadata; modify push script to include WeatherShared
+- fix: update .NET version in AboutForm and MainForm to 10.0; modify test alert button text
+- refactor: remove OpenMeteoTests project from solution
+- refactor: remove obsolete test files and project configuration
+- Update .gitignore to exclude log files"
+- Update CHANGELOG for version 1.3.0.0117
+
 ## [1.3.0.0117] - 2026-01-17
 
 - ffmpeg bundle integration
