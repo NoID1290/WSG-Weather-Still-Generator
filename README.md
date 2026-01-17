@@ -1,100 +1,295 @@
-# WSG - Weather Still Generator
+# 🌦️ WSG — Weather Still Generator
 
-> Automated weather image and video generation system for displaying current conditions, forecasts, and weather alerts.
+<div align="center">
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![.NET Version](https://img.shields.io/badge/.NET-8.0-purple)
+**Automated weather image and video generation for digital signage, streaming overlays, and weather displays**
 
-##  Overview
+[![Version](https://img.shields.io/badge/version-1.2.7-blue?style=for-the-badge)](docs/CHANGELOG.md)
+[![.NET](https://img.shields.io/badge/.NET-10.0-purple?style=for-the-badge&logo=dotnet)](https://dotnet.microsoft.com/)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
 
-**WSG (Weather Still Generator)** is a comprehensive weather visualization application that automatically generates high-quality still images and MP4 videos displaying current weather conditions, forecasts, and alerts. Perfect for digital signage, weather stations, streaming overlays, or information displays.
+---
 
-The system continuously fetches weather data, processes it into beautiful images, and can compile them into slideshow videos with configurable transitions and background music.
+[📖 Documentation](#-documentation) • [🚀 Quick Start](#-quick-start) • [⚙️ Configuration](#️-configuration) • [📦 Downloads](#-downloads)
 
-##  Features
+</div>
 
-- ** Multiple Image Types**
-  - Current weather conditions (temperature, humidity, wind speed)
-  - Daily forecasts (high/low temperatures, conditions)
-  - Detailed weather analysis (pressure, wind direction)
-  - Location-based weather maps with city overlays
-  - Temperature watermark overlays
-  - Weather alerts from Environment Canada
+---
 
-- ** Video Generation**
-  - MP4 slideshow creation with FFmpeg
-  - Configurable fade transitions
-  - Custom static duration per image
-  - Multiple resolution modes (1080p, 4K, Vertical)
-  - Background music integration
-  - Customizable frame rates
-  - Hardware encoding support
+## 📋 Overview
 
-- ** Alert System**
-  - Real-time Environment Canada weather alerts
-  - Color-coded severity (Red/Yellow/Gray)
-  - Automatic alert categorization (Warning/Watch/Statement)
-  - Multi-city alert aggregation
+**WSG (Weather Still Generator)** is a powerful Windows application that automatically generates beautiful weather images and MP4 slideshow videos. It fetches real-time weather data, processes it into high-quality visuals, and can compile them into videos with transitions and background music.
 
-- ** Highly Configurable**
-  - JSON-based configuration (no recompile needed)
-  - Customizable locations, fonts, colors
-  - Adjustable refresh intervals
-  - Dynamic image dimensions
-  - Flexible output paths
+### ✨ Perfect For
 
-- ** Automated Updates**
-  - Continuous operation with configurable update cycles
-  - Reliable error handling and retry logic
-  - Console logging for monitoring
-  - Cross-platform compatibility (Windows/.NET 8.0)
+- 📺 **Digital Signage** — Lobby displays, waiting rooms, public screens
+- 🎬 **Streaming Overlays** — Twitch, YouTube, OBS integrations
+- 📡 **Weather Stations** — Local TV, community channels
+- 🖥️ **Information Displays** — Offices, schools, retail locations
 
-##  Documentation
+---
 
-- [Configuration Guide](CONFIG_README.md) - Detailed guide on ppsettings.json
-- [Push Script Guide](PUSH_SCRIPT_GUIDE.md) - How to use the auto-push script
-- [Changelog](docs/CHANGELOG.md) - Version history
+## 🎯 Features
 
-##  Project Structure
+<table>
+<tr>
+<td width="50%">
 
-`
-WSG-Weather-Still-Generator/
- OpenMeteo/                 # Weather data library
- OpenMeteoTests/            # Unit tests
- WeatherImageGenerator/     # Main application
-    Forms/                 # GUI Forms
-    Services/              # Core logic (Image, Video, Config)
-    Utilities/             # Helper classes
-    appsettings.json       # Configuration file
- build.ps1                  # Build script
- push.ps1                   # Deployment script
- update_version.ps1         # Versioning script
-`
+### 🖼️ Image Generation
 
-## Notes
+- **Current Weather** — Temperature, humidity, wind speed, conditions
+- **Daily Forecasts** — High/low temps, weather predictions
+- **Detailed Analysis** — Pressure, wind direction, UV index
+- **Weather Maps** — Radar overlays with city markers
+- **Alert Graphics** — Color-coded emergency alerts
 
-- **logs/** — consolidated runtime and build logs moved to `logs/`. These are ignored via `.gitignore`.
-- **docs/** — configuration and guides moved to `docs/` for clarity.
-- **WeatherImageGenerator/logs/** — module-specific logs moved here as well.
+</td>
+<td width="50%">
 
-##  Getting Started
+### 🎬 Video Generation
 
-1. **Build the project:**
-   `powershell
-   ./build.ps1
-   `
+- **MP4 Slideshows** — Automated FFmpeg encoding
+- **Fade Transitions** — Smooth, configurable effects
+- **Multiple Resolutions** — 1080p, 4K, Vertical modes
+- **Background Music** — Custom audio tracks
+- **Hardware Encoding** — NVIDIA GPU acceleration
 
-2. **Configure settings:**
-   Edit WeatherImageGenerator/appsettings.json to set your locations and preferences.
+</td>
+</tr>
+<tr>
+<td>
 
-3. **Run the application:**
-   Start WeatherImageGenerator.exe from the build output.
+### ⚠️ Alert Systems
 
-##  Development Scripts
+- **Environment Canada (ECCC)** — Official weather alerts
+- **NAAD/Alert Ready** — Emergency broadcast alerts (TCP stream)
+- **Severity Levels** — Red (Warning), Yellow (Watch), Gray (Statement)
+- **Multi-City** — Aggregate alerts from multiple locations
 
-- **uild.ps1**: Compiles the solution.
-- **push.ps1**: Automates versioning, git commit, and push.
-- **update_version.ps1**: Increments version numbers in project files.
+</td>
+<td>
 
-##  License
+### 🌐 Data Sources
 
-This project is licensed under the MIT License.
+- **OpenMeteo API** — Global weather data, free & open
+- **ECCC Official API** — Canadian forecasts & conditions
+- **GeoMet WMS** — Weather radar imagery
+- **Geocoding** — Automatic city coordinate lookup
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Windows 10/11
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
+- [FFmpeg](https://ffmpeg.org/download.html) *(bundled or in PATH)*
+
+### Installation
+
+```powershell
+# Clone the repository
+git clone https://github.com/your-username/WSG.git
+cd WSG
+
+# Build the solution
+.\build.ps1
+
+# Run the application
+.\WeatherImageGenerator\bin\Debug\net10.0-windows\WSG.exe
+```
+
+### Command-Line Options
+
+```powershell
+# Run with GUI (default)
+WSG.exe
+
+# Run headless (no GUI, continuous generation)
+WSG.exe --nogui
+
+# Generate icons only
+WSG.exe --generate-icons
+
+# Create video immediately
+WSG.exe --make-video-now
+
+# Test emergency alert system
+WSG.exe --test-emergency-alerts
+```
+
+---
+
+## ⚙️ Configuration
+
+All settings are in `WeatherImageGenerator/appsettings.json` — **no recompile needed!**
+
+### Key Settings
+
+| Section | Description |
+|---------|-------------|
+| `Locations` | Up to 9 weather locations with API selection (OpenMeteo/ECCC) |
+| `ImageGeneration` | Output dimensions, format, fonts, margins |
+| `Video` | Codec, bitrate, transitions, duration, music |
+| `Alerts` | Header text, font sizes, styling |
+| `AlertReady` | NAAD TCP streams, jurisdictions, filters |
+| `ECCC` | City feeds, radar URLs, WMS layers |
+
+### Example: Add a Location
+
+```json
+{
+  "Locations": {
+    "Location0": "Montreal",
+    "Location1": "Toronto",
+    "Location0Api": 1,
+    "Location1Api": 0
+  }
+}
+```
+
+> **API Options:** `0` = OpenMeteo (Global), `1` = ECCC (Canada)
+
+📚 **Full guide:** [docs/CONFIG_README.md](docs/CONFIG_README.md)
+
+---
+
+## 📦 Downloads
+
+Download the latest release from [GitHub Releases](../../releases/latest).
+
+| Asset | Description |
+|-------|-------------|
+| `WSG-Weather-Still-Generator-x.x.x.zip` | Portable release (ready to run) |
+
+---
+
+## 🛠️ Development
+
+### Project Structure
+
+```
+WSG/
+├── 📁 WeatherImageGenerator/    # Main application
+│   ├── Forms/                   # GUI windows (MainForm, SettingsForm, etc.)
+│   ├── Services/                # Core logic (ImageGenerator, VideoGenerator)
+│   ├── Utilities/               # Helpers (Logger, ConfigManager)
+│   └── appsettings.json         # Configuration
+├── 📁 OpenMeteo/                # Weather API library
+├── 📁 ECCC/                     # Environment Canada API library
+├── 📁 EAS/                      # Emergency Alert System library
+├── 📁 WeatherShared/            # Shared models
+├── 📁 OpenMeteoTests/           # Unit tests
+└── 📁 docs/                     # Documentation
+```
+
+### Build Scripts
+
+| Script | Description |
+|--------|-------------|
+| `build.ps1` | Compile the solution |
+| `test.ps1` | Run unit tests |
+| `push.ps1` | Version bump + Git push + GitHub release |
+| `update_version.ps1` | Manual version update |
+
+---
+
+## 📤 Push Script — Automated Releases
+
+The `push.ps1` script automates versioning, commits, and GitHub releases.
+
+### Basic Usage
+
+```powershell
+# Quick fix (bumps patch version)
+.\push.ps1
+
+# Backend update (bumps minor version)
+.\push.ps1 -Type backend -CommitMessage "Added new API endpoint"
+
+# Frontend update (bumps major version)
+.\push.ps1 -Type frontend -CommitMessage "New UI redesign"
+```
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `-Type` | `fix` | Update type: `frontend`, `backend`, or `fix` |
+| `-CommitMessage` | Auto-generated | Custom commit message |
+| `-Branch` | `main` | Target branch |
+| `-AttachAssets` | — | Build & attach zip to GitHub release |
+| `-NoRelease` | — | Skip GitHub release creation |
+| `-SkipVersion` | — | Skip version bump (docs-only commits) |
+
+### Examples
+
+```powershell
+# Create release with downloadable zip
+.\push.ps1 -Type fix -CommitMessage "Bug fix" -AttachAssets
+
+# Push without creating a GitHub release
+.\push.ps1 -NoRelease
+
+# Update docs only (no version change)
+.\push.ps1 -SkipVersion -CommitMessage "Updated README"
+
+# Full release to develop branch
+.\push.ps1 -Type backend -CommitMessage "New feature" -Branch develop -AttachAssets
+```
+
+### Version Format: `a.b.c.MMDD`
+
+| Segment | Meaning | Triggered By |
+|---------|---------|--------------|
+| `a` | Frontend/GUI changes | `-Type frontend` |
+| `b` | Backend changes | `-Type backend` |
+| `c` | Bug fixes/patches | `-Type fix` (default) |
+| `MMDD` | Auto-generated date | Today's date |
+
+**Example:** `1.2.7.0116` = v1 frontend, 2 backend updates, 7 patches, pushed January 16th
+
+---
+
+## 📖 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [📋 Changelog](docs/CHANGELOG.md) | Version history and release notes |
+| [⚙️ Configuration Guide](docs/CONFIG_README.md) | Complete appsettings.json reference |
+| [📤 Push Script Guide](docs/PUSH_SCRIPT_GUIDE.md) | Automated deployment workflow |
+| [🌐 ECCC API Upgrade](docs/ECCC_API_UPGRADE.md) | Environment Canada integration notes |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues and pull requests.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Made with ❤️ by [NoID Softwork](https://github.com/noidsoftwork)**
+
+© 2020-2026
+
+</div>
