@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2.0117] - 2026-01-17
+
+- feat: add FFmpeg configuration settings and UI controls for source selection
+- fix: update copyright information in OpenMeteo.csproj
+
 ## [1.3.1.0117] - 2026-01-17
 
 - feat: update project files for EAS and WeatherShared with additional metadata; modify push script to include WeatherShared
