@@ -5,8 +5,6 @@ VisualStudioVersion = 17.3.32811.315
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenMeteo", "OpenMeteo\OpenMeteo.csproj", "{C516976F-8A68-41F3-A34D-0793C0777157}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenMeteoTests", "OpenMeteoTests\OpenMeteoTests.csproj", "{13F57033-8014-4D9B-9F72-17279706325D}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WeatherShared", "WeatherShared\WeatherShared.csproj", "{002EA478-4F39-4EB8-8DA7-FE9D4588F069}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ECCC", "ECCC\ECCC.csproj", "{3A144035-C3C0-4D3D-8B87-5D8842E7B53E}"
