@@ -52,12 +52,12 @@ namespace WeatherImageGenerator.Forms
         Label lblFfmpegStatus;
         Button btnValidateFfmpeg;
         Button btnClearFfmpegCache;
+        Button btnDownloadBundled;
         // End FFmpeg source controls
         CheckBox chkMinimizeToTray; // Enable minimize to system tray
         CheckBox chkMinimizeToTrayOnClose; // Minimize to tray when closing
         CheckBox chkAutoStartCycle; // Auto-start update cycle on application start
         Label lblHwStatus;
-        Label lblFfmpegInstalled;
         Button btnCheckHw;
         public SettingsForm()
         {
@@ -176,9 +176,8 @@ namespace WeatherImageGenerator.Forms
 
             // General video settings group
             chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = vTop, Width = 200 };
-            lblFfmpegInstalled = new Label { Text = "Checking FFmpeg...", Left = leftLabel, Top = vTop + rowH, Width = 500, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
             
-            vTop += rowH + rowH;
+            vTop += rowH;
             var lblDivider1 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
             
             // LEFT COLUMN - Timing Settings
@@ -413,7 +412,7 @@ namespace WeatherImageGenerator.Forms
             chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg Console", Left = leftLabel + 190, Top = vTop, Width = 180 };
 
             tabVideo.Controls.AddRange(new Control[] { 
-                chkVideoGeneration, lblFfmpegInstalled, lblDivider1,
+                chkVideoGeneration, lblDivider1,
                 // Left column
                 lblTimingGroup, lblStatic, numStatic, lblStaticHelp, lblTotal, numTotalDuration, chkUseTotalDuration,
                 lblFade, numFade, chkFade, lblDivider2,
@@ -495,7 +494,50 @@ namespace WeatherImageGenerator.Forms
                 ValidateFfmpegConfiguration();
             };
 
-            btnClearFfmpegCache = new Button { Text = "Clear Bundled Cache", Left = leftLabel + 140, Top = fTop, Width = 150, Height = 28 };
+            btnDownloadBundled = new Button { Text = "Download Bundled", Left = leftLabel + 140, Top = fTop, Width = 130, Height = 28 };
+            btnDownloadBundled.Click += async (s, e) => {
+                btnDownloadBundled.Enabled = false;
+                lblFfmpegStatus.Text = "Downloading FFmpeg binaries...";
+                lblFfmpegStatus.ForeColor = System.Drawing.Color.Blue;
+                
+                try
+                {
+                    var progress = new Progress<float>(pct => 
+                    {
+                        if (this.IsHandleCreated)
+                        {
+                            this.Invoke((Action)(() => 
+                            {
+                                lblFfmpegStatus.Text = $"Downloading FFmpeg binaries... {pct:F0}%";
+                            }));
+                        }
+                    });
+                    
+                    bool success = await FFmpegLocator.InitializeAsync(progress);
+                    
+                    if (success)
+                    {
+                        lblFfmpegStatus.Text = "FFmpeg downloaded successfully!";
+                        lblFfmpegStatus.ForeColor = System.Drawing.Color.Green;
+                    }
+                    else
+                    {
+                        lblFfmpegStatus.Text = "Failed to download FFmpeg. Check logs for details.";
+                        lblFfmpegStatus.ForeColor = System.Drawing.Color.Red;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lblFfmpegStatus.Text = $"Error: {ex.Message}";
+                    lblFfmpegStatus.ForeColor = System.Drawing.Color.Red;
+                }
+                finally
+                {
+                    btnDownloadBundled.Enabled = true;
+                }
+            };
+
+            btnClearFfmpegCache = new Button { Text = "Clear Cache", Left = leftLabel + 280, Top = fTop, Width = 110, Height = 28 };
             btnClearFfmpegCache.Click += (s, e) => {
                 var result = MessageBox.Show(
                     "This will delete the downloaded FFmpeg binaries. They will be re-downloaded when needed.\n\nContinue?",
@@ -542,7 +584,7 @@ namespace WeatherImageGenerator.Forms
             tabFfmpeg.Controls.AddRange(new Control[] {
                 lblFfmpegSource, lblFfmpegSourceDesc, lblSource, cmbFfmpegSource,
                 lblCustomPath, txtFfmpegCustomPath, btnBrowseFfmpegPath,
-                lblFfmpegDivider, lblFfmpegStatusGroup, lblFfmpegStatus, btnValidateFfmpeg, btnClearFfmpegCache,
+                lblFfmpegDivider, lblFfmpegStatusGroup, lblFfmpegStatus, btnValidateFfmpeg, btnDownloadBundled, btnClearFfmpegCache,
                 lblFfmpegDivider2, lblFfmpegHelp, lblHelpText, lblBundledPath
             });
 
@@ -758,25 +800,6 @@ namespace WeatherImageGenerator.Forms
                         else
                         {
                             chkEnableHardwareEncoding.Enabled = true;
-                        }
-                    }));
-                });
-
-                // Check FFmpeg availability
-                Task.Run(() =>
-                {
-                    bool installed = VideoGenerator.IsFfmpegInstalled(out var version);
-                    this.Invoke((Action)(() =>
-                    {
-                        if (installed)
-                        {
-                            lblFfmpegInstalled.Text = $"FFmpeg Installed ({version})";
-                            lblFfmpegInstalled.ForeColor = System.Drawing.Color.Green;
-                        }
-                        else
-                        {
-                            lblFfmpegInstalled.Text = "FFmpeg NOT found in PATH";
-                            lblFfmpegInstalled.ForeColor = System.Drawing.Color.Red;
                         }
                     }));
                 });
