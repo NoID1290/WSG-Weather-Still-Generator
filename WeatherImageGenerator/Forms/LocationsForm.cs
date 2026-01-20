@@ -42,13 +42,15 @@ namespace WeatherImageGenerator.Forms
 
         private void InitializeComponents()
         {
-            this.Text = "Manage Locations";
-            this.Width = 550;
-            this.Height = 550;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.Text = "📍 Manage Locations";
+            this.Width = 600;
+            this.Height = 580;
+            this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = false;
-            this.MinimizeBox = false;
-            this.StartPosition = FormStartPosition.CenterParent;
+            this.MinimizeBox = true;
+            this.StartPosition = FormStartPosition.Manual;
+            this.BackColor = Color.FromArgb(245, 245, 250);
+            this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
 
             // Info label
             var lblInfo = new Label
@@ -214,26 +216,40 @@ namespace WeatherImageGenerator.Forms
             // Bottom buttons
             btnSave = new Button
             {
-                Text = "Save",
+                Text = "✔ Save",
                 Left = 300,
-                Top = 450,
-                Width = 100,
-                Height = 35,
+                Top = 480,
+                Width = 125,
+                Height = 40,
+                BackColor = Color.FromArgb(76, 175, 80),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand,
                 DialogResult = DialogResult.OK
             };
+            btnSave.FlatAppearance.BorderSize = 0;
+            btnSave.MouseEnter += (s, e) => ((Button)s).BackColor = Color.FromArgb(67, 160, 71);
+            btnSave.MouseLeave += (s, e) => ((Button)s).BackColor = Color.FromArgb(76, 175, 80);
             btnSave.Click += BtnSave_Click;
 
             btnCancel = new Button
             {
-                Text = "Cancel",
-                Left = 410,
-                Top = 450,
-                Width = 100,
-                Height = 35,
+                Text = "❌ Cancel",
+                Left = 435,
+                Top = 480,
+                Width = 125,
+                Height = 40,
+                BackColor = Color.FromArgb(220, 220, 220),
+                ForeColor = Color.Black,
+                FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 10F),
+                Cursor = Cursors.Hand,
                 DialogResult = DialogResult.Cancel
             };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            btnCancel.MouseEnter += (s, e) => ((Button)s).BackColor = Color.FromArgb(200, 200, 200);
+            btnCancel.MouseLeave += (s, e) => ((Button)s).BackColor = Color.FromArgb(220, 220, 220);
 
             this.Controls.AddRange(new Control[]
             {
@@ -244,6 +260,18 @@ namespace WeatherImageGenerator.Forms
 
             this.AcceptButton = btnAdd;
             this.CancelButton = btnCancel;
+
+            // Position form relative to owner when shown
+            this.Shown += (s, e) => {
+                if (this.Owner != null)
+                {
+                    // Center on the owner's screen/monitor
+                    this.Location = new Point(
+                        this.Owner.Location.X + (this.Owner.Width - this.Width) / 2,
+                        this.Owner.Location.Y + (this.Owner.Height - this.Height) / 2
+                    );
+                }
+            };
         }
 
         private void LoadLocations()

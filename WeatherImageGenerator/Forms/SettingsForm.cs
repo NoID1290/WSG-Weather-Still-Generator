@@ -61,17 +61,25 @@ namespace WeatherImageGenerator.Forms
         Button btnCheckHw;
         public SettingsForm()
         {
-            this.Text = "Settings";
-            this.Width = 700;
-            this.Height = 700;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.Text = "⚙ Settings";
+            this.Width = 750;
+            this.Height = 720;
+            this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = false;
-            this.MinimizeBox = false;
+            this.MinimizeBox = true;
+            this.StartPosition = FormStartPosition.Manual;
+            this.BackColor = Color.FromArgb(245, 245, 250);
+            this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
 
-            var tabControl = new TabControl { Dock = DockStyle.Top, Height = 600 };
+            var tabControl = new TabControl 
+            { 
+                Dock = DockStyle.Top, 
+                Height = 600,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular)
+            };
             
             // --- General Tab ---
-            var tabGeneral = new TabPage("General");
+            var tabGeneral = new TabPage("⚙ General") { BackColor = Color.White };
             int gTop = 20;
             int rowH = 35;
             int leftLabel = 10;
@@ -110,7 +118,7 @@ namespace WeatherImageGenerator.Forms
             tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose, chkAutoStartCycle });
 
             // --- Image Tab ---
-            var tabImage = new TabPage("Image");
+            var tabImage = new TabPage("🖼 Image") { BackColor = Color.White };
             int iTop = 20;
 
             var lblImgSize = new Label { Text = "Resolution (WxH):", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
@@ -162,7 +170,7 @@ namespace WeatherImageGenerator.Forms
             tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps, lblRadarBroken, btnRegenIcons });
 
             // --- Video Tab ---
-            var tabVideo = new TabPage("Video");
+            var tabVideo = new TabPage("🎥 Video") { BackColor = Color.White };
             int vTop = 20;
             int rightCol = 310; // Right column position
 
@@ -424,7 +432,7 @@ namespace WeatherImageGenerator.Forms
             });
 
             // --- Experimental Tab (moved from Video tab) ---
-            tabExperimental = new TabPage("Experimental");
+            tabExperimental = new TabPage("⚠ Experimental") { BackColor = Color.White };
             var lblExpNote = new Label { Text = "⚠ Experimental options — disable for now", Left = 10, Top = 20, Width = 520, ForeColor = System.Drawing.Color.OrangeRed, AutoSize = false };
             tabExperimental.Controls.AddRange(new Control[] {
                 lblExpNote, lblCrf, chkUseCrfEncoding, numCrf, lblEncoderPreset, cmbEncoderPreset, lblMaxRate, txtMaxBitrate, lblBuf, txtBufferSize
@@ -432,7 +440,7 @@ namespace WeatherImageGenerator.Forms
             tabExperimental.Enabled = false; // Disabled by default until user opts-in
 
             // --- FFmpeg Tab ---
-            var tabFfmpeg = new TabPage("FFmpeg");
+            var tabFfmpeg = new TabPage("🎬 FFmpeg") { BackColor = Color.White };
             int fTop = 20;
 
             var lblFfmpegSource = new Label { Text = "🎬 FFmpeg Source", Left = leftLabel, Top = fTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
@@ -545,8 +553,39 @@ namespace WeatherImageGenerator.Forms
             tabControl.TabPages.Add(tabFfmpeg);
             tabControl.TabPages.Add(tabExperimental);
 
-            var btnSave = new Button { Text = "Save", Left = 380, Top = 620, Width = 90, Height = 30 };
-            var btnCancel = new Button { Text = "Cancel", Left = 480, Top = 620, Width = 90, Height = 30 };
+            var btnSave = new Button 
+            { 
+                Text = "✔ Save", 
+                Left = 380, 
+                Top = 620, 
+                Width = 110, 
+                Height = 35,
+                BackColor = Color.FromArgb(76, 175, 80),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSave.FlatAppearance.BorderSize = 0;
+            btnSave.MouseEnter += (s, e) => btnSave.BackColor = Color.FromArgb(67, 160, 71);
+            btnSave.MouseLeave += (s, e) => btnSave.BackColor = Color.FromArgb(76, 175, 80);
+            
+            var btnCancel = new Button 
+            { 
+                Text = "❌ Cancel", 
+                Left = 500, 
+                Top = 620, 
+                Width = 110, 
+                Height = 35,
+                BackColor = Color.FromArgb(220, 220, 220),
+                ForeColor = Color.Black,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10F),
+                Cursor = Cursors.Hand
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            btnCancel.MouseEnter += (s, e) => btnCancel.BackColor = Color.FromArgb(200, 200, 200);
+            btnCancel.MouseLeave += (s, e) => btnCancel.BackColor = Color.FromArgb(220, 220, 220);
 
             btnSave.Click += (s, e) => SaveClicked();
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
@@ -554,6 +593,18 @@ namespace WeatherImageGenerator.Forms
             this.Controls.Add(tabControl);
             this.Controls.Add(btnSave);
             this.Controls.Add(btnCancel);
+
+            // Position form relative to owner when shown
+            this.Shown += (s, e) => {
+                if (this.Owner != null)
+                {
+                    // Center on the owner's screen/monitor
+                    this.Location = new Point(
+                        this.Owner.Location.X + (this.Owner.Width - this.Width) / 2,
+                        this.Owner.Location.Y + (this.Owner.Height - this.Height) / 2
+                    );
+                }
+            };
 
             LoadSettings();
         }

@@ -237,7 +237,7 @@ namespace WeatherImageGenerator.Forms
             {
                 using (var f = new SettingsForm())
                 {
-                    if (f.ShowDialog() == DialogResult.OK)
+                    if (f.ShowDialog(this) == DialogResult.OK)
                     {
                         Logger.Log("Settings saved.");
                         var newConfig = ConfigManager.LoadConfig();
@@ -250,7 +250,7 @@ namespace WeatherImageGenerator.Forms
             {
                 using (var f = new LocationsForm())
                 {
-                    if (f.ShowDialog() == DialogResult.OK)
+                    if (f.ShowDialog(this) == DialogResult.OK)
                     {
                         Logger.Log("Locations updated.");
                     }
@@ -261,7 +261,7 @@ namespace WeatherImageGenerator.Forms
             {
                 using (var f = new MusicForm())
                 {
-                    if (f.ShowDialog() == DialogResult.OK)
+                    if (f.ShowDialog(this) == DialogResult.OK)
                     {
                         Logger.Log("Music settings updated.");
                     }
