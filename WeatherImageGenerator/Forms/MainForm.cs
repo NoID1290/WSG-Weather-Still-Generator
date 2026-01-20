@@ -2161,7 +2161,7 @@ namespace WeatherImageGenerator.Forms
                     MkLbl("Created by: NoID Softwork", true),
                     MkLink("🔗 GitHub: https://github.com/NoID1290/WSG-Weather-Still-Generator", "https://github.com/NoID1290/WSG-Weather-Still-Generator"),
                     MkLbl("License: MIT License (see License tab)", false, true),
-                    MkLbl("Framework: .NET 10.0 with Windows Forms", false, true)
+                    MkLbl("Framework: .NET 10.0", false, true)
                 );
 
                 // 2. Weather Data APIs
@@ -2203,7 +2203,6 @@ namespace WeatherImageGenerator.Forms
                     Spacer(),
                     MkLbl("Microsoft Edge TTS (Text-to-Speech)", true),
                     MkLbl("Neural text-to-speech API for high-quality voice synthesis", false),
-                    MkLbl("Supports Canadian French and English voices", false),
                     MkLbl("License: Microsoft Azure Cognitive Services", false, true),
                     Spacer(),
                     MkLbl("Background Music by Kevin MacLeod", true),
