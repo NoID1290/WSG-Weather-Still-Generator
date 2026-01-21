@@ -4,6 +4,18 @@
 
 The **OpenMap** library provides map overlay functionality for the Weather Image Generator application. It allows you to generate map backgrounds using OpenStreetMap tiles and composite them with weather data (radar, forecasts, etc.).
 
+## ⚠️ Legal Requirements
+
+**IMPORTANT**: This library uses OpenStreetMap tile services. You **MUST** comply with:
+
+- **Attribution**: Display `© OpenStreetMap contributors` on ALL maps (with link to https://www.openstreetmap.org/copyright)
+- **OSM Tile Usage Policy**: https://operations.osmfoundation.org/policies/tiles/
+- **Data License**: OpenStreetMap data is licensed under ODbL
+- **No Bulk Downloads**: No prefetching or offline download features
+
+**📄 See [OpenMap/LEGAL.md](../OpenMap/LEGAL.md) for complete legal requirements and attribution guidelines.**
+**📖 See [OpenMap/README.md](../OpenMap/README.md) for detailed usage documentation.**
+
 ## Features
 
 - 🗺️ **Map Background Generation**: Create map images for any location and zoom level
@@ -11,6 +23,7 @@ The **OpenMap** library provides map overlay functionality for the Weather Image
 - 📍 **Bounding Box Support**: Generate maps for specific geographic regions
 - 🎨 **Layer Compositing**: Stack multiple images (map + radar + forecast) with transparency
 - 🍁 **Canadian Presets**: Built-in coordinates and bounding boxes for Canadian cities and provinces
+- ⚖️ **Legal Compliance**: Built-in OSM attribution and usage policy compliance
 
 ## Usage Examples
 

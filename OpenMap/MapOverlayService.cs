@@ -5,14 +5,25 @@ using System.Drawing.Imaging;
 namespace OpenMap;
 
 /// <summary>
-/// Service for generating map overlays with OpenStreetMap tiles
+/// Service for generating map overlays with OpenStreetMap tiles.
+/// 
+/// IMPORTANT: This library uses OpenStreetMap (OSM) tile services.
+/// OSM data is licensed under the Open Data Commons Open Database License (ODbL).
+/// When using this library, you MUST:
+/// - Display proper attribution: "© OpenStreetMap contributors" with link to https://www.openstreetmap.org/copyright
+/// - Comply with OSM Tile Usage Policy: https://operations.osmfoundation.org/policies/tiles/
+/// - Cache tiles appropriately and honor HTTP caching headers
+/// - NOT use for bulk downloading or offline prefetching
+/// 
+/// See OpenMap/LEGAL.md for full legal requirements and attribution guidelines.
 /// </summary>
 public class MapOverlayService
 {
     private readonly int _defaultWidth;
     private readonly int _defaultHeight;
     private readonly HttpClient _httpClient;
-    private static readonly string _userAgent = "WeatherImageGenerator/1.0";
+    // User-Agent must identify the application and include contact info per OSM Tile Usage Policy
+    private static readonly string _userAgent = "WeatherImageGenerator/1.0 (+https://github.com/NoID-Softwork/weather-still-api)";
 
     public MapOverlayService(int width = 1920, int height = 1080)
     {
@@ -20,6 +31,8 @@ public class MapOverlayService
         _defaultHeight = height;
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(_userAgent);
+        // Set reasonable timeout for tile downloads
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
     /// <summary>
@@ -193,13 +206,27 @@ public class MapOverlayService
 
     #region Private Helper Methods
 
+    /// <summary>
+    /// Gets the tile URL for the specified tile coordinates and style.
+    /// 
+    /// ATTRIBUTION REQUIREMENTS:
+    /// - Standard/Minimal/Terrain: © OpenStreetMap contributors (ODbL license)
+    /// - OpenTopoMap: © OpenStreetMap contributors, SRTM | Style: © OpenTopoMap (CC-BY-SA)
+    /// - Satellite: Esri, Maxar, Earthstar Geographics (check ESRI terms)
+    /// 
+    /// See LEGAL.md for complete attribution requirements.
+    /// </summary>
     private string GetTileUrl(int x, int y, int zoom, MapStyle style)
     {
         return style switch
         {
+            // © OpenStreetMap contributors | ODbL license
             MapStyle.Standard => $"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png",
+            // Humanitarian OSM Team (HOT) | © OpenStreetMap contributors | ODbL license
             MapStyle.Minimal => $"https://tile.openstreetmap.fr/hot/{zoom}/{x}/{y}.png",
+            // © OpenStreetMap contributors, SRTM | Style: © OpenTopoMap (CC-BY-SA)
             MapStyle.Terrain => $"https://tile.opentopomap.org/{zoom}/{x}/{y}.png",
+            // Esri, Maxar, Earthstar Geographics (proprietary)
             MapStyle.Satellite => $"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}",
             _ => $"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png"
         };
@@ -264,6 +291,42 @@ public class MapOverlayService
         }
 
         return 5; // Default zoom if calculation fails
+    }
+
+    /// <summary>
+    /// Gets the required attribution text for the specified map style.
+    /// This text MUST be displayed prominently on all maps.
+    /// </summary>
+    /// <param name="style">The map style being used</param>
+    /// <returns>Attribution text that must be displayed</returns>
+    public static string GetAttributionText(MapStyle style)
+    {
+        return style switch
+        {
+            MapStyle.Standard => "© OpenStreetMap contributors",
+            MapStyle.Minimal => "© OpenStreetMap contributors",
+            MapStyle.Terrain => "© OpenStreetMap contributors, SRTM | Style: © OpenTopoMap (CC-BY-SA)",
+            MapStyle.Satellite => "Esri, Maxar, Earthstar Geographics",
+            _ => "© OpenStreetMap contributors"
+        };
+    }
+
+    /// <summary>
+    /// Gets the attribution URL for the specified map style.
+    /// This should be used as a hyperlink with the attribution text.
+    /// </summary>
+    /// <param name="style">The map style being used</param>
+    /// <returns>URL for attribution link</returns>
+    public static string GetAttributionUrl(MapStyle style)
+    {
+        return style switch
+        {
+            MapStyle.Standard => "https://www.openstreetmap.org/copyright",
+            MapStyle.Minimal => "https://www.openstreetmap.org/copyright",
+            MapStyle.Terrain => "https://opentopomap.org/about",
+            MapStyle.Satellite => "https://www.esri.com/en-us/legal/terms/full-master-agreement",
+            _ => "https://www.openstreetmap.org/copyright"
+        };
     }
 
     #endregion
