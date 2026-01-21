@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.10.0121] - 2026-01-21
+
+- Fix error when process still open when closing the app
+- feat: enhance NAAD client management with proper disposal
+- feat: update version to 1.0.3.0120 in OpenMap project
+
 ## [1.3.9.0120] - 2026-01-20
 
 - feat: embed weather icons into the binary and update resource handling
