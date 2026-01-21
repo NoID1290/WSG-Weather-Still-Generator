@@ -269,50 +269,44 @@ namespace WeatherImageGenerator.Services
             // Build filter complex
             var filterComplex = BuildFilterComplex(baseImages, radarFrames, overlayBaseIndex);
 
-            // Estimate expected total duration and frames for progress calculation
-            var imageCount = UseOverlayMode ? (/* base images */ (int?)null) : (int?)null;
-            // We already have _expectedTotalSeconds and frames calculated from inputs; compute from baseImages if overlay
-            // (calculate based on number of base images so the progress is accurate when overlay mode is used)
-            int baseCount = (UseOverlayMode && filterComplex != null) ? 0 : 0; // placeholder to keep flow; will override below
+            // Group images into slides for duration calculation
+            var slides = GroupImagesIntoSlides(baseImages);
+            int slideCount = slides.Count;
+            
+            Logger.Log($"[TIMING] Total slides: {slideCount} (from {baseImages.Count} images)", ConsoleColor.Cyan);
 
-            if (EnableFadeTransitions)
+            // Calculate expected duration based on slides, not individual images
+            if (UseTotalDuration && TotalDurationSeconds > 0 && slideCount > 0)
             {
-                // If fades overlap, total duration = static durations + fades between images
-                _expectedTotalSeconds = StaticDuration * (UseOverlayMode ? 0 : 0); // replaced below
-            }
-            // We'll replace the above shortly by setting correct expected times based on the number of base images
-
-            // Set the expected totals properly now (baseImages used when overlay mode is on)
-            var effectiveCount = UseOverlayMode ? (baseImages?.Count ?? 0) : images.Count;
-            if (UseTotalDuration && TotalDurationSeconds > 0 && effectiveCount > 0)
-            {
-                // Compute per-image STATIC duration so that the total video matches the requested total duration.
+                // Compute per-slide STATIC duration so that the total video matches the requested total duration
                 double perStatic;
                 if (EnableFadeTransitions)
                 {
-                    double totalFade = FadeDuration * Math.Max(0, effectiveCount - 1);
+                    double totalFade = FadeDuration * Math.Max(0, slideCount - 1);
                     double available = TotalDurationSeconds - totalFade;
-                    perStatic = Math.Max(0.1, available / effectiveCount);
+                    perStatic = Math.Max(0.1, available / slideCount);
                 }
                 else
                 {
-                    double perClip = TotalDurationSeconds / effectiveCount;
+                    double perClip = TotalDurationSeconds / slideCount;
                     perStatic = Math.Max(0.1, perClip - FadeDuration);
                 }
-                Logger.Log($"[TIMING] Total duration mode: total={TotalDurationSeconds}s => static per image={perStatic:F2}s (fade={FadeDuration}s)");
+                Logger.Log($"[TIMING] Total duration mode: total={TotalDurationSeconds}s => static per slide={perStatic:F2}s (fade={FadeDuration}s)", ConsoleColor.Green);
                 StaticDuration = perStatic;
                 _expectedTotalSeconds = TotalDurationSeconds;
             }
             else
             {
+                // Standard timing: each slide gets StaticDuration + FadeDuration
                 if (EnableFadeTransitions)
                 {
-                    _expectedTotalSeconds = StaticDuration * effectiveCount + FadeDuration * Math.Max(0, effectiveCount - 1);
+                    _expectedTotalSeconds = StaticDuration * slideCount + FadeDuration * Math.Max(0, slideCount - 1);
                 }
                 else
                 {
-                    _expectedTotalSeconds = (StaticDuration + FadeDuration) * effectiveCount;
+                    _expectedTotalSeconds = (StaticDuration + FadeDuration) * slideCount;
                 }
+                Logger.Log($"[TIMING] Standard mode: {slideCount} slides x {StaticDuration}s = {_expectedTotalSeconds:F2}s total", ConsoleColor.Green);
             }
             _expectedTotalFrames = Math.Max(1.0, _expectedTotalSeconds * FrameRate);
 
@@ -385,6 +379,45 @@ namespace WeatherImageGenerator.Services
             }
 
             return images.OrderBy(f => f.Name).ToList();
+        }
+
+        /// <summary>
+        /// Groups images into slides. Radar frames (XX_RadarFrame.png) are grouped as a single slide.
+        /// Returns list of slides where each slide contains one or more images.
+        /// </summary>
+        private List<List<FileInfo>> GroupImagesIntoSlides(List<FileInfo> allImages)
+        {
+            var slides = new List<List<FileInfo>>();
+            var radarFrames = new List<FileInfo>();
+            
+            foreach (var img in allImages)
+            {
+                // Check if this is a radar frame
+                if (img.Name.Contains("RadarFrame", StringComparison.OrdinalIgnoreCase))
+                {
+                    radarFrames.Add(img);
+                }
+                else
+                {
+                    // If we were collecting radar frames, finalize that slide
+                    if (radarFrames.Count > 0)
+                    {
+                        slides.Add(new List<FileInfo>(radarFrames));
+                        radarFrames.Clear();
+                    }
+                    
+                    // Add this image as a single-image slide
+                    slides.Add(new List<FileInfo> { img });
+                }
+            }
+            
+            // Don't forget any remaining radar frames
+            if (radarFrames.Count > 0)
+            {
+                slides.Add(radarFrames);
+            }
+            
+            return slides;
         }
 
         /// <summary>
@@ -487,141 +520,95 @@ namespace WeatherImageGenerator.Services
 
         private string BuildFilterComplex(List<FileInfo> baseImages, List<FileInfo> radarFrames, int overlayBaseIndex = -1)
         {
-            var clipDuration = StaticDuration + FadeDuration;
-            var clipDurStr = clipDuration.ToString(_culture);
-
+            // Group images into slides (radar frames = 1 slide with multiple images)
+            var slides = GroupImagesIntoSlides(baseImages);
+            
+            Logger.Log($"[FILTER] Building filter for {slides.Count} slides (total {baseImages.Count} images)", ConsoleColor.Cyan);
+            
+            // Calculate per-slide duration
+            double totalSlideDuration = StaticDuration + FadeDuration;
+            
             // FIX 1: FORCE PIXEL FORMAT EARLY
-            // We added "format=yuv420p" to ensure every image has the same color space immediately
             var preScale = $"scale={_width}:{_height}:force_original_aspect_ratio=decrease," +
                           $"pad={_width}:{_height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p";
 
-            // Build filter parts
             var filterParts = new List<string>();
             var index = 0;
+            var slideLabels = new List<string>();
 
-            // We'll add inputs in BuildFFmpegCommand in the following order when overlay mode is active:
-            // [baseImages..., radarFrames...]
-
-            // Build input stream filters for base images
-            foreach (var img in baseImages)
+            // Process each slide
+            for (int slideIdx = 0; slideIdx < slides.Count; slideIdx++)
             {
-                filterParts.Add($"[{index}:v]{preScale},fps={FrameRate},setpts=PTS-STARTPTS[v{index}];");
-                index++;
+                var slide = slides[slideIdx];
+                
+                if (slide.Count == 1)
+                {
+                    // Single image slide - normal processing
+                    filterParts.Add($"[{index}:v]{preScale},fps={FrameRate},setpts=PTS-STARTPTS[s{slideIdx}];");
+                    slideLabels.Add($"[s{slideIdx}]");
+                    index++;
+                }
+                else
+                {
+                    // Multi-frame slide (radar animation) - all frames fit within one slide duration
+                    double frameTime = totalSlideDuration / slide.Count; // Each frame gets equal time
+                    Logger.Log($"[RADAR ANIMATION] Slide {slideIdx}: {slide.Count} frames, {frameTime:F3}s per frame (total: {totalSlideDuration:F2}s)", ConsoleColor.Green);
+                    
+                    // Process each frame in the slide
+                    var frameLabels = new List<string>();
+                    for (int frameIdx = 0; frameIdx < slide.Count; frameIdx++)
+                    {
+                        var frameDurStr = frameTime.ToString(_culture);
+                        filterParts.Add($"[{index}:v]{preScale},fps={FrameRate},trim=duration={frameDurStr},setpts=PTS-STARTPTS[f{slideIdx}_{frameIdx}];");
+                        frameLabels.Add($"[f{slideIdx}_{frameIdx}]");
+                        index++;
+                    }
+                    
+                    // Concatenate all frames in this slide
+                    var concatInputs = string.Join("", frameLabels);
+                    filterParts.Add($"{concatInputs}concat=n={slide.Count}:v=1:a=0[s{slideIdx}];");
+                    slideLabels.Add($"[s{slideIdx}]");
+                }
             }
 
-            var baseCount = baseImages.Count;
-
-            // Build input stream filters for radar frames
-            for (int r = 0; r < radarFrames.Count; r++)
+            // Now build transitions between slides
+            if (slideLabels.Count == 0)
             {
-                filterParts.Add($"[{index}:v]{preScale},fps={FrameRate},setpts=PTS-STARTPTS[r{r+1}];");
-                index++;
+                return "nullsrc=size=1920x1080,format=yuv420p[outv]";
+            }
+            
+            if (slideLabels.Count == 1)
+            {
+                filterParts.Add($"{slideLabels[0]}format=yuv420p[outv]");
+                return string.Concat(filterParts);
             }
 
-            // Build base sequence (concatenate or xfades between base images)
-            var lastLabel = baseCount > 0 ? "[v0]" : "[v0]";
+            // Build xfade/concat transitions between slides
+            var lastLabel = slideLabels[0];
             var currentOffset = 0.0;
             var fadeStr = FadeDuration.ToString(_culture);
 
-            if (baseCount > 0)
+            for (int i = 0; i < slideLabels.Count - 1; i++)
             {
-                for (int i = 0; i < baseCount - 1; i++)
+                var nextInput = slideLabels[i + 1];
+                var outputLabel = $"[t{i}]";
+
+                currentOffset += StaticDuration;
+                var offStr = currentOffset.ToString(_culture);
+
+                if (EnableFadeTransitions)
                 {
-                    var nextInput = $"[v{i + 1}]";
-                    var outputLabel = $"[b{i}]";
-
-                    currentOffset += StaticDuration;
-                    var offStr = currentOffset.ToString(_culture);
-
-                    if (EnableFadeTransitions)
-                    {
-                        var xfadeString = $"{lastLabel}{nextInput}xfade=transition=fade:" +
-                                        $"duration={fadeStr}:offset={offStr}{outputLabel};";
-                        filterParts.Add(xfadeString);
-                    }
-                    else
-                    {
-                        var concatString = $"{lastLabel}{nextInput}concat=n=2:v=1:a=0{outputLabel};";
-                        filterParts.Add(concatString);
-                    }
-
-                    lastLabel = outputLabel;
-                }
-            }
-
-            var baseFinal = baseCount == 1 ? "[v0]" : lastLabel;
-
-            // Build radar animation sequence from radar frames (if any)
-            string? radarFinal = null;
-            if (radarFrames.Count > 0)
-            {
-                var radarLast = radarFrames.Count == 1 ? "[r1]" : "[r1]";
-                var radarLabel = radarFrames.Count == 1 ? "[r1]" : null;
-
-                // If more than one radar frame, xfade/concat them
-                if (radarFrames.Count > 1)
-                {
-                    var rLastLabel = "[r1]";
-                    for (int i = 0; i < radarFrames.Count - 1; i++)
-                    {
-                        var cur = $"[r{i + 1}]";
-                        var nxt = $"[r{i + 2}]";
-                        var outLbl = $"[ra{i}]";
-
-                        currentOffset += StaticDuration; // reuse offset to keep consistent timing for transitions
-                        var offStr = currentOffset.ToString(_culture);
-
-                        if (EnableFadeTransitions)
-                        {
-                            filterParts.Add($"{rLastLabel}{nxt}xfade=transition=fade:duration={fadeStr}:offset={offStr}{outLbl};");
-                        }
-                        else
-                        {
-                            filterParts.Add($"{rLastLabel}{nxt}concat=n=2:v=1:a=0{outLbl};");
-                        }
-
-                        rLastLabel = outLbl;
-                    }
-
-                    radarFinal = rLastLabel;
+                    filterParts.Add($"{lastLabel}{nextInput}xfade=transition=fade:duration={fadeStr}:offset={offStr}{outputLabel};");
                 }
                 else
                 {
-                    radarFinal = "[r1]";
+                    filterParts.Add($"{lastLabel}{nextInput}concat=n=2:v=1:a=0{outputLabel};");
                 }
+
+                lastLabel = outputLabel;
             }
 
-            // If overlay mode (radar frames present) overlay radarFinal onto baseFinal
-            if (radarFinal != null && baseCount > 0)
-            {
-                if (overlayBaseIndex >= 0)
-                {
-                    // Compute the start and end time (seconds) to enable the overlay only during that base image clip
-                    double startSec = overlayBaseIndex * StaticDuration;
-                    double endSec = startSec + clipDuration; // show overlay for the duration of the clip
-                    var startStr = startSec.ToString(_culture);
-                    var endStr = endSec.ToString(_culture);
-                    Logger.Log($"[OVERLAY] Enabling radar overlay between {startStr}s and {endStr}s (for base index {overlayBaseIndex})", ConsoleColor.Cyan);
-                    filterParts.Add($"{baseFinal}{radarFinal}overlay=0:0:enable='between(t,{startStr},{endStr})'[overlaid];");
-                    filterParts.Add($"[overlaid]format=yuv420p[outv]");
-                }
-                else
-                {
-                    filterParts.Add($"{baseFinal}{radarFinal}overlay=0:0[overlaid];");
-                    filterParts.Add($"[overlaid]format=yuv420p[outv]");
-                }
-            }
-            else if (baseCount > 0)
-            {
-                // No radar frames; just output baseFinal
-                filterParts.Add($"{baseFinal}format=yuv420p[outv]");
-            }
-            else
-            {
-                // Fallback - empty
-                filterParts.Add("nullsrc=size=1920x1080,format=yuv420p[outv]");
-            }
-
+            filterParts.Add($"{lastLabel}format=yuv420p[outv]");
             return string.Concat(filterParts);
         }
 
