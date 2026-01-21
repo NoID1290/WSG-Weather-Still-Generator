@@ -52,6 +52,7 @@ namespace WeatherImageGenerator.Forms
         private Label? _naadAlertLabel;
         private AlertReadyClient? _naadClient;
         private CancellationTokenSource? _naadCts;
+        private System.Net.Http.HttpClient? _naadHttpClient;
 
         // Theme colors for dynamic updates
         private Color _themeSuccessColor = Color.Green;
@@ -633,8 +634,56 @@ namespace WeatherImageGenerator.Forms
         {
             if (disposing)
             {
+                // Cancel all running operations
+                try
+                {
+                    _cts?.Cancel();
+                    _cts?.Dispose();
+                    _cts = null;
+                }
+                catch { }
+
+                try
+                {
+                    _operationCts?.Cancel();
+                    _operationCts?.Dispose();
+                    _operationCts = null;
+                }
+                catch { }
+
+                try
+                {
+                    _naadCts?.Cancel();
+                    _naadCts?.Dispose();
+                    _naadCts = null;
+                }
+                catch { }
+
+                // Stop NAAD listener
                 StopNaadListener();
-                _notifyIcon?.Dispose();
+
+                // Dispose timer
+                try
+                {
+                    _logArchiveTimer?.Dispose();
+                    _logArchiveTimer = null;
+                }
+                catch { }
+
+                // Dispose NotifyIcon
+                try
+                {
+                    _notifyIcon?.Dispose();
+                    _notifyIcon = null;
+                }
+                catch { }
+
+                // Dispose running video generator if any
+                try
+                {
+                    _runningVideoGenerator = null;
+                }
+                catch { }
             }
             base.Dispose(disposing);
         }
@@ -1759,7 +1808,7 @@ namespace WeatherImageGenerator.Forms
 
                 Logger.Log($"NAAD Feed URLs: {string.Join(", ", feedUrls)}", Logger.LogLevel.Info);
 
-                var httpClient = new System.Net.Http.HttpClient();
+                _naadHttpClient = new System.Net.Http.HttpClient();
                 var options = new AlertReadyOptions
                 {
                     Enabled = true,
@@ -1771,7 +1820,7 @@ namespace WeatherImageGenerator.Forms
                     AreaFilters = cfg.AlertReady?.AreaFilters
                 };
 
-                _naadClient = new AlertReadyClient(httpClient, options);
+                _naadClient = new AlertReadyClient(_naadHttpClient, options);
                 _naadClient.Log = (msg) => Logger.Log($"[NAAD] {msg}", Logger.LogLevel.Info);
 
                 // Subscribe to events
@@ -1801,8 +1850,15 @@ namespace WeatherImageGenerator.Forms
             try
             {
                 _naadCts?.Cancel();
+                _naadCts?.Dispose();
+                _naadCts = null;
+                
                 _naadClient.Dispose();
                 _naadClient = null;
+                
+                _naadHttpClient?.Dispose();
+                _naadHttpClient = null;
+                
                 UpdateNaadConnectionStatus(NaadConnectionStatus.Disconnected, "Stopped");
                 Logger.Log("NAAD listener stopped.", Logger.LogLevel.Info);
             }
