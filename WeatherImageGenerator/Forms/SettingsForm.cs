@@ -879,6 +879,7 @@ namespace WeatherImageGenerator.Forms
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
                 chkFade.Checked = cfg.Video?.EnableFadeTransitions ?? false;
+                chkFade.Enabled = false; // Disable for now, xfade problems
 
                 // Total duration mode
                 chkUseTotalDuration.Checked = cfg.Video?.UseTotalDuration ?? false;
