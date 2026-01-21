@@ -219,6 +219,10 @@ namespace WeatherImageGenerator.Forms
             numFade = new NumericUpDown { Left = leftLabel + 135, Top = vTop, Width = 70, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M };
             chkFade = new CheckBox { Text = "Enable", Left = leftLabel + 210, Top = vTop, Width = 70 };
 
+            lblFade.Enabled = false; // Disable until xfade is fixed
+            numFade.Enabled = false; // Disable until xfade is fixed
+
+
             // RIGHT COLUMN - Video Format
             int rTop = 125; // Start position for right column
             var lblVideoFormat = new Label { Text = "📹 Video Format", Left = rightCol, Top = rTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
