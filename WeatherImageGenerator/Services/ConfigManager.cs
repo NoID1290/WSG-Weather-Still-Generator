@@ -343,6 +343,12 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("EnableWeatherMaps")]
         public bool EnableWeatherMaps { get; set; } = true;
+
+        [JsonPropertyName("EnableRadarAnimation")]
+        public bool EnableRadarAnimation { get; set; } = true;
+
+        [JsonPropertyName("EnableGlobalWeatherMap")]
+        public bool EnableGlobalWeatherMap { get; set; } = true;
     }
 
     /// <summary>

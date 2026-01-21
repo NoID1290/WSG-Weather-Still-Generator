@@ -700,20 +700,80 @@ namespace WeatherImageGenerator
 
                         int detailedPerImage = 3;
                         int numDetailedImages = Math.Max(1, (locations.Length + detailedPerImage - 1) / detailedPerImage);
-                        int imageSteps = Math.Max(1, numDetailedImages + 3); // detailed images + maps + apng + alerts
+                        int imageSteps = Math.Max(1, numDetailedImages + 3); // detailed images + maps + radar + alerts
                         int imageStepsCompleted = 0;
 
                         // --- IMAGE GENERATION ---
+                        // Order: 00-07_Radar (8 frames), 08_Alerts, 09+_Detailed, Last_WeatherMap
                         
-                        // 1. Current Weather
-                        //if(allForecasts[0] != null)
-                        //    ImageGenerator.GenerateCurrentWeatherImage(allForecasts[0]!, outputDir);
+                        // 1. Radar Animation Frames (00-07) - Generate as individual numbered images
+                        int nextImageNumber = 0; // Track next available image number
+                        if (config.ImageGeneration?.EnableWeatherMaps == true && 
+                            config.ImageGeneration.EnableRadarAnimation && 
+                            config.ECCC?.EnableProvinceRadar == true)
+                        {
+                            try
+                            {
+                                Logger.Log("[Radar Animation] Generating radar animation with OpenMap overlay...");
+                                var radarService = new RadarAnimationService(httpClient, 
+                                    config.ECCC.ProvinceImageWidth, 
+                                    config.ECCC.ProvinceImageHeight);
+                                
+                                // Calculate center point (default to Quebec center)
+                                double centerLat = 48.5;
+                                double centerLon = -71.0;
+                                
+                                // If specific cities are configured, calculate center
+                                if (config.ECCC.ProvinceEnsureCities != null && config.ECCC.ProvinceEnsureCities.Length > 0)
+                                {
+                                    var cityCoords = GetCityCoordinates(config.ECCC.ProvinceEnsureCities);
+                                    if (cityCoords.Count > 0)
+                                    {
+                                        centerLat = cityCoords.Average(c => c.lat);
+                                        centerLon = cityCoords.Average(c => c.lon);
+                                    }
+                                }
+                                
+                                var frames = await radarService.GenerateRadarAnimationWithMapAsync(
+                                    centerLat, centerLon, outputDir,
+                                    numFrames: config.ECCC.ProvinceFrames,
+                                    frameStepMinutes: config.ECCC.ProvinceFrameStepMinutes,
+                                    width: config.ECCC.ProvinceImageWidth,
+                                    height: config.ECCC.ProvinceImageHeight,
+                                    radarLayer: config.ECCC.ProvinceRadarLayer ?? "RADAR_1KM_RRAI",
+                                    zoomLevel: 7);
+                                
+                                nextImageNumber = frames.Count; // Set next number after radar frames
+                                Logger.Log($"✓ Radar animation: {frames.Count} frames created (00-{frames.Count-1:D2})");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log($"✗ Failed to generate radar animation: {ex.Message}", ConsoleColor.Red);
+                            }
+                        }
+                        imageStepsCompleted++;
+                        ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
-                        // 2. Forecast Summary
-                        //if (allForecasts[0] != null)
-                        //    ImageGenerator.GenerateForecastSummaryImage(allForecasts[0]!, outputDir);
+                        // 2. Weather Alerts (next available number after radar)
+                        // Temporarily rename alert file to use correct numbering
+                        string alertFilename = $"{nextImageNumber:D2}_WeatherAlerts.png";
+                        string alertPath = Path.Combine(outputDir, alertFilename);
+                        
+                        ImageGenerator.GenerateAlertsImage(alerts, outputDir);
+                        
+                        // Rename the alert image to use correct number
+                        string defaultAlertPath = Path.Combine(outputDir, "01_WeatherAlerts.png");
+                        if (File.Exists(defaultAlertPath) && !File.Exists(alertPath))
+                        {
+                            File.Move(defaultAlertPath, alertPath);
+                        }
+                        nextImageNumber++; // Increment after alerts
+                        
+                        imageStepsCompleted++;
+                        ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
-                        // 3. Detailed Weather (batched, up to 3 cities per image)
+                        // 3. Detailed Weather (starting from next available number, batched, up to 3 cities per image)
+                        int detailedStartNumber = nextImageNumber;
                         for (int batch = 0; batch < numDetailedImages; batch++)
                         {
                             int start = batch * detailedPerImage;
@@ -726,51 +786,60 @@ namespace WeatherImageGenerator
                             }
 
                             ImageGenerator.GenerateDetailedWeatherImageBatch(batchItems.ToArray(), outputDir, batch);
+                            
+                            // Rename detailed weather images to use correct numbering
+                            var oldPattern = $"{2 + batch:D2}_DetailedWeather_*.png";
+                            var oldFiles = Directory.GetFiles(outputDir, oldPattern);
+                            if (oldFiles.Length > 0)
+                            {
+                                string oldFile = oldFiles[0];
+                                string fileName = Path.GetFileName(oldFile);
+                                string newFileName = fileName.Replace($"{2 + batch:D2}_", $"{detailedStartNumber + batch:D2}_");
+                                string newFile = Path.Combine(outputDir, newFileName);
+                                if (File.Exists(oldFile) && !File.Exists(newFile))
+                                {
+                                    File.Move(oldFile, newFile);
+                                }
+                            }
 
                             imageStepsCompleted++;
                             var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0;
                             ProgressUpdated?.Invoke(pct, $"Generating images ({imageStepsCompleted}/{imageSteps})");
                         }  
+                        nextImageNumber += numDetailedImages; // Update for next images
 
-
-
-                        // 4. Maps Image
-                        if (config.ImageGeneration?.EnableWeatherMaps == true)
+                        // 4. Global Weather Map with Temperatures (last)
+                        if (config.ImageGeneration?.EnableWeatherMaps == true && config.ImageGeneration.EnableGlobalWeatherMap)
                         {
                             try
                             {
-                                Logger.Log("Fetching radar images...");
-                                await WeatherImageGenerator.Services.ECCC.FetchRadarImages(httpClient, outputDir);
-                                Logger.Log("✓ Radar images fetched.");
+                                Logger.Log("[Weather Map] Generating global weather map with temperatures...");
+                                var weatherMapService = new GlobalWeatherMapService(
+                                    config.ImageGeneration.ImageWidth,
+                                    config.ImageGeneration.ImageHeight);
+                                
+                                // Use next available number for weather map
+                                var weatherMapPath = Path.Combine(outputDir, $"{nextImageNumber:D2}_WeatherMaps.png");
+                                
+                                await weatherMapService.GenerateWeatherMapAsync(
+                                    allForecasts, 
+                                    locations, 
+                                    weatherMapPath,
+                                    centerLat: 48.5,
+                                    centerLon: -71.0,
+                                    zoomLevel: 6);
+                                
+                                Logger.Log($"✓ Weather map with temperatures generated ({nextImageNumber:D2})");
                             }
                             catch (Exception ex)
                             {
-                                Logger.Log($"X Failed to fetch radar images: {ex.Message}");
+                                Logger.Log($"✗ Failed to generate weather map: {ex.Message}", ConsoleColor.Red);
                             }
-
-                            ImageGenerator.GenerateMapsImage(allForecasts, locations, outputDir);
                         }
-                        else
-                        {
-                            Logger.Log("Skipping Weather Maps generation (disabled in settings).");
-                        }
-                        
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
-                        // 5. APNG Helper
-                        /*if (allForecasts[0] != null)
-                            ImageGenerator.GenerateAPNGcurrentTemperature(allForecasts[0]!, outputDir);
-                        imageStepsCompleted++;
-                        ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
-                        */
-                        
-                        // 6. WEATHER ALERTS (Alert Ready only)
-                        ImageGenerator.GenerateAlertsImage(alerts, outputDir);
-                        imageStepsCompleted++;
-                        ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
-
-                        // 7. Video Generation (Optional)
+                        // 5. Video Generation (Optional)
                         ProgressUpdated?.Invoke(80.0, "Starting video generation");
 
                         // If video settings are configured, create a video from the generated images
@@ -903,14 +972,10 @@ namespace WeatherImageGenerator
                     MaxBitrate = videoConfig.MaxBitrate,
                     BufferSize = videoConfig.BufferSize,
                     EncoderPreset = videoConfig.EncoderPreset ?? "medium",
-                    UseOverlayMode = true,
                     UseTotalDuration = videoConfig.UseTotalDuration,
                     TotalDurationSeconds = videoConfig.TotalDurationSeconds,
                     StaticMapPath = Path.Combine(outputDir, config.WeatherImages?.StaticMapFilename ?? "STATIC_MAP.IGNORE")
                 };
-
-                // Configure which base image should receive the radar overlay. Prefer explicit filename from config if present.
-                videoGenerator.OverlayTargetFilename = config.WeatherImages?.WeatherMapsFilename ?? "WeatherMaps";
                 
                 // Load music from configuration
                 videoGenerator.LoadMusicFromConfig();
@@ -930,6 +995,36 @@ namespace WeatherImageGenerator
             {
                 Logger.Log($"Failed to generate video: {ex.Message}", ConsoleColor.Red);
             }
+        }
+
+        /// <summary>
+        /// Gets coordinates for known cities (used for calculating radar animation center)
+        /// </summary>
+        private static List<(double lat, double lon)> GetCityCoordinates(string[] cityNames)
+        {
+            var cityCoords = new Dictionary<string, (double lat, double lon)>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Montreal", (45.50884, -73.58781) },
+                { "Quebec City", (46.813878, -71.207981) },
+                { "Amos", (48.574, -78.116) },
+                { "Gatineau", (45.4765, -75.7013) },
+                { "Sherbrooke", (45.4042, -71.8929) },
+                { "Trois-Rivières", (46.3432, -72.5477) },
+                { "Saguenay", (48.4167, -71.0667) },
+                { "Lévis", (46.8139, -71.1725) },
+                { "Laval", (45.6066, -73.7124) },
+                { "Longueuil", (45.5312, -73.5187) }
+            };
+
+            var results = new List<(double lat, double lon)>();
+            foreach (var cityName in cityNames)
+            {
+                if (cityCoords.TryGetValue(cityName, out var coords))
+                {
+                    results.Add(coords);
+                }
+            }
+            return results;
         }
 
         private static void EnsureIconsExist()

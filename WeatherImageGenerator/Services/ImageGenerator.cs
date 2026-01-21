@@ -24,11 +24,11 @@ namespace WeatherImageGenerator.Services
             float contentWidth = width - (margin * 2);
 
             // Cleanup old alert images to avoid stale pages
-            string baseName = Path.GetFileNameWithoutExtension(alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
-            string ext = Path.GetExtension(alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+            string baseName = Path.GetFileNameWithoutExtension(alertConfig.AlertFilename ?? "01_WeatherAlerts.png");
+            string ext = Path.GetExtension(alertConfig.AlertFilename ?? "01_WeatherAlerts.png");
             
             // Delete exact match
-            string exactPath = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+            string exactPath = Path.Combine(outputDir, alertConfig.AlertFilename ?? "01_WeatherAlerts.png");
             if (File.Exists(exactPath)) File.Delete(exactPath);
 
             // Delete numbered variations
@@ -742,7 +742,8 @@ namespace WeatherImageGenerator.Services
                 // Build filename
                 var names = string.Join("_", validCities.Select(c => string.Concat(c.Name?.Where(ch => !Path.GetInvalidFileNameChars().Contains(ch)) ?? new char[0]).Replace(' ', '_')));
                 if (string.IsNullOrWhiteSpace(names)) names = $"batch{batchIndex}";
-                string filename = Path.Combine(outputDir, $"3_DetailedWeather_batch{batchIndex}_{names}.png");
+                int fileNumber = 2 + batchIndex; // Start from 02 for first batch
+                string filename = Path.Combine(outputDir, $"{fileNumber:D2}_DetailedWeather_{names}.png");
                 var saved = SaveImage(bitmap, filename, imgConfig);
                 Logger.Log($"✓ Generated: {saved}");
             }

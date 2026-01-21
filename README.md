@@ -263,8 +263,11 @@ The `push.ps1` script automates versioning, commits, and GitHub releases.
 |----------|-------------|
 | [📋 Changelog](docs/CHANGELOG.md) | Version history and release notes |
 | [⚙️ Configuration Guide](docs/CONFIG_README.md) | Complete appsettings.json reference |
-| [📤 Push Script Guide](docs/PUSH_SCRIPT_GUIDE.md) | Automated deployment workflow |
+| [🌧️ Radar & Weather Map Integration](docs/RADAR_WEATHER_MAP_INTEGRATION.md) | 🆕 Animated radar with OpenMap overlays |
+| [🗺️ OpenMap Usage](docs/OPENMAP_USAGE.md) | OpenStreetMap integration guide |
 | [🌐 ECCC API Upgrade](docs/ECCC_API_UPGRADE.md) | Environment Canada integration notes |
+| [📡 Radar Feature](docs/RADAR_FEATURE.md) | Radar image integration details |
+| [📤 Push Script Guide](docs/PUSH_SCRIPT_GUIDE.md) | Automated deployment workflow |
 
 ---
 
