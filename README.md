@@ -4,7 +4,7 @@
 
 **Automated weather image and video generation for digital signage, streaming overlays, and weather displays**
 
-[![Version](https://img.shields.io/badge/version-1.3.4-blue?style=for-the-badge)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue?style=for-the-badge)](docs/CHANGELOG.md)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple?style=for-the-badge&logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
