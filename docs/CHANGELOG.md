@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.7.0120] - 2026-01-20
+
+- feat: enhance legal compliance and attribution guidelines in OpenMap library
+- feat: add OpenMap project file path and update versioning logic in push script
+- feat: integrate map background generation with radar overlay in WeatherDetailsForm
+- feat: integrate OpenMap library for enhanced map overlay functionality
+
 ## [1.3.6.0120] - 2026-01-20
 
 - feat: enhance radar image loading UI and improve component dimensions
