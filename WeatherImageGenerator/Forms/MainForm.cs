@@ -2212,7 +2212,35 @@ namespace WeatherImageGenerator.Forms
                     MkLink("http://creativecommons.org/licenses/by/3.0/", "http://creativecommons.org/licenses/by/3.0/")
                 );
 
-                flowCredits.Controls.AddRange(new Control[] { grpDev, grpData, grpLibs, grpMedia });
+                // 5. Map Data & Tiles
+                var grpMaps = CreateGroup("Map Data & Tiles",
+                    MkLbl("OpenStreetMap (OSM)", true),
+                    MkLink("https://www.openstreetmap.org/copyright", "https://www.openstreetmap.org/copyright"),
+                    MkLbl("© OpenStreetMap contributors", true),
+                    MkLbl("Free and open geographic data used for map backgrounds and overlays", false),
+                    MkLbl("Data License: Open Database License (ODbL) 1.0", false, true),
+                    MkLbl("Tile Usage Policy: https://operations.osmfoundation.org/policies/tiles/", false, true),
+                    Spacer(),
+                    MkLbl("OpenTopoMap", true),
+                    MkLink("https://opentopomap.org/", "https://opentopomap.org/"),
+                    MkLbl("© OpenStreetMap contributors, SRTM | Style: © OpenTopoMap (CC BY-SA)", true),
+                    MkLbl("Topographic map tiles for terrain visualization", false),
+                    MkLbl("Data License: ODbL (data), CC BY-SA (style)", false, true),
+                    Spacer(),
+                    MkLbl("ESRI Satellite Imagery", true),
+                    MkLbl("Esri, Maxar, Earthstar Geographics", true),
+                    MkLbl("Satellite imagery tiles for weather radar overlays", false),
+                    MkLbl("Usage subject to ESRI terms and conditions", false, true),
+                    Spacer(),
+                    MkLbl("⚠️ Map Attribution Requirements:", true),
+                    MkLbl("When displaying maps in this application, attribution must be shown:", false),
+                    MkLbl("• Standard/Terrain maps: \"© OpenStreetMap contributors\"", false),
+                    MkLbl("• Topographic maps: \"© OpenStreetMap contributors, SRTM | Style: © OpenTopoMap\"", false),
+                    MkLbl("• Satellite maps: \"Esri, Maxar, Earthstar Geographics\"", false),
+                    MkLbl("See OpenMap\\LEGAL.md for complete legal requirements.", false, true)
+                );
+
+                flowCredits.Controls.AddRange(new Control[] { grpDev, grpData, grpLibs, grpMedia, grpMaps });
                 tabCredits.Controls.Add(flowCredits);
 
                 // --- Tab 3: License ---
