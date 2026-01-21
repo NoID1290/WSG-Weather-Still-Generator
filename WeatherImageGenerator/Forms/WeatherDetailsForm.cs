@@ -23,6 +23,8 @@ namespace WeatherImageGenerator.Forms
         private readonly OpenMeteoClient _client;
         private TabControl _tabControl;
         private PictureBox? _radarPictureBox;
+        private Label? _radarStatusLabel;
+        private bool _radarLoaded = false;
         private static readonly HttpClient _httpClient = new HttpClient();
 
         public WeatherDetailsForm(string locationName, WeatherForecast? forecast, List<AlertEntry> alerts)
@@ -50,6 +52,7 @@ namespace WeatherImageGenerator.Forms
                 Dock = DockStyle.Fill,
                 Font = new Font("Segoe UI", 10F)
             };
+            _tabControl.SelectedIndexChanged += TabControl_SelectedIndexChanged;
 
             // Tab 1: Current Conditions
             var currentTab = new TabPage("☀ Current");
@@ -653,11 +656,11 @@ namespace WeatherImageGenerator.Forms
             // Header
             AddHeaderLabel(flowPanel, $"🌧 Radar Image - {_locationName}", 16, FontStyle.Bold);
             AddInfoLabel(flowPanel, $"Location: {_forecast.Latitude:F4}°, {_forecast.Longitude:F4}°", FontStyle.Regular, Color.DimGray);
-            AddInfoLabel(flowPanel, RadarImageService.GetRadarLayerDescription(), FontStyle.Italic, Color.Gray);
+            AddInfoLabel(flowPanel, "1km Resolution Rain Rate Radar (RADAR_1KM_RRAI) with Base Map", FontStyle.Italic, Color.Gray);
             AddSeparator(flowPanel);
 
             // Loading label
-            var loadingLabel = new Label
+            _radarStatusLabel = new Label
             {
                 Text = "🔄 Loading radar image...",
                 AutoSize = true,
@@ -665,7 +668,7 @@ namespace WeatherImageGenerator.Forms
                 ForeColor = Color.DarkBlue,
                 Margin = new Padding(0, 10, 0, 10)
             };
-            flowPanel.Controls.Add(loadingLabel);
+            flowPanel.Controls.Add(_radarStatusLabel);
 
             // Picture box for radar image
             _radarPictureBox = new PictureBox
@@ -689,7 +692,11 @@ namespace WeatherImageGenerator.Forms
                 Font = new Font("Segoe UI", 10F),
                 Margin = new Padding(0, 10, 0, 0)
             };
-            btnRefresh.Click += async (s, e) => await LoadRadarImageAsync(loadingLabel);
+            btnRefresh.Click += async (s, e) =>
+            {
+                _radarLoaded = false;
+                await LoadRadarImageAsync(_radarStatusLabel);
+            };
             flowPanel.Controls.Add(btnRefresh);
 
             // Info label
@@ -707,10 +714,17 @@ namespace WeatherImageGenerator.Forms
 
             panel.Controls.Add(flowPanel);
 
-            // Load radar image asynchronously
-            Task.Run(async () => await LoadRadarImageAsync(loadingLabel));
-
             return panel;
+        }
+
+        private async void TabControl_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            // Check if Radar tab is selected (index 3)
+            if (_tabControl.SelectedIndex == 3 && !_radarLoaded)
+            {
+                _radarLoaded = true;
+                await LoadRadarImageAsync(_radarStatusLabel);
+            }
         }
 
         private async Task LoadRadarImageAsync(Label? statusLabel = null)

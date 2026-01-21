@@ -170,7 +170,7 @@ namespace ECCC
                 
                 var radarService = new RadarImageService(httpClient);
                 var imageData = await radarService.FetchRadarImageAsync(
-                    latitude, longitude, radiusKm, width, height);
+                    latitude, longitude, width, height, radiusKm);
                 
                 if (imageData != null && imageData.Length > 0)
                 {
