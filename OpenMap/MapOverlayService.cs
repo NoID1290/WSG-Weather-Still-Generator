@@ -36,17 +36,21 @@ public class MapOverlayService
         var w = width ?? _defaultWidth;
         var h = height ?? _defaultHeight;
 
-        // Get tile coordinates for the center point
-        var tileX = LonToTileX(longitude, zoomLevel);
-        var tileY = LatToTileY(latitude, zoomLevel);
+        // Convert lat/lon to pixel coordinates at this zoom level
+        var centerPixelX = LonToPixelX(longitude, zoomLevel);
+        var centerPixelY = LatToPixelY(latitude, zoomLevel);
 
-        // Calculate how many tiles we need to cover the viewport
-        var tilesWidth = (int)Math.Ceiling(w / 256.0) + 1;
-        var tilesHeight = (int)Math.Ceiling(h / 256.0) + 1;
+        // Calculate pixel bounds for the viewport
+        var pixelMinX = centerPixelX - (w / 2.0);
+        var pixelMinY = centerPixelY - (h / 2.0);
+        var pixelMaxX = centerPixelX + (w / 2.0);
+        var pixelMaxY = centerPixelY + (h / 2.0);
 
-        // Calculate the starting tile (top-left corner)
-        var startTileX = tileX - tilesWidth / 2;
-        var startTileY = tileY - tilesHeight / 2;
+        // Convert pixel bounds to tile coordinates
+        var tileMinX = (int)Math.Floor(pixelMinX / 256.0);
+        var tileMinY = (int)Math.Floor(pixelMinY / 256.0);
+        var tileMaxX = (int)Math.Floor(pixelMaxX / 256.0);
+        var tileMaxY = (int)Math.Floor(pixelMaxY / 256.0);
 
         // Create a bitmap to hold the map
         var bitmap = new Bitmap(w, h);
@@ -55,13 +59,10 @@ public class MapOverlayService
             g.Clear(Color.LightGray);
 
             // Download and draw each tile
-            for (int x = 0; x < tilesWidth; x++)
+            for (int tx = tileMinX; tx <= tileMaxX; tx++)
             {
-                for (int y = 0; y < tilesHeight; y++)
+                for (int ty = tileMinY; ty <= tileMaxY; ty++)
                 {
-                    var tx = startTileX + x;
-                    var ty = startTileY + y;
-
                     // Skip invalid tiles
                     if (tx < 0 || ty < 0) continue;
                     var maxTile = (1 << zoomLevel);
@@ -74,9 +75,15 @@ public class MapOverlayService
                         
                         if (tileImage != null)
                         {
-                            var px = x * 256;
-                            var py = y * 256;
-                            g.DrawImage(tileImage, px, py, 256, 256);
+                            // Calculate pixel position of this tile
+                            var tilePixelX = tx * 256;
+                            var tilePixelY = ty * 256;
+
+                            // Calculate where to draw this tile in the viewport
+                            var drawX = (int)(tilePixelX - pixelMinX);
+                            var drawY = (int)(tilePixelY - pixelMinY);
+
+                            g.DrawImage(tileImage, drawX, drawY, 256, 256);
                             tileImage.Dispose();
                         }
                     }
@@ -225,6 +232,17 @@ public class MapOverlayService
     {
         var latRad = lat * Math.PI / 180.0;
         return (int)Math.Floor((1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * (1 << zoom));
+    }
+
+    private double LonToPixelX(double lon, int zoom)
+    {
+        return (lon + 180.0) / 360.0 * (256.0 * (1 << zoom));
+    }
+
+    private double LatToPixelY(double lat, int zoom)
+    {
+        var latRad = lat * Math.PI / 180.0;
+        return (1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * (256.0 * (1 << zoom));
     }
 
     private int CalculateZoomLevelForBounds(double minLat, double minLon, double maxLat, double maxLon, int width, int height)

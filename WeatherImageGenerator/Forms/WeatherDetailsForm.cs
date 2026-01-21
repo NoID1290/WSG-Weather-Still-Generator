@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using OpenMeteo;
+using OpenMap;
 using WeatherImageGenerator.Models;
 using ECCC.Services;
 
@@ -735,7 +737,32 @@ namespace WeatherImageGenerator.Forms
             try
             {
                 // Update UI on Windows Forms thread
-                UpdateRadarStatus(statusLabel, "🔄 Loading radar image...", Color.DarkBlue);
+                UpdateRadarStatus(statusLabel, "🔄 Generating map background...", Color.DarkBlue);
+
+                // Generate map background using OpenMap
+                var mapService = new MapOverlayService(800, 600);
+                Bitmap? mapBackground = null;
+                
+                try
+                {
+                    // Calculate appropriate zoom level (wider area for radar)
+                    var zoomLevel = 8; // Good zoom for regional radar view
+                    mapBackground = await mapService.GenerateMapBackgroundAsync(
+                        _forecast.Latitude,
+                        _forecast.Longitude,
+                        zoomLevel,
+                        800,
+                        600,
+                        MapStyle.Terrain // Terrain style works well with radar
+                    );
+                }
+                catch
+                {
+                    // If map generation fails, continue without map background
+                    mapBackground = null;
+                }
+
+                UpdateRadarStatus(statusLabel, "🔄 Loading radar data...", Color.DarkBlue);
 
                 // Fetch radar data on background thread
                 var radarService = new RadarImageService(_httpClient);
@@ -747,17 +774,56 @@ namespace WeatherImageGenerator.Forms
                     radiusKm: 150 // 150km radius for better coverage
                 );
 
+                Image? finalImage = null;
+
                 if (imageData != null && imageData.Length > 0)
                 {
-                    // Create image from data on background thread
-                    Image? radarImage = null;
+                    // Create radar image from data
+                    Bitmap? radarImage = null;
                     using (var ms = new MemoryStream(imageData))
                     {
-                        radarImage = Image.FromStream(ms);
+                        radarImage = new Bitmap(Image.FromStream(ms));
+                    }
+
+                    // If we have both map and radar, composite them
+                    if (mapBackground != null && radarImage != null)
+                    {
+                        UpdateRadarStatus(statusLabel, "🔄 Compositing radar on map...", Color.DarkBlue);
+                        
+                        // Create composite image
+                        finalImage = new Bitmap(800, 600);
+                        using (var g = Graphics.FromImage(finalImage))
+                        {
+                            // Draw map background
+                            g.DrawImage(mapBackground, 0, 0, 800, 600);
+
+                            // Draw radar overlay with transparency
+                            var colorMatrix = new ColorMatrix { Matrix33 = 0.7f }; // 70% opacity
+                            var imageAttributes = new ImageAttributes();
+                            imageAttributes.SetColorMatrix(colorMatrix);
+
+                            g.DrawImage(radarImage,
+                                new Rectangle(0, 0, 800, 600),
+                                0, 0, radarImage.Width, radarImage.Height,
+                                GraphicsUnit.Pixel,
+                                imageAttributes);
+                        }
+
+                        radarImage?.Dispose();
+                    }
+                    else if (radarImage != null)
+                    {
+                        // If only radar, use it directly
+                        finalImage = radarImage;
+                    }
+                    else if (mapBackground != null)
+                    {
+                        // If only map, use it
+                        finalImage = mapBackground;
                     }
 
                     // Update PictureBox on Windows Forms thread
-                    if (_radarPictureBox != null && !_radarPictureBox.IsDisposed && radarImage != null)
+                    if (_radarPictureBox != null && !_radarPictureBox.IsDisposed && finalImage != null)
                     {
                         if (_radarPictureBox.InvokeRequired)
                         {
@@ -766,18 +832,18 @@ namespace WeatherImageGenerator.Forms
                                 if (!_radarPictureBox.IsDisposed)
                                 {
                                     _radarPictureBox.Image?.Dispose();
-                                    _radarPictureBox.Image = radarImage;
+                                    _radarPictureBox.Image = finalImage;
                                 }
                             });
                         }
                         else
                         {
                             _radarPictureBox.Image?.Dispose();
-                            _radarPictureBox.Image = radarImage;
+                            _radarPictureBox.Image = finalImage;
                         }
                     }
 
-                    UpdateRadarStatus(statusLabel, $"✓ Radar image loaded at {DateTime.Now:HH:mm:ss}", Color.DarkGreen);
+                    UpdateRadarStatus(statusLabel, $"✓ Radar with map loaded at {DateTime.Now:HH:mm:ss}", Color.DarkGreen);
                 }
                 else
                 {
