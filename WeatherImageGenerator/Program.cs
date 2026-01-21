@@ -813,7 +813,7 @@ namespace WeatherImageGenerator
                         {
                             try
                             {
-                                Logger.Log("[Weather Map] Generating global weather map with temperatures...");
+                                Logger.Log("[Weather Map] Generating Quebec weather map with static cities...");
                                 var weatherMapService = new GlobalWeatherMapService(
                                     config.ImageGeneration.ImageWidth,
                                     config.ImageGeneration.ImageHeight);
@@ -821,15 +821,10 @@ namespace WeatherImageGenerator
                                 // Use next available number for weather map
                                 var weatherMapPath = Path.Combine(outputDir, $"{nextImageNumber:D2}_WeatherMaps.png");
                                 
-                                await weatherMapService.GenerateWeatherMapAsync(
-                                    allForecasts, 
-                                    locations, 
-                                    weatherMapPath,
-                                    centerLat: 48.5,
-                                    centerLon: -71.0,
-                                    zoomLevel: 6);
+                                // Use static Quebec cities with exact coordinates (ignores user location settings)
+                                await weatherMapService.GenerateStaticQuebecWeatherMapAsync(weatherMapPath);
                                 
-                                Logger.Log($"✓ Weather map with temperatures generated ({nextImageNumber:D2})");
+                                Logger.Log($"✓ Quebec weather map generated ({nextImageNumber:D2})");
                             }
                             catch (Exception ex)
                             {

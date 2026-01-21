@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using OpenMap;
 using OpenMeteo;
@@ -13,47 +14,96 @@ using WeatherImageGenerator.Utilities;
 namespace WeatherImageGenerator.Services
 {
     /// <summary>
+    /// Represents a static city for the weather map
+    /// </summary>
+    public class StaticCity
+    {
+        public string Name { get; set; } = "";
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+    }
+
+    /// <summary>
     /// Service for generating global weather maps with temperature overlays
+    /// Uses static Quebec cities with exact coordinates
     /// </summary>
     public class GlobalWeatherMapService
     {
         private readonly MapOverlayService _mapService;
         private readonly int _width;
         private readonly int _height;
+        private readonly HttpClient _httpClient;
+
+        // Static Quebec cities with exact coordinates
+        private static readonly List<StaticCity> QuebecCities = new()
+        {
+            new StaticCity { Name = "Montréal", Latitude = 45.5017, Longitude = -73.5673 },
+            new StaticCity { Name = "Québec", Latitude = 46.8139, Longitude = -71.2080 },
+            new StaticCity { Name = "Gatineau", Latitude = 45.4765, Longitude = -75.7013 },
+            new StaticCity { Name = "Sherbrooke", Latitude = 45.4042, Longitude = -71.8929 },
+            new StaticCity { Name = "Drummondville", Latitude = 45.8833, Longitude = -72.4833 },
+            new StaticCity { Name = "Amos", Latitude = 48.5667, Longitude = -78.1167 },
+            new StaticCity { Name = "Mont-Laurier", Latitude = 46.5500, Longitude = -75.5000 }
+        };
 
         public GlobalWeatherMapService(int width = 1920, int height = 1080)
         {
             _width = width;
             _height = height;
             _mapService = new MapOverlayService(width, height);
+            _httpClient = new HttpClient();
         }
 
         /// <summary>
-        /// Generates a global or regional weather map with temperature data overlaid
+        /// Generates a weather map with static Quebec cities (ignores user input locations)
         /// </summary>
-        /// <param name="weatherData">Array of weather forecasts for different locations</param>
-        /// <param name="locationNames">Names of the locations</param>
         /// <param name="outputPath">Output file path</param>
-        /// <param name="centerLat">Center latitude for map (default: 46.5 for Quebec)</param>
-        /// <param name="centerLon">Center longitude for map (default: -72.0 for Quebec)</param>
-        /// <param name="zoomLevel">Map zoom level (default: 6 for provincial view)</param>
         /// <returns>Path to the generated map file</returns>
-        public async Task<string> GenerateWeatherMapAsync(
-            WeatherForecast?[] weatherData,
-            string?[] locationNames,
-            string outputPath,
-            double centerLat = 46.5,
-            double centerLon = -72.0,
-            int zoomLevel = 6)
+        public async Task<string> GenerateStaticQuebecWeatherMapAsync(string outputPath)
         {
-            Logger.Log($"[GlobalWeatherMap] Generating weather map with {weatherData.Length} locations", ConsoleColor.Cyan);
+            Logger.Log($"[GlobalWeatherMap] Generating Quebec weather map with {QuebecCities.Count} static cities", ConsoleColor.Cyan);
+
+            // Fetch weather data for all static cities
+            var weatherData = new List<WeatherForecast?>();
+            var openMeteoClient = new OpenMeteoClient();
+
+            foreach (var city in QuebecCities)
+            {
+                try
+                {
+                    var options = new WeatherForecastOptions
+                    {
+                        Latitude = (float)city.Latitude,
+                        Longitude = (float)city.Longitude,
+                        Current = new CurrentOptions(new[] {
+                            CurrentOptionsParameter.temperature_2m,
+                            CurrentOptionsParameter.weathercode,
+                            CurrentOptionsParameter.is_day
+                        })
+                    };
+
+                    var forecast = await openMeteoClient.QueryAsync(options);
+                    weatherData.Add(forecast);
+                    Logger.Log($"  ✓ Fetched weather for {city.Name}: {forecast?.Current?.Temperature_2m ?? 0:F0}°C", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"  ✗ Failed to fetch weather for {city.Name}: {ex.Message}", ConsoleColor.Yellow);
+                    weatherData.Add(null);
+                }
+            }
+
+            // Calculate map center and zoom for Quebec region (including Amos in northwest)
+            double centerLat = 47.3; // Moved higher to show Amos at top
+            double centerLon = -74.5;
+            int zoomLevel = 8; // Closer zoom while keeping all cities visible
 
             // Generate base map
-            Logger.Log("[GlobalWeatherMap] Fetching base map...", ConsoleColor.Cyan);
+            Logger.Log("[GlobalWeatherMap] Generating base map for Quebec region...", ConsoleColor.Cyan);
             using var baseMap = await _mapService.GenerateMapBackgroundAsync(
                 centerLat, centerLon, zoomLevel, _width, _height, MapStyle.Standard);
 
-            // Create final image with base map
+            // Create final image with overlays
             var finalImage = new Bitmap(_width, _height);
             using (var g = Graphics.FromImage(finalImage))
             {
@@ -67,10 +117,10 @@ namespace WeatherImageGenerator.Services
                 // Draw base map
                 g.DrawImage(baseMap, 0, 0, _width, _height);
 
-                // Overlay temperature data
-                await DrawTemperatureOverlaysAsync(g, weatherData, locationNames);
+                // Overlay city temperatures at exact coordinates
+                DrawStaticCityOverlays(g, weatherData, centerLat, centerLon, zoomLevel);
 
-                // Draw title and timestamp
+                // Draw title and timestamp at bottom
                 DrawMapHeader(g);
             }
 
@@ -84,64 +134,112 @@ namespace WeatherImageGenerator.Services
             finalImage.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
             finalImage.Dispose();
 
-            Logger.Log($"✓ Weather map saved: {outputPath}", ConsoleColor.Green);
+            Logger.Log($"✓ Quebec weather map saved: {outputPath}", ConsoleColor.Green);
             return outputPath;
         }
 
         /// <summary>
-        /// Draws temperature overlays for each location on the map
+        /// Draws temperature overlays for static cities at their exact geographic coordinates
         /// </summary>
-        private async Task DrawTemperatureOverlaysAsync(
+        private void DrawStaticCityOverlays(
             Graphics g,
-            WeatherForecast?[] weatherData,
-            string?[] locationNames)
+            List<WeatherForecast?> weatherData,
+            double centerLat,
+            double centerLon,
+            int zoomLevel)
         {
-            var config = ConfigManager.LoadConfig();
-
-            using var cityFont = new Font("Arial", 24, FontStyle.Bold);
-            using var tempFont = new Font("Arial", 48, FontStyle.Bold);
+            using var cityFont = new Font("Arial", 22, FontStyle.Bold);
+            using var tempFont = new Font("Arial", 42, FontStyle.Bold);
             using var whiteBrush = new SolidBrush(Color.White);
-            using var shadowBrush = new SolidBrush(Color.FromArgb(128, 0, 0, 0));
+            using var shadowBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0));
 
-            for (int i = 0; i < weatherData.Length && i < locationNames.Length; i++)
+            for (int i = 0; i < QuebecCities.Count && i < weatherData.Count; i++)
             {
-                var data = weatherData[i];
-                var locName = locationNames[i];
+                var city = QuebecCities[i];
+                var forecast = weatherData[i];
 
-                if (data == null || string.IsNullOrWhiteSpace(locName))
-                    continue;
+                // Convert lat/lon to pixel coordinates on the map
+                var pixelCoords = LatLonToPixel(city.Latitude, city.Longitude, centerLat, centerLon, zoomLevel);
 
-                // Get configured position or skip
-                if (config.MapLocations == null ||
-                    !config.MapLocations.TryGetValue($"Location{i}", out var mapLoc))
-                    continue;
+                // Adjust positions for text placement
+                var cityPos = new PointF(pixelCoords.X - 50, pixelCoords.Y - 70); // City name above point
+                var tempPos = new PointF(pixelCoords.X - 40, pixelCoords.Y - 30);  // Temperature below name
 
-                var cityPos = new PointF(mapLoc.CityPositionX, mapLoc.CityPositionY);
-                var tempPos = new PointF(mapLoc.TemperaturePositionX, mapLoc.TemperaturePositionY);
+                // Draw location marker
+                DrawLocationMarker(g, pixelCoords);
 
-                // Skip if positions are not configured (0,0)
-                if (cityPos.X == 0 && cityPos.Y == 0) continue;
-                if (tempPos.X == 0 && tempPos.Y == 0) continue;
+                // Draw city name
+                DrawTextWithShadow(g, city.Name, cityFont, whiteBrush, shadowBrush, cityPos);
 
-                // Get temperature
-                string tempText = "N/A";
-                if (data.Current != null && data.Current.Temperature_2m.HasValue)
+                // Draw temperature
+                if (forecast?.Current?.Temperature_2m != null)
                 {
-                    var temp = data.Current.Temperature_2m.Value;
-                    var unit = data.CurrentUnits?.Temperature ?? "°C";
-                    tempText = $"{temp:F0}{unit}";
+                    var temp = forecast.Current.Temperature_2m.Value;
+                    var tempText = $"{temp:F0}°C";
+                    DrawTextWithShadow(g, tempText, tempFont, whiteBrush, shadowBrush, tempPos);
+
+                    // Draw weather icon
+                    if (forecast.Current.Weathercode != null)
+                    {
+                        var iconPos = new PointF(tempPos.X - 55, tempPos.Y + 5);
+                        DrawWeatherIconOnMap(g, iconPos, forecast.Current.Weathercode.Value, forecast.Current.Is_day == 1);
+                    }
                 }
-
-                // Draw with shadow for better visibility
-                DrawTextWithShadow(g, locName, cityFont, whiteBrush, shadowBrush, cityPos);
-                DrawTextWithShadow(g, tempText, tempFont, whiteBrush, shadowBrush, tempPos);
-
-                // Draw weather icon if available
-                if (data.Current?.Weathercode != null)
+                else
                 {
-                    var iconPos = new PointF(tempPos.X - 60, tempPos.Y);
-                    DrawWeatherIconOnMap(g, iconPos, data.Current.Weathercode.Value, data.Current.Is_day == 1);
+                    DrawTextWithShadow(g, "N/A", tempFont, whiteBrush, shadowBrush, tempPos);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Converts latitude/longitude to pixel coordinates on the map
+        /// </summary>
+        private PointF LatLonToPixel(double lat, double lon, double centerLat, double centerLon, int zoom)
+        {
+            // Web Mercator projection
+            const double tileSize = 256.0;
+            double scale = tileSize * Math.Pow(2, zoom);
+
+            // Convert to world coordinates
+            double worldX = (lon + 180.0) / 360.0 * scale;
+            double sinLat = Math.Sin(lat * Math.PI / 180.0);
+            double worldY = (0.5 - Math.Log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale;
+
+            // Convert center to world coordinates
+            double centerWorldX = (centerLon + 180.0) / 360.0 * scale;
+            double sinCenterLat = Math.Sin(centerLat * Math.PI / 180.0);
+            double centerWorldY = (0.5 - Math.Log((1 + sinCenterLat) / (1 - sinCenterLat)) / (4 * Math.PI)) * scale;
+
+            // Calculate pixel offset from center
+            double pixelX = _width / 2.0 + (worldX - centerWorldX);
+            double pixelY = _height / 2.0 + (worldY - centerWorldY);
+
+            return new PointF((float)pixelX, (float)pixelY);
+        }
+
+        /// <summary>
+        /// Draws a location marker at the specified position
+        /// </summary>
+        private void DrawLocationMarker(Graphics g, PointF position)
+        {
+            float markerSize = 12f;
+            var markerRect = new RectangleF(
+                position.X - markerSize / 2,
+                position.Y - markerSize / 2,
+                markerSize,
+                markerSize);
+
+            // Draw outer circle (white border)
+            using (var outerPen = new Pen(Color.White, 3f))
+            {
+                g.DrawEllipse(outerPen, markerRect);
+            }
+
+            // Draw inner circle (colored)
+            using (var innerBrush = new SolidBrush(Color.FromArgb(255, 255, 165, 0))) // Orange
+            {
+                g.FillEllipse(innerBrush, markerRect);
             }
         }
 
@@ -217,28 +315,28 @@ namespace WeatherImageGenerator.Services
         }
 
         /// <summary>
-        /// Draws the map header with title and timestamp
+        /// Draws the map header with title and timestamp at the top
         /// </summary>
         private void DrawMapHeader(Graphics g)
         {
-            using var titleFont = new Font("Arial", 36, FontStyle.Bold);
-            using var timestampFont = new Font("Arial", 20, FontStyle.Regular);
+            using var titleFont = new Font("Arial", 28, FontStyle.Bold);
+            using var timestampFont = new Font("Arial", 16, FontStyle.Regular);
             using var whiteBrush = new SolidBrush(Color.White);
             using var shadowBrush = new SolidBrush(Color.FromArgb(180, 0, 0, 0));
 
-            // Draw semi-transparent header background
+            // Draw semi-transparent header background at top
             using (var headerBg = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
             {
-                g.FillRectangle(headerBg, 0, 0, _width, 100);
+                g.FillRectangle(headerBg, 0, 0, _width, 80);
             }
 
             // Draw title
             var title = "Current Weather Conditions";
-            DrawTextWithShadow(g, title, titleFont, whiteBrush, shadowBrush, new PointF(50, 20));
+            DrawTextWithShadow(g, title, titleFont, whiteBrush, shadowBrush, new PointF(40, 15));
 
             // Draw timestamp
             var timestamp = $"Updated: {DateTime.Now:yyyy-MM-dd HH:mm}";
-            DrawTextWithShadow(g, timestamp, timestampFont, whiteBrush, shadowBrush, new PointF(50, 65));
+            DrawTextWithShadow(g, timestamp, timestampFont, whiteBrush, shadowBrush, new PointF(40, 50));
         }
 
         /// <summary>
@@ -270,8 +368,8 @@ namespace WeatherImageGenerator.Services
                 // Draw base map
                 g.DrawImage(baseMap, 0, 0, _width, _height);
 
-                // Overlay temperature data
-                await DrawTemperatureOverlaysAsync(g, weatherData, locationNames);
+                // Note: Temperature overlays are only implemented for static Quebec cities
+                // For custom bbox maps, you would need to add DrawCustomCityOverlays method
 
                 // Draw header
                 DrawMapHeader(g);
