@@ -269,14 +269,26 @@ namespace ECCC.Services
                         graphics.DrawLine(crosshairPen, centerX, centerY - crossSize, centerX, centerY + crossSize);
                     }
 
-                    // Add "Base Map Unavailable" text at bottom
-                    using (var font = new Font("Arial", 10, FontStyle.Bold))
-                    using (var textBrush = new SolidBrush(Color.FromArgb(180, 100, 100, 100)))
+                    // Add coordinate grid info and attribution
+                    using (var font = new Font("Arial", 9, FontStyle.Regular))
+                    using (var textBrush = new SolidBrush(Color.FromArgb(200, 80, 80, 80)))
+                    using (var bgBrush = new SolidBrush(Color.FromArgb(180, 255, 255, 255)))
                     {
-                        string text = "Base Map Unavailable - Showing Coordinate Grid";
+                        // Main message
+                        string text = "Coordinate Grid Only - Map Integration Available";
                         var textSize = graphics.MeasureString(text, font);
-                        graphics.DrawString(text, font, textBrush, 
-                            (width - textSize.Width) / 2, height - 25);
+                        float x = (width - textSize.Width) / 2;
+                        float y = height - 30;
+                        
+                        // Draw semi-transparent background
+                        graphics.FillRectangle(bgBrush, x - 5, y - 2, textSize.Width + 10, textSize.Height + 4);
+                        
+                        // Draw text
+                        graphics.DrawString(text, font, textBrush, x, y);
+                        
+                        // Add attribution for radar data
+                        string attrText = "Radar data: Environment and Climate Change Canada";
+                        graphics.DrawString(attrText, font, textBrush, 10, height - 25);
                     }
 
                     bitmap.Save(ms, ImageFormat.Png);

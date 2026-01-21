@@ -27,6 +27,7 @@ namespace WeatherImageGenerator.Forms
         private PictureBox? _radarPictureBox;
         private Label? _radarStatusLabel;
         private bool _radarLoaded = false;
+        private MapStyle _currentMapStyle = MapStyle.Terrain;
         private static readonly HttpClient _httpClient = new HttpClient();
 
         public WeatherDetailsForm(string locationName, WeatherForecast? forecast, List<AlertEntry> alerts)
@@ -682,6 +683,46 @@ namespace WeatherImageGenerator.Forms
                 BackColor = Color.White,
                 Margin = new Padding(0, 10, 0, 10)
             };
+            
+            // Add Paint event to draw attribution overlay
+            _radarPictureBox.Paint += (s, e) =>
+            {
+                if (_radarPictureBox.Image != null)
+                {
+                    // Get attribution text based on current map style
+                    var attributionText = MapOverlayService.GetAttributionText(_currentMapStyle);
+                    
+                    // Draw attribution with semi-transparent background
+                    using (var font = new Font("Arial", 8, FontStyle.Regular))
+                    using (var textBrush = new SolidBrush(Color.Black))
+                    using (var bgBrush = new SolidBrush(Color.FromArgb(180, 255, 255, 255)))
+                    {
+                        var textSize = e.Graphics.MeasureString(attributionText, font);
+                        var padding = 4;
+                        var x = _radarPictureBox.Width - textSize.Width - padding - 10;
+                        var y = _radarPictureBox.Height - textSize.Height - padding - 5;
+                        
+                        // Draw background
+                        e.Graphics.FillRectangle(bgBrush, x - padding, y - padding, 
+                            textSize.Width + (padding * 2), textSize.Height + (padding * 2));
+                        
+                        // Draw text
+                        e.Graphics.DrawString(attributionText, font, textBrush, x, y);
+                    }
+                    
+                    // Also add "Radar: Environment Canada" attribution
+                    using (var font = new Font("Arial", 7, FontStyle.Italic))
+                    using (var textBrush = new SolidBrush(Color.DimGray))
+                    {
+                        var radarText = "Radar: Environment Canada";
+                        var textSize = e.Graphics.MeasureString(radarText, font);
+                        var x = 10;
+                        var y = _radarPictureBox.Height - textSize.Height - 5;
+                        e.Graphics.DrawString(radarText, font, textBrush, x, y);
+                    }
+                }
+            };
+            
             flowPanel.Controls.Add(_radarPictureBox);
 
             // Refresh button
@@ -747,13 +788,14 @@ namespace WeatherImageGenerator.Forms
                 {
                     // Calculate appropriate zoom level (wider area for radar)
                     var zoomLevel = 8; // Good zoom for regional radar view
+                    _currentMapStyle = MapStyle.Terrain; // Terrain style works well with radar
                     mapBackground = await mapService.GenerateMapBackgroundAsync(
                         _forecast.Latitude,
                         _forecast.Longitude,
                         zoomLevel,
                         800,
                         600,
-                        MapStyle.Terrain // Terrain style works well with radar
+                        _currentMapStyle
                     );
                 }
                 catch
