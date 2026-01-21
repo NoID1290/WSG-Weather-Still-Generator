@@ -4,6 +4,17 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OpenMap</AssemblyName>
+    <RootNamespace>OpenMap</RootNamespace>
+    <Title>OpenMap - OpenStreetMap Integration Library</Title>
+    <Product>OpenMap</Product>
+    <Company>NoID Softwork</Company>
+    <Copyright>Copyright (c) NoID Softwork 2026</Copyright>
+    <Description>Library for OpenStreetMap tile downloading and rendering with support for various map styles and overlay composition.</Description>
+    <Version>1.0.0.0120</Version>
+    <AssemblyVersion>1.0.0.0120</AssemblyVersion>
+    <FileVersion>1.0.0.0120</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

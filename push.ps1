@@ -28,6 +28,7 @@ $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
 $ecccProjectFilePath = "ECCC\ECCC.csproj"
 $easProjectFilePath = "EAS\EAS.csproj"
 $weatherSharedProjectFilePath = "WeatherShared\WeatherShared.csproj"
+$openMapProjectFilePath = "OpenMap\OpenMap.csproj"
 $solutionPath = "WSG.sln"
 
 #$repoRoot = git rev-parse --show-toplevel
@@ -64,8 +65,8 @@ function Update-ProjectVersion {
     if (-not $ver) { $ver = "1.0.0.0101" } # Default if missing
     
     # Check if this update type applies to this project
-    # ECCC, EAS, and WeatherShared (Libs) shouldn't update on Frontend changes
-    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "WeatherShared") -and $UpdateType -eq "frontend") {
+    # ECCC, EAS, OpenMap, and WeatherShared (Libs) shouldn't update on Frontend changes
+    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "WeatherShared" -or $Name -eq "OpenMap") -and $UpdateType -eq "frontend") {
         Write-Host "[INFO] Skipping $Name version update (Frontend change only)" -ForegroundColor Gray
         return $ver
     }
@@ -125,6 +126,7 @@ if (-not $SkipVersion) {
     $null = Update-ProjectVersion -Path $easProjectFilePath -Name "EAS" -UpdateType $Type
     $null = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
     $null = Update-ProjectVersion -Path $weatherSharedProjectFilePath -Name "WeatherShared" -UpdateType $Type
+    $null = Update-ProjectVersion -Path $openMapProjectFilePath -Name "OpenMap" -UpdateType $Type
     
     # Use WSG version for global tagging/changelog as it's the main app
     $newVersion = $newWsgVersion
