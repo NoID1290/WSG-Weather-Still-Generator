@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using WeatherImageGenerator.Models;
@@ -59,6 +60,20 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkAutoStartCycle; // Auto-start update cycle on application start
         Label lblHwStatus;
         Button btnCheckHw;
+        // EAS/AlertReady controls
+        CheckBox chkAlertReadyEnabled;
+        TextBox txtAlertReadyFeedUrls;
+        CheckBox chkAlertReadyIncludeTests;
+        NumericUpDown numAlertReadyMaxAgeHours;
+        ComboBox cmbAlertReadyLanguage;
+        TextBox txtAlertReadyAreaFilters;
+        TextBox txtAlertReadyJurisdictions;
+        CheckBox chkAlertReadyHighRiskOnly;
+        CheckBox chkAlertReadyExcludeWeather;
+        // EdgeTTS controls
+        ComboBox cmbTtsVoice;
+        TextBox txtTtsRate;
+        TextBox txtTtsPitch;
         public SettingsForm()
         {
             this.Text = "⚙ Settings";
@@ -588,11 +603,153 @@ namespace WeatherImageGenerator.Forms
                 lblFfmpegDivider2, lblFfmpegHelp, lblHelpText, lblBundledPath
             });
 
+            // --- EAS Tab ---
+            var tabEas = new TabPage("🚨 EAS & TTS") { BackColor = Color.White, AutoScroll = true };
+            int easTop = 20;
+
+            // AlertReady section
+            var lblAlertReadyGroup = new Label { Text = "🚨 Alert Ready (NAAD)", Left = leftLabel, Top = easTop, Width = 300, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            
+            easTop += 30;
+            chkAlertReadyEnabled = new CheckBox { Text = "Enable Alert Ready", Left = leftLabel, Top = easTop, Width = 200 };
+            
+            easTop += rowH;
+            var lblFeedUrls = new Label { Text = "Feed URLs (one per line):", Left = leftLabel, Top = easTop, Width = 180, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            
+            easTop += 25;
+            txtAlertReadyFeedUrls = new TextBox { Left = leftLabel, Top = easTop, Width = 480, Height = 60, Multiline = true, ScrollBars = ScrollBars.Vertical };
+            
+            easTop += 70;
+            chkAlertReadyIncludeTests = new CheckBox { Text = "Include Test Alerts", Left = leftLabel, Top = easTop, Width = 200 };
+            
+            easTop += rowH;
+            var lblMaxAge = new Label { Text = "Max Alert Age (hours):", Left = leftLabel, Top = easTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numAlertReadyMaxAgeHours = new NumericUpDown { Left = leftLabel + 155, Top = easTop, Width = 80, Minimum = 0, Maximum = 168, Value = 24 };
+            
+            easTop += rowH;
+            var lblLanguage = new Label { Text = "Preferred Language:", Left = leftLabel, Top = easTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbAlertReadyLanguage = new ComboBox { Left = leftLabel + 155, Top = easTop, Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbAlertReadyLanguage.Items.AddRange(new object[] { "en-CA", "fr-CA" });
+            cmbAlertReadyLanguage.SelectedIndex = 0;
+            
+            easTop += rowH;
+            var lblAreaFilters = new Label { Text = "Area Filters (comma-separated):", Left = leftLabel, Top = easTop, Width = 220, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtAlertReadyAreaFilters = new TextBox { Left = leftLabel + 225, Top = easTop, Width = 255 };
+            
+            easTop += rowH;
+            var lblJurisdictions = new Label { Text = "Jurisdictions (comma-separated):", Left = leftLabel, Top = easTop, Width = 220, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtAlertReadyJurisdictions = new TextBox { Left = leftLabel + 225, Top = easTop, Width = 255 };
+            
+            easTop += rowH;
+            chkAlertReadyHighRiskOnly = new CheckBox { Text = "High Risk Alerts Only (Severe/Extreme)", Left = leftLabel, Top = easTop, Width = 300 };
+            
+            easTop += rowH;
+            chkAlertReadyExcludeWeather = new CheckBox { Text = "Exclude Weather Alerts (use ECCC instead)", Left = leftLabel, Top = easTop, Width = 350 };
+            
+            easTop += rowH + 10;
+            var lblDividerEas = new Label { Text = "", Left = leftLabel, Top = easTop, Width = 700, Height = 2, BorderStyle = BorderStyle.Fixed3D };
+            
+            // TTS section
+            easTop += 15;
+            var lblTtsGroup = new Label { Text = "🎤 Text-to-Speech (EdgeTTS)", Left = leftLabel, Top = easTop, Width = 300, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            
+            easTop += 30;
+            var lblTtsVoice = new Label { Text = "Voice:", Left = leftLabel, Top = easTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbTtsVoice = new ComboBox { Left = leftLabel + 155, Top = easTop, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbTtsVoice.Items.AddRange(new object[] { 
+                "fr-CA-SylvieNeural (Female)", 
+                "fr-CA-JeanNeural (Male)", 
+                "fr-CA-AntoineNeural (Male)",
+                "fr-CA-ThierryNeural (Male)",
+                "en-CA-ClaraNeural (Female)",
+                "en-CA-LiamNeural (Male)",
+                "en-US-JennyNeural (Female)",
+                "en-US-GuyNeural (Male)"
+            });
+            cmbTtsVoice.SelectedIndex = 0;
+            
+            easTop += rowH;
+            var lblTtsRate = new Label { Text = "Speech Rate (e.g., +0%, +10%):", Left = leftLabel, Top = easTop, Width = 200, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtTtsRate = new TextBox { Left = leftLabel + 205, Top = easTop, Width = 100 };
+            txtTtsRate.Text = "+0%";
+            
+            easTop += rowH;
+            var lblTtsPitch = new Label { Text = "Pitch (e.g., +0Hz, +10Hz):", Left = leftLabel, Top = easTop, Width = 200, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtTtsPitch = new TextBox { Left = leftLabel + 205, Top = easTop, Width = 100 };
+            txtTtsPitch.Text = "+0Hz";
+            
+            easTop += rowH + 5;
+            var btnDownloadVoices = new Button 
+            { 
+                Text = "📥 Download Windows TTS Voices", 
+                Left = leftLabel, 
+                Top = easTop, 
+                Width = 240, 
+                Height = 30,
+                BackColor = System.Drawing.Color.FromArgb(52, 152, 219),
+                ForeColor = System.Drawing.Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnDownloadVoices.FlatAppearance.BorderSize = 0;
+            btnDownloadVoices.Click += (s, e) => 
+            {
+                try 
+                {
+                    // Open Windows Settings to Time & Language > Language & Region > Add a language
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "ms-settings:regionlanguage",
+                        UseShellExecute = true
+                    });
+                    MessageBox.Show(this,
+                        "Windows Settings will open.\n\n" +
+                        "To add French TTS voices:\n" +
+                        "1. Click 'Add a language'\n" +
+                        "2. Search for 'French' and select your region (Canada or France)\n" +
+                        "3. Check 'Text-to-speech' option\n" +
+                        "4. Click Install\n\n" +
+                        "Common French voices:\n" +
+                        "• French (Canada) - Includes Sylvie, Claude\n" +
+                        "• French (France) - Includes Hortense, Julie, Pauline\n\n" +
+                        "After installation, restart the application.",
+                        "Download TTS Voices",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Could not open Windows Settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            
+            easTop += 40;
+            var lblTtsNote = new Label 
+            { 
+                Text = "💡 EdgeTTS works online without installation. Windows SAPI is the offline fallback.\nIf using SAPI, install French language packs above for French TTS support.",
+                Left = leftLabel, 
+                Top = easTop, 
+                Width = 480, 
+                Height = 60,
+                ForeColor = System.Drawing.Color.FromArgb(100, 100, 100),
+                AutoSize = false
+            };
+
+            tabEas.Controls.AddRange(new Control[] {
+                lblAlertReadyGroup, chkAlertReadyEnabled, lblFeedUrls, txtAlertReadyFeedUrls,
+                chkAlertReadyIncludeTests, lblMaxAge, numAlertReadyMaxAgeHours,
+                lblLanguage, cmbAlertReadyLanguage, lblAreaFilters, txtAlertReadyAreaFilters,
+                lblJurisdictions, txtAlertReadyJurisdictions, chkAlertReadyHighRiskOnly, chkAlertReadyExcludeWeather,
+                lblDividerEas, lblTtsGroup, lblTtsVoice, cmbTtsVoice, lblTtsRate, txtTtsRate,
+                lblTtsPitch, txtTtsPitch, btnDownloadVoices, lblTtsNote
+            });
+
             // Add tabs to tab control
             tabControl.TabPages.Add(tabGeneral);
             tabControl.TabPages.Add(tabImage);
             tabControl.TabPages.Add(tabVideo);
             tabControl.TabPages.Add(tabFfmpeg);
+            tabControl.TabPages.Add(tabEas);
             tabControl.TabPages.Add(tabExperimental);
 
             var btnSave = new Button 
@@ -685,7 +842,39 @@ namespace WeatherImageGenerator.Forms
 
                 chkMinimizeToTray.Checked = cfg.MinimizeToTray;
                 chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose;
-                chkAutoStartCycle.Checked = cfg.AutoStartCycle; // New setting: auto-start cycle on launch 
+                chkAutoStartCycle.Checked = cfg.AutoStartCycle; // New setting: auto-start cycle on launch
+
+                // Load EAS/AlertReady settings
+                var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
+                chkAlertReadyEnabled.Checked = alertReady.Enabled;
+                txtAlertReadyFeedUrls.Text = alertReady.FeedUrls != null ? string.Join(Environment.NewLine, alertReady.FeedUrls) : "";
+                chkAlertReadyIncludeTests.Checked = alertReady.IncludeTests;
+                numAlertReadyMaxAgeHours.Value = alertReady.MaxAgeHours;
+                cmbAlertReadyLanguage.SelectedItem = alertReady.PreferredLanguage;
+                txtAlertReadyAreaFilters.Text = alertReady.AreaFilters != null ? string.Join(", ", alertReady.AreaFilters) : "";
+                txtAlertReadyJurisdictions.Text = alertReady.Jurisdictions != null ? string.Join(", ", alertReady.Jurisdictions) : "QC, CA";
+                chkAlertReadyHighRiskOnly.Checked = alertReady.HighRiskOnly;
+                chkAlertReadyExcludeWeather.Checked = alertReady.ExcludeWeatherAlerts;
+                
+                // Load TTS settings
+                var tts = cfg.TTS ?? new TTSSettings();
+                // Map voice to display format
+                var voiceDisplay = tts.Voice switch
+                {
+                    "fr-CA-SylvieNeural" => "fr-CA-SylvieNeural (Female)",
+                    "fr-CA-JeanNeural" => "fr-CA-JeanNeural (Male)",
+                    "fr-CA-AntoineNeural" => "fr-CA-AntoineNeural (Male)",
+                    "fr-CA-ThierryNeural" => "fr-CA-ThierryNeural (Male)",
+                    "en-CA-ClaraNeural" => "en-CA-ClaraNeural (Female)",
+                    "en-CA-LiamNeural" => "en-CA-LiamNeural (Male)",
+                    "en-US-JennyNeural" => "en-US-JennyNeural (Female)",
+                    "en-US-GuyNeural" => "en-US-GuyNeural (Male)",
+                    _ => "fr-CA-SylvieNeural (Female)"
+                };
+                if (cmbTtsVoice.Items.Contains(voiceDisplay)) cmbTtsVoice.SelectedItem = voiceDisplay;
+                else cmbTtsVoice.SelectedIndex = 0;
+                txtTtsRate.Text = tts.Rate;
+                txtTtsPitch.Text = tts.Pitch; 
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -860,6 +1049,40 @@ namespace WeatherImageGenerator.Forms
                 var eccc = cfg.ECCC ?? new ECCCSettings();
                 eccc.EnableProvinceRadar = chkEnableProvinceRadar.Checked;
                 cfg.ECCC = eccc;
+
+                // Save EAS/AlertReady settings
+                var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
+                alertReady.Enabled = chkAlertReadyEnabled.Checked;
+                alertReady.FeedUrls = txtAlertReadyFeedUrls.Text
+                    .Split(new[] { Environment.NewLine, "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                alertReady.IncludeTests = chkAlertReadyIncludeTests.Checked;
+                alertReady.MaxAgeHours = (int)numAlertReadyMaxAgeHours.Value;
+                alertReady.PreferredLanguage = cmbAlertReadyLanguage.SelectedItem?.ToString() ?? "en-CA";
+                alertReady.AreaFilters = txtAlertReadyAreaFilters.Text
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                alertReady.Jurisdictions = txtAlertReadyJurisdictions.Text
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                alertReady.HighRiskOnly = chkAlertReadyHighRiskOnly.Checked;
+                alertReady.ExcludeWeatherAlerts = chkAlertReadyExcludeWeather.Checked;
+                cfg.AlertReady = alertReady;
+                
+                // Save TTS settings
+                var tts = cfg.TTS ?? new TTSSettings();
+                // Extract voice code from display text (e.g., "fr-CA-SylvieNeural (Female)" -> "fr-CA-SylvieNeural")
+                var voiceDisplay = cmbTtsVoice.SelectedItem?.ToString() ?? "fr-CA-SylvieNeural (Female)";
+                tts.Voice = voiceDisplay.Split(' ')[0]; // Extract just the voice code
+                tts.Rate = txtTtsRate.Text.Trim();
+                tts.Pitch = txtTtsPitch.Text.Trim();
+                cfg.TTS = tts;
 
                 var v = cfg.Video ?? new VideoSettings();
                 v.StaticDurationSeconds = (double)numStatic.Value;

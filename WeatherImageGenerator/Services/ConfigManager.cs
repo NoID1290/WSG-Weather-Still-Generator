@@ -138,6 +138,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("FFmpeg")]
         public FFmpegSettings? FFmpeg { get; set; }
+
+        [JsonPropertyName("TTS")]
+        public TTSSettings? TTS { get; set; }
     }
 
     /// <summary>
@@ -695,5 +698,29 @@ namespace WeatherImageGenerator.Services
                 }
             };
         }
+    }
+
+    /// <summary>
+    /// Text-to-Speech settings for EdgeTTS
+    /// </summary>
+    public class TTSSettings
+    {
+        /// <summary>
+        /// Voice identifier (e.g., fr-CA-SylvieNeural, en-CA-ClaraNeural)
+        /// </summary>
+        [JsonPropertyName("Voice")]
+        public string Voice { get; set; } = "fr-CA-SylvieNeural";
+
+        /// <summary>
+        /// Speech rate modifier (e.g., +0%, +10%, -10%)
+        /// </summary>
+        [JsonPropertyName("Rate")]
+        public string Rate { get; set; } = "+0%";
+
+        /// <summary>
+        /// Pitch modifier (e.g., +0Hz, +10Hz, -10Hz)
+        /// </summary>
+        [JsonPropertyName("Pitch")]
+        public string Pitch { get; set; } = "+0Hz";
     }
 }

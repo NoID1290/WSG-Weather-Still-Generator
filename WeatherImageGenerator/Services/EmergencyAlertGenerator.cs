@@ -311,12 +311,26 @@ namespace WeatherImageGenerator.Services
         {
             try
             {
+                // Load TTS settings from config
+                var config = ConfigManager.LoadConfig();
+                var ttsSettings = config.TTS ?? new TTSSettings();
+                
                 using var client = new EdgeTtsClient();
-                string voice = EdgeTtsClient.GetVoiceForLanguage(language);
+                
+                // Use configured voice or default based on language
+                string voice = !string.IsNullOrEmpty(ttsSettings.Voice) 
+                    ? ttsSettings.Voice 
+                    : EdgeTtsClient.GetVoiceForLanguage(language);
+                    
+                string rate = ttsSettings.Rate ?? "+0%";
+                string pitch = ttsSettings.Pitch ?? "+0Hz";
+                
                 string mp3Path = Path.ChangeExtension(outputPath, ".mp3");
                 
+                Console.WriteLine($"[EdgeTTS] Attempting synthesis with voice: {voice}, rate: {rate}, pitch: {pitch}");
+                
                 // Run async method synchronously
-                var task = client.SynthesizeToFileAsync(text, mp3Path, voice);
+                var task = client.SynthesizeToFileAsync(text, mp3Path, voice, rate, pitch);
                 task.Wait(TimeSpan.FromSeconds(60));
                 
                 if (task.Result && File.Exists(mp3Path))
@@ -334,6 +348,8 @@ namespace WeatherImageGenerator.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"[EmergencyAlertGenerator] EdgeTtsClient error: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"[EmergencyAlertGenerator] Inner exception: {ex.InnerException.Message}");
                 return false;
             }
         }
@@ -482,10 +498,75 @@ $synth.Dispose()
         {
             try
             {
+                // First, list all available voices for debugging
+                string listVoicesScript = @"
+Add-Type -AssemblyName System.Speech;
+$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer;
+$voices = $synth.GetInstalledVoices();
+Write-Host ""Available voices:"";
+foreach ($v in $voices) {
+    Write-Host ""  $($v.VoiceInfo.Name) [$($v.VoiceInfo.Culture.Name)] Gender: $($v.VoiceInfo.Gender) Enabled: $($v.Enabled)""
+}
+$synth.Dispose();
+";
+                
+                var listInfo = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{listVoicesScript.Replace("\"", "`\"")}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                
+                using (var listProcess = Process.Start(listInfo))
+                {
+                    if (listProcess != null)
+                    {
+                        string output = listProcess.StandardOutput.ReadToEnd();
+                        Console.WriteLine($"[SAPI] {output}");
+                        listProcess.WaitForExit(5000);
+                    }
+                }
+                
                 // Use PowerShell SAPI (Windows Speech API) as fallback
-                // Select French voice for fr-CA language if available
+                // Try to select the best French voice for fr-CA language
                 string voiceSelection = language == "fr-CA" 
-                    ? "$voices = $synth.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture.Name -like 'fr*' }; if ($voices) { $synth.SelectVoice($voices[0].VoiceInfo.Name) }"
+                    ? @"
+# List all voices first
+Write-Host ""Searching for French voices...""
+$allVoices = $synth.GetInstalledVoices()
+Write-Host ""Total voices found: $($allVoices.Count)""
+
+# Try to find French Canadian voice first, then any French voice
+$voices = $allVoices | Where-Object { 
+    $_.Enabled -and (
+        $_.VoiceInfo.Culture.Name -eq 'fr-CA' -or 
+        $_.VoiceInfo.Culture.Name -eq 'fr-FR' -or
+        $_.VoiceInfo.Name -like '*French*' -or
+        $_.VoiceInfo.Name -like '*Hortense*' -or
+        $_.VoiceInfo.Name -like '*Julie*' -or
+        $_.VoiceInfo.Name -like '*Pauline*'
+    )
+}
+
+Write-Host ""French voices found: $($voices.Count)""
+
+if ($voices) { 
+    # Sort to prefer fr-CA first
+    $sorted = $voices | Sort-Object { 
+        if ($_.VoiceInfo.Culture.Name -eq 'fr-CA') { 0 } 
+        elseif ($_.VoiceInfo.Culture.Name -eq 'fr-FR') { 1 }
+        else { 2 }
+    }
+    $selectedVoice = $sorted[0]
+    Write-Host ""Selected voice: $($selectedVoice.VoiceInfo.Name) [$($selectedVoice.VoiceInfo.Culture.Name)]""
+    $synth.SelectVoice($selectedVoice.VoiceInfo.Name)
+} else {
+    Write-Host ""WARNING: No French voice found! Using default voice.""
+}
+"
                     : "";
                 
                 string psScript = $@"
