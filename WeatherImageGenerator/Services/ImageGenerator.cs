@@ -754,35 +754,42 @@ namespace WeatherImageGenerator.Services
             // Default: clear icon (sun or moon)
             int code = weatherCode ?? 0;
 
-            // Try to load custom icon from "WeatherImages/Icons/{code}.png"
-            // We look in the application directory
-            string baseDir = Directory.GetCurrentDirectory();
-            string iconPath = Path.Combine(baseDir, "WeatherImages", "Icons", $"{code}.png");
+            // Try to load icon from embedded resources
+            string? iconResourceName = null;
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            
+            // Try specific code first
+            iconResourceName = $"WeatherImageGenerator.WeatherImages.Icons.{code}.png";
             
             // If specific code not found, try generic mapping
-            if (!File.Exists(iconPath))
+            if (!assembly.GetManifestResourceNames().Contains(iconResourceName))
             {
                 string? generic = GetGenericIconName(code, isDay);
                 if (generic != null)
                 {
-                    string genericPath = Path.Combine(baseDir, "WeatherImages", "Icons", generic);
-                    if (File.Exists(genericPath)) iconPath = genericPath;
+                    iconResourceName = $"WeatherImageGenerator.WeatherImages.Icons.{generic}";
                 }
             }
 
-            if (File.Exists(iconPath))
+            if (iconResourceName != null && assembly.GetManifestResourceNames().Contains(iconResourceName))
             {
                 try
                 {
-                    using (var img = Image.FromFile(iconPath))
+                    using (var stream = assembly.GetManifestResourceStream(iconResourceName))
                     {
-                        g.DrawImage(img, area);
+                        if (stream != null)
+                        {
+                            using (var img = Image.FromStream(stream))
+                            {
+                                g.DrawImage(img, area);
+                            }
+                            return;
+                        }
                     }
-                    return;
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"[Warning] Failed to load icon {iconPath}: {ex.Message}", ConsoleColor.Yellow);
+                    Logger.Log($"[Warning] Failed to load embedded icon {iconResourceName}: {ex.Message}", ConsoleColor.Yellow);
                 }
             }
 

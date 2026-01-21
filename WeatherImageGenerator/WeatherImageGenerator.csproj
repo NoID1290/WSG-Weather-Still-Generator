@@ -27,12 +27,15 @@
     <None Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <Content Include="WeatherImages\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- Embed icons into the binary -->
+    <EmbeddedResource Include="WeatherImages\Icons\*.png" />
     <Content Include="Music\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Exclude Icons from being copied to output since they're embedded -->
+    <None Remove="WeatherImages\Icons\**" />
+    <Content Remove="WeatherImages\Icons\**" />
+    <Compile Remove="WeatherImages\Icons\**" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
