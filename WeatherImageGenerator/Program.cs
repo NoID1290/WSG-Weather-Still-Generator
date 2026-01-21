@@ -536,6 +536,9 @@ namespace WeatherImageGenerator
                     Directory.CreateDirectory(outputDir);
                 }
 
+                // Clear existing images before generating new ones
+                ClearOutputImages(outputDir);
+
                 Logger.Log("Generating still images...");
                 ProgressUpdated?.Invoke(15, "Generating still images");
 
@@ -693,6 +696,9 @@ namespace WeatherImageGenerator
                         {
                             Directory.CreateDirectory(outputDir);
                         }
+
+                        // Clear existing images before generating new ones
+                        ClearOutputImages(outputDir);
 
                         Logger.Log("Generating still images...");
                         // Image generation comprises the bulk of the cycle (about 65%)
@@ -1040,6 +1046,50 @@ namespace WeatherImageGenerator
             catch (Exception ex)
             {
                 Logger.Log($"[Warning] Failed to ensure icons exist: {ex.Message}", ConsoleColor.Yellow);
+            }
+        }
+
+        /// <summary>
+        /// Clear all image files from the output directory before generating new ones
+        /// </summary>
+        private static void ClearOutputImages(string outputDir)
+        {
+            try
+            {
+                if (!Directory.Exists(outputDir))
+                {
+                    return;
+                }
+
+                // Delete all image files (PNG, JPG, JPEG)
+                var imageExtensions = new[] { "*.png", "*.jpg", "*.jpeg" };
+                int deletedCount = 0;
+                
+                foreach (var pattern in imageExtensions)
+                {
+                    var files = Directory.GetFiles(outputDir, pattern);
+                    foreach (var file in files)
+                    {
+                        try
+                        {
+                            File.Delete(file);
+                            deletedCount++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"[CLEANUP] Failed to delete {Path.GetFileName(file)}: {ex.Message}", ConsoleColor.Yellow);
+                        }
+                    }
+                }
+                
+                if (deletedCount > 0)
+                {
+                    Logger.Log($"[CLEANUP] Cleared {deletedCount} existing image files from output directory", ConsoleColor.Gray);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[CLEANUP] Error clearing output directory: {ex.Message}", ConsoleColor.Yellow);
             }
         }
 
