@@ -40,11 +40,11 @@ namespace WeatherImageGenerator.Forms
         private void InitializeComponents()
         {
             this.Text = $"Weather Details - {_locationName}";
-            this.Width = 700;
-            this.Height = 600;
+            this.Width = 900;
+            this.Height = 750;
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.StartPosition = FormStartPosition.CenterParent;
-            this.MinimumSize = new Size(500, 400);
+            this.MinimumSize = new Size(700, 500);
             this.Font = new Font("Segoe UI", 9.5F);
 
             _tabControl = new TabControl
@@ -734,71 +734,82 @@ namespace WeatherImageGenerator.Forms
 
             try
             {
-                if (statusLabel != null && !statusLabel.IsDisposed)
-                {
-                    statusLabel.Invoke((MethodInvoker)delegate
-                    {
-                        statusLabel.Text = "🔄 Loading radar image...";
-                        statusLabel.ForeColor = Color.DarkBlue;
-                    });
-                }
+                // Update UI on Windows Forms thread
+                UpdateRadarStatus(statusLabel, "🔄 Loading radar image...", Color.DarkBlue);
 
+                // Fetch radar data on background thread
                 var radarService = new RadarImageService(_httpClient);
                 var imageData = await radarService.FetchRadarImageAsync(
                     _forecast.Latitude,
                     _forecast.Longitude,
-                    radiusKm: 150, // 150km radius for better coverage
                     width: 800,
-                    height: 600
+                    height: 600,
+                    radiusKm: 150 // 150km radius for better coverage
                 );
 
                 if (imageData != null && imageData.Length > 0)
                 {
+                    // Create image from data on background thread
+                    Image? radarImage = null;
                     using (var ms = new MemoryStream(imageData))
                     {
-                        var image = Image.FromStream(ms);
-                        
-                        if (!_radarPictureBox.IsDisposed)
+                        radarImage = Image.FromStream(ms);
+                    }
+
+                    // Update PictureBox on Windows Forms thread
+                    if (_radarPictureBox != null && !_radarPictureBox.IsDisposed && radarImage != null)
+                    {
+                        if (_radarPictureBox.InvokeRequired)
                         {
                             _radarPictureBox.Invoke((MethodInvoker)delegate
                             {
-                                _radarPictureBox.Image?.Dispose();
-                                _radarPictureBox.Image = image;
+                                if (!_radarPictureBox.IsDisposed)
+                                {
+                                    _radarPictureBox.Image?.Dispose();
+                                    _radarPictureBox.Image = radarImage;
+                                }
                             });
+                        }
+                        else
+                        {
+                            _radarPictureBox.Image?.Dispose();
+                            _radarPictureBox.Image = radarImage;
                         }
                     }
 
-                    if (statusLabel != null && !statusLabel.IsDisposed)
-                    {
-                        statusLabel.Invoke((MethodInvoker)delegate
-                        {
-                            statusLabel.Text = $"✓ Radar image loaded at {DateTime.Now:HH:mm:ss}";
-                            statusLabel.ForeColor = Color.DarkGreen;
-                        });
-                    }
+                    UpdateRadarStatus(statusLabel, $"✓ Radar image loaded at {DateTime.Now:HH:mm:ss}", Color.DarkGreen);
                 }
                 else
                 {
-                    if (statusLabel != null && !statusLabel.IsDisposed)
-                    {
-                        statusLabel.Invoke((MethodInvoker)delegate
-                        {
-                            statusLabel.Text = "⚠ Failed to load radar image. The service may be unavailable.";
-                            statusLabel.ForeColor = Color.DarkOrange;
-                        });
-                    }
+                    UpdateRadarStatus(statusLabel, "⚠ Failed to load radar image. The service may be unavailable.", Color.DarkOrange);
                 }
             }
             catch (Exception ex)
             {
-                if (statusLabel != null && !statusLabel.IsDisposed)
+                UpdateRadarStatus(statusLabel, $"✗ Error loading radar: {ex.Message}", Color.Red);
+            }
+        }
+
+        private void UpdateRadarStatus(Label? statusLabel, string message, Color color)
+        {
+            if (statusLabel == null || statusLabel.IsDisposed)
+                return;
+
+            if (statusLabel.InvokeRequired)
+            {
+                statusLabel.Invoke((MethodInvoker)delegate
                 {
-                    statusLabel.Invoke((MethodInvoker)delegate
+                    if (!statusLabel.IsDisposed)
                     {
-                        statusLabel.Text = $"✗ Error loading radar: {ex.Message}";
-                        statusLabel.ForeColor = Color.Red;
-                    });
-                }
+                        statusLabel.Text = message;
+                        statusLabel.ForeColor = color;
+                    }
+                });
+            }
+            else
+            {
+                statusLabel.Text = message;
+                statusLabel.ForeColor = color;
             }
         }
     }
