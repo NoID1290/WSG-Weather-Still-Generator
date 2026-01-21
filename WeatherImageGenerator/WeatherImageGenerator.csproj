@@ -21,6 +21,7 @@
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
     <ProjectReference Include="..\ECCC\ECCC.csproj" />
     <ProjectReference Include="..\EAS\EAS.csproj" />
+    <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="appsettings.json">
