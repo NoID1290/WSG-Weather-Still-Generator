@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using OpenMeteo;
 using WeatherImageGenerator.Models;
+using ECCC.Services;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -18,6 +22,8 @@ namespace WeatherImageGenerator.Forms
         private readonly List<AlertEntry> _alerts;
         private readonly OpenMeteoClient _client;
         private TabControl _tabControl;
+        private PictureBox? _radarPictureBox;
+        private static readonly HttpClient _httpClient = new HttpClient();
 
         public WeatherDetailsForm(string locationName, WeatherForecast? forecast, List<AlertEntry> alerts)
         {
@@ -60,7 +66,12 @@ namespace WeatherImageGenerator.Forms
             hourlyTab.Controls.Add(CreateHourlyPanel());
             _tabControl.TabPages.Add(hourlyTab);
 
-            // Tab 4: Alerts
+            // Tab 4: Radar Image
+            var radarTab = new TabPage("🌧 Radar");
+            radarTab.Controls.Add(CreateRadarPanel());
+            _tabControl.TabPages.Add(radarTab);
+
+            // Tab 5: Alerts
             var alertsTab = new TabPage($"⚠ Alerts ({GetMatchingAlerts().Count})");
             alertsTab.Controls.Add(CreateAlertsPanel());
             _tabControl.TabPages.Add(alertsTab);
@@ -611,6 +622,170 @@ namespace WeatherImageGenerator.Forms
                 Padding = new Padding(5, 2, 5, 8)
             };
             table.Controls.Add(lblValue, col + 1, row);
+        }
+
+        private Panel CreateRadarPanel()
+        {
+            var panel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10) };
+
+            if (_forecast == null || _forecast.Latitude == 0 || _forecast.Longitude == 0)
+            {
+                var noDataLabel = new Label
+                {
+                    Text = "No location data available for radar image.",
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font = new Font("Segoe UI", 12F, FontStyle.Italic)
+                };
+                panel.Controls.Add(noDataLabel);
+                return panel;
+            }
+
+            var flowPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                AutoScroll = true,
+                WrapContents = false,
+                Padding = new Padding(10)
+            };
+
+            // Header
+            AddHeaderLabel(flowPanel, $"🌧 Radar Image - {_locationName}", 16, FontStyle.Bold);
+            AddInfoLabel(flowPanel, $"Location: {_forecast.Latitude:F4}°, {_forecast.Longitude:F4}°", FontStyle.Regular, Color.DimGray);
+            AddInfoLabel(flowPanel, RadarImageService.GetRadarLayerDescription(), FontStyle.Italic, Color.Gray);
+            AddSeparator(flowPanel);
+
+            // Loading label
+            var loadingLabel = new Label
+            {
+                Text = "🔄 Loading radar image...",
+                AutoSize = true,
+                Font = new Font("Segoe UI", 11F),
+                ForeColor = Color.DarkBlue,
+                Margin = new Padding(0, 10, 0, 10)
+            };
+            flowPanel.Controls.Add(loadingLabel);
+
+            // Picture box for radar image
+            _radarPictureBox = new PictureBox
+            {
+                Width = 800,
+                Height = 600,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.White,
+                Margin = new Padding(0, 10, 0, 10)
+            };
+            flowPanel.Controls.Add(_radarPictureBox);
+
+            // Refresh button
+            var btnRefresh = new Button
+            {
+                Text = "🔄 Refresh Radar",
+                Width = 150,
+                Height = 35,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10F),
+                Margin = new Padding(0, 10, 0, 0)
+            };
+            btnRefresh.Click += async (s, e) => await LoadRadarImageAsync(loadingLabel);
+            flowPanel.Controls.Add(btnRefresh);
+
+            // Info label
+            var infoLabel = new Label
+            {
+                Text = "Radar data provided by Environment and Climate Change Canada (ECCC)\n" +
+                       "Shows precipitation intensity in the region around the selected location.",
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8F, FontStyle.Italic),
+                ForeColor = Color.Gray,
+                Margin = new Padding(0, 15, 0, 0),
+                MaximumSize = new Size(780, 0)
+            };
+            flowPanel.Controls.Add(infoLabel);
+
+            panel.Controls.Add(flowPanel);
+
+            // Load radar image asynchronously
+            Task.Run(async () => await LoadRadarImageAsync(loadingLabel));
+
+            return panel;
+        }
+
+        private async Task LoadRadarImageAsync(Label? statusLabel = null)
+        {
+            if (_forecast == null || _radarPictureBox == null)
+                return;
+
+            try
+            {
+                if (statusLabel != null && !statusLabel.IsDisposed)
+                {
+                    statusLabel.Invoke((MethodInvoker)delegate
+                    {
+                        statusLabel.Text = "🔄 Loading radar image...";
+                        statusLabel.ForeColor = Color.DarkBlue;
+                    });
+                }
+
+                var radarService = new RadarImageService(_httpClient);
+                var imageData = await radarService.FetchRadarImageAsync(
+                    _forecast.Latitude,
+                    _forecast.Longitude,
+                    radiusKm: 150, // 150km radius for better coverage
+                    width: 800,
+                    height: 600
+                );
+
+                if (imageData != null && imageData.Length > 0)
+                {
+                    using (var ms = new MemoryStream(imageData))
+                    {
+                        var image = Image.FromStream(ms);
+                        
+                        if (!_radarPictureBox.IsDisposed)
+                        {
+                            _radarPictureBox.Invoke((MethodInvoker)delegate
+                            {
+                                _radarPictureBox.Image?.Dispose();
+                                _radarPictureBox.Image = image;
+                            });
+                        }
+                    }
+
+                    if (statusLabel != null && !statusLabel.IsDisposed)
+                    {
+                        statusLabel.Invoke((MethodInvoker)delegate
+                        {
+                            statusLabel.Text = $"✓ Radar image loaded at {DateTime.Now:HH:mm:ss}";
+                            statusLabel.ForeColor = Color.DarkGreen;
+                        });
+                    }
+                }
+                else
+                {
+                    if (statusLabel != null && !statusLabel.IsDisposed)
+                    {
+                        statusLabel.Invoke((MethodInvoker)delegate
+                        {
+                            statusLabel.Text = "⚠ Failed to load radar image. The service may be unavailable.";
+                            statusLabel.ForeColor = Color.DarkOrange;
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (statusLabel != null && !statusLabel.IsDisposed)
+                {
+                    statusLabel.Invoke((MethodInvoker)delegate
+                    {
+                        statusLabel.Text = $"✗ Error loading radar: {ex.Message}";
+                        statusLabel.ForeColor = Color.Red;
+                    });
+                }
+            }
         }
     }
 }

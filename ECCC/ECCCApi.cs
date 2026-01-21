@@ -145,5 +145,49 @@ namespace ECCC
         {
             return CityDatabase.CalculateDistanceKm(lat1, lon1, lat2, lon2);
         }
+
+        /// <summary>
+        /// Fetches a radar image for the specified location coordinates.
+        /// </summary>
+        /// <param name="httpClient">HttpClient instance</param>
+        /// <param name="latitude">Location latitude</param>
+        /// <param name="longitude">Location longitude</param>
+        /// <param name="radiusKm">Radius in kilometers for the bounding box (default: 100km)</param>
+        /// <param name="width">Image width in pixels</param>
+        /// <param name="height">Image height in pixels</param>
+        /// <returns>Radar image data or null if failed</returns>
+        public static async Task<byte[]?> GetRadarImageAsync(
+            System.Net.Http.HttpClient httpClient,
+            double latitude,
+            double longitude,
+            double radiusKm = 100,
+            int width = 800,
+            int height = 600)
+        {
+            try
+            {
+                LogMessage($"[ECCC API] Fetching radar image for ({latitude}, {longitude})...");
+                
+                var radarService = new RadarImageService(httpClient);
+                var imageData = await radarService.FetchRadarImageAsync(
+                    latitude, longitude, radiusKm, width, height);
+                
+                if (imageData != null && imageData.Length > 0)
+                {
+                    LogMessage($"[ECCC API] ✓ Radar image fetched successfully ({imageData.Length} bytes)");
+                }
+                else
+                {
+                    LogMessage("[ECCC API] Failed to fetch radar image");
+                }
+                
+                return imageData;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[ECCC API] Error fetching radar: {ex.Message}");
+                return null;
+            }
+        }
     }
 }
