@@ -593,9 +593,13 @@ namespace WeatherImageGenerator
                 imageStepsCompleted++;
                 ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
-                // Alerts
+                // Alerts - Filter out ended alerts for video/image generation
                 if (cancellationToken.IsCancellationRequested) return;
-                ImageGenerator.GenerateAlertsImage(alerts, outputDir);
+                var activeAlerts = alerts.Where(a => 
+                    !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
+                    !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
+                ).ToList();
+                ImageGenerator.GenerateAlertsImage(activeAlerts, outputDir);
                 imageStepsCompleted++;
                 ProgressUpdated?.Invoke(100, "Stills generation complete");
                 Logger.Log($"✓ Stills Generation Complete. Images saved to: {outputDir}");
@@ -761,11 +765,17 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 2. Weather Alerts (next available number after radar)
+                        // Filter out ended alerts for video generation (but keep them for GUI display)
+                        var activeAlerts = alerts.Where(a => 
+                            !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
+                            !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
+                        ).ToList();
+                        
                         // Temporarily rename alert file to use correct numbering
                         string alertFilename = $"{nextImageNumber:D2}_WeatherAlerts.png";
                         string alertPath = Path.Combine(outputDir, alertFilename);
                         
-                        ImageGenerator.GenerateAlertsImage(alerts, outputDir);
+                        ImageGenerator.GenerateAlertsImage(activeAlerts, outputDir);
                         
                         // Rename the alert image to use correct number
                         string defaultAlertPath = Path.Combine(outputDir, "01_WeatherAlerts.png");

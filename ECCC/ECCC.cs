@@ -1420,11 +1420,9 @@ namespace WeatherImageGenerator.Services
                             category.IndexOf("watch", StringComparison.OrdinalIgnoreCase) >= 0 ||
                             category.IndexOf("veille", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
-                            // Skip "no watches/warnings" or "ended" alerts
+                            // Skip "no watches/warnings" messages
                             if (title.IndexOf("no watches", StringComparison.OrdinalIgnoreCase) >= 0 || 
-                                title.IndexOf("aucune veille", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                title.IndexOf("terminée", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                title.IndexOf("ended", StringComparison.OrdinalIgnoreCase) >= 0)
+                                title.IndexOf("aucune veille", StringComparison.OrdinalIgnoreCase) >= 0)
                                 continue;
                                 
                             result.Add(new AlertEntry { City = kv.Key, Title = title, Summary = summary });
