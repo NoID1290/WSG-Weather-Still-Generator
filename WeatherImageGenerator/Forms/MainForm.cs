@@ -156,6 +156,14 @@ namespace WeatherImageGenerator.Forms
                 try
                 {
                     var cfg = ConfigManager.LoadConfig();
+                    
+                    // Check if app should start minimized to tray (when launched from Windows startup)
+                    if (cfg.StartWithWindows && cfg.StartMinimizedToTray)
+                    {
+                        Logger.Log("Starting minimized to system tray (Windows startup).");
+                        MinimizeToTray();
+                    }
+                    
                     if (cfg.AutoStartCycle)
                     {
                         Logger.Log("AutoStartCycle enabled in config; starting update cycle.");

@@ -133,6 +133,12 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("AutoStartCycle")]
         public bool AutoStartCycle { get; set; } = false;
 
+        [JsonPropertyName("StartWithWindows")]
+        public bool StartWithWindows { get; set; } = false;
+
+        [JsonPropertyName("StartMinimizedToTray")]
+        public bool StartMinimizedToTray { get; set; } = false;
+
         [JsonPropertyName("Music")]
         public MusicSettings? Music { get; set; }
 

@@ -58,6 +58,8 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkMinimizeToTray; // Enable minimize to system tray
         CheckBox chkMinimizeToTrayOnClose; // Minimize to tray when closing
         CheckBox chkAutoStartCycle; // Auto-start update cycle on application start
+        CheckBox chkStartWithWindows; // Start WSG when Windows starts
+        CheckBox chkStartMinimizedToTray; // Start minimized to tray when launched from Windows startup
         Label lblHwStatus;
         Button btnCheckHw;
         // EAS/AlertReady controls
@@ -130,7 +132,17 @@ namespace WeatherImageGenerator.Forms
             gTop += rowH;
             chkAutoStartCycle = new CheckBox { Text = "Auto start update cycle on application start", Left = leftLabel, Top = gTop, Width = 420 };
 
-            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose, chkAutoStartCycle });
+            gTop += rowH;
+            chkStartWithWindows = new CheckBox { Text = "Start WSG when Windows starts", Left = leftLabel, Top = gTop, Width = 300 };
+
+            gTop += rowH;
+            chkStartMinimizedToTray = new CheckBox { Text = "    ↳ Start minimized to system tray", Left = leftLabel, Top = gTop, Width = 300 };
+            chkStartMinimizedToTray.Enabled = false; // Enabled only when chkStartWithWindows is checked
+            
+            // Enable/disable the minimized checkbox based on Windows startup checkbox
+            chkStartWithWindows.CheckedChanged += (s, e) => { chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked; };
+
+            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose, chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray });
 
             // --- Image Tab ---
             var tabImage = new TabPage("🖼 Image") { BackColor = Color.White };
@@ -847,6 +859,25 @@ namespace WeatherImageGenerator.Forms
                 chkMinimizeToTray.Checked = cfg.MinimizeToTray;
                 chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose;
                 chkAutoStartCycle.Checked = cfg.AutoStartCycle; // New setting: auto-start cycle on launch
+                
+                // Load Windows startup setting - check actual registry state
+                try
+                {
+                    chkStartWithWindows.Checked = WindowsStartupManager.IsStartupEnabled();
+                    // Sync config with actual state if they differ
+                    if (chkStartWithWindows.Checked != cfg.StartWithWindows)
+                    {
+                        cfg.StartWithWindows = chkStartWithWindows.Checked;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Failed to check Windows startup status: {ex.Message}", Logger.LogLevel.Warning);
+                    chkStartWithWindows.Checked = cfg.StartWithWindows;
+                }
+                
+                chkStartMinimizedToTray.Checked = cfg.StartMinimizedToTray;
+                chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked;
 
                 // Load EAS/AlertReady settings
                 var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
@@ -1185,6 +1216,26 @@ namespace WeatherImageGenerator.Forms
 
                 // Persist new AutoStartCycle setting
                 cfg.AutoStartCycle = chkAutoStartCycle.Checked;
+
+                // Persist and apply Windows startup setting
+                cfg.StartWithWindows = chkStartWithWindows.Checked;
+                cfg.StartMinimizedToTray = chkStartMinimizedToTray.Checked;
+                try
+                {
+                    if (chkStartWithWindows.Checked)
+                    {
+                        WindowsStartupManager.EnableStartup();
+                    }
+                    else
+                    {
+                        WindowsStartupManager.DisableStartup();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Failed to update Windows startup setting: {ex.Message}", Logger.LogLevel.Error);
+                    MessageBox.Show($"Failed to update Windows startup setting: {ex.Message}", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
 
                 // Persist FFmpeg settings
                 var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();
