@@ -1411,9 +1411,22 @@ namespace WeatherImageGenerator.Services
                         var title = e.Element(XName.Get("title", atom))?.Value ?? string.Empty;
                         var summary = e.Element(XName.Get("summary", atom))?.Value ?? string.Empty;
                         var category = e.Element(XName.Get("category", atom))?.Attribute("term")?.Value ?? string.Empty;
-                        if (category.IndexOf("warning", StringComparison.OrdinalIgnoreCase) >= 0 || category.IndexOf("avertiss", StringComparison.OrdinalIgnoreCase) >= 0 || category.IndexOf("watch", StringComparison.OrdinalIgnoreCase) >= 0)
+                        
+                        // Check if this is a weather alert/watch/warning category
+                        // English: "warning", "watch", "Warnings and Watches"
+                        // French: "avertissement", "veille", "Veilles et avertissements"
+                        if (category.IndexOf("warning", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                            category.IndexOf("avertiss", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                            category.IndexOf("watch", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            category.IndexOf("veille", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
-                            if (title.IndexOf("no watches", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("aucune veille", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                            // Skip "no watches/warnings" or "ended" alerts
+                            if (title.IndexOf("no watches", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                                title.IndexOf("aucune veille", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                title.IndexOf("terminée", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                title.IndexOf("ended", StringComparison.OrdinalIgnoreCase) >= 0)
+                                continue;
+                                
                             result.Add(new AlertEntry { City = kv.Key, Title = title, Summary = summary });
                         }
                     }
