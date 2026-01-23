@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0.0123] - 2026-01-23
+
+- Remove broken radar options label from settings form
+- Add dark mode support for terrain maps and update settings
+- feat: Integrate OpenMap service for enhanced radar image generation and update configuration settings
+- feat: Implement OpenMap configuration system with customizable map settings
+
 ## [1.5.1.0122] - 2026-01-22
 
 - improve alert filtering for image generation by excluding ended alerts
