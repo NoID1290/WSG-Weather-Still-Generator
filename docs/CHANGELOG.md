@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1.0123] - 2026-01-23
+
+- Refactor code structure and fix ECCC weather alert fetch
+- Refactor alert deduplication and improve image generation text wrapping for better display
+- Enhance alert processing and display: extract alert details from URLs, normalize titles, and improve summary handling in image generation
+- Update alert fetching logs and enhance alert category checks
+- chore: Update version to 1.3.0.0123 in OpenMap project file
+
 ## [1.6.0.0123] - 2026-01-23
 
 - Remove broken radar options label from settings form
