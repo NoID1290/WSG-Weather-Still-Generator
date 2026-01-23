@@ -126,9 +126,14 @@ namespace WeatherImageGenerator.Services
                         float cardMarginBottom = 20;
                         
                         // Measure content
-                        SizeF citySize = currentGraphics.MeasureString($"{alert.City.ToUpper()} - {alert.Type}", cityFont, (int)(contentWidth - cardPadding * 2));
+                        SizeF citySize = currentGraphics.MeasureString($"{alert.City.ToUpper()} • {alert.Type}", cityFont, (int)(contentWidth - cardPadding * 2));
                         SizeF titleSize = currentGraphics.MeasureString(alert.Title, typeFont, (int)(contentWidth - cardPadding * 2));
-                        SizeF summarySize = currentGraphics.MeasureString(alert.Summary, detailFont, (int)(contentWidth - cardPadding * 2));
+                        
+                        // Use full summary text, or show placeholder if empty
+                        string displaySummary = string.IsNullOrWhiteSpace(alert.Summary) 
+                            ? "(Aucun détail disponible)" 
+                            : alert.Summary;
+                        SizeF summarySize = currentGraphics.MeasureString(displaySummary, detailFont, (int)(contentWidth - cardPadding * 2));
 
                         float cardHeight = cardPadding + citySize.Height + 5 + titleSize.Height + 10 + summarySize.Height + cardPadding;
 
@@ -195,8 +200,8 @@ namespace WeatherImageGenerator.Services
                         currentGraphics.DrawString(alert.Title, typeFont, whiteBrush, new RectangleF(textX, textY, contentWidth - cardPadding - 25, titleSize.Height));
                         textY += titleSize.Height + 10;
 
-                        // Summary
-                        currentGraphics.DrawString(alert.Summary, detailFont, lightGrayBrush, new RectangleF(textX, textY, contentWidth - cardPadding - 25, summarySize.Height));
+                        // Summary (full details)
+                        currentGraphics.DrawString(displaySummary, detailFont, lightGrayBrush, new RectangleF(textX, textY, contentWidth - cardPadding - 25, summarySize.Height));
 
                         currentY += cardHeight + cardMarginBottom;
                     }

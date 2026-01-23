@@ -1411,6 +1411,8 @@ namespace WeatherImageGenerator.Services
                         var title = e.Element(XName.Get("title", atom))?.Value ?? string.Empty;
                         var summary = e.Element(XName.Get("summary", atom))?.Value ?? string.Empty;
                         var category = e.Element(XName.Get("category", atom))?.Attribute("term")?.Value ?? string.Empty;
+                        var linkElement = e.Element(XName.Get("link", atom));
+                        var alertUrl = linkElement?.Attribute("href")?.Value ?? string.Empty;
                         
                         // Check if this is a weather alert/watch/warning/statement category
                         // English: "warning", "watch", "statement", "Warnings and Watches"
@@ -1428,9 +1430,106 @@ namespace WeatherImageGenerator.Services
                                 title.IndexOf("no alerts", StringComparison.OrdinalIgnoreCase) >= 0 ||
                                 title.IndexOf("aucune alerte", StringComparison.OrdinalIgnoreCase) >= 0)
                                 continue;
+                            
+                            // Extract alert type from category
+                            string alertType = "ALERT";
+                            string severityColor = "Gray";
+                            
+                            if (category.IndexOf("warning", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                                category.IndexOf("avertiss", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                alertType = "WARNING";
+                                severityColor = "Red";
+                            }
+                            else if (category.IndexOf("watch", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                                     category.IndexOf("veille", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                alertType = "WATCH";
+                                severityColor = "Yellow";
+                            }
+                            else if (category.IndexOf("statement", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                                     category.IndexOf("bulletin", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                alertType = "STATEMENT";
+                                severityColor = "Yellow";
+                            }
+                            
+                            // Fetch full details from the alert URL if available
+                            string fullDetails = summary;
+                            if (!string.IsNullOrWhiteSpace(alertUrl))
+                            {
+                                try
+                                {
+                                    var alertHtml = await client.GetStringAsync(alertUrl);
+                                    
+                                    // Try to find the main content div with the alert details
+                                    // ECCC typically uses specific divs for alert content
+                                    var contentMarkers = new[] { 
+                                        "<div class=\"alert", 
+                                        "<div id=\"wb-cont\"",
+                                        "<main role=\"main\"",
+                                        "<div class=\"mrgn-"
+                                    };
+                                    
+                                    string extracted = "";
+                                    foreach (var marker in contentMarkers)
+                                    {
+                                        var startIdx = alertHtml.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                                        if (startIdx >= 0)
+                                        {
+                                            // Find the closing tag - look for next major section or end
+                                            var endMarkers = new[] { "<footer", "<nav", "</main>", "</div>\n<div class=\"pagedetails" };
+                                            var endIdx = alertHtml.Length;
+                                            
+                                            foreach (var endMarker in endMarkers)
+                                            {
+                                                var possibleEnd = alertHtml.IndexOf(endMarker, startIdx, StringComparison.OrdinalIgnoreCase);
+                                                if (possibleEnd > startIdx && possibleEnd < endIdx)
+                                                {
+                                                    endIdx = possibleEnd;
+                                                }
+                                            }
+                                            
+                                            if (endIdx > startIdx)
+                                            {
+                                                extracted = alertHtml.Substring(startIdx, Math.Min(3000, endIdx - startIdx));
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (!string.IsNullOrEmpty(extracted))
+                                    {
+                                        // Remove HTML tags
+                                        var cleaned = System.Text.RegularExpressions.Regex.Replace(extracted, "<[^>]+>", " ");
+                                        // Remove multiple spaces and newlines
+                                        cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ");
+                                        // Trim
+                                        cleaned = cleaned.Trim();
+                                        
+                                        // Use if it's longer than summary (no char limit for public safety info)
+                                        if (cleaned.Length > fullDetails.Length)
+                                        {
+                                            fullDetails = cleaned;
+                                            LogMessage($"[ECCC] Extracted alert details ({cleaned.Length} chars) for {kv.Key}");
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogMessage($"[ECCC] Failed to fetch full alert details: {ex.Message}");
+                                }
+                            }
                                 
                             LogMessage($"[ECCC] Alert for {kv.Key}: {title} (category: {category})");
-                            result.Add(new AlertEntry { City = kv.Key, Title = title, Summary = summary });
+                            result.Add(new AlertEntry 
+                            { 
+                                City = kv.Key, 
+                                Type = alertType,
+                                Title = title, 
+                                Summary = fullDetails,
+                                SeverityColor = severityColor
+                            });
                         }
                         else if (!string.IsNullOrWhiteSpace(category))
                         {

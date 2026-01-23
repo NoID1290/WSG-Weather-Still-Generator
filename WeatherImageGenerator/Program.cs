@@ -385,19 +385,66 @@ namespace WeatherImageGenerator
 
         private static List<AlertEntry> DeduplicateAlerts(IEnumerable<AlertEntry> alerts)
         {
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var list = new List<AlertEntry>();
-
-            foreach (var alert in alerts)
-            {
-                var key = $"{alert.City}|{alert.Title}|{alert.Summary}";
-                if (seen.Add(key))
+            // Group alerts by normalized title (remove city-specific parts)
+            // This ensures alerts with same type are combined regardless of city mentions in title
+            var grouped = alerts
+                .GroupBy(a => NormalizeAlertTitle(a.Title), StringComparer.OrdinalIgnoreCase)
+                .Select(g => new AlertEntry
                 {
-                    list.Add(alert);
-                }
-            }
+                    City = string.Join(", ", g.Select(a => a.City).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c)),
+                    Type = g.First().Type,
+                    Title = CleanAlertTitle(g.First().Title), // Remove city name from title
+                    Summary = g.First().Summary, // Use first summary (they should be similar)
+                    SeverityColor = g.First().SeverityColor
+                })
+                .ToList();
 
-            return list;
+            return grouped;
+        }
+
+        private static string NormalizeAlertTitle(string title)
+        {
+            // Remove city names and location-specific parts for grouping
+            var normalized = title.Trim();
+            
+            // Remove everything after comma (usually city names)
+            var commaIndex = normalized.IndexOf(',');
+            if (commaIndex > 0)
+            {
+                normalized = normalized.Substring(0, commaIndex);
+            }
+            
+            // Remove "en vigueur" / "in effect"
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\ben vigueur\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\bin effect\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            
+            // Remove "pour" / "for" followed by text
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\bpour\s+.*$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\bfor\s+.*$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            
+            // Remove dates/times
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\d{1,2}h\d{2}", "");
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\d{1,2}:\d{2}", "");
+            
+            // Collapse multiple spaces
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
+            
+            return normalized.Trim();
+        }
+
+        private static string CleanAlertTitle(string title)
+        {
+            // Keep the alert type but remove city name for display
+            var cleaned = title.Trim();
+            
+            // Remove everything after comma (city names)
+            var commaIndex = cleaned.IndexOf(',');
+            if (commaIndex > 0)
+            {
+                cleaned = cleaned.Substring(0, commaIndex);
+            }
+            
+            return cleaned.Trim();
         }
 
         public static async Task FetchDataOnlyAsync(CancellationToken cancellationToken = default)
