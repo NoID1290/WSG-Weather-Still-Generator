@@ -1412,20 +1412,29 @@ namespace WeatherImageGenerator.Services
                         var summary = e.Element(XName.Get("summary", atom))?.Value ?? string.Empty;
                         var category = e.Element(XName.Get("category", atom))?.Attribute("term")?.Value ?? string.Empty;
                         
-                        // Check if this is a weather alert/watch/warning category
-                        // English: "warning", "watch", "Warnings and Watches"
-                        // French: "avertissement", "veille", "Veilles et avertissements"
+                        // Check if this is a weather alert/watch/warning/statement category
+                        // English: "warning", "watch", "statement", "Warnings and Watches"
+                        // French: "avertissement", "veille", "bulletin", "Veilles et avertissements"
                         if (category.IndexOf("warning", StringComparison.OrdinalIgnoreCase) >= 0 || 
                             category.IndexOf("avertiss", StringComparison.OrdinalIgnoreCase) >= 0 || 
                             category.IndexOf("watch", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                            category.IndexOf("veille", StringComparison.OrdinalIgnoreCase) >= 0)
+                            category.IndexOf("veille", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            category.IndexOf("statement", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            category.IndexOf("bulletin", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
                             // Skip "no watches/warnings" messages
                             if (title.IndexOf("no watches", StringComparison.OrdinalIgnoreCase) >= 0 || 
-                                title.IndexOf("aucune veille", StringComparison.OrdinalIgnoreCase) >= 0)
+                                title.IndexOf("aucune veille", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                title.IndexOf("no alerts", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                title.IndexOf("aucune alerte", StringComparison.OrdinalIgnoreCase) >= 0)
                                 continue;
                                 
+                            LogMessage($"[ECCC] Alert for {kv.Key}: {title} (category: {category})");
                             result.Add(new AlertEntry { City = kv.Key, Title = title, Summary = summary });
+                        }
+                        else if (!string.IsNullOrWhiteSpace(category))
+                        {
+                            LogMessage($"[ECCC] Filtered out {kv.Key}: '{title}' (category: '{category}')");
                         }
                     }
                 }

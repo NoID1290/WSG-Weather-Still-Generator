@@ -445,16 +445,16 @@ namespace WeatherImageGenerator
 
                 if (cancellationToken.IsCancellationRequested) return;
 
-                Logger.Log("[AlertReady] Checking NAAD alerts (QC/CA, high risk)...");
+                Logger.Log("[Alerts] Fetching weather alerts...");
                 try
                 {
-                    var alerts = await FetchAlertReadyOnlyAsync(httpClient, locations, config);
-                    Logger.Log($"✓ [AlertReady] Found {alerts.Count} active alerts.");
+                    var alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
+                    Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
                 }
 
                 ProgressUpdated?.Invoke(100, "Fetch complete");
@@ -509,18 +509,18 @@ namespace WeatherImageGenerator
 
                 if (cancellationToken.IsCancellationRequested) return;
 
-                // Fetch Alert Ready alerts only (not ECCC weather alerts)
-                Logger.Log("[AlertReady] Checking NAAD alerts (QC/CA, high risk)...");
+                // Fetch weather alerts from ECCC and Alert Ready
+                Logger.Log("[Alerts] Fetching weather alerts...");
                 List<AlertEntry> alerts = new List<AlertEntry>();
                 try
                 {
-                    alerts = await FetchAlertReadyOnlyAsync(httpClient, locations, config);
-                    Logger.Log($"✓ [AlertReady] Found {alerts.Count} active alerts.");
+                    alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
+                    Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
                     AlertsFetched?.Invoke(alerts);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
+                    Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
                 }
 
                 if (allForecasts[0] == null) 
@@ -668,18 +668,18 @@ namespace WeatherImageGenerator
                         // Notify GUI that weather data has been fetched
                         WeatherDataFetched?.Invoke(allForecasts);
 
-                        // Fetch Alert Ready alerts only (QC/CA high-risk)
+                        // Fetch weather alerts from ECCC and Alert Ready
                         var alerts = new List<AlertEntry>();
-                        Logger.Log("[AlertReady] Checking NAAD alerts (QC/CA, high risk)...");
+                        Logger.Log("[Alerts] Fetching weather alerts...");
                         try
                         {
-                            alerts = await FetchAlertReadyOnlyAsync(httpClient, locations, config);
-                            Logger.Log($"✓ [AlertReady] Found {alerts.Count} active alerts.");
+                            alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
+                            Logger.Log($"✓ [Alerts] Found {alerts.Count} active alerts.");
                             AlertsFetched?.Invoke(alerts);
                         }
                         catch (Exception ex)
                         {
-                            Logger.Log($"✗ [AlertReady] Failed to fetch alerts: {ex.Message}");
+                            Logger.Log($"✗ [Alerts] Failed to fetch alerts: {ex.Message}");
                         }
 
 
