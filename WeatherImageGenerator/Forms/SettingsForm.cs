@@ -85,6 +85,7 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkMapEnableCache;
         TextBox txtMapCacheDirectory;
         NumericUpDown numMapCacheDuration;
+        CheckBox chkMapUseDarkMode;
         public SettingsForm()
         {
             this.Text = "⚙ Settings";
@@ -860,6 +861,26 @@ namespace WeatherImageGenerator.Forms
                 ForeColor = Color.Gray,
                 Font = new Font("Segoe UI", 8.5F)
             };
+            omTop += 35;
+
+            chkMapUseDarkMode = new CheckBox
+            {
+                Text = "🌙 Use Dark Mode (for Terrain style)",
+                Left = omLeft,
+                Top = omTop,
+                Width = 400,
+                Checked = false,
+                Font = new Font("Segoe UI", 9F)
+            };
+            var lblMapDarkHelp = new Label
+            {
+                Text = "Best for night weather displays",
+                Left = omLeft + 410,
+                Top = omTop + 3,
+                Width = 250,
+                ForeColor = Color.Gray,
+                Font = new Font("Segoe UI", 8.5F)
+            };
             omTop += 45;
 
             // Section: Performance Settings
@@ -976,6 +997,7 @@ namespace WeatherImageGenerator.Forms
                 lblMapZoom, numMapZoomLevel, lblMapZoomHelp,
                 lblMapBgColor, txtMapBackgroundColor, lblMapBgHelp,
                 lblMapOpacity, numMapOverlayOpacity, lblMapOpacityHelp,
+                chkMapUseDarkMode, lblMapDarkHelp,
                 lblMapPerfSection,
                 lblMapTimeout, numMapTileTimeout,
                 chkMapEnableCache,
@@ -1155,7 +1177,8 @@ namespace WeatherImageGenerator.Forms
                 numMapTileTimeout.Value = openMap.TileDownloadTimeoutSeconds;
                 chkMapEnableCache.Checked = openMap.EnableTileCache;
                 txtMapCacheDirectory.Text = openMap.TileCacheDirectory ?? "MapCache";
-                numMapCacheDuration.Value = openMap.CacheDurationHours; 
+                numMapCacheDuration.Value = openMap.CacheDurationHours;
+                chkMapUseDarkMode.Checked = openMap.UseDarkMode; 
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -1500,6 +1523,7 @@ namespace WeatherImageGenerator.Forms
                 openMap.EnableTileCache = chkMapEnableCache.Checked;
                 openMap.TileCacheDirectory = txtMapCacheDirectory.Text;
                 openMap.CacheDurationHours = (int)numMapCacheDuration.Value;
+                openMap.UseDarkMode = chkMapUseDarkMode.Checked;
                 cfg.OpenMap = openMap;
 
                 // Persist FFmpeg settings

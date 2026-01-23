@@ -34,6 +34,7 @@ public class MapOverlayService
     private readonly bool _enableTileCache;
     private readonly string? _tileCacheDirectory;
     private readonly int _cacheDurationHours;
+    private readonly bool _useDarkMode;
 
     /// <summary>
     /// Creates a new MapOverlayService with default settings
@@ -62,6 +63,7 @@ public class MapOverlayService
         _enableTileCache = settings?.EnableTileCache ?? true;
         _tileCacheDirectory = settings?.TileCacheDirectory;
         _cacheDurationHours = settings?.CacheDurationHours ?? 168;
+        _useDarkMode = settings?.UseDarkMode ?? false;
         
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(_userAgent);
@@ -84,6 +86,12 @@ public class MapOverlayService
         var h = height ?? _defaultHeight;
         var zoom = zoomLevel ?? _defaultZoomLevel;
         var mapStyle = style ?? _defaultMapStyle;
+        
+        // Apply dark mode if enabled and using Terrain
+        if (_useDarkMode && mapStyle == MapStyle.Terrain)
+        {
+            mapStyle = MapStyle.TerrainDark;
+        }
 
         // Convert lat/lon to pixel coordinates at this zoom level
         var centerPixelX = LonToPixelX(longitude, zoom);
@@ -269,6 +277,8 @@ public class MapOverlayService
             MapStyle.Terrain => $"https://tile.opentopomap.org/{zoom}/{x}/{y}.png",
             // Esri, Maxar, Earthstar Geographics (proprietary)
             MapStyle.Satellite => $"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}",
+            // CartoDB Dark Matter | © OpenStreetMap contributors | © CARTO
+            MapStyle.TerrainDark => $"https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{zoom}/{x}/{y}.png",
             _ => $"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png"
         };
     }
@@ -420,6 +430,7 @@ public class MapOverlayService
             "minimal" => MapStyle.Minimal,
             "terrain" => MapStyle.Terrain,
             "satellite" => MapStyle.Satellite,
+            "terraindark" => MapStyle.TerrainDark,
             _ => MapStyle.Standard
         };
     }
@@ -435,7 +446,8 @@ public enum MapStyle
     Standard,   // Standard OpenStreetMap
     Minimal,    // Light/minimal style  
     Terrain,    // Topographic/terrain style
-    Satellite   // Satellite imagery
+    Satellite,  // Satellite imagery
+    TerrainDark // Dark terrain/topographic style
 }
 
 /// <summary>
@@ -451,4 +463,5 @@ public class OpenMapSettings
     public bool EnableTileCache { get; set; } = true;
     public string? TileCacheDirectory { get; set; } = "MapCache";
     public int CacheDurationHours { get; set; } = 168;
+    public bool UseDarkMode { get; set; } = false;
 }

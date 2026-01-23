@@ -793,6 +793,12 @@ namespace WeatherImageGenerator.Services
         public int CacheDurationHours { get; set; } = 168; // 7 days
 
         /// <summary>
+        /// Use dark mode for terrain maps
+        /// </summary>
+        [JsonPropertyName("UseDarkMode")]
+        public bool UseDarkMode { get; set; } = false;
+
+        /// <summary>
         /// Map style presets for different visualization types
         /// </summary>
         [JsonPropertyName("StylePresets")]

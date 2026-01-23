@@ -855,7 +855,8 @@ namespace WeatherImageGenerator.Forms
                 TileDownloadTimeoutSeconds = configSettings.TileDownloadTimeoutSeconds,
                 EnableTileCache = configSettings.EnableTileCache,
                 TileCacheDirectory = configSettings.TileCacheDirectory,
-                CacheDurationHours = configSettings.CacheDurationHours
+                CacheDurationHours = configSettings.CacheDurationHours,
+                UseDarkMode = configSettings.UseDarkMode
             };
         }
         
