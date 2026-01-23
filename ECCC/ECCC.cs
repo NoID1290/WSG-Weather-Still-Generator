@@ -1361,13 +1361,51 @@ namespace WeatherImageGenerator.Services
         
         #endregion
 
+        /// <summary>
+        /// Fetches detailed weather alerts from ECCC using RSS feeds for city targeting 
+        /// and CAP XML for full alert details.
+        /// </summary>
         public static async Task<List<AlertEntry>> FetchAllAlerts(HttpClient client, IEnumerable<string>? wantedCities = null, EcccSettings? settings = null)
         {
             var cfg = settings ?? LoadSettings();
             var feeds = cfg.CityFeeds ?? new Dictionary<string, string>();
             var alertLanguage = string.IsNullOrWhiteSpace(cfg.AlertLanguage) ? "f" : cfg.AlertLanguage.Trim().ToLowerInvariant();
+            var langFull = alertLanguage == "e" ? "en" : "fr";
 
-            // If caller supplied a list of desired cities, ensure we have feeds for them (dynamic fallback).
+            if (!client.DefaultRequestHeaders.Contains("User-Agent"))
+                client.DefaultRequestHeaders.Add("User-Agent", cfg.UserAgent ?? "Mozilla/5.0");
+
+            // Get the list of cities from user config
+            var targetCities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (wantedCities != null && wantedCities.Any())
+            {
+                foreach (var c in wantedCities.Where(x => !string.IsNullOrWhiteSpace(x)))
+                    targetCities.Add(c);
+            }
+            else
+            {
+                foreach (var key in feeds.Keys)
+                    targetCities.Add(key);
+            }
+            
+            LogMessage($"[ECCC] Target cities for alerts: {string.Join(", ", targetCities)}");
+            
+            // Pre-fetch CAP data to get full alert details
+            Dictionary<string, (string description, string instruction, string impact, string confidence)>? capDetails = null;
+            try
+            {
+                var stationCode = GetStationCodeForCity(targetCities.FirstOrDefault() ?? "Montreal", null);
+                capDetails = await FetchCapDetailsForStation(client, stationCode, langFull);
+                LogMessage($"[ECCC] Loaded {capDetails?.Count ?? 0} CAP alert details for enrichment");
+            }
+            catch (Exception capEx)
+            {
+                LogMessage($"[ECCC] CAP fetch failed (will use RSS only): {capEx.Message}");
+            }
+            
+            var result = new List<AlertEntry>();
+
+            // If caller supplied a list of desired cities, ensure we have feeds for them
             if (wantedCities != null && wantedCities.Any())
             {
                 var wantedList = wantedCities.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
@@ -1394,9 +1432,9 @@ namespace WeatherImageGenerator.Services
                 feeds = feeds.Where(kv => wantedSet.Contains(NormalizeCity(kv.Key)))
                              .ToDictionary(kv => kv.Key, kv => kv.Value);
             }
-            var result = new List<AlertEntry>();
-            if (!client.DefaultRequestHeaders.Contains("User-Agent"))
-                client.DefaultRequestHeaders.Add("User-Agent", cfg.UserAgent ?? "Mozilla/5.0");
+
+            // Track battleboard codes we've already fetched to get detailed data
+            var fetchedBattleboards = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var kv in feeds)
             {
@@ -1405,24 +1443,71 @@ namespace WeatherImageGenerator.Services
                     var xml = await client.GetStringAsync(kv.Value);
                     var doc = XDocument.Parse(xml);
                     var atom = "http://www.w3.org/2005/Atom";
+                    
+                    // Try to extract battleboard code from the related link to get detailed info
+                    var relatedLink = doc.Root?.Elements(XName.Get("link", atom))
+                        .FirstOrDefault(l => l.Attribute("rel")?.Value == "related")?.Attribute("href")?.Value;
+                    
+                    string? battleboardCode = null;
+                    if (!string.IsNullOrEmpty(relatedLink) && relatedLink.Contains("?"))
+                    {
+                        // Extract code like "qcrm2" from URL
+                        var uri = new Uri(relatedLink);
+                        battleboardCode = uri.Query.TrimStart('?');
+                        if (battleboardCode.Contains("&"))
+                            battleboardCode = battleboardCode.Split('&')[0];
+                    }
+                    
+                    // Fetch battleboard feed if available (has <impact> and <confidence>)
+                    Dictionary<string, (string? impact, string? confidence, string? detailUrl)>? battleboardData = null;
+                    if (!string.IsNullOrEmpty(battleboardCode) && !fetchedBattleboards.Contains(battleboardCode))
+                    {
+                        fetchedBattleboards.Add(battleboardCode);
+                        try
+                        {
+                            var battleboardUrl = $"https://meteo.gc.ca/rss/battleboard/{battleboardCode}_{alertLanguage}.xml";
+                            var bbXml = await client.GetStringAsync(battleboardUrl);
+                            battleboardData = ParseBattleboardData(bbXml);
+                            LogMessage($"[ECCC] Fetched battleboard {battleboardCode} with {battleboardData.Count} entries");
+                        }
+                        catch (Exception bbEx)
+                        {
+                            LogMessage($"[ECCC] Battleboard fetch failed for {battleboardCode}: {bbEx.Message}");
+                        }
+                    }
+                    
                     var entries = doc.Root?.Elements(XName.Get("entry", atom)) ?? Enumerable.Empty<XElement>();
                     foreach (var e in entries)
                     {
                         var title = e.Element(XName.Get("title", atom))?.Value ?? string.Empty;
                         var summary = e.Element(XName.Get("summary", atom))?.Value ?? string.Empty;
                         var category = e.Element(XName.Get("category", atom))?.Attribute("term")?.Value ?? string.Empty;
-                        var linkElement = e.Element(XName.Get("link", atom));
-                        var alertUrl = linkElement?.Attribute("href")?.Value ?? string.Empty;
+                        var entryLink = e.Element(XName.Get("link", atom))?.Attribute("href")?.Value;
+                        var updated = e.Element(XName.Get("updated", atom))?.Value;
+                        
+                        // Try to get full content from content:encoded or content element
+                        var contentEncoded = e.Element(XName.Get("encoded", "http://purl.org/rss/1.0/modules/content/"))?.Value;
+                        var content = e.Element(XName.Get("content", atom))?.Value;
+                        
+                        // Use the most detailed content available
+                        string fullMessage = contentEncoded ?? content ?? summary;
+                        
+                        // If content contains HTML, strip it
+                        if (!string.IsNullOrWhiteSpace(fullMessage) && fullMessage.Contains("<"))
+                        {
+                            fullMessage = System.Text.RegularExpressions.Regex.Replace(fullMessage, "<[^>]+>", " ");
+                            fullMessage = System.Text.RegularExpressions.Regex.Replace(fullMessage, @"\s+", " ");
+                            fullMessage = fullMessage.Trim();
+                        }
                         
                         // Check if this is a weather alert/watch/warning/statement category
-                        // English: "warning", "watch", "statement", "Warnings and Watches"
-                        // French: "avertissement", "veille", "bulletin", "Veilles et avertissements"
                         if (category.IndexOf("warning", StringComparison.OrdinalIgnoreCase) >= 0 || 
                             category.IndexOf("avertiss", StringComparison.OrdinalIgnoreCase) >= 0 || 
                             category.IndexOf("watch", StringComparison.OrdinalIgnoreCase) >= 0 ||
                             category.IndexOf("veille", StringComparison.OrdinalIgnoreCase) >= 0 ||
                             category.IndexOf("statement", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                            category.IndexOf("bulletin", StringComparison.OrdinalIgnoreCase) >= 0)
+                            category.IndexOf("bulletin", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            category.IndexOf("alert", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
                             // Skip "no watches/warnings" messages
                             if (title.IndexOf("no watches", StringComparison.OrdinalIgnoreCase) >= 0 || 
@@ -1431,104 +1516,140 @@ namespace WeatherImageGenerator.Services
                                 title.IndexOf("aucune alerte", StringComparison.OrdinalIgnoreCase) >= 0)
                                 continue;
                             
-                            // Extract alert type from category
+                            // Extract alert type and severity from title/category
                             string alertType = "ALERT";
                             string severityColor = "Gray";
                             
+                            // Check for Yellow/Jaune warning in title
+                            var titleUpper = title.ToUpperInvariant();
+                            if (titleUpper.Contains("YELLOW") || titleUpper.Contains("JAUNE"))
+                            {
+                                severityColor = "Yellow";
+                            }
+                            else if (titleUpper.Contains("RED") || titleUpper.Contains("ROUGE") || titleUpper.Contains("EXTREME"))
+                            {
+                                severityColor = "Red";
+                            }
+                            else if (titleUpper.Contains("ORANGE"))
+                            {
+                                severityColor = "Orange";
+                            }
+                            
                             if (category.IndexOf("warning", StringComparison.OrdinalIgnoreCase) >= 0 || 
-                                category.IndexOf("avertiss", StringComparison.OrdinalIgnoreCase) >= 0)
+                                category.IndexOf("avertiss", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                titleUpper.Contains("WARNING") || titleUpper.Contains("AVERTISSEMENT"))
                             {
                                 alertType = "WARNING";
-                                severityColor = "Red";
+                                if (severityColor == "Gray") severityColor = "Red"; // Default warnings to red if no color
                             }
                             else if (category.IndexOf("watch", StringComparison.OrdinalIgnoreCase) >= 0 || 
                                      category.IndexOf("veille", StringComparison.OrdinalIgnoreCase) >= 0)
                             {
                                 alertType = "WATCH";
-                                severityColor = "Yellow";
+                                if (severityColor == "Gray") severityColor = "Yellow";
                             }
                             else if (category.IndexOf("statement", StringComparison.OrdinalIgnoreCase) >= 0 || 
-                                     category.IndexOf("bulletin", StringComparison.OrdinalIgnoreCase) >= 0)
+                                     category.IndexOf("bulletin", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                     titleUpper.Contains("STATEMENT") || titleUpper.Contains("BULLETIN"))
                             {
                                 alertType = "STATEMENT";
-                                severityColor = "Yellow";
+                                if (severityColor == "Gray") severityColor = "Gray";
                             }
                             
-                            // Fetch full details from the alert URL if available
-                            string fullDetails = summary;
-                            if (!string.IsNullOrWhiteSpace(alertUrl))
+                            // Try to get extended data from battleboard
+                            string? impact = null;
+                            string? confidence = null;
+                            string? detailUrl = entryLink;
+                            
+                            if (battleboardData != null)
                             {
-                                try
+                                // Match by title similarity
+                                foreach (var bbEntry in battleboardData)
                                 {
-                                    var alertHtml = await client.GetStringAsync(alertUrl);
-                                    
-                                    // Try to find the main content div with the alert details
-                                    // ECCC typically uses specific divs for alert content
-                                    var contentMarkers = new[] { 
-                                        "<div class=\"alert", 
-                                        "<div id=\"wb-cont\"",
-                                        "<main role=\"main\"",
-                                        "<div class=\"mrgn-"
-                                    };
-                                    
-                                    string extracted = "";
-                                    foreach (var marker in contentMarkers)
+                                    if (title.IndexOf(bbEntry.Key, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                        bbEntry.Key.IndexOf(title.Split(',')[0], StringComparison.OrdinalIgnoreCase) >= 0)
                                     {
-                                        var startIdx = alertHtml.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-                                        if (startIdx >= 0)
-                                        {
-                                            // Find the closing tag - look for next major section or end
-                                            var endMarkers = new[] { "<footer", "<nav", "</main>", "</div>\n<div class=\"pagedetails" };
-                                            var endIdx = alertHtml.Length;
-                                            
-                                            foreach (var endMarker in endMarkers)
-                                            {
-                                                var possibleEnd = alertHtml.IndexOf(endMarker, startIdx, StringComparison.OrdinalIgnoreCase);
-                                                if (possibleEnd > startIdx && possibleEnd < endIdx)
-                                                {
-                                                    endIdx = possibleEnd;
-                                                }
-                                            }
-                                            
-                                            if (endIdx > startIdx)
-                                            {
-                                                extracted = alertHtml.Substring(startIdx, Math.Min(3000, endIdx - startIdx));
-                                                break;
-                                            }
-                                        }
+                                        impact = bbEntry.Value.impact;
+                                        confidence = bbEntry.Value.confidence;
+                                        if (!string.IsNullOrEmpty(bbEntry.Value.detailUrl))
+                                            detailUrl = bbEntry.Value.detailUrl;
+                                        break;
                                     }
-                                    
-                                    if (!string.IsNullOrEmpty(extracted))
-                                    {
-                                        // Remove HTML tags
-                                        var cleaned = System.Text.RegularExpressions.Regex.Replace(extracted, "<[^>]+>", " ");
-                                        // Remove multiple spaces and newlines
-                                        cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ");
-                                        // Trim
-                                        cleaned = cleaned.Trim();
-                                        
-                                        // Use if it's longer than summary (no char limit for public safety info)
-                                        if (cleaned.Length > fullDetails.Length)
-                                        {
-                                            fullDetails = cleaned;
-                                            LogMessage($"[ECCC] Extracted alert details ({cleaned.Length} chars) for {kv.Key}");
-                                        }
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    LogMessage($"[ECCC] Failed to fetch full alert details: {ex.Message}");
                                 }
                             }
+                            
+                            // Parse issued time
+                            DateTimeOffset? issuedAt = null;
+                            if (!string.IsNullOrEmpty(updated) && DateTimeOffset.TryParse(updated, out var parsedTime))
+                            {
+                                issuedAt = parsedTime;
+                            }
+                            
+                            // Enrich with CAP data if available
+                            string description = "";
+                            string instruction = "";
+                            
+                            if (capDetails != null && capDetails.Count > 0)
+                            {
+                                // Try to match by keywords in title
+                                var titleLower = title.ToLowerInvariant();
+                                var matchKeys = new[] { "froid", "cold", "neige", "snow", "bulletin", "avertissement", "warning" };
                                 
-                            LogMessage($"[ECCC] Alert for {kv.Key}: {title} (category: {category})");
+                                foreach (var key in matchKeys)
+                                {
+                                    if (titleLower.Contains(key) && capDetails.TryGetValue(key, out var capData))
+                                    {
+                                        description = capData.description;
+                                        instruction = capData.instruction;
+                                        if (string.IsNullOrEmpty(impact)) impact = capData.impact;
+                                        if (string.IsNullOrEmpty(confidence)) confidence = capData.confidence;
+                                        LogMessage($"[ECCC] Enriched '{kv.Key}' alert with CAP data (key: {key})");
+                                        break;
+                                    }
+                                }
+                                
+                                // Also try direct headline match
+                                if (string.IsNullOrEmpty(description))
+                                {
+                                    foreach (var cap in capDetails)
+                                    {
+                                        if (cap.Key.IndexOf(title.Split(',')[0], StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                            title.IndexOf(cap.Key.Split(',')[0], StringComparison.OrdinalIgnoreCase) >= 0)
+                                        {
+                                            description = cap.Value.description;
+                                            instruction = cap.Value.instruction;
+                                            if (string.IsNullOrEmpty(impact)) impact = cap.Value.impact;
+                                            if (string.IsNullOrEmpty(confidence)) confidence = cap.Value.confidence;
+                                            LogMessage($"[ECCC] Enriched '{kv.Key}' alert with CAP headline match");
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Use CAP description if available, otherwise RSS summary
+                            var enhancedSummary = !string.IsNullOrWhiteSpace(description) ? description : fullMessage;
+                            
+                            // Add instruction if available
+                            if (!string.IsNullOrWhiteSpace(instruction))
+                            {
+                                enhancedSummary += "\n\n" + instruction;
+                            }
+                                
+                            LogMessage($"[ECCC] Alert for {kv.Key}: {title} (type: {alertType}, color: {severityColor}, impact: {impact ?? "N/A"}, has CAP desc: {!string.IsNullOrWhiteSpace(description)})");
                             result.Add(new AlertEntry 
                             { 
-                                City = kv.Key, 
+                                City = kv.Key, // Use user's city name from RSS, not CAP area
                                 Type = alertType,
                                 Title = title, 
-                                Summary = fullDetails,
-                                SeverityColor = severityColor
+                                Summary = enhancedSummary,
+                                SeverityColor = severityColor,
+                                Impact = impact,
+                                Confidence = confidence,
+                                IssuedAt = issuedAt,
+                                DetailUrl = detailUrl,
+                                Description = description,
+                                Instructions = instruction
                             });
                         }
                         else if (!string.IsNullOrWhiteSpace(category))
@@ -1544,6 +1665,273 @@ namespace WeatherImageGenerator.Services
                 await Task.Delay(cfg.DelayBetweenRequestsMs);
             }
             return result;
+        }
+        
+        /// <summary>
+        /// Parses battleboard XML to extract impact and confidence levels for alerts.
+        /// </summary>
+        private static Dictionary<string, (string? impact, string? confidence, string? detailUrl)> ParseBattleboardData(string xml)
+        {
+            var result = new Dictionary<string, (string?, string?, string?)>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var doc = XDocument.Parse(xml);
+                var atom = "http://www.w3.org/2005/Atom";
+                var entries = doc.Root?.Elements(XName.Get("entry", atom)) ?? Enumerable.Empty<XElement>();
+                
+                foreach (var e in entries)
+                {
+                    var title = e.Element(XName.Get("title", atom))?.Value ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(title)) continue;
+                    
+                    // Battleboard has custom elements <impact> and <confidence>
+                    var impact = e.Element("impact")?.Value?.Trim();
+                    var confidence = e.Element("confidence")?.Value?.Trim();
+                    var link = e.Element(XName.Get("link", atom))?.Attribute("href")?.Value;
+                    
+                    result[title] = (impact, confidence, link);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ECCC] Error parsing battleboard: {ex.Message}");
+            }
+            return result;
+        }
+        
+        /// <summary>
+        /// Maps a city name or province to the appropriate ECCC CAP station code.
+        /// </summary>
+        private static string GetStationCodeForCity(string city, string? province)
+        {
+            var cityLower = city.ToLowerInvariant();
+            var provLower = (province ?? "").ToLowerInvariant();
+            
+            // Check city name for known regions
+            if (cityLower.Contains("montreal") || cityLower.Contains("montréal") || 
+                cityLower.Contains("quebec") || cityLower.Contains("québec") ||
+                cityLower.Contains("gatineau") || cityLower.Contains("sherbrooke") ||
+                cityLower.Contains("trois-rivières") || cityLower.Contains("laval"))
+                return "CWUL";  // Quebec region
+            
+            if (cityLower.Contains("toronto") || cityLower.Contains("ottawa") ||
+                cityLower.Contains("hamilton") || cityLower.Contains("london") ||
+                cityLower.Contains("windsor") || cityLower.Contains("kitchener"))
+                return "CWTO";  // Ontario/Toronto
+            
+            if (cityLower.Contains("vancouver") || cityLower.Contains("victoria") ||
+                cityLower.Contains("kelowna") || cityLower.Contains("surrey"))
+                return "CWVR";  // British Columbia
+            
+            if (cityLower.Contains("calgary") || cityLower.Contains("edmonton") ||
+                cityLower.Contains("red deer") || cityLower.Contains("lethbridge"))
+                return "CWNT";  // Alberta/Edmonton
+            
+            if (cityLower.Contains("winnipeg") || cityLower.Contains("brandon") ||
+                cityLower.Contains("regina") || cityLower.Contains("saskatoon"))
+                return "CWWG";  // Manitoba/Saskatchewan
+            
+            if (cityLower.Contains("halifax") || cityLower.Contains("moncton") ||
+                cityLower.Contains("saint john") || cityLower.Contains("charlottetown"))
+                return "CWHX";  // Atlantic
+            
+            // Check province code
+            switch (provLower)
+            {
+                case "qc":
+                case "quebec":
+                case "québec":
+                    return "CWUL";
+                case "on":
+                case "ontario":
+                    return "CWTO";
+                case "bc":
+                case "british columbia":
+                    return "CWVR";
+                case "ab":
+                case "alberta":
+                    return "CWNT";
+                case "mb":
+                case "manitoba":
+                case "sk":
+                case "saskatchewan":
+                    return "CWWG";
+                case "ns":
+                case "nova scotia":
+                case "nb":
+                case "new brunswick":
+                case "pe":
+                case "pei":
+                case "nl":
+                case "newfoundland":
+                    return "CWHX";
+                default:
+                    return "CWUL";  // Default to Quebec
+            }
+        }
+        
+        /// <summary>
+        /// Fetches CAP details from a station and returns a dictionary keyed by alert type/headline
+        /// containing the full description, instruction, impact, and confidence.
+        /// </summary>
+        private static async Task<Dictionary<string, (string description, string instruction, string impact, string confidence)>> FetchCapDetailsForStation(
+            HttpClient client, string stationCode, string language)
+        {
+            var result = new Dictionary<string, (string, string, string, string)>(StringComparer.OrdinalIgnoreCase);
+            var today = DateTime.UtcNow.ToString("yyyyMMdd");
+            var baseUrl = $"https://dd.weather.gc.ca/today/alerts/cap/{today}/{stationCode}/";
+            
+            try
+            {
+                var dirContent = await client.GetStringAsync(baseUrl);
+                
+                // Get hour folders (most recent)
+                var hourMatches = System.Text.RegularExpressions.Regex.Matches(dirContent, @"href=""(\d{2})/""");
+                var hours = hourMatches.Cast<System.Text.RegularExpressions.Match>()
+                    .Select(m => m.Groups[1].Value)
+                    .OrderByDescending(h => int.Parse(h))
+                    .Take(2)
+                    .ToList();
+                
+                foreach (var hour in hours)
+                {
+                    try
+                    {
+                        var hourUrl = $"{baseUrl}{hour}/";
+                        var hourContent = await client.GetStringAsync(hourUrl);
+                        
+                        var capMatches = System.Text.RegularExpressions.Regex.Matches(hourContent, @"href=""([^""]+\.cap)""");
+                        var capFiles = capMatches.Cast<System.Text.RegularExpressions.Match>()
+                            .Select(m => m.Groups[1].Value)
+                            .Take(5) // Limit to avoid too many requests
+                            .ToList();
+                        
+                        foreach (var capFile in capFiles)
+                        {
+                            try
+                            {
+                                var capXml = await client.GetStringAsync($"{hourUrl}{capFile}");
+                                ParseCapDetailsFromXml(capXml, language, result);
+                            }
+                            catch { }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[ECCC CAP] Error fetching CAP details: {ex.Message}");
+            }
+            
+            return result;
+        }
+        
+        /// <summary>
+        /// Parses a single CAP XML file and adds alert details to the dictionary.
+        /// </summary>
+        private static void ParseCapDetailsFromXml(string xml, string language, 
+            Dictionary<string, (string description, string instruction, string impact, string confidence)> results)
+        {
+            try
+            {
+                var doc = XDocument.Parse(xml);
+                XNamespace cap = "urn:oasis:names:tc:emergency:cap:1.2";
+                
+                var alertElement = doc.Root;
+                if (alertElement == null) return;
+                
+                // Get info block for requested language
+                var infoBlocks = alertElement.Elements(cap + "info").ToList();
+                var langCode = language.StartsWith("fr", StringComparison.OrdinalIgnoreCase) ? "fr-CA" : "en-CA";
+                
+                var infoBlock = infoBlocks.FirstOrDefault(i => 
+                    i.Element(cap + "language")?.Value?.Equals(langCode, StringComparison.OrdinalIgnoreCase) == true)
+                    ?? infoBlocks.FirstOrDefault();
+                
+                if (infoBlock == null) return;
+                
+                var headline = infoBlock.Element(cap + "headline")?.Value ?? "";
+                var eventType = infoBlock.Element(cap + "event")?.Value ?? "";
+                var description = infoBlock.Element(cap + "description")?.Value ?? "";
+                var instruction = infoBlock.Element(cap + "instruction")?.Value ?? "";
+                
+                // Get ECCC parameters
+                string impact = "", confidence = "";
+                foreach (var param in infoBlock.Elements(cap + "parameter"))
+                {
+                    var valueName = param.Element(cap + "valueName")?.Value ?? "";
+                    var value = param.Element(cap + "value")?.Value ?? "";
+                    
+                    if (valueName.Contains("MSC_Impact"))
+                        impact = value;
+                    else if (valueName.Contains("MSC_Confidence"))
+                        confidence = value;
+                }
+                
+                // Clean description
+                if (!string.IsNullOrWhiteSpace(description))
+                {
+                    description = description.Replace("###", "").Trim();
+                }
+                
+                // Store by multiple keys for matching
+                if (!string.IsNullOrEmpty(headline) && !results.ContainsKey(headline))
+                    results[headline] = (description, instruction, impact, confidence);
+                if (!string.IsNullOrEmpty(eventType) && !results.ContainsKey(eventType))
+                    results[eventType] = (description, instruction, impact, confidence);
+                    
+                // Also store by alert type keywords for French and English
+                var headlineLower = headline.ToLowerInvariant();
+                var eventLower = eventType.ToLowerInvariant();
+                var combinedLower = headlineLower + " " + eventLower;
+                
+                // Cold warnings
+                if ((combinedLower.Contains("froid") || combinedLower.Contains("cold") || 
+                     combinedLower.Contains("extreme cold") || combinedLower.Contains("froid extrême")))
+                {
+                    if (!results.ContainsKey("froid"))
+                        results["froid"] = (description, instruction, impact, confidence);
+                    if (!results.ContainsKey("cold"))
+                        results["cold"] = (description, instruction, impact, confidence);
+                    if (!results.ContainsKey("avertissement"))
+                        results["avertissement"] = (description, instruction, impact, confidence);
+                    if (!results.ContainsKey("warning"))
+                        results["warning"] = (description, instruction, impact, confidence);
+                }
+                
+                // Special bulletins
+                if (combinedLower.Contains("bulletin") || combinedLower.Contains("special"))
+                {
+                    if (!results.ContainsKey("bulletin"))
+                        results["bulletin"] = (description, instruction, impact, confidence);
+                    if (!results.ContainsKey("spécial"))
+                        results["spécial"] = (description, instruction, impact, confidence);
+                }
+                
+                // Snow/Winter storms
+                if (combinedLower.Contains("neige") || combinedLower.Contains("snow") ||
+                    combinedLower.Contains("blizzard") || combinedLower.Contains("tempête"))
+                {
+                    if (!results.ContainsKey("neige"))
+                        results["neige"] = (description, instruction, impact, confidence);
+                    if (!results.ContainsKey("snow"))
+                        results["snow"] = (description, instruction, impact, confidence);
+                }
+                
+                // Wind warnings  
+                if (combinedLower.Contains("vent") || combinedLower.Contains("wind"))
+                {
+                    if (!results.ContainsKey("vent"))
+                        results["vent"] = (description, instruction, impact, confidence);
+                    if (!results.ContainsKey("wind"))
+                        results["wind"] = (description, instruction, impact, confidence);
+                }
+                
+                // Log what we stored
+                LogMessage($"[ECCC CAP] Parsed: event='{eventType}', headline='{headline.Substring(0, Math.Min(50, headline.Length))}...'");
+            }
+            catch { }
         }
 
         public static async Task FetchRadarImages(HttpClient client, string outputDir, EcccSettings? settings = null)
@@ -1675,6 +2063,323 @@ namespace WeatherImageGenerator.Services
             public double ProvincePaddingDegrees { get; set; } = 0.5;
             public string[]? ProvinceEnsureCities { get; set; }
             public int ProvinceFrameStepMinutes { get; set; } = 6;
+        }
+        
+        /// <summary>
+        /// Fetches CAP (Common Alerting Protocol) XML alerts from ECCC datamart for full alert details.
+        /// This provides the complete alert description, instructions, severity, etc.
+        /// </summary>
+        /// <param name="client">HttpClient to use for requests</param>
+        /// <param name="stationCodes">Optional list of station codes to fetch (e.g., "CWUL" for Quebec-Montreal). If null, fetches all.</param>
+        /// <param name="language">Language code: "fr" or "en"</param>
+        /// <returns>List of AlertEntry with full CAP data</returns>
+        public static async Task<List<AlertEntry>> FetchCapAlerts(HttpClient client, IEnumerable<string>? stationCodes = null, string language = "fr")
+        {
+            var result = new List<AlertEntry>();
+            var today = DateTime.UtcNow.ToString("yyyyMMdd");
+            var baseUrl = $"https://dd.weather.gc.ca/today/alerts/cap/{today}/";
+            
+            try
+            {
+                // Get list of station folders
+                var dirContent = await client.GetStringAsync(baseUrl);
+                
+                // Parse folder names from HTML directory listing
+                var stationFolders = new List<string>();
+                var matches = System.Text.RegularExpressions.Regex.Matches(dirContent, @"href=""(CW\w+)/""");
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    stationFolders.Add(m.Groups[1].Value);
+                }
+                
+                // Filter to requested stations if specified
+                if (stationCodes != null && stationCodes.Any())
+                {
+                    var wantedSet = new HashSet<string>(stationCodes, StringComparer.OrdinalIgnoreCase);
+                    stationFolders = stationFolders.Where(s => wantedSet.Contains(s)).ToList();
+                }
+                
+                LogMessage($"[ECCC CAP] Found {stationFolders.Count} station folders for {today}");
+                
+                // Track processed alert identifiers to avoid duplicates
+                var processedAlerts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                
+                foreach (var station in stationFolders)
+                {
+                    try
+                    {
+                        // Get hour folders for this station
+                        var stationUrl = $"{baseUrl}{station}/";
+                        var stationContent = await client.GetStringAsync(stationUrl);
+                        
+                        var hourFolders = new List<string>();
+                        var hourMatches = System.Text.RegularExpressions.Regex.Matches(stationContent, @"href=""(\d{2})/""");
+                        foreach (System.Text.RegularExpressions.Match m in hourMatches)
+                        {
+                            hourFolders.Add(m.Groups[1].Value);
+                        }
+                        
+                        // Get the most recent hours (last 3 to catch recent updates)
+                        var recentHours = hourFolders.OrderByDescending(h => int.Parse(h)).Take(3).ToList();
+                        
+                        foreach (var hour in recentHours)
+                        {
+                            try
+                            {
+                                var hourUrl = $"{stationUrl}{hour}/";
+                                var hourContent = await client.GetStringAsync(hourUrl);
+                                
+                                // Find CAP files
+                                var capFiles = new List<string>();
+                                var capMatches = System.Text.RegularExpressions.Regex.Matches(hourContent, @"href=""([^""]+\.cap)""");
+                                foreach (System.Text.RegularExpressions.Match m in capMatches)
+                                {
+                                    capFiles.Add(m.Groups[1].Value);
+                                }
+                                
+                                // Process each CAP file
+                                foreach (var capFile in capFiles)
+                                {
+                                    try
+                                    {
+                                        var capUrl = $"{hourUrl}{capFile}";
+                                        var capXml = await client.GetStringAsync(capUrl);
+                                        
+                                        var alerts = ParseCapXml(capXml, language, processedAlerts);
+                                        result.AddRange(alerts);
+                                    }
+                                    catch (Exception capEx)
+                                    {
+                                        LogMessage($"[ECCC CAP] Error fetching {capFile}: {capEx.Message}");
+                                    }
+                                }
+                            }
+                            catch (Exception hourEx)
+                            {
+                                LogMessage($"[ECCC CAP] Error fetching hour {hour}: {hourEx.Message}");
+                            }
+                            
+                            await Task.Delay(50); // Small delay between requests
+                        }
+                    }
+                    catch (Exception stationEx)
+                    {
+                        LogMessage($"[ECCC CAP] Error fetching station {station}: {stationEx.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[ECCC CAP] Error fetching CAP directory: {ex.Message}");
+            }
+            
+            LogMessage($"[ECCC CAP] Fetched {result.Count} unique alerts");
+            return result;
+        }
+        
+        /// <summary>
+        /// Parses CAP XML content and extracts alert entries with full details.
+        /// </summary>
+        private static List<AlertEntry> ParseCapXml(string xml, string language, HashSet<string> processedAlerts)
+        {
+            var result = new List<AlertEntry>();
+            
+            try
+            {
+                var doc = XDocument.Parse(xml);
+                XNamespace cap = "urn:oasis:names:tc:emergency:cap:1.2";
+                
+                var alertElement = doc.Root;
+                if (alertElement == null) return result;
+                
+                // Get the alert identifier to avoid duplicates
+                var identifier = alertElement.Element(cap + "identifier")?.Value ?? "";
+                if (processedAlerts.Contains(identifier))
+                    return result;
+                processedAlerts.Add(identifier);
+                
+                // Get status - skip cancelled or expired
+                var status = alertElement.Element(cap + "status")?.Value ?? "";
+                var msgType = alertElement.Element(cap + "msgType")?.Value ?? "";
+                if (status.Equals("Cancel", StringComparison.OrdinalIgnoreCase))
+                    return result;
+                
+                // Get sent time
+                var sentStr = alertElement.Element(cap + "sent")?.Value;
+                DateTimeOffset? sentTime = null;
+                if (!string.IsNullOrEmpty(sentStr) && DateTimeOffset.TryParse(sentStr, out var parsed))
+                    sentTime = parsed;
+                
+                // Get info blocks - find the one matching our language
+                var infoBlocks = alertElement.Elements(cap + "info").ToList();
+                var langCode = language.StartsWith("fr", StringComparison.OrdinalIgnoreCase) ? "fr-CA" : "en-CA";
+                
+                var infoBlock = infoBlocks.FirstOrDefault(i => 
+                    i.Element(cap + "language")?.Value?.Equals(langCode, StringComparison.OrdinalIgnoreCase) == true)
+                    ?? infoBlocks.FirstOrDefault();
+                
+                if (infoBlock == null) return result;
+                
+                // Extract core alert info
+                var headline = infoBlock.Element(cap + "headline")?.Value ?? "";
+                var description = infoBlock.Element(cap + "description")?.Value ?? "";
+                var instruction = infoBlock.Element(cap + "instruction")?.Value ?? "";
+                var eventType = infoBlock.Element(cap + "event")?.Value ?? "";
+                var severity = infoBlock.Element(cap + "severity")?.Value ?? "";
+                var urgency = infoBlock.Element(cap + "urgency")?.Value ?? "";
+                var certainty = infoBlock.Element(cap + "certainty")?.Value ?? "";
+                var senderName = infoBlock.Element(cap + "senderName")?.Value ?? "";
+                
+                // Get expires time
+                var expiresStr = infoBlock.Element(cap + "expires")?.Value;
+                DateTimeOffset? expiresTime = null;
+                if (!string.IsNullOrEmpty(expiresStr) && DateTimeOffset.TryParse(expiresStr, out var expParsed))
+                    expiresTime = expParsed;
+                
+                // Skip if expired
+                if (expiresTime.HasValue && expiresTime.Value < DateTimeOffset.UtcNow)
+                    return result;
+                
+                // Get ECCC-specific parameters
+                string? impact = null;
+                string? confidence = null;
+                string? colour = null;
+                string? alertName = null;
+                
+                foreach (var param in infoBlock.Elements(cap + "parameter"))
+                {
+                    var valueName = param.Element(cap + "valueName")?.Value ?? "";
+                    var value = param.Element(cap + "value")?.Value ?? "";
+                    
+                    if (valueName.Contains("MSC_Impact"))
+                        impact = value;
+                    else if (valueName.Contains("MSC_Confidence"))
+                        confidence = value;
+                    else if (valueName.Contains("Colour"))
+                        colour = value;
+                    else if (valueName.Contains("Alert_Name"))
+                        alertName = value;
+                }
+                
+                // Get areas affected
+                var areas = new List<string>();
+                foreach (var area in infoBlock.Elements(cap + "area"))
+                {
+                    var areaDesc = area.Element(cap + "areaDesc")?.Value;
+                    if (!string.IsNullOrWhiteSpace(areaDesc))
+                        areas.Add(areaDesc);
+                }
+                
+                // Determine alert type and severity color
+                string alertType = "ALERT";
+                string severityColor = "Gray";
+                
+                var headlineUpper = headline.ToUpperInvariant();
+                if (headlineUpper.Contains("WARNING") || headlineUpper.Contains("AVERTISSEMENT"))
+                {
+                    alertType = "WARNING";
+                    severityColor = "Red";
+                }
+                else if (headlineUpper.Contains("WATCH") || headlineUpper.Contains("VEILLE"))
+                {
+                    alertType = "WATCH";
+                    severityColor = "Yellow";
+                }
+                else if (headlineUpper.Contains("STATEMENT") || headlineUpper.Contains("BULLETIN"))
+                {
+                    alertType = "STATEMENT";
+                    severityColor = "Gray";
+                }
+                
+                // Override color if specified in CAP
+                if (!string.IsNullOrEmpty(colour))
+                {
+                    if (colour.Equals("yellow", StringComparison.OrdinalIgnoreCase) || colour.Equals("jaune", StringComparison.OrdinalIgnoreCase))
+                        severityColor = "Yellow";
+                    else if (colour.Equals("red", StringComparison.OrdinalIgnoreCase) || colour.Equals("rouge", StringComparison.OrdinalIgnoreCase))
+                        severityColor = "Red";
+                    else if (colour.Equals("orange", StringComparison.OrdinalIgnoreCase))
+                        severityColor = "Orange";
+                }
+                
+                // Clean up description - remove HTML if present
+                if (!string.IsNullOrWhiteSpace(description) && description.Contains("<"))
+                {
+                    description = System.Text.RegularExpressions.Regex.Replace(description, "<[^>]+>", " ");
+                    description = System.Text.RegularExpressions.Regex.Replace(description, @"\s+", " ");
+                    description = description.Trim();
+                }
+                
+                // Format full summary with all details
+                var summaryParts = new List<string>();
+                
+                // Add impact/confidence if available
+                if (!string.IsNullOrEmpty(impact) || !string.IsNullOrEmpty(confidence))
+                {
+                    var metaParts = new List<string>();
+                    if (!string.IsNullOrEmpty(impact))
+                        metaParts.Add($"Impact: {impact.ToUpper()}");
+                    if (!string.IsNullOrEmpty(confidence))
+                        metaParts.Add($"Confiance: {confidence}");
+                    summaryParts.Add(string.Join(" • ", metaParts));
+                }
+                
+                // Add main description
+                if (!string.IsNullOrWhiteSpace(description))
+                    summaryParts.Add(description.Trim());
+                
+                // Add instructions
+                if (!string.IsNullOrWhiteSpace(instruction))
+                    summaryParts.Add("\n📋 " + instruction.Trim());
+                
+                var fullSummary = string.Join("\n\n", summaryParts);
+                
+                // Create alert entry for each area
+                if (areas.Count > 0)
+                {
+                    foreach (var area in areas)
+                    {
+                        result.Add(new AlertEntry
+                        {
+                            City = area,
+                            Type = alertType,
+                            Title = alertName ?? headline,
+                            Summary = fullSummary,
+                            SeverityColor = severityColor,
+                            Impact = impact,
+                            Confidence = confidence,
+                            IssuedAt = sentTime,
+                            ExpiresAt = expiresTime,
+                            Description = description,
+                            Instructions = instruction,
+                            Region = string.Join(", ", areas)
+                        });
+                    }
+                }
+                else
+                {
+                    result.Add(new AlertEntry
+                    {
+                        City = eventType,
+                        Type = alertType,
+                        Title = alertName ?? headline,
+                        Summary = fullSummary,
+                        SeverityColor = severityColor,
+                        Impact = impact,
+                        Confidence = confidence,
+                        IssuedAt = sentTime,
+                        ExpiresAt = expiresTime,
+                        Description = description,
+                        Instructions = instruction
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[ECCC CAP] Error parsing CAP XML: {ex.Message}");
+            }
+            
+            return result;
         }
         
         #region Data Request/Result Types

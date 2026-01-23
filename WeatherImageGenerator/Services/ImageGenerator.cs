@@ -132,13 +132,30 @@ namespace WeatherImageGenerator.Services
                         
                         SizeF titleSize = currentGraphics.MeasureString(alert.Title, typeFont, (int)availableWidth);
                         
+                        // Build metadata line with impact/confidence if available
+                        var metadataParts = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(alert.Impact))
+                            metadataParts.Add($"Impact: {alert.Impact.ToUpper()}");
+                        if (!string.IsNullOrWhiteSpace(alert.Confidence))
+                            metadataParts.Add($"Confiance: {alert.Confidence}");
+                        if (alert.IssuedAt.HasValue)
+                            metadataParts.Add($"Émis: {alert.IssuedAt.Value:HH:mm le d MMMM yyyy}");
+                        
+                        string metadataText = metadataParts.Count > 0 ? string.Join(" • ", metadataParts) : string.Empty;
+                        SizeF metadataSize = !string.IsNullOrEmpty(metadataText) 
+                            ? currentGraphics.MeasureString(metadataText, detailFont, (int)availableWidth)
+                            : SizeF.Empty;
+                        
                         // Use full summary text, or show placeholder if empty
                         string displaySummary = string.IsNullOrWhiteSpace(alert.Summary) 
                             ? "(Aucun détail disponible)" 
                             : alert.Summary;
                         SizeF summarySize = currentGraphics.MeasureString(displaySummary, detailFont, (int)availableWidth);
 
-                        float cardHeight = cardPadding + citySize.Height + 5 + titleSize.Height + 10 + summarySize.Height + cardPadding;
+                        float cardHeight = cardPadding + citySize.Height + 5 + titleSize.Height + 10;
+                        if (!string.IsNullOrEmpty(metadataText))
+                            cardHeight += metadataSize.Height + 8;
+                        cardHeight += summarySize.Height + cardPadding;
 
                         // Check if we need a new page
                         if (currentY + cardHeight > height - 50)
@@ -203,6 +220,16 @@ namespace WeatherImageGenerator.Services
                         // Title (with wrapping)
                         currentGraphics.DrawString(alert.Title, typeFont, whiteBrush, new RectangleF(textX, textY, textWidth, titleSize.Height));
                         textY += titleSize.Height + 10;
+
+                        // Metadata line (Impact, Confidence, IssuedAt) - highlighted
+                        if (!string.IsNullOrEmpty(metadataText))
+                        {
+                            using (var metaBrush = new SolidBrush(severityColor))
+                            {
+                                currentGraphics.DrawString(metadataText, detailFont, metaBrush, new RectangleF(textX, textY, textWidth, metadataSize.Height));
+                            }
+                            textY += metadataSize.Height + 8;
+                        }
 
                         // Summary (full details with wrapping)
                         currentGraphics.DrawString(displaySummary, detailFont, lightGrayBrush, new RectangleF(textX, textY, textWidth, summarySize.Height));

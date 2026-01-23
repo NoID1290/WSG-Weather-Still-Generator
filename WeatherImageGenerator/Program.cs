@@ -394,13 +394,28 @@ namespace WeatherImageGenerator
                     // Pick the most important/specific title from the group
                     var bestAlert = g.OrderByDescending(a => GetAlertPriority(a.Title)).First();
                     
+                    // Combine cities from all matching alerts
+                    var allCities = g.SelectMany(a => a.City.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(c => c)
+                        .ToList();
+                    
                     return new AlertEntry
                     {
-                        City = string.Join(", ", g.Select(a => a.City).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c)),
+                        City = string.Join(", ", allCities),
                         Type = bestAlert.Type,
                         Title = CleanAlertTitle(bestAlert.Title),
                         Summary = bestAlert.Summary,
-                        SeverityColor = bestAlert.SeverityColor
+                        SeverityColor = bestAlert.SeverityColor,
+                        // Preserve new CAP fields
+                        Impact = bestAlert.Impact,
+                        Confidence = bestAlert.Confidence,
+                        IssuedAt = bestAlert.IssuedAt,
+                        ExpiresAt = bestAlert.ExpiresAt,
+                        Description = bestAlert.Description,
+                        Instructions = bestAlert.Instructions,
+                        DetailUrl = bestAlert.DetailUrl,
+                        Region = string.Join(", ", allCities)
                     };
                 })
                 .ToList();
