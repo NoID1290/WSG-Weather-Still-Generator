@@ -7,10 +7,12 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using ECCC;
+using ECCC.Services;
 using OpenMeteo;
 using OpenMap;
 using WeatherImageGenerator.Models;
-using ECCC.Services;
+using WeatherImageGenerator.Services;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -778,114 +780,56 @@ namespace WeatherImageGenerator.Forms
             try
             {
                 // Update UI on Windows Forms thread
-                UpdateRadarStatus(statusLabel, "🔄 Generating map background...", Color.DarkBlue);
+                UpdateRadarStatus(statusLabel, "🔄 Generating radar map...", Color.DarkBlue);
 
-                // Generate map background using OpenMap
-                var mapService = new MapOverlayService(800, 600);
-                Bitmap? mapBackground = null;
+                // Load OpenMap configuration
+                var config = ConfigManager.LoadConfig();
+                var openMapSettings = ConvertToOpenMapSettings(config.OpenMap);
                 
-                try
-                {
-                    // Calculate appropriate zoom level (wider area for radar)
-                    var zoomLevel = 8; // Good zoom for regional radar view
-                    _currentMapStyle = MapStyle.Terrain; // Terrain style works well with radar
-                    mapBackground = await mapService.GenerateMapBackgroundAsync(
-                        _forecast.Latitude,
-                        _forecast.Longitude,
-                        zoomLevel,
-                        800,
-                        600,
-                        _currentMapStyle
-                    );
-                }
-                catch
-                {
-                    // If map generation fails, continue without map background
-                    mapBackground = null;
-                }
+                // Create map service with configuration
+                var mapService = new MapOverlayService(800, 600, openMapSettings);
 
-                UpdateRadarStatus(statusLabel, "🔄 Loading radar data...", Color.DarkBlue);
-
-                // Fetch radar data on background thread
-                var radarService = new RadarImageService(_httpClient);
-                var imageData = await radarService.FetchRadarImageAsync(
+                // Fetch radar data using ECCC API with OpenMap service
+                var imageData = await ECCCApi.GetRadarImageAsync(
+                    _httpClient,
                     _forecast.Latitude,
                     _forecast.Longitude,
+                    radiusKm: 150, // 150km radius for better coverage
                     width: 800,
                     height: 600,
-                    radiusKm: 150 // 150km radius for better coverage
+                    mapService: mapService
                 );
-
-                Image? finalImage = null;
 
                 if (imageData != null && imageData.Length > 0)
                 {
-                    // Create radar image from data
-                    Bitmap? radarImage = null;
+                    // Create image from radar data (already composited by RadarImageService)
                     using (var ms = new MemoryStream(imageData))
                     {
-                        radarImage = new Bitmap(Image.FromStream(ms));
-                    }
+                        var radarImage = new Bitmap(Image.FromStream(ms));
 
-                    // If we have both map and radar, composite them
-                    if (mapBackground != null && radarImage != null)
-                    {
-                        UpdateRadarStatus(statusLabel, "🔄 Compositing radar on map...", Color.DarkBlue);
-                        
-                        // Create composite image
-                        finalImage = new Bitmap(800, 600);
-                        using (var g = Graphics.FromImage(finalImage))
+                        // Update PictureBox on Windows Forms thread
+                        if (_radarPictureBox != null && !_radarPictureBox.IsDisposed)
                         {
-                            // Draw map background
-                            g.DrawImage(mapBackground, 0, 0, 800, 600);
-
-                            // Draw radar overlay with transparency
-                            var colorMatrix = new ColorMatrix { Matrix33 = 0.7f }; // 70% opacity
-                            var imageAttributes = new ImageAttributes();
-                            imageAttributes.SetColorMatrix(colorMatrix);
-
-                            g.DrawImage(radarImage,
-                                new Rectangle(0, 0, 800, 600),
-                                0, 0, radarImage.Width, radarImage.Height,
-                                GraphicsUnit.Pixel,
-                                imageAttributes);
-                        }
-
-                        radarImage?.Dispose();
-                    }
-                    else if (radarImage != null)
-                    {
-                        // If only radar, use it directly
-                        finalImage = radarImage;
-                    }
-                    else if (mapBackground != null)
-                    {
-                        // If only map, use it
-                        finalImage = mapBackground;
-                    }
-
-                    // Update PictureBox on Windows Forms thread
-                    if (_radarPictureBox != null && !_radarPictureBox.IsDisposed && finalImage != null)
-                    {
-                        if (_radarPictureBox.InvokeRequired)
-                        {
-                            _radarPictureBox.Invoke((MethodInvoker)delegate
+                            if (_radarPictureBox.InvokeRequired)
                             {
-                                if (!_radarPictureBox.IsDisposed)
+                                _radarPictureBox.Invoke((MethodInvoker)delegate
                                 {
-                                    _radarPictureBox.Image?.Dispose();
-                                    _radarPictureBox.Image = finalImage;
-                                }
-                            });
-                        }
-                        else
-                        {
-                            _radarPictureBox.Image?.Dispose();
-                            _radarPictureBox.Image = finalImage;
+                                    if (!_radarPictureBox.IsDisposed)
+                                    {
+                                        _radarPictureBox.Image?.Dispose();
+                                        _radarPictureBox.Image = radarImage;
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                _radarPictureBox.Image?.Dispose();
+                                _radarPictureBox.Image = radarImage;
+                            }
                         }
                     }
 
-                    UpdateRadarStatus(statusLabel, $"✓ Radar with map loaded at {DateTime.Now:HH:mm:ss}", Color.DarkGreen);
+                    UpdateRadarStatus(statusLabel, $"✓ Radar loaded at {DateTime.Now:HH:mm:ss}", Color.DarkGreen);
                 }
                 else
                 {
@@ -898,6 +842,23 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
+        private static OpenMap.OpenMapSettings? ConvertToOpenMapSettings(Services.OpenMapSettings? configSettings)
+        {
+            if (configSettings == null) return null;
+            
+            return new OpenMap.OpenMapSettings
+            {
+                DefaultMapStyle = configSettings.DefaultMapStyle,
+                DefaultZoomLevel = configSettings.DefaultZoomLevel,
+                BackgroundColor = configSettings.BackgroundColor,
+                OverlayOpacity = configSettings.OverlayOpacity,
+                TileDownloadTimeoutSeconds = configSettings.TileDownloadTimeoutSeconds,
+                EnableTileCache = configSettings.EnableTileCache,
+                TileCacheDirectory = configSettings.TileCacheDirectory,
+                CacheDurationHours = configSettings.CacheDurationHours
+            };
+        }
+        
         private void UpdateRadarStatus(Label? statusLabel, string message, Color color)
         {
             if (statusLabel == null || statusLabel.IsDisposed)

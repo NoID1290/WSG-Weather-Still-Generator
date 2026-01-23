@@ -6,22 +6,25 @@ using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using ECCC.Models;
+using OpenMap;
 
 namespace ECCC.Services
 {
     /// <summary>
     /// Service for fetching and compositing radar images with base maps.
-    /// Retrieves ECCC radar overlay and combines it with geographic base layers.
+    /// Retrieves ECCC radar overlay and combines it with OpenStreetMap base layers.
     /// </summary>
     public class RadarImageService
     {
         private readonly HttpClient _httpClient;
+        private readonly MapOverlayService? _mapService;
         private const string ECCC_GEOMET_WMS = "https://geo.weather.gc.ca/geomet";
         private const int DEFAULT_RADIUS_KM = 200;
 
-        public RadarImageService(HttpClient httpClient)
+        public RadarImageService(HttpClient httpClient, MapOverlayService? mapService = null)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _mapService = mapService;
         }
 
         /// <summary>
@@ -83,44 +86,56 @@ namespace ECCC.Services
         }
 
         /// <summary>
-        /// Fetches the base map layer from multiple WMS services with fallback.
+        /// Fetches the base map layer using OpenMap service or fallback.
         /// </summary>
         private async Task<byte[]?> FetchBaseMapAsync(
             (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
             int width,
             int height)
         {
-            // Try multiple WMS services in order of preference
-            var baseMapUrls = new[]
-            {
-                BuildBaseMapUrl(bbox, width, height, "osm"),         // Terrestris OSM
-                BuildBaseMapUrl(bbox, width, height, "demis")        // DEMIS World Map
-            };
-
-            foreach (var url in baseMapUrls)
+            // Try OpenMap service first if available
+            if (_mapService != null)
             {
                 try
                 {
-                    Console.WriteLine($"[RadarImageService] Trying base map: {url.Substring(0, Math.Min(80, url.Length))}...");
-                    var response = await _httpClient.GetAsync(url);
-                    if (response.IsSuccessStatusCode)
+                    Console.WriteLine("[RadarImageService] Using OpenMap service for base map");
+                    
+                    // Calculate center point from bounding box
+                    double centerLat = (bbox.MinLat + bbox.MaxLat) / 2;
+                    double centerLon = (bbox.MinLon + bbox.MaxLon) / 2;
+                    
+                    // Calculate appropriate zoom level based on bbox size
+                    double latSpan = bbox.MaxLat - bbox.MinLat;
+                    int zoomLevel = CalculateZoomLevel(latSpan);
+                    
+                    Console.WriteLine($"[RadarImageService] Generating map: center=({centerLat:F4}, {centerLon:F4}), zoom={zoomLevel}");
+                    
+                    using var mapBitmap = await _mapService.GenerateMapBackgroundAsync(
+                        centerLat, 
+                        centerLon, 
+                        zoomLevel, 
+                        width, 
+                        height);
+                    
+                    if (mapBitmap != null)
                     {
-                        var data = await response.Content.ReadAsByteArrayAsync();
-                        if (data != null && data.Length > 1000) // Ensure we got actual data
-                        {
-                            Console.WriteLine($"[RadarImageService] Base map fetched successfully: {data.Length} bytes");
-                            return data;
-                        }
+                        // Convert Bitmap to byte array
+                        using var ms = new MemoryStream();
+                        mapBitmap.Save(ms, ImageFormat.Png);
+                        var mapData = ms.ToArray();
+                        
+                        Console.WriteLine($"[RadarImageService] OpenMap base map generated: {mapData.Length} bytes");
+                        return mapData;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[RadarImageService] Base map attempt failed: {ex.Message}");
+                    Console.WriteLine($"[RadarImageService] OpenMap service failed: {ex.Message}");
                 }
             }
 
-            // If all external services fail, create a detailed background
-            Console.WriteLine("[RadarImageService] All base map services failed, using fallback background");
+            // Fallback to detailed background if OpenMap unavailable
+            Console.WriteLine("[RadarImageService] Using fallback background");
             return CreateDetailedBackground(width, height, bbox);
         }
 
@@ -325,44 +340,19 @@ namespace ECCC.Services
         }
 
         /// <summary>
-        /// Builds the WMS URL for base map using various tile services.
+        /// Calculates appropriate zoom level based on latitude span.
         /// </summary>
-        private string BuildBaseMapUrl(
-            (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
-            int width,
-            int height,
-            string service)
+        private int CalculateZoomLevel(double latSpan)
         {
-            return service switch
-            {
-                "osm" => 
-                    // Terrestris OSM WMS service
-                    $"https://ows.terrestris.de/osm/service?" +
-                    $"SERVICE=WMS&" +
-                    $"VERSION=1.3.0&" +
-                    $"REQUEST=GetMap&" +
-                    $"LAYERS=OSM-WMS&" +
-                    $"CRS=EPSG:4326&" +
-                    $"BBOX={bbox.MinLat},{bbox.MinLon},{bbox.MaxLat},{bbox.MaxLon}&" +
-                    $"WIDTH={width}&" +
-                    $"HEIGHT={height}&" +
-                    $"FORMAT=image/png",
-                    
-                "demis" => 
-                    // DEMIS World Map WMS
-                    $"https://www2.demis.nl/wms/wms.ashx?WMS=WorldMap&" +
-                    $"SERVICE=WMS&" +
-                    $"VERSION=1.1.1&" +
-                    $"REQUEST=GetMap&" +
-                    $"LAYERS=Countries,Borders,Coastlines&" +
-                    $"SRS=EPSG:4326&" +
-                    $"BBOX={bbox.MinLon},{bbox.MinLat},{bbox.MaxLon},{bbox.MaxLat}&" +
-                    $"WIDTH={width}&" +
-                    $"HEIGHT={height}&" +
-                    $"FORMAT=image/png",
-                    
-                _ => throw new ArgumentException($"Unknown base map service: {service}")
-            };
+            // Approximate zoom level calculation
+            // Larger spans need lower zoom (more zoomed out)
+            if (latSpan > 10) return 6;
+            if (latSpan > 5) return 7;
+            if (latSpan > 2.5) return 8;
+            if (latSpan > 1.25) return 9;
+            if (latSpan > 0.6) return 10;
+            if (latSpan > 0.3) return 11;
+            return 12;
         }
 
         /// <summary>

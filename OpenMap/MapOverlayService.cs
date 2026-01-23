@@ -75,17 +75,19 @@ public class MapOverlayService
     public async Task<Bitmap> GenerateMapBackgroundAsync(
         double latitude,
         double longitude,
-        int zoomLevel = 10,
+        int? zoomLevel = null,
         int? width = null,
         int? height = null,
-        MapStyle style = MapStyle.Standard)
+        MapStyle? style = null)
     {
         var w = width ?? _defaultWidth;
         var h = height ?? _defaultHeight;
+        var zoom = zoomLevel ?? _defaultZoomLevel;
+        var mapStyle = style ?? _defaultMapStyle;
 
         // Convert lat/lon to pixel coordinates at this zoom level
-        var centerPixelX = LonToPixelX(longitude, zoomLevel);
-        var centerPixelY = LatToPixelY(latitude, zoomLevel);
+        var centerPixelX = LonToPixelX(longitude, zoom);
+        var centerPixelY = LatToPixelY(latitude, zoom);
 
         // Calculate pixel bounds for the viewport
         var pixelMinX = centerPixelX - (w / 2.0);
@@ -114,12 +116,12 @@ public class MapOverlayService
                 {
                     // Skip invalid tiles
                     if (tx < 0 || ty < 0) continue;
-                    var maxTile = (1 << zoomLevel);
+                    var maxTile = (1 << zoom);
                     if (tx >= maxTile || ty >= maxTile) continue;
 
                     try
                     {
-                        var tileUrl = GetTileUrl(tx, ty, zoomLevel, style);
+                        var tileUrl = GetTileUrl(tx, ty, zoom, mapStyle);
                         var tileImage = await DownloadTileAsync(tileUrl);
                         
                         if (tileImage != null)
@@ -153,10 +155,10 @@ public class MapOverlayService
     public async Task<Bitmap> GenerateMapOverlayAsync(
         double latitude,
         double longitude,
-        int zoomLevel = 10,
+        int? zoomLevel = null,
         int? width = null,
         int? height = null,
-        MapStyle style = MapStyle.Standard)
+        MapStyle? style = null)
     {
         // Same as background but could apply transparency or different styling
         return await GenerateMapBackgroundAsync(latitude, longitude, zoomLevel, width, height, style);
@@ -170,7 +172,7 @@ public class MapOverlayService
         double maxLat, double maxLon,
         int? width = null,
         int? height = null,
-        MapStyle style = MapStyle.Standard)
+        MapStyle? style = null)
     {
         var w = width ?? _defaultWidth;
         var h = height ?? _defaultHeight;
@@ -192,10 +194,10 @@ public class MapOverlayService
         string outputPath,
         double latitude,
         double longitude,
-        int zoomLevel = 10,
+        int? zoomLevel = null,
         int? width = null,
         int? height = null,
-        MapStyle style = MapStyle.Standard)
+        MapStyle? style = null)
     {
         using var bitmap = await GenerateMapBackgroundAsync(latitude, longitude, zoomLevel, width, height, style);
         

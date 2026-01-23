@@ -25,7 +25,29 @@ namespace WeatherImageGenerator.Services
         public RadarAnimationService(HttpClient httpClient, int width = 1920, int height = 1080)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-            _mapService = new MapOverlayService(width, height);
+            
+            // Load OpenMap configuration
+            var config = ConfigManager.LoadConfig();
+            var openMapSettings = ConvertToOpenMapSettings(config.OpenMap);
+            
+            _mapService = new MapOverlayService(width, height, openMapSettings);
+        }
+        
+        private static OpenMap.OpenMapSettings? ConvertToOpenMapSettings(Services.OpenMapSettings? configSettings)
+        {
+            if (configSettings == null) return null;
+            
+            return new OpenMap.OpenMapSettings
+            {
+                DefaultMapStyle = configSettings.DefaultMapStyle,
+                DefaultZoomLevel = configSettings.DefaultZoomLevel,
+                BackgroundColor = configSettings.BackgroundColor,
+                OverlayOpacity = configSettings.OverlayOpacity,
+                TileDownloadTimeoutSeconds = configSettings.TileDownloadTimeoutSeconds,
+                EnableTileCache = configSettings.EnableTileCache,
+                TileCacheDirectory = configSettings.TileCacheDirectory,
+                CacheDurationHours = configSettings.CacheDurationHours
+            };
         }
 
         /// <summary>
@@ -74,7 +96,7 @@ namespace WeatherImageGenerator.Services
             try
             {
                 baseMap = await _mapService.GenerateMapBackgroundAsync(
-                    centerLat, centerLon, zoomLevel, width, height, MapStyle.Terrain);
+                    centerLat, centerLon, zoomLevel, width, height);
                 Logger.Log("✓ Base map generated", ConsoleColor.Green);
             }
             catch (Exception ex)
@@ -372,7 +394,7 @@ namespace WeatherImageGenerator.Services
 
                 // Generate base map
                 var baseMap = await _mapService.GenerateMapBackgroundAsync(
-                    centerLat, centerLon, zoomLevel, width, height, MapStyle.Terrain);
+                    centerLat, centerLon, zoomLevel, width, height);
 
                 // Calculate bounding box
                 var bbox = CalculateBoundingBox(centerLat, centerLon, zoomLevel, width, height);

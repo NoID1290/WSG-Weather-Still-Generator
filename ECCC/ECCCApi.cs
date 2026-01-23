@@ -155,6 +155,7 @@ namespace ECCC
         /// <param name="radiusKm">Radius in kilometers for the bounding box (default: 100km)</param>
         /// <param name="width">Image width in pixels</param>
         /// <param name="height">Image height in pixels</param>
+        /// <param name="mapService">Optional OpenMap service for base map rendering</param>
         /// <returns>Radar image data or null if failed</returns>
         public static async Task<byte[]?> GetRadarImageAsync(
             System.Net.Http.HttpClient httpClient,
@@ -162,13 +163,14 @@ namespace ECCC
             double longitude,
             double radiusKm = 100,
             int width = 800,
-            int height = 600)
+            int height = 600,
+            OpenMap.MapOverlayService? mapService = null)
         {
             try
             {
                 LogMessage($"[ECCC API] Fetching radar image for ({latitude}, {longitude})...");
                 
-                var radarService = new RadarImageService(httpClient);
+                var radarService = new RadarImageService(httpClient, mapService);
                 var imageData = await radarService.FetchRadarImageAsync(
                     latitude, longitude, width, height, radiusKm);
                 

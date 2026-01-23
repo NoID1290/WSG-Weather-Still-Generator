@@ -19,8 +19,29 @@ public class WeatherMapService
 
     public WeatherMapService(string outputDirectory, int width = 1920, int height = 1080)
     {
-        _mapService = new MapOverlayService(width, height);
+        // Load OpenMap configuration
+        var config = ConfigManager.LoadConfig();
+        var openMapSettings = ConvertToOpenMapSettings(config.OpenMap);
+        
+        _mapService = new MapOverlayService(width, height, openMapSettings);
         _outputDirectory = outputDirectory;
+    }
+    
+    private static OpenMap.OpenMapSettings? ConvertToOpenMapSettings(Services.OpenMapSettings? configSettings)
+    {
+        if (configSettings == null) return null;
+        
+        return new OpenMap.OpenMapSettings
+        {
+            DefaultMapStyle = configSettings.DefaultMapStyle,
+            DefaultZoomLevel = configSettings.DefaultZoomLevel,
+            BackgroundColor = configSettings.BackgroundColor,
+            OverlayOpacity = configSettings.OverlayOpacity,
+            TileDownloadTimeoutSeconds = configSettings.TileDownloadTimeoutSeconds,
+            EnableTileCache = configSettings.EnableTileCache,
+            TileCacheDirectory = configSettings.TileCacheDirectory,
+            CacheDurationHours = configSettings.CacheDurationHours
+        };
     }
 
     /// <summary>

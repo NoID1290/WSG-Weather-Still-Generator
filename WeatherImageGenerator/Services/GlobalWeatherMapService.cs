@@ -50,7 +50,12 @@ namespace WeatherImageGenerator.Services
         {
             _width = width;
             _height = height;
-            _mapService = new MapOverlayService(width, height);
+            
+            // Load OpenMap configuration
+            var config = ConfigManager.LoadConfig();
+            var openMapSettings = ConvertToOpenMapSettings(config.OpenMap);
+            
+            _mapService = new MapOverlayService(width, height, openMapSettings);
             _httpClient = new HttpClient();
         }
 
@@ -101,7 +106,7 @@ namespace WeatherImageGenerator.Services
             // Generate base map
             Logger.Log("[GlobalWeatherMap] Generating base map for Quebec region...", ConsoleColor.Cyan);
             using var baseMap = await _mapService.GenerateMapBackgroundAsync(
-                centerLat, centerLon, zoomLevel, _width, _height, MapStyle.Standard);
+                centerLat, centerLon, zoomLevel, _width, _height);
 
             // Create final image with overlays
             var finalImage = new Bitmap(_width, _height);
@@ -387,6 +392,23 @@ namespace WeatherImageGenerator.Services
 
             Logger.Log($"✓ Weather map saved: {outputPath}", ConsoleColor.Green);
             return outputPath;
+        }
+        
+        private static OpenMap.OpenMapSettings? ConvertToOpenMapSettings(Services.OpenMapSettings? configSettings)
+        {
+            if (configSettings == null) return null;
+            
+            return new OpenMap.OpenMapSettings
+            {
+                DefaultMapStyle = configSettings.DefaultMapStyle,
+                DefaultZoomLevel = configSettings.DefaultZoomLevel,
+                BackgroundColor = configSettings.BackgroundColor,
+                OverlayOpacity = configSettings.OverlayOpacity,
+                TileDownloadTimeoutSeconds = configSettings.TileDownloadTimeoutSeconds,
+                EnableTileCache = configSettings.EnableTileCache,
+                TileCacheDirectory = configSettings.TileCacheDirectory,
+                CacheDurationHours = configSettings.CacheDurationHours
+            };
         }
     }
 }
