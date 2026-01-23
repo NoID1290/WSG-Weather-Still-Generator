@@ -76,6 +76,15 @@ namespace WeatherImageGenerator.Forms
         ComboBox cmbTtsVoice;
         TextBox txtTtsRate;
         TextBox txtTtsPitch;
+        // OpenMap controls
+        ComboBox cmbMapStyle;
+        NumericUpDown numMapZoomLevel;
+        TextBox txtMapBackgroundColor;
+        NumericUpDown numMapOverlayOpacity;
+        NumericUpDown numMapTileTimeout;
+        CheckBox chkMapEnableCache;
+        TextBox txtMapCacheDirectory;
+        NumericUpDown numMapCacheDuration;
         public SettingsForm()
         {
             this.Text = "⚙ Settings";
@@ -760,11 +769,229 @@ namespace WeatherImageGenerator.Forms
                 lblTtsPitch, txtTtsPitch, btnDownloadVoices, lblTtsNote
             });
 
+            // --- OpenMap Tab ---
+            var tabOpenMap = new TabPage("🗺 OpenMap") { BackColor = Color.White, AutoScroll = true };
+            int omTop = 20;
+            int omLeft = 20;
+            int omLabelWidth = 200;
+            int omControlWidth = 250;
+
+            // Section: Basic Settings
+            var lblMapBasicSection = new Label
+            {
+                Text = "Basic Map Settings",
+                Left = omLeft,
+                Top = omTop,
+                Width = 600,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(41, 128, 185)
+            };
+            omTop += 30;
+
+            var lblMapStyle = new Label { Text = "Default Map Style:", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
+            cmbMapStyle = new ComboBox
+            {
+                Left = omLeft + omLabelWidth + 10,
+                Top = omTop - 3,
+                Width = omControlWidth,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cmbMapStyle.Items.AddRange(new object[] { "Standard", "Minimal", "Terrain", "Satellite" });
+            cmbMapStyle.SelectedIndex = 0;
+            omTop += 35;
+
+            var lblMapZoom = new Label { Text = "Default Zoom Level (0-18):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
+            numMapZoomLevel = new NumericUpDown
+            {
+                Left = omLeft + omLabelWidth + 10,
+                Top = omTop - 3,
+                Width = 100,
+                Minimum = 0,
+                Maximum = 18,
+                Value = 10
+            };
+            var lblMapZoomHelp = new Label
+            {
+                Text = "(7-10 for regional weather)",
+                Left = omLeft + omLabelWidth + 120,
+                Top = omTop,
+                Width = 200,
+                ForeColor = Color.Gray,
+                Font = new Font("Segoe UI", 8.5F)
+            };
+            omTop += 35;
+
+            var lblMapBgColor = new Label { Text = "Background Color (Hex):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
+            txtMapBackgroundColor = new TextBox
+            {
+                Left = omLeft + omLabelWidth + 10,
+                Top = omTop - 3,
+                Width = 120,
+                Text = "#D3D3D3"
+            };
+            var lblMapBgHelp = new Label
+            {
+                Text = "e.g., #E8F4F8 for light blue",
+                Left = omLeft + omLabelWidth + 140,
+                Top = omTop,
+                Width = 200,
+                ForeColor = Color.Gray,
+                Font = new Font("Segoe UI", 8.5F)
+            };
+            omTop += 35;
+
+            var lblMapOpacity = new Label { Text = "Overlay Opacity (0-100%):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
+            numMapOverlayOpacity = new NumericUpDown
+            {
+                Left = omLeft + omLabelWidth + 10,
+                Top = omTop - 3,
+                Width = 100,
+                Minimum = 0,
+                Maximum = 100,
+                Value = 70,
+                DecimalPlaces = 0
+            };
+            var lblMapOpacityHelp = new Label
+            {
+                Text = "(70-85% recommended)",
+                Left = omLeft + omLabelWidth + 120,
+                Top = omTop,
+                Width = 200,
+                ForeColor = Color.Gray,
+                Font = new Font("Segoe UI", 8.5F)
+            };
+            omTop += 45;
+
+            // Section: Performance Settings
+            var lblMapPerfSection = new Label
+            {
+                Text = "Performance & Caching",
+                Left = omLeft,
+                Top = omTop,
+                Width = 600,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(41, 128, 185)
+            };
+            omTop += 30;
+
+            var lblMapTimeout = new Label { Text = "Tile Download Timeout (sec):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
+            numMapTileTimeout = new NumericUpDown
+            {
+                Left = omLeft + omLabelWidth + 10,
+                Top = omTop - 3,
+                Width = 100,
+                Minimum = 10,
+                Maximum = 120,
+                Value = 30
+            };
+            omTop += 35;
+
+            chkMapEnableCache = new CheckBox
+            {
+                Text = "Enable Tile Caching (Recommended)",
+                Left = omLeft,
+                Top = omTop,
+                Width = 400,
+                Checked = true
+            };
+            omTop += 30;
+
+            var lblMapCacheDir = new Label { Text = "Cache Directory:", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
+            txtMapCacheDirectory = new TextBox
+            {
+                Left = omLeft + omLabelWidth + 10,
+                Top = omTop - 3,
+                Width = omControlWidth,
+                Text = "MapCache",
+                Enabled = true
+            };
+            chkMapEnableCache.CheckedChanged += (s, e) => txtMapCacheDirectory.Enabled = chkMapEnableCache.Checked;
+            omTop += 35;
+
+            var lblMapCacheDuration = new Label { Text = "Cache Duration (hours):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
+            numMapCacheDuration = new NumericUpDown
+            {
+                Left = omLeft + omLabelWidth + 10,
+                Top = omTop - 3,
+                Width = 100,
+                Minimum = 1,
+                Maximum = 8760,
+                Value = 168
+            };
+            var lblMapCacheHelp = new Label
+            {
+                Text = "(168 hrs = 7 days)",
+                Left = omLeft + omLabelWidth + 120,
+                Top = omTop,
+                Width = 200,
+                ForeColor = Color.Gray,
+                Font = new Font("Segoe UI", 8.5F)
+            };
+            omTop += 45;
+
+            // Section: Map Style Guide
+            var lblMapStyleSection = new Label
+            {
+                Text = "Map Style Reference",
+                Left = omLeft,
+                Top = omTop,
+                Width = 600,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(41, 128, 185)
+            };
+            omTop += 30;
+
+            var lblMapStyleGuide = new Label
+            {
+                Text = "• Standard: Traditional OpenStreetMap with detailed roads and cities\n" +
+                       "• Minimal: Clean, simplified style (HOT)\n" +
+                       "• Terrain: Topographic with elevation contours\n" +
+                       "• Satellite: High-resolution imagery (Esri)\n\n" +
+                       "Note: All maps require proper attribution. See OpenMap/LEGAL.md",
+                Left = omLeft,
+                Top = omTop,
+                Width = 650,
+                Height = 130,
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = Color.FromArgb(52, 73, 94)
+            };
+            omTop += 140;
+
+            // Attribution note
+            var lblMapAttribution = new Label
+            {
+                Text = "⚠ Legal: Generated maps automatically include required attribution per OSM usage policy.",
+                Left = omLeft,
+                Top = omTop,
+                Width = 650,
+                Height = 30,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Italic),
+                ForeColor = Color.FromArgb(192, 57, 43)
+            };
+
+            tabOpenMap.Controls.AddRange(new Control[]
+            {
+                lblMapBasicSection,
+                lblMapStyle, cmbMapStyle,
+                lblMapZoom, numMapZoomLevel, lblMapZoomHelp,
+                lblMapBgColor, txtMapBackgroundColor, lblMapBgHelp,
+                lblMapOpacity, numMapOverlayOpacity, lblMapOpacityHelp,
+                lblMapPerfSection,
+                lblMapTimeout, numMapTileTimeout,
+                chkMapEnableCache,
+                lblMapCacheDir, txtMapCacheDirectory,
+                lblMapCacheDuration, numMapCacheDuration, lblMapCacheHelp,
+                lblMapStyleSection,
+                lblMapStyleGuide,
+                lblMapAttribution
+            });
+
             // Add tabs to tab control
             tabControl.TabPages.Add(tabGeneral);
             tabControl.TabPages.Add(tabImage);
             tabControl.TabPages.Add(tabVideo);
             tabControl.TabPages.Add(tabFfmpeg);
+            tabControl.TabPages.Add(tabOpenMap);
             tabControl.TabPages.Add(tabEas);
             tabControl.TabPages.Add(tabExperimental);
 
@@ -909,7 +1136,26 @@ namespace WeatherImageGenerator.Forms
                 if (cmbTtsVoice.Items.Contains(voiceDisplay)) cmbTtsVoice.SelectedItem = voiceDisplay;
                 else cmbTtsVoice.SelectedIndex = 0;
                 txtTtsRate.Text = tts.Rate;
-                txtTtsPitch.Text = tts.Pitch; 
+                txtTtsPitch.Text = tts.Pitch;
+
+                // Load OpenMap settings
+                var openMap = cfg.OpenMap ?? new OpenMapSettings();
+                var mapStyle = openMap.DefaultMapStyle?.ToLowerInvariant() ?? "standard";
+                cmbMapStyle.SelectedIndex = mapStyle switch
+                {
+                    "standard" => 0,
+                    "minimal" => 1,
+                    "terrain" => 2,
+                    "satellite" => 3,
+                    _ => 0
+                };
+                numMapZoomLevel.Value = openMap.DefaultZoomLevel;
+                txtMapBackgroundColor.Text = openMap.BackgroundColor;
+                numMapOverlayOpacity.Value = (decimal)(openMap.OverlayOpacity * 100); // Convert 0.0-1.0 to 0-100
+                numMapTileTimeout.Value = openMap.TileDownloadTimeoutSeconds;
+                chkMapEnableCache.Checked = openMap.EnableTileCache;
+                txtMapCacheDirectory.Text = openMap.TileCacheDirectory ?? "MapCache";
+                numMapCacheDuration.Value = openMap.CacheDurationHours; 
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -1236,6 +1482,25 @@ namespace WeatherImageGenerator.Forms
                     Logger.Log($"Failed to update Windows startup setting: {ex.Message}", Logger.LogLevel.Error);
                     MessageBox.Show($"Failed to update Windows startup setting: {ex.Message}", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
+
+                // Persist OpenMap settings
+                var openMap = cfg.OpenMap ?? new OpenMapSettings();
+                openMap.DefaultMapStyle = cmbMapStyle.SelectedIndex switch
+                {
+                    0 => "Standard",
+                    1 => "Minimal",
+                    2 => "Terrain",
+                    3 => "Satellite",
+                    _ => "Standard"
+                };
+                openMap.DefaultZoomLevel = (int)numMapZoomLevel.Value;
+                openMap.BackgroundColor = txtMapBackgroundColor.Text;
+                openMap.OverlayOpacity = (float)(numMapOverlayOpacity.Value / 100); // Convert 0-100 to 0.0-1.0
+                openMap.TileDownloadTimeoutSeconds = (int)numMapTileTimeout.Value;
+                openMap.EnableTileCache = chkMapEnableCache.Checked;
+                openMap.TileCacheDirectory = txtMapCacheDirectory.Text;
+                openMap.CacheDurationHours = (int)numMapCacheDuration.Value;
+                cfg.OpenMap = openMap;
 
                 // Persist FFmpeg settings
                 var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();

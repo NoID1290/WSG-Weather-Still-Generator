@@ -1,6 +1,7 @@
 using SkiaSharp;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 
 namespace OpenMap;
 
@@ -24,15 +25,48 @@ public class MapOverlayService
     private readonly HttpClient _httpClient;
     // User-Agent must identify the application and include contact info per OSM Tile Usage Policy
     private static readonly string _userAgent = "WeatherImageGenerator/1.0 (+https://github.com/NoID-Softwork/weather-still-api)";
+    
+    // Configuration
+    private readonly string _backgroundColor;
+    private readonly float _defaultOverlayOpacity;
+    private readonly MapStyle _defaultMapStyle;
+    private readonly int _defaultZoomLevel;
+    private readonly bool _enableTileCache;
+    private readonly string? _tileCacheDirectory;
+    private readonly int _cacheDurationHours;
 
+    /// <summary>
+    /// Creates a new MapOverlayService with default settings
+    /// </summary>
     public MapOverlayService(int width = 1920, int height = 1080)
+        : this(width, height, null)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new MapOverlayService with custom configuration
+    /// </summary>
+    /// <param name="width">Default map width in pixels</param>
+    /// <param name="height">Default map height in pixels</param>
+    /// <param name="settings">OpenMap configuration settings (optional)</param>
+    public MapOverlayService(int width, int height, OpenMapSettings? settings)
     {
         _defaultWidth = width;
         _defaultHeight = height;
+        
+        // Apply configuration or use defaults
+        _backgroundColor = settings?.BackgroundColor ?? "#D3D3D3";
+        _defaultOverlayOpacity = settings?.OverlayOpacity ?? 0.7f;
+        _defaultMapStyle = ParseMapStyle(settings?.DefaultMapStyle);
+        _defaultZoomLevel = settings?.DefaultZoomLevel ?? 10;
+        _enableTileCache = settings?.EnableTileCache ?? true;
+        _tileCacheDirectory = settings?.TileCacheDirectory;
+        _cacheDurationHours = settings?.CacheDurationHours ?? 168;
+        
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(_userAgent);
-        // Set reasonable timeout for tile downloads
-        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        // Set timeout from configuration
+        _httpClient.Timeout = TimeSpan.FromSeconds(settings?.TileDownloadTimeoutSeconds ?? 30);
     }
 
     /// <summary>
@@ -69,7 +103,9 @@ public class MapOverlayService
         var bitmap = new Bitmap(w, h);
         using (var g = Graphics.FromImage(bitmap))
         {
-            g.Clear(Color.LightGray);
+            // Use configured background color
+            var bgColor = ParseColor(_backgroundColor);
+            g.Clear(bgColor);
 
             // Download and draw each tile
             for (int tx = tileMinX; tx <= tileMaxX; tx++)
@@ -175,8 +211,11 @@ public class MapOverlayService
     /// <summary>
     /// Overlay a transparent image (like radar) on top of a map
     /// </summary>
-    public Bitmap OverlayImageOnMap(Bitmap mapBackground, Bitmap overlayImage, float opacity = 0.7f)
+    public Bitmap OverlayImageOnMap(Bitmap mapBackground, Bitmap overlayImage, float? opacity = null)
     {
+        // Use provided opacity or configured default
+        var effectiveOpacity = opacity ?? _defaultOverlayOpacity;
+        
         var result = new Bitmap(mapBackground.Width, mapBackground.Height);
         
         using (var g = Graphics.FromImage(result))
@@ -187,7 +226,7 @@ public class MapOverlayService
             // Create color matrix for transparency
             var colorMatrix = new ColorMatrix
             {
-                Matrix33 = opacity // Set alpha (transparency)
+                Matrix33 = effectiveOpacity // Set alpha (transparency)
             };
 
             var imageAttributes = new ImageAttributes();
@@ -329,6 +368,60 @@ public class MapOverlayService
         };
     }
 
+    /// <summary>
+    /// Parses a hex color string to System.Drawing.Color
+    /// </summary>
+    private static Color ParseColor(string hexColor)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(hexColor))
+                return Color.LightGray;
+
+            // Remove # if present
+            hexColor = hexColor.TrimStart('#');
+
+            if (hexColor.Length == 6)
+            {
+                int r = int.Parse(hexColor.Substring(0, 2), NumberStyles.HexNumber);
+                int g = int.Parse(hexColor.Substring(2, 2), NumberStyles.HexNumber);
+                int b = int.Parse(hexColor.Substring(4, 2), NumberStyles.HexNumber);
+                return Color.FromArgb(r, g, b);
+            }
+            else if (hexColor.Length == 8)
+            {
+                int a = int.Parse(hexColor.Substring(0, 2), NumberStyles.HexNumber);
+                int r = int.Parse(hexColor.Substring(2, 2), NumberStyles.HexNumber);
+                int g = int.Parse(hexColor.Substring(4, 2), NumberStyles.HexNumber);
+                int b = int.Parse(hexColor.Substring(6, 2), NumberStyles.HexNumber);
+                return Color.FromArgb(a, r, g, b);
+            }
+        }
+        catch
+        {
+            // Return default on parse error
+        }
+        return Color.LightGray;
+    }
+
+    /// <summary>
+    /// Parses a map style string to MapStyle enum
+    /// </summary>
+    private static MapStyle ParseMapStyle(string? styleString)
+    {
+        if (string.IsNullOrWhiteSpace(styleString))
+            return MapStyle.Standard;
+
+        return styleString.ToLowerInvariant() switch
+        {
+            "standard" => MapStyle.Standard,
+            "minimal" => MapStyle.Minimal,
+            "terrain" => MapStyle.Terrain,
+            "satellite" => MapStyle.Satellite,
+            _ => MapStyle.Standard
+        };
+    }
+
     #endregion
 }
 
@@ -341,4 +434,19 @@ public enum MapStyle
     Minimal,    // Light/minimal style  
     Terrain,    // Topographic/terrain style
     Satellite   // Satellite imagery
+}
+
+/// <summary>
+/// OpenMap configuration settings
+/// </summary>
+public class OpenMapSettings
+{
+    public string DefaultMapStyle { get; set; } = "Standard";
+    public int DefaultZoomLevel { get; set; } = 10;
+    public string BackgroundColor { get; set; } = "#D3D3D3";
+    public float OverlayOpacity { get; set; } = 0.7f;
+    public int TileDownloadTimeoutSeconds { get; set; } = 30;
+    public bool EnableTileCache { get; set; } = true;
+    public string? TileCacheDirectory { get; set; } = "MapCache";
+    public int CacheDurationHours { get; set; } = 168;
 }

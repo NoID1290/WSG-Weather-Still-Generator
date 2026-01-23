@@ -147,6 +147,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("TTS")]
         public TTSSettings? TTS { get; set; }
+
+        [JsonPropertyName("OpenMap")]
+        public OpenMapSettings? OpenMap { get; set; }
     }
 
     /// <summary>
@@ -734,5 +737,143 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         [JsonPropertyName("Pitch")]
         public string Pitch { get; set; } = "+0Hz";
+    }
+
+    /// <summary>
+    /// OpenStreetMap tile and rendering settings
+    /// </summary>
+    public class OpenMapSettings
+    {
+        /// <summary>
+        /// Default map style: Standard, Minimal, Terrain, or Satellite
+        /// </summary>
+        [JsonPropertyName("DefaultMapStyle")]
+        public string DefaultMapStyle { get; set; } = "Standard";
+
+        /// <summary>
+        /// Default zoom level for map generation (0-18)
+        /// </summary>
+        [JsonPropertyName("DefaultZoomLevel")]
+        public int DefaultZoomLevel { get; set; } = 10;
+
+        /// <summary>
+        /// Background color for maps (hex format: #RRGGBB)
+        /// </summary>
+        [JsonPropertyName("BackgroundColor")]
+        public string BackgroundColor { get; set; } = "#D3D3D3";
+
+        /// <summary>
+        /// Overlay opacity for radar/weather layers (0.0 to 1.0)
+        /// </summary>
+        [JsonPropertyName("OverlayOpacity")]
+        public float OverlayOpacity { get; set; } = 0.7f;
+
+        /// <summary>
+        /// Timeout for tile downloads in seconds
+        /// </summary>
+        [JsonPropertyName("TileDownloadTimeoutSeconds")]
+        public int TileDownloadTimeoutSeconds { get; set; } = 30;
+
+        /// <summary>
+        /// Enable tile caching
+        /// </summary>
+        [JsonPropertyName("EnableTileCache")]
+        public bool EnableTileCache { get; set; } = true;
+
+        /// <summary>
+        /// Tile cache directory path (relative to application directory)
+        /// </summary>
+        [JsonPropertyName("TileCacheDirectory")]
+        public string TileCacheDirectory { get; set; } = "MapCache";
+
+        /// <summary>
+        /// Cache duration in hours (tiles older than this will be re-downloaded)
+        /// </summary>
+        [JsonPropertyName("CacheDurationHours")]
+        public int CacheDurationHours { get; set; } = 168; // 7 days
+
+        /// <summary>
+        /// Map style presets for different visualization types
+        /// </summary>
+        [JsonPropertyName("StylePresets")]
+        public Dictionary<string, MapStylePreset>? StylePresets { get; set; }
+
+        /// <summary>
+        /// Custom color overrides for map elements
+        /// </summary>
+        [JsonPropertyName("ColorOverrides")]
+        public MapColorOverrides? ColorOverrides { get; set; }
+    }
+
+    /// <summary>
+    /// Map style preset configuration
+    /// </summary>
+    public class MapStylePreset
+    {
+        /// <summary>
+        /// Map style type: Standard, Minimal, Terrain, or Satellite
+        /// </summary>
+        [JsonPropertyName("Style")]
+        public string Style { get; set; } = "Standard";
+
+        /// <summary>
+        /// Default zoom level for this preset
+        /// </summary>
+        [JsonPropertyName("ZoomLevel")]
+        public int ZoomLevel { get; set; } = 10;
+
+        /// <summary>
+        /// Background color for this preset
+        /// </summary>
+        [JsonPropertyName("BackgroundColor")]
+        public string? BackgroundColor { get; set; }
+
+        /// <summary>
+        /// Overlay opacity for this preset
+        /// </summary>
+        [JsonPropertyName("OverlayOpacity")]
+        public float? OverlayOpacity { get; set; }
+    }
+
+    /// <summary>
+    /// Custom color overrides for map elements
+    /// </summary>
+    public class MapColorOverrides
+    {
+        /// <summary>
+        /// Background/ocean color
+        /// </summary>
+        [JsonPropertyName("Background")]
+        public string? Background { get; set; }
+
+        /// <summary>
+        /// Water bodies color
+        /// </summary>
+        [JsonPropertyName("Water")]
+        public string? Water { get; set; }
+
+        /// <summary>
+        /// Land/terrain color
+        /// </summary>
+        [JsonPropertyName("Land")]
+        public string? Land { get; set; }
+
+        /// <summary>
+        /// Road/street color
+        /// </summary>
+        [JsonPropertyName("Roads")]
+        public string? Roads { get; set; }
+
+        /// <summary>
+        /// City/urban area color
+        /// </summary>
+        [JsonPropertyName("Urban")]
+        public string? Urban { get; set; }
+
+        /// <summary>
+        /// Border/boundary color
+        /// </summary>
+        [JsonPropertyName("Borders")]
+        public string? Borders { get; set; }
     }
 }
