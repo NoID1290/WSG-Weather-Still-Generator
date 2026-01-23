@@ -124,16 +124,19 @@ namespace WeatherImageGenerator.Services
                         // Card styling
                         float cardPadding = 20;
                         float cardMarginBottom = 20;
+                        float availableWidth = contentWidth - cardPadding * 2 - 25; // Account for left strip and padding
                         
-                        // Measure content
-                        SizeF citySize = currentGraphics.MeasureString($"{alert.City.ToUpper()} • {alert.Type}", cityFont, (int)(contentWidth - cardPadding * 2));
-                        SizeF titleSize = currentGraphics.MeasureString(alert.Title, typeFont, (int)(contentWidth - cardPadding * 2));
+                        // Measure content with proper wrapping
+                        string cityTypeText = $"{alert.City.ToUpper()} • {alert.Type}";
+                        SizeF citySize = currentGraphics.MeasureString(cityTypeText, cityFont, (int)availableWidth);
+                        
+                        SizeF titleSize = currentGraphics.MeasureString(alert.Title, typeFont, (int)availableWidth);
                         
                         // Use full summary text, or show placeholder if empty
                         string displaySummary = string.IsNullOrWhiteSpace(alert.Summary) 
                             ? "(Aucun détail disponible)" 
                             : alert.Summary;
-                        SizeF summarySize = currentGraphics.MeasureString(displaySummary, detailFont, (int)(contentWidth - cardPadding * 2));
+                        SizeF summarySize = currentGraphics.MeasureString(displaySummary, detailFont, (int)availableWidth);
 
                         float cardHeight = cardPadding + citySize.Height + 5 + titleSize.Height + 10 + summarySize.Height + cardPadding;
 
@@ -191,17 +194,18 @@ namespace WeatherImageGenerator.Services
                         // Draw Content
                         float textX = margin + 25;
                         float textY = currentY + cardPadding;
+                        float textWidth = contentWidth - cardPadding - 25;
 
-                        // City & Type
-                        currentGraphics.DrawString($"{alert.City.ToUpper()} • {alert.Type}", cityFont, dimBrush, new PointF(textX, textY));
+                        // City & Type (with wrapping)
+                        currentGraphics.DrawString(cityTypeText, cityFont, dimBrush, new RectangleF(textX, textY, textWidth, citySize.Height));
                         textY += citySize.Height + 5;
 
-                        // Title
-                        currentGraphics.DrawString(alert.Title, typeFont, whiteBrush, new RectangleF(textX, textY, contentWidth - cardPadding - 25, titleSize.Height));
+                        // Title (with wrapping)
+                        currentGraphics.DrawString(alert.Title, typeFont, whiteBrush, new RectangleF(textX, textY, textWidth, titleSize.Height));
                         textY += titleSize.Height + 10;
 
-                        // Summary (full details)
-                        currentGraphics.DrawString(displaySummary, detailFont, lightGrayBrush, new RectangleF(textX, textY, contentWidth - cardPadding - 25, summarySize.Height));
+                        // Summary (full details with wrapping)
+                        currentGraphics.DrawString(displaySummary, detailFont, lightGrayBrush, new RectangleF(textX, textY, textWidth, summarySize.Height));
 
                         currentY += cardHeight + cardMarginBottom;
                     }

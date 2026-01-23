@@ -385,26 +385,67 @@ namespace WeatherImageGenerator
 
         private static List<AlertEntry> DeduplicateAlerts(IEnumerable<AlertEntry> alerts)
         {
-            // Group alerts by normalized title (remove city-specific parts)
-            // This ensures alerts with same type are combined regardless of city mentions in title
+            // Group alerts by normalized summary content (the actual message)
+            // If two alerts have the same message, they're the same alert even if titles differ slightly
             var grouped = alerts
-                .GroupBy(a => NormalizeAlertTitle(a.Title), StringComparer.OrdinalIgnoreCase)
-                .Select(g => new AlertEntry
+                .GroupBy(a => NormalizeSummary(a.Summary), StringComparer.OrdinalIgnoreCase)
+                .Select(g => 
                 {
-                    City = string.Join(", ", g.Select(a => a.City).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c)),
-                    Type = g.First().Type,
-                    Title = CleanAlertTitle(g.First().Title), // Remove city name from title
-                    Summary = g.First().Summary, // Use first summary (they should be similar)
-                    SeverityColor = g.First().SeverityColor
+                    // Pick the most important/specific title from the group
+                    var bestAlert = g.OrderByDescending(a => GetAlertPriority(a.Title)).First();
+                    
+                    return new AlertEntry
+                    {
+                        City = string.Join(", ", g.Select(a => a.City).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c)),
+                        Type = bestAlert.Type,
+                        Title = CleanAlertTitle(bestAlert.Title),
+                        Summary = bestAlert.Summary,
+                        SeverityColor = bestAlert.SeverityColor
+                    };
                 })
                 .ToList();
 
             return grouped;
         }
 
+        private static string NormalizeSummary(string summary)
+        {
+            if (string.IsNullOrWhiteSpace(summary)) return "";
+            
+            // Take first 500 chars as fingerprint (enough to identify unique messages)
+            var normalized = summary.Length > 500 ? summary.Substring(0, 500) : summary;
+            
+            // Remove time/date variations
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\d{1,2}h\d{2}", "");
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\d{1,2}:\d{2}", "");
+            
+            // Collapse whitespace
+            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
+            
+            return normalized.Trim();
+        }
+
+        private static int GetAlertPriority(string title)
+        {
+            // Higher priority = more important/specific alert type
+            if (title.Contains("WARNING", StringComparison.OrdinalIgnoreCase) || 
+                title.Contains("AVERTISSEMENT", StringComparison.OrdinalIgnoreCase))
+                return 3;
+            
+            if (title.Contains("WATCH", StringComparison.OrdinalIgnoreCase) || 
+                title.Contains("VEILLE", StringComparison.OrdinalIgnoreCase))
+                return 2;
+            
+            if (title.Contains("STATEMENT", StringComparison.OrdinalIgnoreCase) || 
+                title.Contains("BULLETIN", StringComparison.OrdinalIgnoreCase))
+                return 1;
+            
+            return 0;
+        }
+
         private static string NormalizeAlertTitle(string title)
         {
-            // Remove city names and location-specific parts for grouping
+            // Remove city names but KEEP the core alert type for proper grouping
             var normalized = title.Trim();
             
             // Remove everything after comma (usually city names)
@@ -414,15 +455,7 @@ namespace WeatherImageGenerator
                 normalized = normalized.Substring(0, commaIndex);
             }
             
-            // Remove "en vigueur" / "in effect"
-            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\ben vigueur\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\bin effect\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
-            // Remove "pour" / "for" followed by text
-            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\bpour\s+.*$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\bfor\s+.*$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
-            // Remove dates/times
+            // Remove time/date stamps but keep the alert type intact
             normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\d{1,2}h\d{2}", "");
             normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\d{1,2}:\d{2}", "");
             
