@@ -176,9 +176,6 @@ namespace WeatherImageGenerator.Forms
             chkEnableWeatherMaps = new CheckBox { Text = "Enable Weather Maps Generation", Left = leftLabel, Top = iTop, Width = 250, Enabled = true };
 
             iTop += rowH;
-            var lblRadarBroken = new Label { Text = "Note: Radar options are currently broken", Left = leftLabel + 10, Top = iTop, Width = 400, ForeColor = System.Drawing.Color.Red, AutoSize = false };
-
-            iTop += rowH;
             var btnRegenIcons = new Button { Text = "Regenerate Icons", Left = leftLabel, Top = iTop, Width = 150, Height = 25 };
             btnRegenIcons.Click += (s, e) =>
             {
@@ -204,7 +201,7 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps, lblRadarBroken, btnRegenIcons });
+            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons });
 
             // --- Video Tab ---
             var tabVideo = new TabPage("🎥 Video") { BackColor = Color.White };
