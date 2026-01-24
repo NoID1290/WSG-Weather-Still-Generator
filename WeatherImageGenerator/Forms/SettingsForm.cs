@@ -28,6 +28,7 @@ namespace WeatherImageGenerator.Forms
         ComboBox cmbResolution;
         CheckBox chkEnableProvinceRadar;
         CheckBox chkEnableWeatherMaps;
+        ComboBox cmbFontFamily; // Font family selector for generated images
         ComboBox cmbCodec;  // Changed from TextBox to ComboBox
         ComboBox cmbBitrate; // Changed from TextBox to ComboBox
         ComboBox cmbQualityPreset; // New quality preset selector
@@ -170,6 +171,25 @@ namespace WeatherImageGenerator.Forms
             cmbImgFormat.SelectedIndex = 0;
 
             iTop += rowH;
+            var lblFontFamily = new Label { Text = "Font Family:", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbFontFamily = new ComboBox { Left = leftField, Top = iTop, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
+            // Populate with all installed system fonts
+            try
+            {
+                var installedFonts = System.Drawing.FontFamily.Families.Select(f => f.Name).OrderBy(n => n).ToArray();
+                cmbFontFamily.Items.AddRange(installedFonts.Cast<object>().ToArray());
+                if (cmbFontFamily.Items.Count > 0) cmbFontFamily.SelectedIndex = 0;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error loading system fonts: {ex.Message}", Logger.LogLevel.Warning);
+                // Fallback to common fonts if system fonts cannot be loaded
+                var fallbackFonts = new[] { "Arial", "Segoe UI", "Times New Roman", "Courier New", "Georgia", "Tahoma", "Verdana" };
+                cmbFontFamily.Items.AddRange(fallbackFonts.Cast<object>().ToArray());
+                if (cmbFontFamily.Items.Count > 0) cmbFontFamily.SelectedIndex = 0;
+            }
+
+            iTop += rowH;
             chkEnableProvinceRadar = new CheckBox { Text = "Enable Province Radar Animation", Left = leftLabel, Top = iTop, Width = 250, Enabled = true };
 
             iTop += rowH;
@@ -201,7 +221,7 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons });
+            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, lblFontFamily, cmbFontFamily, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons });
 
             // --- Video Tab ---
             var tabVideo = new TabPage("🎥 Video") { BackColor = Color.White };
@@ -1095,6 +1115,12 @@ namespace WeatherImageGenerator.Forms
                 numImgHeight.Value = cfg.ImageGeneration?.ImageHeight ?? 1080;
                 var fmt = (cfg.ImageGeneration?.ImageFormat ?? "png").ToLowerInvariant();
                 if (cmbImgFormat.Items.Contains(fmt)) cmbImgFormat.SelectedItem = fmt;
+                
+                // Load font family setting
+                var fontFamily = cfg.ImageGeneration?.FontFamily ?? "Arial";
+                if (cmbFontFamily.Items.Contains(fontFamily)) cmbFontFamily.SelectedItem = fontFamily;
+                else cmbFontFamily.SelectedIndex = 0; // Default to first font if not found
+                
                 chkEnableProvinceRadar.Checked = cfg.ECCC?.EnableProvinceRadar ?? true;
                 chkEnableWeatherMaps.Checked = cfg.ImageGeneration?.EnableWeatherMaps ?? true;
 
@@ -1345,6 +1371,7 @@ namespace WeatherImageGenerator.Forms
                 imageGen.ImageWidth = (int)numImgWidth.Value;
                 imageGen.ImageHeight = (int)numImgHeight.Value;
                 imageGen.ImageFormat = cmbImgFormat.SelectedItem?.ToString() ?? "png";
+                imageGen.FontFamily = cmbFontFamily.SelectedItem?.ToString() ?? "Arial";
                 imageGen.EnableWeatherMaps = chkEnableWeatherMaps.Checked;
                 cfg.ImageGeneration = imageGen;
 
