@@ -436,6 +436,12 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("ExperimentalEnabled")]
         public bool ExperimentalEnabled { get; set; } = false;
+
+        [JsonPropertyName("SkipDetailedWeatherOnAlert")]
+        public bool SkipDetailedWeatherOnAlert { get; set; } = false;
+
+        [JsonPropertyName("PlayRadarAnimationTwiceOnAlert")]
+        public bool PlayRadarAnimationTwiceOnAlert { get; set; } = false;
     }
 
     /// <summary>

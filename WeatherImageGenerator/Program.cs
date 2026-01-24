@@ -642,24 +642,40 @@ namespace WeatherImageGenerator
                 int imageSteps = Math.Max(1, numDetailedImages + 3); 
                 int imageStepsCompleted = 0;
 
-                // Detailed Weather
-                for (int batch = 0; batch < numDetailedImages; batch++)
+                // Filter out ended alerts for image generation
+                var activeAlerts = alerts.Where(a => 
+                    !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
+                    !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
+                ).ToList();
+
+                // Check if we should skip DetailedWeather due to active alerts
+                bool skipDetailedWeather = config.Video?.SkipDetailedWeatherOnAlert == true && activeAlerts.Count > 0;
+                
+                if (skipDetailedWeather)
                 {
-                    if (cancellationToken.IsCancellationRequested) return;
-                    int start = batch * detailedPerImage;
-                    int end = Math.Min(locations.Length, start + detailedPerImage);
-
-                    var batchItems = new List<(WeatherForecast? Forecast, string? Name, int Index)>();
-                    for (int j = start; j < end; j++)
+                    Logger.Log("Skipping Detailed Weather generation (alert is active and 'Skip Detailed Weather on Alert' is enabled).");
+                }
+                else
+                {
+                    // Detailed Weather
+                    for (int batch = 0; batch < numDetailedImages; batch++)
                     {
-                        batchItems.Add((allForecasts[j], locations[j], j));
+                        if (cancellationToken.IsCancellationRequested) return;
+                        int start = batch * detailedPerImage;
+                        int end = Math.Min(locations.Length, start + detailedPerImage);
+
+                        var batchItems = new List<(WeatherForecast? Forecast, string? Name, int Index)>();
+                        for (int j = start; j < end; j++)
+                        {
+                            batchItems.Add((allForecasts[j], locations[j], j));
+                        }
+
+                        ImageGenerator.GenerateDetailedWeatherImageBatch(batchItems.ToArray(), outputDir, batch);
+
+                        imageStepsCompleted++;
+                        var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0;
+                        ProgressUpdated?.Invoke(pct, $"Generating images ({imageStepsCompleted}/{imageSteps})");
                     }
-
-                    ImageGenerator.GenerateDetailedWeatherImageBatch(batchItems.ToArray(), outputDir, batch);
-
-                    imageStepsCompleted++;
-                    var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0;
-                    ProgressUpdated?.Invoke(pct, $"Generating images ({imageStepsCompleted}/{imageSteps})");
                 }
 
                 // Maps
@@ -688,12 +704,8 @@ namespace WeatherImageGenerator
                 imageStepsCompleted++;
                 ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
-                // Alerts - Filter out ended alerts for video/image generation
+                // Alerts - Use activeAlerts already computed earlier
                 if (cancellationToken.IsCancellationRequested) return;
-                var activeAlerts = alerts.Where(a => 
-                    !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
-                    !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
-                ).ToList();
                 ImageGenerator.GenerateAlertsImage(activeAlerts, outputDir);
                 imageStepsCompleted++;
                 ProgressUpdated?.Invoke(100, "Stills generation complete");
@@ -850,6 +862,44 @@ namespace WeatherImageGenerator
                                 
                                 nextImageNumber = frames.Count; // Set next number after radar frames
                                 Logger.Log($"✓ Radar animation: {frames.Count} frames created (00-{frames.Count-1:D2})");
+                                
+                                // Check if we need to duplicate radar frames for alerts
+                                // Note: We'll duplicate after we know if there are active alerts, so store frames for later
+                                if (config.Video?.PlayRadarAnimationTwiceOnAlert == true)
+                                {
+                                    // Filter out ended alerts (temporarily, to check if we have active ones)
+                                    var alertsCheck = alerts.Where(a => 
+                                        !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
+                                        !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
+                                    ).ToList();
+                                    
+                                    if (alertsCheck.Count > 0)
+                                    {
+                                        try
+                                        {
+                                            Logger.Log($"[Radar Animation] Duplicating {frames.Count} radar frames due to active alert...");
+                                            // Duplicate the radar frames by copying them with new numbering
+                                            for (int i = 0; i < frames.Count; i++)
+                                            {
+                                                string originalFile = frames[i];
+                                                string originalName = Path.GetFileName(originalFile);
+                                                // Insert copy at a higher number to avoid conflicts
+                                                string newName = originalName.Replace($"{i:D2}_", $"{frames.Count + i:D2}_");
+                                                string newFile = Path.Combine(outputDir, newName);
+                                                if (File.Exists(originalFile) && !File.Exists(newFile))
+                                                {
+                                                    File.Copy(originalFile, newFile);
+                                                }
+                                            }
+                                            nextImageNumber += frames.Count; // Increment for the duplicated frames
+                                            Logger.Log($"✓ Radar animation duplicated: {frames.Count} additional frames added");
+                                        }
+                                        catch (Exception dupEx)
+                                        {
+                                            Logger.Log($"✗ Failed to duplicate radar frames: {dupEx.Message}");
+                                        }
+                                    }
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -884,40 +934,50 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 3. Detailed Weather (starting from next available number, batched, up to 3 cities per image)
-                        int detailedStartNumber = nextImageNumber;
-                        for (int batch = 0; batch < numDetailedImages; batch++)
+                        // Check if we should skip DetailedWeather due to active alerts
+                        bool skipDetailedWeather = config.Video?.SkipDetailedWeatherOnAlert == true && activeAlerts.Count > 0;
+                        
+                        if (skipDetailedWeather)
                         {
-                            int start = batch * detailedPerImage;
-                            int end = Math.Min(locations.Length, start + detailedPerImage);
-
-                            var batchItems = new List<(WeatherForecast? Forecast, string? Name, int Index)>();
-                            for (int j = start; j < end; j++)
+                            Logger.Log("Skipping Detailed Weather generation (alert is active and 'Skip Detailed Weather on Alert' is enabled).");
+                        }
+                        else
+                        {
+                            int detailedStartNumber = nextImageNumber;
+                            for (int batch = 0; batch < numDetailedImages; batch++)
                             {
-                                batchItems.Add((allForecasts[j], locations[j], j));
-                            }
+                                int start = batch * detailedPerImage;
+                                int end = Math.Min(locations.Length, start + detailedPerImage);
 
-                            ImageGenerator.GenerateDetailedWeatherImageBatch(batchItems.ToArray(), outputDir, batch);
-                            
-                            // Rename detailed weather images to use correct numbering
-                            var oldPattern = $"{2 + batch:D2}_DetailedWeather_*.png";
-                            var oldFiles = Directory.GetFiles(outputDir, oldPattern);
-                            if (oldFiles.Length > 0)
-                            {
-                                string oldFile = oldFiles[0];
-                                string fileName = Path.GetFileName(oldFile);
-                                string newFileName = fileName.Replace($"{2 + batch:D2}_", $"{detailedStartNumber + batch:D2}_");
-                                string newFile = Path.Combine(outputDir, newFileName);
-                                if (File.Exists(oldFile) && !File.Exists(newFile))
+                                var batchItems = new List<(WeatherForecast? Forecast, string? Name, int Index)>();
+                                for (int j = start; j < end; j++)
                                 {
-                                    File.Move(oldFile, newFile);
+                                    batchItems.Add((allForecasts[j], locations[j], j));
                                 }
-                            }
 
-                            imageStepsCompleted++;
-                            var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0;
-                            ProgressUpdated?.Invoke(pct, $"Generating images ({imageStepsCompleted}/{imageSteps})");
-                        }  
-                        nextImageNumber += numDetailedImages; // Update for next images
+                                ImageGenerator.GenerateDetailedWeatherImageBatch(batchItems.ToArray(), outputDir, batch);
+                                
+                                // Rename detailed weather images to use correct numbering
+                                var oldPattern = $"{2 + batch:D2}_DetailedWeather_*.png";
+                                var oldFiles = Directory.GetFiles(outputDir, oldPattern);
+                                if (oldFiles.Length > 0)
+                                {
+                                    string oldFile = oldFiles[0];
+                                    string fileName = Path.GetFileName(oldFile);
+                                    string newFileName = fileName.Replace($"{2 + batch:D2}_", $"{detailedStartNumber + batch:D2}_");
+                                    string newFile = Path.Combine(outputDir, newFileName);
+                                    if (File.Exists(oldFile) && !File.Exists(newFile))
+                                    {
+                                        File.Move(oldFile, newFile);
+                                    }
+                                }
+
+                                imageStepsCompleted++;
+                                var pct = 15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0;
+                                ProgressUpdated?.Invoke(pct, $"Generating images ({imageStepsCompleted}/{imageSteps})");
+                            }
+                            nextImageNumber += numDetailedImages; // Update for next images
+                        }
 
                         // 4. Global Weather Map with Temperatures (last)
                         if (config.ImageGeneration?.EnableWeatherMaps == true && config.ImageGeneration.EnableGlobalWeatherMap)

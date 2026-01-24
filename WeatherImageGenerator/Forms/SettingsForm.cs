@@ -89,6 +89,10 @@ namespace WeatherImageGenerator.Forms
         TextBox txtMapCacheDirectory;
         NumericUpDown numMapCacheDuration;
         CheckBox chkMapUseDarkMode;
+        // Skip Detailed Weather on alert
+        CheckBox chkSkipDetailedWeatherOnAlert;
+        // Play Radar Animation Twice on alert
+        CheckBox chkPlayRadarAnimationTwiceOnAlert;
         public SettingsForm()
         {
             this.Text = "⚙ Settings";
@@ -250,6 +254,14 @@ namespace WeatherImageGenerator.Forms
 
             // General video settings group
             chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = vTop, Width = 200 };
+            
+            vTop += rowH;
+            chkSkipDetailedWeatherOnAlert = new CheckBox { Text = "Skip Detailed Weather", Left = leftLabel, Top = vTop, Width = 200 };
+            var lblSkipDetailHelp = new Label { Text = "if alert is active", Left = leftLabel + 20, Top = vTop + rowH - 12, Width = 150, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
+            
+            vTop += rowH;
+            chkPlayRadarAnimationTwiceOnAlert = new CheckBox { Text = "Play Radar Animation Twice", Left = leftLabel, Top = vTop, Width = 200 };
+            var lblPlayRadarHelp = new Label { Text = "if alert is active", Left = leftLabel + 20, Top = vTop + rowH - 12, Width = 150, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
             
             vTop += rowH;
             var lblDivider1 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
@@ -490,7 +502,7 @@ namespace WeatherImageGenerator.Forms
             chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg Console", Left = leftLabel + 190, Top = vTop, Width = 180 };
 
             tabVideo.Controls.AddRange(new Control[] { 
-                chkVideoGeneration, lblDivider1,
+                chkVideoGeneration, chkSkipDetailedWeatherOnAlert, lblSkipDetailHelp, chkPlayRadarAnimationTwiceOnAlert, lblPlayRadarHelp, lblDivider1,
                 // Left column
                 lblTimingGroup, lblStatic, numStatic, lblStaticHelp, lblTotal, numTotalDuration, chkUseTotalDuration,
                 lblFade, numFade, chkFade, lblDivider2,
@@ -1288,6 +1300,8 @@ namespace WeatherImageGenerator.Forms
                 var container = (cfg.Video?.Container ?? "mp4").ToLowerInvariant();
                 if (cmbContainer.Items.Contains(container)) cmbContainer.SelectedItem = container;
                 chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
+                chkSkipDetailedWeatherOnAlert.Checked = cfg.Video?.SkipDetailedWeatherOnAlert ?? false;
+                chkPlayRadarAnimationTwiceOnAlert.Checked = cfg.Video?.PlayRadarAnimationTwiceOnAlert ?? false;
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
                 chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
@@ -1478,6 +1492,8 @@ namespace WeatherImageGenerator.Forms
                 v.Container = cmbContainer.SelectedItem?.ToString() ?? "mp4";
                 v.OutputDirectory = ToRelative(txtVideoOutputDir.Text, imageGen.OutputDirectory ?? "WeatherImages");
                 v.doVideoGeneration = chkVideoGeneration.Checked;
+                v.SkipDetailedWeatherOnAlert = chkSkipDetailedWeatherOnAlert.Checked;
+                v.PlayRadarAnimationTwiceOnAlert = chkPlayRadarAnimationTwiceOnAlert.Checked;
                 v.VerboseFfmpeg = chkVerbose.Checked;
                 v.ShowFfmpegOutputInGui = chkShowFfmpeg.Checked;
                 // If enabling hardware encoding, verify ffmpeg supports NVENC and warn the user if it does not
