@@ -29,6 +29,8 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkEnableProvinceRadar;
         CheckBox chkEnableWeatherMaps;
         ComboBox cmbFontFamily; // Font family selector for generated images
+        PictureBox _alertPreviewPanel; // Preview picture box for alert image
+        PictureBox _weatherPreviewPanel; // Preview picture box for weather details image
         ComboBox cmbCodec;  // Changed from TextBox to ComboBox
         ComboBox cmbBitrate; // Changed from TextBox to ComboBox
         ComboBox cmbQualityPreset; // New quality preset selector
@@ -156,7 +158,7 @@ namespace WeatherImageGenerator.Forms
             tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose, chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray });
 
             // --- Image Tab ---
-            var tabImage = new TabPage("🖼 Image") { BackColor = Color.White };
+            var tabImage = new TabPage("🖼 Image") { BackColor = Color.White, AutoScroll = true };
             int iTop = 20;
 
             var lblImgSize = new Label { Text = "Resolution (WxH):", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
@@ -221,7 +223,25 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, lblFontFamily, cmbFontFamily, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons });
+            iTop += rowH;
+            var lblDivider = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = iTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            
+            iTop += 25;
+            var lblPreviewTitle = new Label { Text = "Font Preview", Left = leftLabel, Top = iTop, Width = 400, Font = new Font(this.Font, FontStyle.Bold) };
+            iTop += 30;
+            
+            _alertPreviewPanel = new PictureBox { Left = leftLabel, Top = iTop, Width = 700, Height = 130, BorderStyle = BorderStyle.Fixed3D, BackColor = Color.White, SizeMode = PictureBoxSizeMode.CenterImage };
+            iTop += 145;
+            
+            _weatherPreviewPanel = new PictureBox { Left = leftLabel, Top = iTop, Width = 700, Height = 130, BorderStyle = BorderStyle.Fixed3D, BackColor = Color.White, SizeMode = PictureBoxSizeMode.CenterImage };
+            
+            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, lblFontFamily, cmbFontFamily, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons, lblDivider, lblPreviewTitle, _alertPreviewPanel, _weatherPreviewPanel });
+
+            // Hook font change to update preview
+            cmbFontFamily.SelectedIndexChanged += (s, e) => UpdateFontPreview();
+            
+            // Generate initial previews
+            UpdateFontPreview();
 
             // --- Video Tab ---
             var tabVideo = new TabPage("🎥 Video") { BackColor = Color.White };
@@ -1633,6 +1653,74 @@ namespace WeatherImageGenerator.Forms
                 outDir = outDir.Substring(cwd.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             }
             return outDir;
+        }
+
+        private void UpdateFontPreview()
+        {
+            if (_alertPreviewPanel == null || _weatherPreviewPanel == null) return;
+
+            try
+            {
+                string fontName = cmbFontFamily.SelectedItem?.ToString() ?? "Arial";
+
+                // Alert Preview
+                var alertBmp = new Bitmap(700, 130);
+                using (var g = Graphics.FromImage(alertBmp))
+                {
+                    g.Clear(Color.White);
+                    
+                    // Draw alert style preview
+                    using (var headerFont = new Font(fontName, 28, FontStyle.Bold))
+                    using (var detailFont = new Font(fontName, 14, FontStyle.Regular))
+                    using (var blackBrush = new SolidBrush(Color.Black))
+                    using (var redBrush = new SolidBrush(Color.FromArgb(192, 0, 0)))
+                    {
+                        // Draw red bar at top
+                        using (var redBgBrush = new SolidBrush(Color.FromArgb(192, 0, 0)))
+                        {
+                            g.FillRectangle(redBgBrush, 0, 0, 700, 40);
+                        }
+                        
+                        g.DrawString("⚠ Weather Alert", headerFont, new SolidBrush(Color.White), new PointF(20, 5));
+                        g.DrawString($"Font: {fontName}", detailFont, blackBrush, new PointF(20, 50));
+                        g.DrawString("This is a sample alert message", detailFont, blackBrush, new PointF(20, 75));
+                        g.DrawString("with your selected font", detailFont, blackBrush, new PointF(20, 100));
+                    }
+                }
+
+                // Weather Details Preview
+                var weatherBmp = new Bitmap(700, 130);
+                using (var g = Graphics.FromImage(weatherBmp))
+                {
+                    g.Clear(Color.FromArgb(230, 240, 250)); // Light blue background
+                    
+                    using (var cityFont = new Font(fontName, 24, FontStyle.Bold))
+                    using (var tempFont = new Font(fontName, 32, FontStyle.Bold))
+                    using (var labelFont = new Font(fontName, 12, FontStyle.Regular))
+                    using (var blackBrush = new SolidBrush(Color.Black))
+                    using (var blueBrush = new SolidBrush(Color.FromArgb(41, 128, 185)))
+                    {
+                        g.DrawString("Montréal", cityFont, blueBrush, new PointF(20, 8));
+                        g.DrawString("23°C", tempFont, blackBrush, new PointF(20, 35));
+                        g.DrawString("Humidity: 65%  Wind: 12 km/h", labelFont, blackBrush, new PointF(20, 75));
+                        g.DrawString("Partly Cloudy", labelFont, blackBrush, new PointF(20, 100));
+                    }
+                }
+
+                // Update picture boxes with the new images
+                var oldAlertImage = _alertPreviewPanel.Image;
+                var oldWeatherImage = _weatherPreviewPanel.Image;
+                
+                _alertPreviewPanel.Image = alertBmp;
+                _weatherPreviewPanel.Image = weatherBmp;
+                
+                oldAlertImage?.Dispose();
+                oldWeatherImage?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error updating font preview: {ex.Message}", Logger.LogLevel.Warning);
+            }
         }
     }
 }
