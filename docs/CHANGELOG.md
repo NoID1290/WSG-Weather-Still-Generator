@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3.0125] - 2026-01-25
+
+- Refactor Video Tab layout and enhance Alert Settings with improved controls and grouping
+- replace PlayRadarAnimationTwiceOnAlert with PlayRadarAnimationCountOnAlert and add AlertDisplayDurationSeconds
+- Add settings for skipping detailed weather and duplicating radar animation on alerts
+- Update font family in appsettings to 'Lato Heavy' and add font preview functionality in SettingsForm
+- Add font family selector to settings
+- Bump version to 1.3.2.0124 in project file
+
 ## [1.6.2.0124] - 2026-01-24
 
 - Bump version to 1.3.1.0123 in project file
