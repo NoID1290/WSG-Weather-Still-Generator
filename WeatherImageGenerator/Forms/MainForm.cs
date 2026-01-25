@@ -98,7 +98,7 @@ namespace WeatherImageGenerator.Forms
             // === CONTROL GROUPS - Reorganized for Better Layout ===
             // Row 1: Main Operations
             // Group 1: Control Operations
-            _groupLabel1 = new Label { Text = "CONTROL", Left = 15, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            _groupLabel1 = new Label { Text = "CONTROL CYCLE", Left = 15, Top = 8, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
             _startBtn = CreateStyledButton("▶ Start", 15, 28, 100, 38, Color.Gray, Color.White);
             _stopBtn = CreateStyledButton("⏹ Stop", 125, 28, 100, 38, Color.Gray, Color.White);
             _stopBtn.Enabled = false;
