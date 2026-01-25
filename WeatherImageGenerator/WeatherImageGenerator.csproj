@@ -7,9 +7,9 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CA1416;CS8618</NoWarn>
-    <Version>1.6.4.0125</Version>
-    <AssemblyVersion>1.6.4.0125</AssemblyVersion>
-    <FileVersion>1.6.4.0125</FileVersion>
+    <Version>1.6.5.0125</Version>
+    <AssemblyVersion>1.6.5.0125</AssemblyVersion>
+    <FileVersion>1.6.5.0125</FileVersion>
     <RootNamespace>WeatherImageGenerator</RootNamespace>
     <AssemblyName>WSG</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
