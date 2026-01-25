@@ -249,158 +249,153 @@ namespace WeatherImageGenerator.Forms
             UpdateFontPreview();
 
             // --- Video Tab ---
-            var tabVideo = new TabPage("🎥 Video") { BackColor = Color.White };
-            int vTop = 20;
-            int rightCol = 310; // Right column position
+            var tabVideo = new TabPage("🎥 Video") { BackColor = Color.FromArgb(248, 249, 250), AutoScroll = true };
+            int vTop = 10;
+            int grpPadding = 15;
+            int ctrlLeft = 15;
+            int ctrlWidth = 280;
+            int rightCol = 360;
 
-            // General video settings group
-            chkVideoGeneration = new CheckBox { Text = "Enable Video Generation", Left = leftLabel, Top = vTop, Width = 200 };
+            // ═══════════════════════════════════════════════════════════════
+            // TOP ROW - Main toggle
+            // ═══════════════════════════════════════════════════════════════
+            chkVideoGeneration = new CheckBox { Text = "  Enable Video Generation", Left = ctrlLeft, Top = vTop, Width = 220, Height = 28, Font = new Font(this.Font.FontFamily, 10f, FontStyle.Bold) };
+            vTop += 35;
+
+            // ═══════════════════════════════════════════════════════════════
+            // LEFT SIDE - GroupBox: Alert Settings
+            // ═══════════════════════════════════════════════════════════════
+            var grpAlerts = new GroupBox { Text = "🚨 Alert Settings", Left = ctrlLeft, Top = vTop, Width = 330, Height = 115, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
+            int aTop = 22;
             
-            vTop += rowH;
-            chkSkipDetailedWeatherOnAlert = new CheckBox { Text = "Skip Detailed Weather", Left = leftLabel, Top = vTop, Width = 200 };
-            var lblSkipDetailHelp = new Label { Text = "if alert is active", Left = leftLabel + 20, Top = vTop + rowH - 12, Width = 150, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
+            chkSkipDetailedWeatherOnAlert = new CheckBox { Text = "Skip Detailed Weather if alert active", Left = grpPadding, Top = aTop, Width = 280, Font = new Font(this.Font.FontFamily, 9f) };
+            aTop += 28;
             
-            vTop += rowH;
-            var lblRadarCount = new Label { Text = "Replay Radar Animation:", Left = leftLabel, Top = vTop, Width = 160, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numPlayRadarAnimationCountOnAlert = new NumericUpDown { Left = leftLabel + 165, Top = vTop, Width = 50, Minimum = 1, Maximum = 10, Value = 1 };
-            var lblRadarCountHelp = new Label { Text = "times (when alert active)", Left = leftLabel + 220, Top = vTop + 3, Width = 150, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
+            var lblRadarCount = new Label { Text = "Replay Radar:", Left = grpPadding, Top = aTop + 2, Width = 90, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            numPlayRadarAnimationCountOnAlert = new NumericUpDown { Left = grpPadding + 95, Top = aTop, Width = 55, Minimum = 1, Maximum = 10, Value = 1 };
+            var lblRadarCountHelp = new Label { Text = "times when alert active", Left = grpPadding + 155, Top = aTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
+            aTop += 28;
             
-            vTop += rowH;
-            var lblAlertDuration = new Label { Text = "Alert Display Duration:", Left = leftLabel, Top = vTop, Width = 160, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numAlertDisplayDurationSeconds = new NumericUpDown { Left = leftLabel + 165, Top = vTop, Width = 50, Minimum = 1, Maximum = 120, DecimalPlaces = 1, Increment = 0.5M, Value = 6 };
-            var lblAlertDurationHelp = new Label { Text = "seconds (follows slide duration)", Left = leftLabel + 220, Top = vTop + 3, Width = 180, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
+            var lblAlertDuration = new Label { Text = "Alert Duration:", Left = grpPadding, Top = aTop + 2, Width = 90, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            numAlertDisplayDurationSeconds = new NumericUpDown { Left = grpPadding + 95, Top = aTop, Width = 55, Minimum = 1, Maximum = 120, DecimalPlaces = 1, Increment = 0.5M, Value = 6 };
+            var lblAlertDurationHelp = new Label { Text = "seconds", Left = grpPadding + 155, Top = aTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
             
-            vTop += rowH;
-            var lblDivider1 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            grpAlerts.Controls.AddRange(new Control[] { chkSkipDetailedWeatherOnAlert, lblRadarCount, numPlayRadarAnimationCountOnAlert, lblRadarCountHelp, lblAlertDuration, numAlertDisplayDurationSeconds, lblAlertDurationHelp });
+
+            // ═══════════════════════════════════════════════════════════════
+            // RIGHT SIDE - GroupBox: Output Format
+            // ═══════════════════════════════════════════════════════════════
+            var grpFormat = new GroupBox { Text = "📹 Output Format", Left = rightCol, Top = vTop, Width = 330, Height = 115, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
+            int fTop = 22;
             
-            // LEFT COLUMN - Timing Settings
-            vTop += 20;
-            var lblTimingGroup = new Label { Text = "⏱ Timing Settings", Left = leftLabel, Top = vTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            var lblQualityPreset = new Label { Text = "Quality Preset:", Left = grpPadding, Top = fTop + 2, Width = 95, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            cmbQualityPreset = new ComboBox { Left = grpPadding + 100, Top = fTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbQualityPreset.Items.AddRange(new object[] { "Ultra (Best Quality)", "High Quality", "Balanced", "Web Optimized", "Low Bandwidth", "Custom" });
+            cmbQualityPreset.SelectedIndex = 2;
+            fTop += 28;
             
-            vTop += 25;
-            var lblStatic = new Label { Text = "Static Duration (s):", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numStatic = new NumericUpDown { Left = leftLabel + 135, Top = vTop, Width = 70, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
-            var lblStaticHelp = new Label { Text = "Slide duration", Left = leftLabel + 210, Top = vTop + 3, Width = 90, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
-
-            // Total duration mode controls (allow user to enforce an overall total video time)
-            vTop += rowH;
-            var lblTotal = new Label { Text = "Total Video Duration (s):", Left = leftLabel, Top = vTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numTotalDuration = new NumericUpDown { Left = leftLabel + 155, Top = vTop, Width = 80, Minimum = 1, Maximum = 86400, DecimalPlaces = 1, Increment = 1, Value = 60 };
-            // Place checkbox directly under Total (left column) and reserve a full row of spacing so following controls do not overlap
-            chkUseTotalDuration = new CheckBox { Text = "Enforce total duration", Left = leftLabel + 10, Top = vTop + rowH, Width = 200 };
-            chkUseTotalDuration.CheckedChanged += (s, e) => { numTotalDuration.Enabled = chkUseTotalDuration.Checked; numStatic.Enabled = !chkUseTotalDuration.Checked; };
-            numTotalDuration.Enabled = false; // disabled by default
-
-            // Reserve space for the checkbox (advance layout cursor by two rows)
-            vTop += (rowH * 2);
-            var lblFade = new Label { Text = "Fade Duration (s):", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numFade = new NumericUpDown { Left = leftLabel + 135, Top = vTop, Width = 70, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M };
-            chkFade = new CheckBox { Text = "Enable", Left = leftLabel + 210, Top = vTop, Width = 70 };
-
-            lblFade.Enabled = false; // Disable until xfade is fixed
-            numFade.Enabled = false; // Disable until xfade is fixed
-
-
-            // RIGHT COLUMN - Video Format
-            int rTop = 125; // Start position for right column
-            var lblVideoFormat = new Label { Text = "📹 Video Format", Left = rightCol, Top = rTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            var lblResPreset = new Label { Text = "Resolution:", Left = grpPadding, Top = fTop + 2, Width = 95, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            cmbResolution = new ComboBox { Left = grpPadding + 100, Top = fTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbResolution.Items.AddRange(new object[] { "3840x2160 (4K/UHD)", "2560x1440 (2K/QHD)", "1920x1080 (Full HD)", "1600x900 (HD+)", "1280x720 (HD)", "960x540 (qHD)", "854x480 (FWVGA)", "640x480 (VGA)" });
+            cmbResolution.SelectedIndex = 2;
+            fTop += 28;
             
-            rTop += 25;
-            var lblQualityPreset = new Label { Text = "Quality Preset:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbQualityPreset = new ComboBox { Left = rightCol + 105, Top = rTop, Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbQualityPreset.Items.AddRange(new object[] { 
-                "Ultra (Best Quality)", 
-                "High Quality", 
-                "Balanced", 
-                "Web Optimized", 
-                "Low Bandwidth",
-                "Custom" 
-            });
-            cmbQualityPreset.SelectedIndex = 2; // Default to Balanced
-
-            rTop += rowH;
-            var lblResPreset = new Label { Text = "Resolution:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbResolution = new ComboBox { Left = rightCol + 105, Top = rTop, Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbResolution.Items.AddRange(new object[] { 
-                "3840x2160 (4K/UHD)",
-                "2560x1440 (2K/QHD)",
-                "1920x1080 (Full HD)",
-                "1600x900 (HD+)",
-                "1280x720 (HD)",
-                "960x540 (qHD)",
-                "854x480 (FWVGA)",
-                "640x480 (VGA)"
-            });
-            cmbResolution.SelectedIndex = 2; // Default to 1080p
-
-            rTop += rowH;
-            var lblFps = new Label { Text = "Frame Rate:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numFps = new NumericUpDown { Left = rightCol + 105, Top = rTop, Width = 60, Minimum = 1, Maximum = 240, Value = 30 };
-            var lblFpsHelp = new Label { Text = "fps", Left = rightCol + 170, Top = rTop + 3, Width = 30, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
-
-            rTop += rowH;
-            var lblContainer = new Label { Text = "Container:", Left = rightCol, Top = rTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbContainer = new ComboBox { Left = rightCol + 105, Top = rTop, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
+            var lblContainer = new Label { Text = "Container:", Left = grpPadding, Top = fTop + 2, Width = 95, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            cmbContainer = new ComboBox { Left = grpPadding + 100, Top = fTop, Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbContainer.Items.AddRange(new object[] { "mp4", "mkv", "mov", "avi", "webm" });
             cmbContainer.SelectedIndex = 0;
+            var lblFps = new Label { Text = "FPS:", Left = grpPadding + 200, Top = fTop + 2, Width = 35, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            numFps = new NumericUpDown { Left = grpPadding + 240, Top = fTop, Width = 55, Minimum = 1, Maximum = 240, Value = 30 };
+            
+            grpFormat.Controls.AddRange(new Control[] { lblQualityPreset, cmbQualityPreset, lblResPreset, cmbResolution, lblContainer, cmbContainer, lblFps, numFps });
 
-            // LEFT COLUMN continues - Encoding Settings
-            vTop += rowH + 10;
-            var lblDivider2 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 280, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            vTop += 125;
+
+            // ═══════════════════════════════════════════════════════════════
+            // LEFT SIDE - GroupBox: Timing Settings
+            // ═══════════════════════════════════════════════════════════════
+            var grpTiming = new GroupBox { Text = "⏱ Timing Settings", Left = ctrlLeft, Top = vTop, Width = 330, Height = 140, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
+            int tTop = 22;
             
-            vTop += 20;
-            var lblEncodingGroup = new Label { Text = "🎬 Encoding", Left = leftLabel, Top = vTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            var lblStatic = new Label { Text = "Slide Duration:", Left = grpPadding, Top = tTop + 2, Width = 100, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            numStatic = new NumericUpDown { Left = grpPadding + 105, Top = tTop, Width = 70, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
+            var lblStaticHelp = new Label { Text = "seconds per slide", Left = grpPadding + 180, Top = tTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
+            tTop += 30;
             
-            vTop += 25;
-            var lblCodec = new Label { Text = "Codec:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbCodec = new ComboBox { Left = leftLabel + 135, Top = vTop, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbCodec.Items.AddRange(new object[] { 
-                "libx264 (H.264)",
-                "libx265 (H.265/HEVC)",
-                "libvpx-vp9 (VP9)",
-                "libaom-av1 (AV1)",
-                "mpeg4",
-                "msmpeg4"
-            });
+            var lblTotal = new Label { Text = "Total Duration:", Left = grpPadding, Top = tTop + 2, Width = 100, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            numTotalDuration = new NumericUpDown { Left = grpPadding + 105, Top = tTop, Width = 70, Minimum = 1, Maximum = 86400, DecimalPlaces = 1, Increment = 1, Value = 60 };
+            var lblTotalHelp = new Label { Text = "seconds total", Left = grpPadding + 180, Top = tTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
+            tTop += 28;
+            chkUseTotalDuration = new CheckBox { Text = "Enforce total duration (overrides slide)", Left = grpPadding, Top = tTop, Width = 280, Font = new Font(this.Font.FontFamily, 9f) };
+            chkUseTotalDuration.CheckedChanged += (s, e) => { numTotalDuration.Enabled = chkUseTotalDuration.Checked; numStatic.Enabled = !chkUseTotalDuration.Checked; };
+            numTotalDuration.Enabled = false;
+            tTop += 28;
+
+            var lblFade = new Label { Text = "Fade Duration:", Left = grpPadding, Top = tTop + 2, Width = 100, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 9f) };
+            numFade = new NumericUpDown { Left = grpPadding + 105, Top = tTop, Width = 70, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M, Enabled = false };
+            chkFade = new CheckBox { Text = "Enable", Left = grpPadding + 180, Top = tTop, Width = 80, Enabled = false, Font = new Font(this.Font.FontFamily, 9f) };
+            
+            grpTiming.Controls.AddRange(new Control[] { lblStatic, numStatic, lblStaticHelp, lblTotal, numTotalDuration, lblTotalHelp, chkUseTotalDuration, lblFade, numFade, chkFade });
+
+            // ═══════════════════════════════════════════════════════════════
+            // RIGHT SIDE - GroupBox: Encoding Settings
+            // ═══════════════════════════════════════════════════════════════
+            var grpEncoding = new GroupBox { Text = "🎬 Encoding", Left = rightCol, Top = vTop, Width = 330, Height = 140, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
+            int eTop = 22;
+            
+            var lblCodec = new Label { Text = "Codec:", Left = grpPadding, Top = eTop + 2, Width = 80, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            cmbCodec = new ComboBox { Left = grpPadding + 85, Top = eTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbCodec.Items.AddRange(new object[] { "libx264 (H.264)", "libx265 (H.265/HEVC)", "libvpx-vp9 (VP9)", "libaom-av1 (AV1)", "mpeg4", "msmpeg4" });
             cmbCodec.SelectedIndex = 0;
-
-            vTop += rowH;
-            var lblBitrate = new Label { Text = "Bitrate:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbBitrate = new ComboBox { Left = leftLabel + 135, Top = vTop, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
+            eTop += 28;
+            
+            var lblBitrate = new Label { Text = "Bitrate:", Left = grpPadding, Top = eTop + 2, Width = 80, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
+            cmbBitrate = new ComboBox { Left = grpPadding + 85, Top = eTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbBitrate.Items.AddRange(new object[] { 
-                "1M (Low)",
-                "2M (Medium-Low)",
-                "4M (Medium)",
-                "6M (Medium-High)",
-                "8M (High)",
-                "12M (Very High)",
-                "16M (Ultra)"
+                "1M (Low)", "2M (Medium-Low)", "4M (Medium)", "6M (Medium-High)", "8M (High)", "12M (Very High)", "16M (Ultra)"
             });
-            cmbBitrate.SelectedIndex = 2; // Default to 4M
+            cmbBitrate.SelectedIndex = 2;
+            eTop += 28;
+            
+            chkEnableHardwareEncoding = new CheckBox { Text = "⚡ Hardware Encoding (NVENC)", Left = grpPadding, Top = eTop, Width = 200, Font = new Font(this.Font.FontFamily, 9f) };
+            btnCheckHw = new Button { Text = "Check", Left = grpPadding + 205, Top = eTop - 2, Width = 60, Height = 24 };
+            eTop += 26;
+            lblHwStatus = new Label { Text = "Click Check to verify", Left = grpPadding + 20, Top = eTop, Width = 260, ForeColor = Color.Gray, AutoSize = true, Font = new Font(this.Font.FontFamily, 8f) };
+            
+            grpEncoding.Controls.AddRange(new Control[] { lblCodec, cmbCodec, lblBitrate, cmbBitrate, chkEnableHardwareEncoding, btnCheckHw, lblHwStatus });
 
-            vTop += rowH;
-            chkEnableHardwareEncoding = new CheckBox { Text = "⚡ Hardware Encoding", Left = leftLabel, Top = vTop, Width = 180 };
-            btnCheckHw = new Button { Text = "Check", Left = leftLabel + 185, Top = vTop - 2, Width = 60, Height = 24 };
+            vTop += 150;
 
-            vTop += rowH;
-            lblHwStatus = new Label { Text = "Unknown", Left = leftLabel + 20, Top = vTop, Width = 260, ForeColor = System.Drawing.Color.Gray, AutoSize = true };
+            // ═══════════════════════════════════════════════════════════════
+            // BOTTOM SECTION - Debug & Experimental
+            // ═══════════════════════════════════════════════════════════════
+            var grpDebug = new GroupBox { Text = "🔧 Debug & Options", Left = ctrlLeft, Top = vTop, Width = 675, Height = 85, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
+            int dTop = 22;
+            
+            chkVerbose = new CheckBox { Text = "Verbose FFmpeg Output", Left = grpPadding, Top = dTop, Width = 180, Font = new Font(this.Font.FontFamily, 9f) };
+            chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg Console Window", Left = grpPadding + 200, Top = dTop, Width = 220, Font = new Font(this.Font.FontFamily, 9f) };
+            chkEnableExperimental = new CheckBox { Text = "Enable Experimental Features", Left = grpPadding + 440, Top = dTop, Width = 210, Font = new Font(this.Font.FontFamily, 9f) };
+            chkEnableExperimental.CheckedChanged += (s, e) => { if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked; };
+            dTop += 28;
+            
+            var lblDebugNote = new Label { Text = "💡 Tip: Use Debug options to troubleshoot video generation issues. Enable Experimental for advanced encoder settings.", Left = grpPadding, Top = dTop, Width = 640, AutoSize = false, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
+            
+            grpDebug.Controls.AddRange(new Control[] { chkVerbose, chkShowFfmpeg, chkEnableExperimental, lblDebugNote });
 
-            vTop += rowH;
-            var lblCrf = new Label { Text = "CRF:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            chkUseCrfEncoding = new CheckBox { Text = "Use CRF encoding (quality-based)", Left = leftLabel + 135, Top = vTop, Width = 220 };
-            numCrf = new NumericUpDown { Left = leftLabel + 360, Top = vTop, Width = 80, Minimum = 0, Maximum = 51, Value = 23 };
+            // Experimental controls (for Experimental tab)
+            var lblCrf = new Label { Text = "CRF Value:", Left = 15, Top = 60, Width = 130, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
+            chkUseCrfEncoding = new CheckBox { Text = "Use CRF encoding (quality-based)", Left = 150, Top = 60, Width = 220 };
+            numCrf = new NumericUpDown { Left = 380, Top = 60, Width = 80, Minimum = 0, Maximum = 51, Value = 23 };
 
-            vTop += rowH;
-            var lblEncoderPreset = new Label { Text = "Encoder Preset:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbEncoderPreset = new ComboBox { Left = leftLabel + 135, Top = vTop, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
+            var lblEncoderPreset = new Label { Text = "Encoder Preset:", Left = 15, Top = 95, Width = 130, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
+            cmbEncoderPreset = new ComboBox { Left = 150, Top = 95, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEncoderPreset.Items.AddRange(new object[] { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow" });
-            cmbEncoderPreset.SelectedIndex = 5; // medium
+            cmbEncoderPreset.SelectedIndex = 5;
 
-            vTop += rowH;
-            var lblMaxRate = new Label { Text = "Max Bitrate:", Left = leftLabel, Top = vTop, Width = 130, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtMaxBitrate = new TextBox { Left = leftLabel + 135, Top = vTop, Width = 145 };
-            var lblBuf = new Label { Text = "Buffer Size:", Left = leftLabel + 290, Top = vTop, Width = 90, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtBufferSize = new TextBox { Left = leftLabel + 380, Top = vTop, Width = 90 };
+            var lblMaxRate = new Label { Text = "Max Bitrate:", Left = 15, Top = 130, Width = 130, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
+            txtMaxBitrate = new TextBox { Left = 150, Top = 130, Width = 145 };
+            var lblBuf = new Label { Text = "Buffer Size:", Left = 310, Top = 130, Width = 90, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
+            txtBufferSize = new TextBox { Left = 400, Top = 130, Width = 90 };
 
             
             // Quality preset change handler
@@ -483,7 +478,7 @@ namespace WeatherImageGenerator.Forms
                     this.Invoke((Action)(() =>
                     {
                         lblHwStatus.Text = msg;
-                        lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+                        lblHwStatus.ForeColor = ok ? Color.Green : Color.Red;
                         btnCheckHw.Enabled = true;
 
                         if (!ok)
@@ -499,44 +494,12 @@ namespace WeatherImageGenerator.Forms
                 });
             };
 
-            vTop += rowH;
-            var lblDivider4 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
-            
-            vTop += 20;
-            // Experimental opt-in checkbox (controls the Experimental tab)
-            vTop += rowH;
-            chkEnableExperimental = new CheckBox { Text = "Enable Experimental Features", Left = leftLabel, Top = vTop, Width = 300 };
-            chkEnableExperimental.CheckedChanged += (s, e) => { if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked; };
-
-            vTop += 5;
-            var lblDebugGroup2 = new Label { Text = "🔧 Debug Options", Left = leftLabel, Top = vTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
-            
-            vTop += 25;
-            chkVerbose = new CheckBox { Text = "Verbose FFmpeg Output", Left = leftLabel, Top = vTop, Width = 180 };
-            chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg Console", Left = leftLabel + 190, Top = vTop, Width = 180 };
-
-            tabVideo.Controls.AddRange(new Control[] { 
-                chkVideoGeneration, chkSkipDetailedWeatherOnAlert, lblSkipDetailHelp, lblRadarCount, numPlayRadarAnimationCountOnAlert, lblRadarCountHelp, lblAlertDuration, numAlertDisplayDurationSeconds, lblAlertDurationHelp, lblDivider1,
-                // Left column
-                lblTimingGroup, lblStatic, numStatic, lblStaticHelp, lblTotal, numTotalDuration, chkUseTotalDuration,
-                lblFade, numFade, chkFade, lblDivider2,
-                lblEncodingGroup, lblCodec, cmbCodec,
-                lblBitrate, cmbBitrate,
-                chkEnableHardwareEncoding, lblHwStatus, btnCheckHw,
-                // Add experimental toggle here so user can opt-in
-                chkEnableExperimental,
-                // Right column
-                lblVideoFormat, lblQualityPreset, cmbQualityPreset,
-                lblResPreset, cmbResolution, 
-                lblFps, numFps, lblFpsHelp,
-                lblContainer, cmbContainer,
-                // Debug section
-                lblDivider4, lblDebugGroup2, chkVerbose, chkShowFfmpeg
-            });
+            // Add all controls to the Video tab
+            tabVideo.Controls.AddRange(new Control[] { chkVideoGeneration, grpAlerts, grpFormat, grpTiming, grpEncoding, grpDebug });
 
             // --- Experimental Tab (moved from Video tab) ---
-            tabExperimental = new TabPage("⚠ Experimental") { BackColor = Color.White };
-            var lblExpNote = new Label { Text = "⚠ Experimental options — disable for now", Left = 10, Top = 20, Width = 520, ForeColor = System.Drawing.Color.OrangeRed, AutoSize = false };
+            tabExperimental = new TabPage("⚠ Experimental") { BackColor = Color.FromArgb(255, 252, 245) };
+            var lblExpNote = new Label { Text = "⚠ These are experimental encoder options. Changes may affect video quality and encoding performance.", Left = 15, Top = 20, Width = 650, Height = 35, ForeColor = Color.OrangeRed, AutoSize = false, Font = new Font(this.Font.FontFamily, 9f) };
             tabExperimental.Controls.AddRange(new Control[] {
                 lblExpNote, lblCrf, chkUseCrfEncoding, numCrf, lblEncoderPreset, cmbEncoderPreset, lblMaxRate, txtMaxBitrate, lblBuf, txtBufferSize
             });
@@ -544,16 +507,16 @@ namespace WeatherImageGenerator.Forms
 
             // --- FFmpeg Tab ---
             var tabFfmpeg = new TabPage("🎬 FFmpeg") { BackColor = Color.White };
-            int fTop = 20;
+            int ffTop = 20;
 
-            var lblFfmpegSource = new Label { Text = "🎬 FFmpeg Source", Left = leftLabel, Top = fTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            var lblFfmpegSource = new Label { Text = "🎬 FFmpeg Source", Left = leftLabel, Top = ffTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
 
-            fTop += 30;
-            var lblFfmpegSourceDesc = new Label { Text = "Choose where to get FFmpeg binaries from:", Left = leftLabel, Top = fTop, Width = 400, AutoSize = false };
+            ffTop += 30;
+            var lblFfmpegSourceDesc = new Label { Text = "Choose where to get FFmpeg binaries from:", Left = leftLabel, Top = ffTop, Width = 400, AutoSize = false };
 
-            fTop += 25;
-            var lblSource = new Label { Text = "Source:", Left = leftLabel, Top = fTop, Width = 80, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbFfmpegSource = new ComboBox { Left = leftField, Top = fTop, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+            ffTop += 25;
+            var lblSource = new Label { Text = "Source:", Left = leftLabel, Top = ffTop, Width = 80, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            cmbFfmpegSource = new ComboBox { Left = leftField, Top = ffTop, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbFfmpegSource.Items.AddRange(new object[] { 
                 "Bundled (Auto-download)", 
                 "System PATH", 
@@ -561,10 +524,10 @@ namespace WeatherImageGenerator.Forms
             });
             cmbFfmpegSource.SelectedIndex = 0;
 
-            fTop += rowH + 5;
-            var lblCustomPath = new Label { Text = "Custom Path:", Left = leftLabel, Top = fTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtFfmpegCustomPath = new TextBox { Left = leftField, Top = fTop, Width = 350, Enabled = false };
-            btnBrowseFfmpegPath = new Button { Text = "...", Left = leftField + 355, Top = fTop - 1, Width = 40, Height = 23, Enabled = false };
+            ffTop += rowH + 5;
+            var lblCustomPath = new Label { Text = "Custom Path:", Left = leftLabel, Top = ffTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtFfmpegCustomPath = new TextBox { Left = leftField, Top = ffTop, Width = 350, Enabled = false };
+            btnBrowseFfmpegPath = new Button { Text = "...", Left = leftField + 355, Top = ffTop - 1, Width = 40, Height = 23, Enabled = false };
             btnBrowseFfmpegPath.Click += (s, e) => {
                 using (var dlg = new FolderBrowserDialog())
                 {
@@ -583,22 +546,22 @@ namespace WeatherImageGenerator.Forms
                 btnBrowseFfmpegPath.Enabled = isCustom;
             };
 
-            fTop += rowH + 10;
-            var lblFfmpegDivider = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = fTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            ffTop += rowH + 10;
+            var lblFfmpegDivider = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = ffTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
 
-            fTop += 20;
-            var lblFfmpegStatusGroup = new Label { Text = "📋 Status", Left = leftLabel, Top = fTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            ffTop += 20;
+            var lblFfmpegStatusGroup = new Label { Text = "📋 Status", Left = leftLabel, Top = ffTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
 
-            fTop += 30;
-            lblFfmpegStatus = new Label { Text = "Not validated", Left = leftLabel, Top = fTop, Width = 500, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
+            ffTop += 30;
+            lblFfmpegStatus = new Label { Text = "Not validated", Left = leftLabel, Top = ffTop, Width = 500, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
 
-            fTop += rowH;
-            btnValidateFfmpeg = new Button { Text = "Validate FFmpeg", Left = leftLabel, Top = fTop, Width = 130, Height = 28 };
+            ffTop += rowH;
+            btnValidateFfmpeg = new Button { Text = "Validate FFmpeg", Left = leftLabel, Top = ffTop, Width = 130, Height = 28 };
             btnValidateFfmpeg.Click += (s, e) => {
                 ValidateFfmpegConfiguration();
             };
 
-            btnDownloadBundled = new Button { Text = "Download Bundled", Left = leftLabel + 140, Top = fTop, Width = 130, Height = 28 };
+            btnDownloadBundled = new Button { Text = "Download Bundled", Left = leftLabel + 140, Top = ffTop, Width = 130, Height = 28 };
             btnDownloadBundled.Click += async (s, e) => {
                 btnDownloadBundled.Enabled = false;
                 lblFfmpegStatus.Text = "Downloading FFmpeg binaries...";
@@ -641,7 +604,7 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            btnClearFfmpegCache = new Button { Text = "Clear Cache", Left = leftLabel + 280, Top = fTop, Width = 110, Height = 28 };
+            btnClearFfmpegCache = new Button { Text = "Clear Cache", Left = leftLabel + 280, Top = ffTop, Width = 110, Height = 28 };
             btnClearFfmpegCache.Click += (s, e) => {
                 var result = MessageBox.Show(
                     "This will delete the downloaded FFmpeg binaries. They will be re-downloaded when needed.\n\nContinue?",
@@ -656,29 +619,29 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            fTop += rowH + 15;
-            var lblFfmpegDivider2 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = fTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            ffTop += rowH + 15;
+            var lblFfmpegDivider2 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = ffTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
 
-            fTop += 20;
-            var lblFfmpegHelp = new Label { Text = "ℹ Help", Left = leftLabel, Top = fTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            ffTop += 20;
+            var lblFfmpegHelp = new Label { Text = "ℹ Help", Left = leftLabel, Top = ffTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
 
-            fTop += 25;
+            ffTop += 25;
             var lblHelpText = new Label { 
                 Text = "• Bundled: Automatically downloads FFmpeg to AppData (recommended)\n" +
                        "• System PATH: Uses FFmpeg installed on your system (must be in PATH)\n" +
                        "• Custom Path: Specify a folder containing ffmpeg.exe",
                 Left = leftLabel, 
-                Top = fTop, 
+                Top = ffTop, 
                 Width = 500, 
                 Height = 60, 
                 AutoSize = false 
             };
 
-            fTop += 70;
+            ffTop += 70;
             var lblBundledPath = new Label { 
                 Text = $"Bundled location: {FFmpegLocator.FFmpegDirectory}",
                 Left = leftLabel, 
-                Top = fTop, 
+                Top = ffTop, 
                 Width = 550, 
                 AutoSize = true,
                 ForeColor = System.Drawing.Color.DarkGray,
