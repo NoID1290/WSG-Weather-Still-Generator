@@ -642,11 +642,8 @@ namespace WeatherImageGenerator
                 int imageSteps = Math.Max(1, numDetailedImages + 3); 
                 int imageStepsCompleted = 0;
 
-                // Filter out ended alerts for image generation
-                var activeAlerts = alerts.Where(a => 
-                    !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
-                    !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
-                ).ToList();
+                // Use alerts as provided (they should already be properly filtered)
+                var activeAlerts = alerts;
 
                 // Check if we should skip DetailedWeather due to active alerts
                 bool skipDetailedWeather = config.Video?.SkipDetailedWeatherOnAlert == true && activeAlerts.Count > 0;
@@ -704,9 +701,17 @@ namespace WeatherImageGenerator
                 imageStepsCompleted++;
                 ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 85.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
-                // Alerts - Use activeAlerts already computed earlier
+                // Alerts - Only generate if there are active alerts
                 if (cancellationToken.IsCancellationRequested) return;
-                ImageGenerator.GenerateAlertsImage(activeAlerts, outputDir);
+                if (activeAlerts.Count > 0)
+                {
+                    ImageGenerator.GenerateAlertsImage(activeAlerts, outputDir);
+                    Logger.Log($"✓ Generated alerts image with {activeAlerts.Count} alert(s)");
+                }
+                else
+                {
+                    Logger.Log("No active alerts - skipping alerts image generation");
+                }
                 imageStepsCompleted++;
                 ProgressUpdated?.Invoke(100, "Stills generation complete");
                 Logger.Log($"✓ Stills Generation Complete. Images saved to: {outputDir}");
@@ -865,34 +870,35 @@ namespace WeatherImageGenerator
                                 
                                 // Check if we need to duplicate radar frames for alerts
                                 // Note: We'll duplicate after we know if there are active alerts, so store frames for later
-                                if (config.Video?.PlayRadarAnimationTwiceOnAlert == true)
+                                if (config.Video?.PlayRadarAnimationCountOnAlert > 1)
                                 {
-                                    // Filter out ended alerts (temporarily, to check if we have active ones)
-                                    var alertsCheck = alerts.Where(a => 
-                                        !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
-                                        !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
-                                    ).ToList();
+                                    // Check if we have active alerts
+                                    var alertsCheck = alerts;
                                     
                                     if (alertsCheck.Count > 0)
                                     {
                                         try
                                         {
-                                            Logger.Log($"[Radar Animation] Duplicating {frames.Count} radar frames due to active alert...");
+                                            int replayCount = (config.Video.PlayRadarAnimationCountOnAlert - 1); // Subtract 1 because we already have 1 play
+                                            Logger.Log($"[Radar Animation] Duplicating {frames.Count} radar frames {replayCount} more time(s) due to active alert...");
                                             // Duplicate the radar frames by copying them with new numbering
-                                            for (int i = 0; i < frames.Count; i++)
+                                            for (int replay = 0; replay < replayCount; replay++)
                                             {
-                                                string originalFile = frames[i];
-                                                string originalName = Path.GetFileName(originalFile);
-                                                // Insert copy at a higher number to avoid conflicts
-                                                string newName = originalName.Replace($"{i:D2}_", $"{frames.Count + i:D2}_");
-                                                string newFile = Path.Combine(outputDir, newName);
-                                                if (File.Exists(originalFile) && !File.Exists(newFile))
+                                                for (int i = 0; i < frames.Count; i++)
                                                 {
-                                                    File.Copy(originalFile, newFile);
+                                                    string originalFile = frames[i];
+                                                    string originalName = Path.GetFileName(originalFile);
+                                                    // Insert copy at a higher number to avoid conflicts
+                                                    string newName = originalName.Replace($"{i:D2}_", $"{frames.Count * (replay + 1) + i:D2}_");
+                                                    string newFile = Path.Combine(outputDir, newName);
+                                                    if (File.Exists(originalFile) && !File.Exists(newFile))
+                                                    {
+                                                        File.Copy(originalFile, newFile);
+                                                    }
                                                 }
                                             }
-                                            nextImageNumber += frames.Count; // Increment for the duplicated frames
-                                            Logger.Log($"✓ Radar animation duplicated: {frames.Count} additional frames added");
+                                            nextImageNumber += frames.Count * replayCount; // Increment for the duplicated frames
+                                            Logger.Log($"✓ Radar animation replayed {replayCount} additional time(s): {frames.Count * replayCount} additional frames added");
                                         }
                                         catch (Exception dupEx)
                                         {
@@ -910,25 +916,30 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 2. Weather Alerts (next available number after radar)
-                        // Filter out ended alerts for video generation (but keep them for GUI display)
-                        var activeAlerts = alerts.Where(a => 
-                            !a.Title.Contains("terminée", StringComparison.OrdinalIgnoreCase) &&
-                            !a.Title.Contains("ended", StringComparison.OrdinalIgnoreCase)
-                        ).ToList();
+                        // Only generate if there are active alerts
+                        var activeAlerts = alerts;
                         
-                        // Temporarily rename alert file to use correct numbering
-                        string alertFilename = $"{nextImageNumber:D2}_WeatherAlerts.png";
-                        string alertPath = Path.Combine(outputDir, alertFilename);
-                        
-                        ImageGenerator.GenerateAlertsImage(activeAlerts, outputDir);
-                        
-                        // Rename the alert image to use correct number
-                        string defaultAlertPath = Path.Combine(outputDir, "01_WeatherAlerts.png");
-                        if (File.Exists(defaultAlertPath) && !File.Exists(alertPath))
+                        if (activeAlerts.Count > 0)
                         {
-                            File.Move(defaultAlertPath, alertPath);
+                            // Generate alerts image with active alerts
+                            string alertFilename = $"{nextImageNumber:D2}_WeatherAlerts.png";
+                            string alertPath = Path.Combine(outputDir, alertFilename);
+                            
+                            ImageGenerator.GenerateAlertsImage(activeAlerts, outputDir);
+                            
+                            // Rename the alert image to use correct number
+                            string defaultAlertPath = Path.Combine(outputDir, "01_WeatherAlerts.png");
+                            if (File.Exists(defaultAlertPath) && !File.Exists(alertPath))
+                            {
+                                File.Move(defaultAlertPath, alertPath);
+                            }
+                            nextImageNumber++; // Increment after alerts
+                            Logger.Log($"✓ Generated alerts image with {activeAlerts.Count} alert(s)");
                         }
-                        nextImageNumber++; // Increment after alerts
+                        else
+                        {
+                            Logger.Log("No active alerts - skipping alerts image generation");
+                        }
                         
                         imageStepsCompleted++;
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");

@@ -96,6 +96,7 @@ namespace WeatherImageGenerator.Services
             var (currentBitmap, currentGraphics) = CreateNewPage();
             float currentY = 120f; 
             int pageIndex = 1;
+            bool hasContentOnCurrentPage = false; // Track if current page has content
 
             using (Font cityFont = new Font(imgConfig.FontFamily ?? "Segoe UI", alertConfig.CityFontSize, FontStyle.Bold))
             using (Font typeFont = new Font(imgConfig.FontFamily ?? "Segoe UI", alertConfig.TypeFontSize, FontStyle.Bold))
@@ -106,7 +107,8 @@ namespace WeatherImageGenerator.Services
             {
                 if (alerts.Count == 0)
                 {
-                    using(Brush greenBrush = new SolidBrush(Color.LightGreen))
+                    hasContentOnCurrentPage = true;
+                    using(Brush textBrush = new SolidBrush(Color.White))
                     using(Font bigFont = new Font(imgConfig.FontFamily ?? "Segoe UI", 36, FontStyle.Bold))
                     {
                          string text = alertConfig.NoAlertsText ?? "No Active Warnings or Watches";
@@ -114,7 +116,7 @@ namespace WeatherImageGenerator.Services
                          float x = (width - textSize.Width) / 2;
                          float y = (height - textSize.Height) / 2;
                          
-                         currentGraphics.DrawString(text, bigFont, greenBrush, x, y);
+                         currentGraphics.DrawString(text, bigFont, textBrush, x, y);
                     }
                 }
                 else
@@ -160,25 +162,32 @@ namespace WeatherImageGenerator.Services
                         // Check if we need a new page
                         if (currentY + cardHeight > height - 50)
                         {
-                            // Save current page
-                            string filename;
-                            if (pageIndex == 1)
-                                filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
-                            else
-                                filename = Path.Combine(outputDir, $"{baseName}_{pageIndex}{ext}");
+                            // Only save current page if it has content
+                            if (hasContentOnCurrentPage)
+                            {
+                                string filename;
+                                if (pageIndex == 1)
+                                    filename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+                                else
+                                    filename = Path.Combine(outputDir, $"{baseName}_{pageIndex}{ext}");
 
-                            SaveImage(currentBitmap, filename, imgConfig);
-                            Logger.Log($"✓ Generated: {filename}");
+                                SaveImage(currentBitmap, filename, imgConfig);
+                                Logger.Log($"✓ Generated: {filename}");
+                                
+                                // Dispose current
+                                currentGraphics.Dispose();
+                                currentBitmap.Dispose();
+
+                                // Start new page
+                                pageIndex++;
+                                (currentBitmap, currentGraphics) = CreateNewPage();
+                            }
                             
-                            // Dispose current
-                            currentGraphics.Dispose();
-                            currentBitmap.Dispose();
-
-                            // Start new page
-                            pageIndex++;
-                            (currentBitmap, currentGraphics) = CreateNewPage();
                             currentY = 120f;
+                            hasContentOnCurrentPage = false; // Reset for new page
                         }
+
+                        hasContentOnCurrentPage = true; // Mark that we've added content to this page
 
                         // Determine Colors
                         Color severityColor = Color.Gray;
@@ -239,15 +248,18 @@ namespace WeatherImageGenerator.Services
                 }
             }
 
-            // Save the final page
-            string finalFilename;
-            if (pageIndex == 1)
-                finalFilename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
-            else
-                finalFilename = Path.Combine(outputDir, $"{baseName}_{pageIndex}{ext}");
+            // Save the final page only if it has content
+            if (hasContentOnCurrentPage)
+            {
+                string finalFilename;
+                if (pageIndex == 1)
+                    finalFilename = Path.Combine(outputDir, alertConfig.AlertFilename ?? "10_WeatherAlerts.png");
+                else
+                    finalFilename = Path.Combine(outputDir, $"{baseName}_{pageIndex}{ext}");
 
-            SaveImage(currentBitmap, finalFilename, imgConfig);
-            Logger.Log($"✓ Generated: {finalFilename}");
+                SaveImage(currentBitmap, finalFilename, imgConfig);
+                Logger.Log($"✓ Generated: {finalFilename}");
+            }
 
             currentGraphics.Dispose();
             currentBitmap.Dispose();

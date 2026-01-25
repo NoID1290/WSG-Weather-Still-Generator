@@ -440,8 +440,11 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("SkipDetailedWeatherOnAlert")]
         public bool SkipDetailedWeatherOnAlert { get; set; } = false;
 
-        [JsonPropertyName("PlayRadarAnimationTwiceOnAlert")]
-        public bool PlayRadarAnimationTwiceOnAlert { get; set; } = false;
+        [JsonPropertyName("PlayRadarAnimationCountOnAlert")]
+        public int PlayRadarAnimationCountOnAlert { get; set; } = 1;
+
+        [JsonPropertyName("AlertDisplayDurationSeconds")]
+        public double AlertDisplayDurationSeconds { get; set; } = 10;
     }
 
     /// <summary>

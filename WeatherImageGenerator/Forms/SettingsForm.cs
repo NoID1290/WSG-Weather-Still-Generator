@@ -91,8 +91,9 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkMapUseDarkMode;
         // Skip Detailed Weather on alert
         CheckBox chkSkipDetailedWeatherOnAlert;
-        // Play Radar Animation Twice on alert
-        CheckBox chkPlayRadarAnimationTwiceOnAlert;
+        // Radar and Alert display settings
+        NumericUpDown numPlayRadarAnimationCountOnAlert;
+        NumericUpDown numAlertDisplayDurationSeconds;
         public SettingsForm()
         {
             this.Text = "⚙ Settings";
@@ -260,8 +261,14 @@ namespace WeatherImageGenerator.Forms
             var lblSkipDetailHelp = new Label { Text = "if alert is active", Left = leftLabel + 20, Top = vTop + rowH - 12, Width = 150, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
             
             vTop += rowH;
-            chkPlayRadarAnimationTwiceOnAlert = new CheckBox { Text = "Play Radar Animation Twice", Left = leftLabel, Top = vTop, Width = 200 };
-            var lblPlayRadarHelp = new Label { Text = "if alert is active", Left = leftLabel + 20, Top = vTop + rowH - 12, Width = 150, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
+            var lblRadarCount = new Label { Text = "Replay Radar Animation:", Left = leftLabel, Top = vTop, Width = 160, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numPlayRadarAnimationCountOnAlert = new NumericUpDown { Left = leftLabel + 165, Top = vTop, Width = 50, Minimum = 1, Maximum = 10, Value = 1 };
+            var lblRadarCountHelp = new Label { Text = "times (when alert active)", Left = leftLabel + 220, Top = vTop + 3, Width = 150, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
+            
+            vTop += rowH;
+            var lblAlertDuration = new Label { Text = "Alert Display Duration:", Left = leftLabel, Top = vTop, Width = 160, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numAlertDisplayDurationSeconds = new NumericUpDown { Left = leftLabel + 165, Top = vTop, Width = 50, Minimum = 1, Maximum = 120, DecimalPlaces = 1, Increment = 0.5M, Value = 6 };
+            var lblAlertDurationHelp = new Label { Text = "seconds (follows slide duration)", Left = leftLabel + 220, Top = vTop + 3, Width = 180, AutoSize = true, ForeColor = System.Drawing.Color.Gray, Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f) };
             
             vTop += rowH;
             var lblDivider1 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = vTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
@@ -459,6 +466,13 @@ namespace WeatherImageGenerator.Forms
             chkUseCrfEncoding.CheckedChanged += markCustom;
             numCrf.ValueChanged += markCustom;
             
+            // Sync Alert Duration with Static Duration
+            numStatic.ValueChanged += (s, e) => 
+            { 
+                if (!_isLoadingSettings) 
+                    numAlertDisplayDurationSeconds.Value = numStatic.Value;
+            };
+            
             btnCheckHw.Click += (s, e) =>
             {
                 btnCheckHw.Enabled = false;
@@ -502,7 +516,7 @@ namespace WeatherImageGenerator.Forms
             chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg Console", Left = leftLabel + 190, Top = vTop, Width = 180 };
 
             tabVideo.Controls.AddRange(new Control[] { 
-                chkVideoGeneration, chkSkipDetailedWeatherOnAlert, lblSkipDetailHelp, chkPlayRadarAnimationTwiceOnAlert, lblPlayRadarHelp, lblDivider1,
+                chkVideoGeneration, chkSkipDetailedWeatherOnAlert, lblSkipDetailHelp, lblRadarCount, numPlayRadarAnimationCountOnAlert, lblRadarCountHelp, lblAlertDuration, numAlertDisplayDurationSeconds, lblAlertDurationHelp, lblDivider1,
                 // Left column
                 lblTimingGroup, lblStatic, numStatic, lblStaticHelp, lblTotal, numTotalDuration, chkUseTotalDuration,
                 lblFade, numFade, chkFade, lblDivider2,
@@ -1301,7 +1315,8 @@ namespace WeatherImageGenerator.Forms
                 if (cmbContainer.Items.Contains(container)) cmbContainer.SelectedItem = container;
                 chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
                 chkSkipDetailedWeatherOnAlert.Checked = cfg.Video?.SkipDetailedWeatherOnAlert ?? false;
-                chkPlayRadarAnimationTwiceOnAlert.Checked = cfg.Video?.PlayRadarAnimationTwiceOnAlert ?? false;
+                numPlayRadarAnimationCountOnAlert.Value = cfg.Video?.PlayRadarAnimationCountOnAlert ?? 1;
+                numAlertDisplayDurationSeconds.Value = (decimal)(cfg.Video?.AlertDisplayDurationSeconds ?? 10);
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
                 chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
@@ -1493,7 +1508,8 @@ namespace WeatherImageGenerator.Forms
                 v.OutputDirectory = ToRelative(txtVideoOutputDir.Text, imageGen.OutputDirectory ?? "WeatherImages");
                 v.doVideoGeneration = chkVideoGeneration.Checked;
                 v.SkipDetailedWeatherOnAlert = chkSkipDetailedWeatherOnAlert.Checked;
-                v.PlayRadarAnimationTwiceOnAlert = chkPlayRadarAnimationTwiceOnAlert.Checked;
+                v.PlayRadarAnimationCountOnAlert = (int)numPlayRadarAnimationCountOnAlert.Value;
+                v.AlertDisplayDurationSeconds = (double)numAlertDisplayDurationSeconds.Value;
                 v.VerboseFfmpeg = chkVerbose.Checked;
                 v.ShowFfmpegOutputInGui = chkShowFfmpeg.Checked;
                 // If enabling hardware encoding, verify ffmpeg supports NVENC and warn the user if it does not
