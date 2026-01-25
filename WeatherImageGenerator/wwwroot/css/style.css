@@ -213,6 +213,14 @@ header .subtitle {
     color: var(--text-secondary);
 }
 
+/* Button Grid */
+.button-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
 /* Buttons */
 .button-group {
     display: flex;
@@ -285,6 +293,24 @@ header .subtitle {
     background-color: #c62828;
 }
 
+.btn-danger {
+    background-color: var(--error-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c62828;
+}
+
+.btn-info {
+    background-color: #1976d2;
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #1565c0;
+}
+
 /* Forms */
 .settings-form {
     display: grid;
@@ -319,6 +345,59 @@ header .subtitle {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+}
+
+/* Fieldsets */
+.form-fieldset {
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 1.5rem;
+    background-color: var(--bg-light);
+}
+
+.form-fieldset legend {
+    font-weight: 600;
+    color: var(--primary-color);
+    padding: 0 0.5rem;
+}
+
+.form-fieldset .form-group {
+    margin-bottom: 1rem;
+}
+
+/* Data Tables */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.data-table thead {
+    background-color: var(--primary-light);
+    color: white;
+}
+
+.data-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+}
+
+.data-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table tbody tr:hover {
+    background-color: var(--bg-light);
+}
+
+/* Image Controls */
+.images-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
 }
 
 /* Loading */

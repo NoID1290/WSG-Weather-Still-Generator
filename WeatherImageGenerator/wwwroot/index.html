@@ -17,7 +17,10 @@
             <ul>
                 <li><a href="#" class="nav-link active" data-tab="dashboard">Dashboard</a></li>
                 <li><a href="#" class="nav-link" data-tab="weather">Weather</a></li>
+                <li><a href="#" class="nav-link" data-tab="locations">Locations</a></li>
                 <li><a href="#" class="nav-link" data-tab="images">Images</a></li>
+                <li><a href="#" class="nav-link" data-tab="alerts">Alerts</a></li>
+                <li><a href="#" class="nav-link" data-tab="video">Video</a></li>
                 <li><a href="#" class="nav-link" data-tab="settings">Settings</a></li>
             </ul>
         </nav>
@@ -40,14 +43,21 @@
                             <span class="label">Version:</span>
                             <span class="value" id="app-version">1.0.0</span>
                         </div>
+                        <div class="status-item">
+                            <span class="label">Cycle Status:</span>
+                            <span class="value" id="cycle-status">Idle</span>
+                        </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <h2>Quick Actions</h2>
-                    <div class="button-group">
-                        <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh Data</button>
-                        <button class="btn btn-secondary" onclick="openSettings()">⚙️ Settings</button>
+                    <div class="button-grid">
+                        <button class="btn btn-primary" onclick="startCycle()">▶️ Start Cycle</button>
+                        <button class="btn btn-danger" onclick="stopCycle()">⏹️ Stop Cycle</button>
+                        <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+                        <button class="btn btn-info" onclick="generateStill()">📸 Generate Still</button>
+                        <button class="btn btn-warning" onclick="generateVideo()">🎥 Make Video</button>
                     </div>
                 </div>
             </section>
@@ -69,36 +79,259 @@
                 </div>
             </section>
 
+            <!-- Locations Tab -->
+            <section id="locations-tab" class="tab-content">
+                <div class="card">
+                    <h2>Weather Locations</h2>
+                    <div class="form-group">
+                        <button class="btn btn-primary" onclick="loadLocations()">Load Locations</button>
+                    </div>
+                    <table id="locations-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Position</th>
+                                <th>City Name</th>
+                                <th>API Source</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="locations-tbody">
+                            <tr><td colspan="4" class="loading">Loading locations...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <!-- Images Tab -->
             <section id="images-tab" class="tab-content">
                 <div class="card">
                     <h2>Generated Images</h2>
+                    <div class="images-controls">
+                        <button class="btn btn-primary" onclick="loadImages()">🔄 Reload Images</button>
+                        <span id="image-count" style="margin-left: 1rem;">Total: 0</span>
+                    </div>
                     <div id="images-container" class="images-grid">
                         <p class="loading">Loading images...</p>
                     </div>
                 </div>
             </section>
 
+            <!-- Alerts Tab -->
+            <section id="alerts-tab" class="tab-content">
+                <div class="card">
+                    <h2>Emergency Alerts Settings</h2>
+                    <form id="alerts-form" class="settings-form">
+                        <div class="form-group">
+                            <label><input type="checkbox" id="alerts-enabled" onchange="updateAlerts()"> Enable Alert Ready Feed</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="alert-language">Preferred Language:</label>
+                            <select id="alert-language" onchange="updateAlerts()">
+                                <option value="f">Français</option>
+                                <option value="e">English</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><input type="checkbox" id="alert-high-risk"> High Risk Alerts Only</label>
+                        </div>
+                        <div class="form-group">
+                            <label><input type="checkbox" id="alert-exclude-weather"> Exclude Weather Alerts</label>
+                        </div>
+                        <div class="form-group">
+                            <label><input type="checkbox" id="alert-include-tests"> Include Test Alerts</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="alert-max-age">Max Alert Age (hours):</label>
+                            <input type="number" id="alert-max-age" min="1" max="168" value="24">
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-success">✓ Save Alert Settings</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h2>Radar Animation</h2>
+                    <form id="radar-form" class="settings-form">
+                        <div class="form-group">
+                            <label><input type="checkbox" id="radar-province"> Enable Province Radar</label>
+                        </div>
+                        <div class="form-group">
+                            <label><input type="checkbox" id="radar-weather-maps"> Enable Weather Maps</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="radar-frames">Number of Frames:</label>
+                            <input type="number" id="radar-frames" min="1" max="30" value="8">
+                        </div>
+                        <div class="form-group">
+                            <label for="radar-step">Frame Step (minutes):</label>
+                            <input type="number" id="radar-step" min="1" max="60" value="6">
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-success">✓ Save Radar Settings</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Video Tab -->
+            <section id="video-tab" class="tab-content">
+                <div class="card">
+                    <h2>Video Generation Settings</h2>
+                    <form id="video-form" class="settings-form">
+                        <fieldset class="form-fieldset">
+                            <legend>Video Quality</legend>
+                            <div class="form-group">
+                                <label for="video-quality">Quality Preset:</label>
+                                <select id="video-quality">
+                                    <option value="Fast">Fast</option>
+                                    <option value="Balanced" selected>Balanced</option>
+                                    <option value="HighQuality">High Quality</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="video-resolution">Resolution:</label>
+                                <select id="video-resolution">
+                                    <option value="Mode720p">720p</option>
+                                    <option value="Mode1080p" selected>1080p</option>
+                                    <option value="Mode1440p">1440p</option>
+                                    <option value="Mode2160p">2160p (4K)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="video-fps">Frame Rate (fps):</label>
+                                <input type="number" id="video-fps" min="24" max="60" value="30">
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="form-fieldset">
+                            <legend>Codec & Encoding</legend>
+                            <div class="form-group">
+                                <label for="video-codec">Video Codec:</label>
+                                <select id="video-codec">
+                                    <option value="libx264" selected>H.264</option>
+                                    <option value="libx265">H.265 (HEVC)</option>
+                                    <option value="hevc_nvenc">NVIDIA HEVC</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label><input type="checkbox" id="video-hardware"> Use Hardware Encoding (NVENC)</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="video-bitrate">Bitrate:</label>
+                                <select id="video-bitrate">
+                                    <option value="2M">2 Mbps</option>
+                                    <option value="4M" selected>4 Mbps</option>
+                                    <option value="6M">6 Mbps</option>
+                                    <option value="8M">8 Mbps</option>
+                                    <option value="12M">12 Mbps</option>
+                                </select>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="form-fieldset">
+                            <legend>Timing</legend>
+                            <div class="form-group">
+                                <label for="video-static">Slide Duration (seconds):</label>
+                                <input type="number" id="video-static" min="1" max="60" step="0.1" value="6">
+                            </div>
+                            <div class="form-group">
+                                <label><input type="checkbox" id="video-total-duration"> Enforce Total Duration</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="video-total">Total Duration (seconds):</label>
+                                <input type="number" id="video-total" min="1" max="3600" value="30">
+                            </div>
+                            <div class="form-group">
+                                <label><input type="checkbox" id="video-fade"> Enable Fade Transitions</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="video-fade-duration">Fade Duration (seconds):</label>
+                                <input type="number" id="video-fade-duration" min="0.01" max="5" step="0.01" value="0.1">
+                            </div>
+                        </fieldset>
+
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-success">✓ Save Video Settings</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h2>Music Settings</h2>
+                    <form id="music-form" class="settings-form">
+                        <div class="form-group">
+                            <label><input type="checkbox" id="music-enable"> Enable Music in Video</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="music-track">Select Music Track:</label>
+                            <select id="music-track">
+                                <option value="">No Music</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><input type="checkbox" id="music-random"> Use Random Music</label>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-success">✓ Save Music Settings</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
             <!-- Settings Tab -->
             <section id="settings-tab" class="tab-content">
                 <div class="card">
-                    <h2>System Settings</h2>
-                    <form id="settings-form" class="settings-form">
+                    <h2>General Settings</h2>
+                    <form id="general-form" class="settings-form">
                         <div class="form-group">
                             <label for="refresh-interval">Refresh Interval (minutes):</label>
                             <input type="number" id="refresh-interval" min="1" max="1440" value="10">
                         </div>
                         <div class="form-group">
-                            <label for="image-width">Image Width (pixels):</label>
-                            <input type="number" id="image-width" min="320" max="7680" value="1920">
-                        </div>
-                        <div class="form-group">
-                            <label for="image-height">Image Height (pixels):</label>
-                            <input type="number" id="image-height" min="240" max="4320" value="1080">
+                            <label for="theme">Theme:</label>
+                            <select id="theme">
+                                <option value="Blue" selected>Blue</option>
+                                <option value="Dark">Dark</option>
+                                <option value="Light">Light</option>
+                            </select>
                         </div>
                         <div class="button-group">
-                            <button type="submit" class="btn btn-success">✓ Save Settings</button>
-                            <button type="reset" class="btn btn-secondary">Reset</button>
+                            <button type="submit" class="btn btn-success">✓ Save General Settings</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h2>Image Generation Settings</h2>
+                    <form id="image-form" class="settings-form">
+                        <div class="form-group">
+                            <label>Image Dimensions:</label>
+                            <div style="display: flex; gap: 1rem;">
+                                <div>
+                                    <label for="image-width">Width (px):</label>
+                                    <input type="number" id="image-width" min="320" max="7680" value="1920">
+                                </div>
+                                <div>
+                                    <label for="image-height">Height (px):</label>
+                                    <input type="number" id="image-height" min="240" max="4320" value="1080">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="image-format">Image Format:</label>
+                            <select id="image-format">
+                                <option value="png" selected>PNG</option>
+                                <option value="jpg">JPEG</option>
+                                <option value="bmp">BMP</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="image-margin">Margin (pixels):</label>
+                            <input type="number" id="image-margin" min="0" max="200" value="50">
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-success">✓ Save Image Settings</button>
                         </div>
                     </form>
                 </div>

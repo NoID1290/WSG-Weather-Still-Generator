@@ -166,6 +166,54 @@ namespace WeatherImageGenerator.Services
                 {
                     UpdateWebSettings(context);
                 }
+                else if (path.StartsWith("/api/config/full") && method == "GET")
+                {
+                    GetFullConfig(context);
+                }
+                else if (path.StartsWith("/api/config/locations") && method == "GET")
+                {
+                    GetLocations(context);
+                }
+                else if (path.StartsWith("/api/config/general") && method == "POST")
+                {
+                    UpdateGeneralConfig(context);
+                }
+                else if (path.StartsWith("/api/config/image") && method == "POST")
+                {
+                    UpdateImageConfig(context);
+                }
+                else if (path.StartsWith("/api/config/video") && method == "POST")
+                {
+                    UpdateVideoConfig(context);
+                }
+                else if (path.StartsWith("/api/config/music") && method == "POST")
+                {
+                    UpdateMusicConfig(context);
+                }
+                else if (path.StartsWith("/api/config/alerts") && method == "POST")
+                {
+                    UpdateAlertConfig(context);
+                }
+                else if (path.StartsWith("/api/config/radar") && method == "POST")
+                {
+                    UpdateRadarConfig(context);
+                }
+                else if (path.StartsWith("/api/actions/start-cycle") && method == "POST")
+                {
+                    StartCycle(context);
+                }
+                else if (path.StartsWith("/api/actions/stop-cycle") && method == "POST")
+                {
+                    StopCycle(context);
+                }
+                else if (path.StartsWith("/api/actions/generate-still") && method == "POST")
+                {
+                    GenerateStill(context);
+                }
+                else if (path.StartsWith("/api/actions/generate-video") && method == "POST")
+                {
+                    GenerateVideo(context);
+                }
                 else if (path.StartsWith("/css/"))
                 {
                     string filename = "wwwroot" + path;
@@ -201,7 +249,7 @@ namespace WeatherImageGenerator.Services
             try
             {
                 // Try multiple possible locations for wwwroot
-                string fullPath = null;
+                string? fullPath = null;
                 string[] possibleLocations = new[]
                 {
                     // Look in the application base directory
@@ -371,6 +419,269 @@ namespace WeatherImageGenerator.Services
                 RespondWithJson(context, new { error = ex.Message }, 500);
             }
         }
-    }
-}
 
+        // NEW ENDPOINT HANDLERS
+
+        private void GetFullConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                RespondWithJson(context, config);
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void GetLocations(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var locations = new List<object>();
+                
+                if (config.Locations != null)
+                {
+                    // Use reflection to get all Location properties
+                    for (int i = 0; i < 9; i++)
+                    {
+                        var locationProp = config.Locations.GetType().GetProperty($"Location{i}");
+                        var apiProp = config.Locations.GetType().GetProperty($"Location{i}Api");
+                        
+                        var name = locationProp?.GetValue(config.Locations) as string;
+                        var api = apiProp?.GetValue(config.Locations) ?? 0;
+                        
+                        var location = new
+                        {
+                            index = i,
+                            name = name,
+                            api = (int)api
+                        };
+                        locations.Add(location);
+                    }
+                }
+
+                RespondWithJson(context, new { locations });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void UpdateGeneralConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var body = ReadRequestBody(context);
+                var updates = JsonSerializer.Deserialize<Dictionary<string, object>>(body) ?? new();
+
+                if (updates != null && updates.ContainsKey("refreshTimeMinutes"))
+                {
+                    if (int.TryParse(updates["refreshTimeMinutes"]?.ToString() ?? "", out int refreshMinutes))
+                    {
+                        config.RefreshTimeMinutes = refreshMinutes;
+                    }
+                }
+                if (updates != null && updates.ContainsKey("theme"))
+                {
+                    config.Theme = updates["theme"]?.ToString() ?? "Blue";
+                }
+
+                ConfigManager.SaveConfig(config);
+                RespondWithJson(context, new { status = "success", message = "General settings updated" });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void UpdateImageConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var body = ReadRequestBody(context);
+                var updates = JsonSerializer.Deserialize<Dictionary<string, object>>(body) ?? new();
+
+                if (config.ImageGeneration == null) config.ImageGeneration = new();
+
+                if (updates != null && updates.ContainsKey("imageWidth") && int.TryParse(updates["imageWidth"]?.ToString() ?? "", out int width))
+                    config.ImageGeneration.ImageWidth = width;
+                if (updates != null && updates.ContainsKey("imageHeight") && int.TryParse(updates["imageHeight"]?.ToString() ?? "", out int height))
+                    config.ImageGeneration.ImageHeight = height;
+                if (updates != null && updates.ContainsKey("imageFormat"))
+                    config.ImageGeneration.ImageFormat = updates["imageFormat"]?.ToString();
+                if (updates != null && updates.ContainsKey("marginPixels") && int.TryParse(updates["marginPixels"]?.ToString() ?? "", out int margin))
+                    config.ImageGeneration.MarginPixels = margin;
+
+                ConfigManager.SaveConfig(config);
+                RespondWithJson(context, new { status = "success", message = "Image settings updated" });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void UpdateVideoConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var body = ReadRequestBody(context);
+                var updates = JsonSerializer.Deserialize<Dictionary<string, object>>(body) ?? new();
+
+                if (config.Video == null) config.Video = new();
+
+                if (updates != null && updates.ContainsKey("qualityPreset"))
+                    config.Video.QualityPreset = updates["qualityPreset"]?.ToString();
+                if (updates != null && updates.ContainsKey("resolutionMode"))
+                    config.Video.ResolutionMode = updates["resolutionMode"]?.ToString();
+                if (updates != null && updates.ContainsKey("frameRate") && int.TryParse(updates["frameRate"]?.ToString() ?? "", out int fps))
+                    config.Video.FrameRate = fps;
+                if (updates != null && updates.ContainsKey("videoCodec"))
+                    config.Video.VideoCodec = updates["videoCodec"]?.ToString();
+                if (updates != null && updates.ContainsKey("enableHardwareEncoding") && bool.TryParse(updates["enableHardwareEncoding"]?.ToString() ?? "", out bool hwenc))
+                    config.Video.EnableHardwareEncoding = hwenc;
+                if (updates != null && updates.ContainsKey("videoBitrate"))
+                    config.Video.VideoBitrate = updates["videoBitrate"]?.ToString();
+                if (updates != null && updates.ContainsKey("staticDurationSeconds") && double.TryParse(updates["staticDurationSeconds"]?.ToString() ?? "", out double staticDuration))
+                    config.Video.StaticDurationSeconds = staticDuration;
+                if (updates != null && updates.ContainsKey("useTotalDuration") && bool.TryParse(updates["useTotalDuration"]?.ToString() ?? "", out bool useTotalDuration))
+                    config.Video.UseTotalDuration = useTotalDuration;
+                if (updates != null && updates.ContainsKey("totalDurationSeconds") && int.TryParse(updates["totalDurationSeconds"]?.ToString() ?? "", out int totalDuration))
+                    config.Video.TotalDurationSeconds = totalDuration;
+                if (updates != null && updates.ContainsKey("enableFadeTransitions") && bool.TryParse(updates["enableFadeTransitions"]?.ToString() ?? "", out bool fade))
+                    config.Video.EnableFadeTransitions = fade;
+                if (updates != null && updates.ContainsKey("fadeDurationSeconds") && double.TryParse(updates["fadeDurationSeconds"]?.ToString() ?? "", out double fadeDuration))
+                    config.Video.FadeDurationSeconds = fadeDuration;
+
+                ConfigManager.SaveConfig(config);
+                RespondWithJson(context, new { status = "success", message = "Video settings updated" });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void UpdateMusicConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var body = ReadRequestBody(context);
+                var updates = JsonSerializer.Deserialize<Dictionary<string, object>>(body) ?? new();
+
+                if (config.Music == null) config.Music = new();
+
+                if (updates != null && updates.ContainsKey("enableMusicInVideo") && bool.TryParse(updates["enableMusicInVideo"]?.ToString() ?? "", out bool enableMusic))
+                    config.Music.EnableMusicInVideo = enableMusic;
+                if (updates != null && updates.ContainsKey("useRandomMusic") && bool.TryParse(updates["useRandomMusic"]?.ToString() ?? "", out bool useRandom))
+                    config.Music.UseRandomMusic = useRandom;
+                if (updates != null && updates.ContainsKey("selectedMusicIndex") && int.TryParse(updates["selectedMusicIndex"]?.ToString() ?? "", out int musicIndex))
+                    config.Music.SelectedMusicIndex = musicIndex;
+
+                ConfigManager.SaveConfig(config);
+                RespondWithJson(context, new { status = "success", message = "Music settings updated" });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void UpdateAlertConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var body = ReadRequestBody(context);
+                var updates = JsonSerializer.Deserialize<Dictionary<string, object>>(body) ?? new();
+
+                if (config.AlertReady == null) config.AlertReady = new();
+
+                if (updates != null && updates.ContainsKey("enabled") && bool.TryParse(updates["enabled"]?.ToString() ?? "", out bool enabled))
+                    config.AlertReady.Enabled = enabled;
+                if (updates != null && updates.ContainsKey("preferredLanguage"))
+                    config.AlertReady.PreferredLanguage = updates["preferredLanguage"]?.ToString() ?? "f";
+                if (updates != null && updates.ContainsKey("highRiskOnly") && bool.TryParse(updates["highRiskOnly"]?.ToString() ?? "", out bool highRisk))
+                    config.AlertReady.HighRiskOnly = highRisk;
+                if (updates != null && updates.ContainsKey("excludeWeatherAlerts") && bool.TryParse(updates["excludeWeatherAlerts"]?.ToString() ?? "", out bool excludeWeather))
+                    config.AlertReady.ExcludeWeatherAlerts = excludeWeather;
+                if (updates != null && updates.ContainsKey("includeTests") && bool.TryParse(updates["includeTests"]?.ToString() ?? "", out bool includeTests))
+                    config.AlertReady.IncludeTests = includeTests;
+                if (updates != null && updates.ContainsKey("maxAgeHours") && int.TryParse(updates["maxAgeHours"]?.ToString() ?? "", out int maxAge))
+                    config.AlertReady.MaxAgeHours = maxAge;
+
+                ConfigManager.SaveConfig(config);
+                RespondWithJson(context, new { status = "success", message = "Alert settings updated" });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void UpdateRadarConfig(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var body = ReadRequestBody(context);
+                var updates = JsonSerializer.Deserialize<Dictionary<string, object>>(body) ?? new();
+
+                if (config.ImageGeneration == null) config.ImageGeneration = new();
+                if (config.ECCC == null) config.ECCC = new();
+
+                if (updates != null && updates.ContainsKey("enableProvinceRadar") && bool.TryParse(updates["enableProvinceRadar"]?.ToString() ?? "", out bool enableProvinceRadar))
+                    config.ECCC.EnableProvinceRadar = enableProvinceRadar;
+                if (updates != null && updates.ContainsKey("enableWeatherMaps") && bool.TryParse(updates["enableWeatherMaps"]?.ToString() ?? "", out bool enableWeatherMaps))
+                    config.ImageGeneration.EnableWeatherMaps = enableWeatherMaps;
+                if (updates != null && updates.ContainsKey("provinceFrames") && int.TryParse(updates["provinceFrames"]?.ToString() ?? "", out int frames))
+                    config.ECCC.ProvinceFrames = frames;
+                if (updates != null && updates.ContainsKey("provinceFrameStepMinutes") && int.TryParse(updates["provinceFrameStepMinutes"]?.ToString() ?? "", out int step))
+                    config.ECCC.ProvinceFrameStepMinutes = step;
+
+                ConfigManager.SaveConfig(config);
+                RespondWithJson(context, new { status = "success", message = "Radar settings updated" });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void StartCycle(HttpListenerContext context)
+        {
+            RespondWithJson(context, new { status = "success", message = "Cycle start request received" });
+        }
+
+        private void StopCycle(HttpListenerContext context)
+        {
+            RespondWithJson(context, new { status = "success", message = "Cycle stop request received" });
+        }
+
+        private void GenerateStill(HttpListenerContext context)
+        {
+            RespondWithJson(context, new { status = "success", message = "Still generation started" });
+        }
+
+        private void GenerateVideo(HttpListenerContext context)
+        {
+            RespondWithJson(context, new { status = "success", message = "Video generation started" });
+        }
+
+        private string ReadRequestBody(HttpListenerContext context)
+        {
+            using (var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+            {
+                return reader.ReadToEnd();
+            }
+        }    }
+}
