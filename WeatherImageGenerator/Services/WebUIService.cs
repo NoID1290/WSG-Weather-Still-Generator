@@ -29,6 +29,39 @@ namespace WeatherImageGenerator.Services
         /// <summary>
         /// Starts the web server with the configured port
         /// </summary>
+        public void Start()
+        {
+            try
+            {
+                _httpListener = new HttpListener();
+                // Use localhost (127.0.0.1) which doesn't require admin rights
+                _httpListener.Prefixes.Add($"http://localhost:{Port}/");
+                _httpListener.Prefixes.Add($"http://127.0.0.1:{Port}/");
+                _httpListener.Start();
+                IsRunning = true;
+                Logger.Log($"Web UI server started on localhost:{Port}", Logger.LogLevel.Info);
+                ServerStarted?.Invoke(this, EventArgs.Empty);
+
+                // Start listening for requests asynchronously
+                _ = ListenForRequests();
+            }
+            catch (Exception ex)
+            {
+                IsRunning = false;
+                Logger.Log($"Failed to start Web UI server: {ex.Message}", Logger.LogLevel.Error);
+                ServerError?.Invoke(this, ex.Message);
+            }
+        }
+
+        private static bool IsListeningPort5000OrHigher(int port)
+        {
+            // Check if port is 5000 or higher, which may require admin rights for +
+            return port >= 5000;
+        }
+
+        /// <summary>
+        /// Starts the web server asynchronously with the configured port
+        /// </summary>
         public async Task StartAsync()
         {
             try
@@ -48,7 +81,6 @@ namespace WeatherImageGenerator.Services
                 IsRunning = false;
                 Logger.Log($"Failed to start Web UI server: {ex.Message}", Logger.LogLevel.Error);
                 ServerError?.Invoke(this, ex.Message);
-                throw;
             }
         }
 
@@ -168,17 +200,42 @@ namespace WeatherImageGenerator.Services
         {
             try
             {
-                string fullPath = Path.Combine(AppContext.BaseDirectory, filePath);
-                if (File.Exists(fullPath))
+                // Try multiple possible locations for wwwroot
+                string fullPath = null;
+                string[] possibleLocations = new[]
+                {
+                    // Look in the application base directory
+                    Path.Combine(AppContext.BaseDirectory, filePath),
+                    // Look in the project directory (up from bin/Debug/net10.0-windows)
+                    Path.Combine(AppContext.BaseDirectory, "..", "..", "..", filePath),
+                    // Look in current working directory
+                    Path.Combine(Directory.GetCurrentDirectory(), filePath),
+                    // Absolute path if file starts with /
+                    filePath.TrimStart('/')
+                };
+
+                foreach (var location in possibleLocations)
+                {
+                    var normalizedPath = Path.GetFullPath(location);
+                    if (File.Exists(normalizedPath))
+                    {
+                        fullPath = normalizedPath;
+                        break;
+                    }
+                }
+
+                if (fullPath != null && File.Exists(fullPath))
                 {
                     context.Response.ContentType = contentType;
                     byte[] buffer = File.ReadAllBytes(fullPath);
                     context.Response.ContentLength64 = buffer.Length;
                     await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                    Logger.Log($"Served file: {filePath}", Logger.LogLevel.Debug);
                 }
                 else
                 {
-                    RespondWithJson(context, new { error = "File not found" }, 404);
+                    Logger.Log($"File not found: {filePath}", Logger.LogLevel.Debug);
+                    RespondWithJson(context, new { error = "File not found", requestedPath = filePath }, 404);
                 }
             }
             catch (Exception ex)

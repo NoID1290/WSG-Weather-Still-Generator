@@ -156,7 +156,7 @@ namespace WeatherImageGenerator
             if (initialConfig.WebUI?.Enabled ?? false)
             {
                 _webUIService = new WebUIService(initialConfig.WebUI.Port);
-                Task.Run(async () => await _webUIService.StartAsync());
+                _webUIService.Start();
             }
             
             Application.Run(new MainForm());
