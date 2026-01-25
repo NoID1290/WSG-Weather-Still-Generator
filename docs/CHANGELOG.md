@@ -10,10 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update OpenMap project version to 1.3.3.0125 and include in auto-push script
 - Update README.md
 
-## [1.6.4.0125] - 2026-01-25
-
-- Update OpenMap project version to 1.3.3.0125 and include in auto-push script
-
 ## [1.6.3.0125] - 2026-01-25
 
 - Refactor Video Tab layout and enhance Alert Settings with improved controls and grouping
