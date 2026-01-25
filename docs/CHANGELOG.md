@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4.0125] - 2026-01-25
+
+- Update OpenMap project version to 1.3.3.0125 and include in auto-push script
+
 ## [1.6.3.0125] - 2026-01-25
 
 - Refactor Video Tab layout and enhance Alert Settings with improved controls and grouping
