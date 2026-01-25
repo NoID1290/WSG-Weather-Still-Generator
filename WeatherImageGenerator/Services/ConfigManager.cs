@@ -150,6 +150,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("OpenMap")]
         public OpenMapSettings? OpenMap { get; set; }
+
+        [JsonPropertyName("WebUI")]
+        public WebUISettings? WebUI { get; set; }
     }
 
     /// <summary>

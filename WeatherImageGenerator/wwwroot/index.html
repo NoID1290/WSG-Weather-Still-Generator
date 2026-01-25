@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Image Generator - Web UI</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌤 Weather Image Generator</h1>
+            <p class="subtitle">Remote Web Interface</p>
+        </header>
+
+        <nav class="navbar">
+            <ul>
+                <li><a href="#" class="nav-link active" data-tab="dashboard">Dashboard</a></li>
+                <li><a href="#" class="nav-link" data-tab="weather">Weather</a></li>
+                <li><a href="#" class="nav-link" data-tab="images">Images</a></li>
+                <li><a href="#" class="nav-link" data-tab="settings">Settings</a></li>
+            </ul>
+        </nav>
+
+        <main class="content">
+            <!-- Dashboard Tab -->
+            <section id="dashboard-tab" class="tab-content active">
+                <div class="card">
+                    <h2>System Status</h2>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <span class="label">Server Status:</span>
+                            <span class="value" id="server-status">●</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Last Update:</span>
+                            <span class="value" id="last-update">Never</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Version:</span>
+                            <span class="value" id="app-version">1.0.0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Quick Actions</h2>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh Data</button>
+                        <button class="btn btn-secondary" onclick="openSettings()">⚙️ Settings</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Weather Tab -->
+            <section id="weather-tab" class="tab-content">
+                <div class="card">
+                    <h2>Current Weather</h2>
+                    <div id="weather-container" class="weather-grid">
+                        <p class="loading">Loading weather data...</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Forecast</h2>
+                    <div id="forecast-container" class="forecast-grid">
+                        <p class="loading">Loading forecast data...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Images Tab -->
+            <section id="images-tab" class="tab-content">
+                <div class="card">
+                    <h2>Generated Images</h2>
+                    <div id="images-container" class="images-grid">
+                        <p class="loading">Loading images...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings-tab" class="tab-content">
+                <div class="card">
+                    <h2>System Settings</h2>
+                    <form id="settings-form" class="settings-form">
+                        <div class="form-group">
+                            <label for="refresh-interval">Refresh Interval (minutes):</label>
+                            <input type="number" id="refresh-interval" min="1" max="1440" value="10">
+                        </div>
+                        <div class="form-group">
+                            <label for="image-width">Image Width (pixels):</label>
+                            <input type="number" id="image-width" min="320" max="7680" value="1920">
+                        </div>
+                        <div class="form-group">
+                            <label for="image-height">Image Height (pixels):</label>
+                            <input type="number" id="image-height" min="240" max="4320" value="1080">
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-success">✓ Save Settings</button>
+                            <button type="reset" class="btn btn-secondary">Reset</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 Weather Image Generator - Remote Web Interface</p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

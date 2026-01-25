@@ -21,6 +21,9 @@ namespace WeatherImageGenerator
 {
     class Program
     {
+        // Static instance of Web UI service
+        private static WebUIService? _webUIService;
+
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool AllocConsole();
 
@@ -148,7 +151,21 @@ namespace WeatherImageGenerator
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             
+            // Initialize Web UI if enabled in settings
+            var initialConfig = ConfigManager.LoadConfig();
+            if (initialConfig.WebUI?.Enabled ?? false)
+            {
+                _webUIService = new WebUIService(initialConfig.WebUI.Port);
+                Task.Run(async () => await _webUIService.StartAsync());
+            }
+            
             Application.Run(new MainForm());
+            
+            // Stop Web UI service when application closes
+            if (_webUIService?.IsRunning ?? false)
+            {
+                Task.Run(async () => await _webUIService.StopAsync()).GetAwaiter().GetResult();
+            }
         }
 
         // Event used by the GUI to show the remaining time while the background worker is sleeping

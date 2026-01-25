@@ -88,6 +88,13 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkMapEnableCache;
         TextBox txtMapCacheDirectory;
         NumericUpDown numMapCacheDuration;
+        // Web UI controls
+        CheckBox chkWebUIEnabled;
+        NumericUpDown numWebUIPort;
+        CheckBox chkWebUIAllowRemote;
+        Label lblWebUIStatus;
+        Button btnTestWebUI;
+        TextBox txtWebUIUrl;
         CheckBox chkMapUseDarkMode;
         // Skip Detailed Weather on alert
         CheckBox chkSkipDetailedWeatherOnAlert;
@@ -1034,6 +1041,69 @@ namespace WeatherImageGenerator.Forms
                 lblMapAttribution
             });
 
+            // --- Web UI Tab ---
+            var tabWebUI = new TabPage("🌐 Web UI") { BackColor = Color.White, AutoScroll = true };
+            int wTop = 20;
+
+            var lblWebUIInfo = new Label 
+            { 
+                Text = "Remote Web Interface Settings", 
+                Left = leftLabel, 
+                Top = wTop, 
+                Width = 400, 
+                AutoSize = false, 
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft 
+            };
+
+            wTop += 40;
+            chkWebUIEnabled = new CheckBox { Text = "Enable Web UI Server", Left = leftLabel, Top = wTop, Width = 300 };
+
+            wTop += rowH;
+            var lblPort = new Label { Text = "Port:", Left = leftLabel, Top = wTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            numWebUIPort = new NumericUpDown { Left = leftField, Top = wTop, Width = 80, Minimum = 1024, Maximum = 65535, Value = 5000 };
+
+            wTop += rowH;
+            chkWebUIAllowRemote = new CheckBox { Text = "Allow Remote Access (other computers on network)", Left = leftLabel, Top = wTop, Width = 400 };
+
+            wTop += rowH;
+            var lblURL = new Label { Text = "Access URL:", Left = leftLabel, Top = wTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
+            txtWebUIUrl = new TextBox { Left = leftField, Top = wTop, Width = 350, ReadOnly = true };
+
+            wTop += rowH;
+            lblWebUIStatus = new Label { Text = "Status: Inactive", Left = leftLabel, Top = wTop, Width = 400, AutoSize = false };
+
+            wTop += 45;
+            btnTestWebUI = new Button { Text = "🔗 Test Connection", Left = leftLabel, Top = wTop, Width = 150, Height = 30 };
+            btnTestWebUI.Click += (s, e) => TestWebUIConnection();
+
+            var btnOpenInBrowser = new Button { Text = "🌐 Open in Browser", Left = 170, Top = wTop, Width = 150, Height = 30 };
+            btnOpenInBrowser.Click += (s, e) => OpenWebUIInBrowser();
+
+            wTop += 50;
+            var lblNote = new Label 
+            { 
+                Text = "Note: This allows access to your weather interface from any web browser on your network or the internet.", 
+                Left = leftLabel, 
+                Top = wTop, 
+                Width = 600, 
+                Height = 60,
+                AutoSize = false,
+                Font = new Font("Segoe UI", 9F, FontStyle.Italic),
+                ForeColor = Color.Gray
+            };
+
+            tabWebUI.Controls.AddRange(new Control[] {
+                lblWebUIInfo,
+                chkWebUIEnabled,
+                lblPort, numWebUIPort,
+                chkWebUIAllowRemote,
+                lblURL, txtWebUIUrl,
+                lblWebUIStatus,
+                btnTestWebUI, btnOpenInBrowser,
+                lblNote
+            });
+
             // Add tabs to tab control
             tabControl.TabPages.Add(tabGeneral);
             tabControl.TabPages.Add(tabImage);
@@ -1041,6 +1111,7 @@ namespace WeatherImageGenerator.Forms
             tabControl.TabPages.Add(tabFfmpeg);
             tabControl.TabPages.Add(tabOpenMap);
             tabControl.TabPages.Add(tabEas);
+            tabControl.TabPages.Add(tabWebUI);
             tabControl.TabPages.Add(tabExperimental);
 
             var btnSave = new Button 
@@ -1079,6 +1150,10 @@ namespace WeatherImageGenerator.Forms
 
             btnSave.Click += (s, e) => SaveClicked();
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
+
+            // Add event handlers for Web UI controls
+            numWebUIPort.ValueChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
+            chkWebUIAllowRemote.CheckedChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
 
             this.Controls.Add(tabControl);
             this.Controls.Add(btnSave);
@@ -1210,7 +1285,14 @@ namespace WeatherImageGenerator.Forms
                 chkMapEnableCache.Checked = openMap.EnableTileCache;
                 txtMapCacheDirectory.Text = openMap.TileCacheDirectory ?? "MapCache";
                 numMapCacheDuration.Value = openMap.CacheDurationHours;
-                chkMapUseDarkMode.Checked = openMap.UseDarkMode; 
+                chkMapUseDarkMode.Checked = openMap.UseDarkMode;
+
+                // Load Web UI settings
+                var webUI = cfg.WebUI ?? new WebUISettings();
+                chkWebUIEnabled.Checked = webUI.Enabled;
+                numWebUIPort.Value = webUI.Port;
+                chkWebUIAllowRemote.Checked = webUI.AllowRemoteAccess;
+                UpdateWebUIUrl();
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -1565,6 +1647,13 @@ namespace WeatherImageGenerator.Forms
                 openMap.UseDarkMode = chkMapUseDarkMode.Checked;
                 cfg.OpenMap = openMap;
 
+                // Persist Web UI settings
+                var webUI = cfg.WebUI ?? new WebUISettings();
+                webUI.Enabled = chkWebUIEnabled.Checked;
+                webUI.Port = (int)numWebUIPort.Value;
+                webUI.AllowRemoteAccess = chkWebUIAllowRemote.Checked;
+                cfg.WebUI = webUI;
+
                 // Persist FFmpeg settings
                 var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();
                 ffmpeg.Source = cmbFfmpegSource.SelectedIndex switch
@@ -1717,5 +1806,69 @@ namespace WeatherImageGenerator.Forms
                 Logger.Log($"Error updating font preview: {ex.Message}", Logger.LogLevel.Warning);
             }
         }
-    }
+
+        private void UpdateWebUIUrl()
+        {
+            try
+            {
+                int port = (int)numWebUIPort.Value;
+                var hostname = chkWebUIAllowRemote.Checked ? Environment.MachineName : "localhost";
+                txtWebUIUrl.Text = $"http://{hostname}:{port}";
+            }
+            catch
+            {
+                txtWebUIUrl.Text = "http://localhost:5000";
+            }
+        }
+
+        private void TestWebUIConnection()
+        {
+            try
+            {
+                int port = (int)numWebUIPort.Value;
+                using (var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                {
+                    var response = client.GetAsync($"http://localhost:{port}/api/status").Result;
+                    if (response.IsSuccessStatusCode)
+                    {
+                        lblWebUIStatus.Text = "✓ Status: Server is running and accessible";
+                        lblWebUIStatus.ForeColor = Color.Green;
+                    }
+                    else
+                    {
+                        lblWebUIStatus.Text = "⚠ Status: Server responded with error";
+                        lblWebUIStatus.ForeColor = Color.Orange;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                lblWebUIStatus.Text = "✗ Status: Server is not running or not accessible";
+                lblWebUIStatus.ForeColor = Color.Red;
+                Logger.Log($"Web UI connection test failed: {ex.Message}", Logger.LogLevel.Debug);
+            }
+        }
+
+        private void OpenWebUIInBrowser()
+        {
+            try
+            {
+                var url = txtWebUIUrl.Text;
+                if (string.IsNullOrEmpty(url))
+                {
+                    MessageBox.Show("URL is not configured.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }    }
 }
