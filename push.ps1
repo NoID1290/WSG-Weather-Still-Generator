@@ -276,6 +276,7 @@ git add $projectFilePath
 git add $ecccProjectFilePath
 git add $easProjectFilePath
 git add $weatherSharedProjectFilePath
+git add $openMapProjectFilePath
 git add $solutionPath
 if (-not $SkipVersion) {
     git add $changelogPath
