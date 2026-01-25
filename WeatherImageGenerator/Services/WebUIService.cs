@@ -17,6 +17,12 @@ namespace WeatherImageGenerator.Services
         public event EventHandler? ServerStarted;
         public event EventHandler? ServerStopped;
         public event EventHandler<string>? ServerError;
+        
+        // Action handlers for controlling the desktop app
+        public event EventHandler? StartCycleRequested;
+        public event EventHandler? StopCycleRequested;
+        public event EventHandler? GenerateStillRequested;
+        public event EventHandler? GenerateVideoRequested;
 
         public int Port { get; set; } = 5000;
         public bool IsRunning { get; private set; } = false;
@@ -659,22 +665,26 @@ namespace WeatherImageGenerator.Services
 
         private void StartCycle(HttpListenerContext context)
         {
-            RespondWithJson(context, new { status = "success", message = "Cycle start request received" });
+            StartCycleRequested?.Invoke(this, EventArgs.Empty);
+            RespondWithJson(context, new { status = "success", message = "Cycle start request sent to application" });
         }
 
         private void StopCycle(HttpListenerContext context)
         {
-            RespondWithJson(context, new { status = "success", message = "Cycle stop request received" });
+            StopCycleRequested?.Invoke(this, EventArgs.Empty);
+            RespondWithJson(context, new { status = "success", message = "Cycle stop request sent to application" });
         }
 
         private void GenerateStill(HttpListenerContext context)
         {
-            RespondWithJson(context, new { status = "success", message = "Still generation started" });
+            GenerateStillRequested?.Invoke(this, EventArgs.Empty);
+            RespondWithJson(context, new { status = "success", message = "Still generation request sent to application" });
         }
 
         private void GenerateVideo(HttpListenerContext context)
         {
-            RespondWithJson(context, new { status = "success", message = "Video generation started" });
+            GenerateVideoRequested?.Invoke(this, EventArgs.Empty);
+            RespondWithJson(context, new { status = "success", message = "Video generation request sent to application" });
         }
 
         private string ReadRequestBody(HttpListenerContext context)

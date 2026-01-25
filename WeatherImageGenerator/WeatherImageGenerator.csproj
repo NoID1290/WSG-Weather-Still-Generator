@@ -27,6 +27,10 @@
     <None Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Copy wwwroot files for Web UI -->
+    <Content Include="wwwroot\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <!-- Embed icons into the binary -->
     <EmbeddedResource Include="WeatherImages\Icons\*.png" />
     <Content Include="Music\**">

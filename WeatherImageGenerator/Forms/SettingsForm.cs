@@ -1152,6 +1152,7 @@ namespace WeatherImageGenerator.Forms
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
 
             // Add event handlers for Web UI controls
+            chkWebUIEnabled.CheckedChanged += (s, e) => { if (!_isLoadingSettings) OnWebUIEnabledChanged(); };
             numWebUIPort.ValueChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
             chkWebUIAllowRemote.CheckedChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
 
@@ -1293,6 +1294,7 @@ namespace WeatherImageGenerator.Forms
                 numWebUIPort.Value = webUI.Port;
                 chkWebUIAllowRemote.Checked = webUI.AllowRemoteAccess;
                 UpdateWebUIUrl();
+                UpdateWebUIStatus();
 
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
@@ -1649,10 +1651,21 @@ namespace WeatherImageGenerator.Forms
 
                 // Persist Web UI settings
                 var webUI = cfg.WebUI ?? new WebUISettings();
+                bool wasEnabled = webUI.Enabled;
+                int oldPort = webUI.Port;
+                
                 webUI.Enabled = chkWebUIEnabled.Checked;
                 webUI.Port = (int)numWebUIPort.Value;
                 webUI.AllowRemoteAccess = chkWebUIAllowRemote.Checked;
                 cfg.WebUI = webUI;
+                
+                // Restart service if port changed while running
+                if (chkWebUIEnabled.Checked && wasEnabled && oldPort != webUI.Port)
+                {
+                    StopWebUIService();
+                    Program.SetWebUIService(null);
+                    StartWebUIService();
+                }
 
                 // Persist FFmpeg settings
                 var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();
@@ -1807,6 +1820,83 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
+        private void OnWebUIEnabledChanged()
+        {
+            if (chkWebUIEnabled.Checked)
+            {
+                // Start WebUI service
+                StartWebUIService();
+            }
+            else
+            {
+                // Stop WebUI service
+                StopWebUIService();
+            }
+            UpdateWebUIStatus();
+        }
+        
+        private void StartWebUIService()
+        {
+            try
+            {
+                var service = Program.WebUIService;
+                if (service == null)
+                {
+                    // Create new service
+                    int port = (int)numWebUIPort.Value;
+                    service = new WebUIService(port);
+                    Program.SetWebUIService(service);
+                    service.Start();
+                    Logger.Log($"Web UI service started on port {port}", Logger.LogLevel.Info);
+                }
+                else if (!service.IsRunning)
+                {
+                    service.Start();
+                    Logger.Log($"Web UI service started", Logger.LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to start Web UI service: {ex.Message}", Logger.LogLevel.Error);
+                MessageBox.Show($"Failed to start Web UI service: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                chkWebUIEnabled.Checked = false;
+            }
+        }
+        
+        private void StopWebUIService()
+        {
+            try
+            {
+                var service = Program.WebUIService;
+                if (service != null && service.IsRunning)
+                {
+                    Task.Run(async () => await service.StopAsync()).GetAwaiter().GetResult();
+                    Logger.Log("Web UI service stopped", Logger.LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to stop Web UI service: {ex.Message}", Logger.LogLevel.Error);
+            }
+        }
+        
+        private void UpdateWebUIStatus()
+        {
+            var service = Program.WebUIService;
+            bool isRunning = service?.IsRunning ?? false;
+            
+            if (isRunning)
+            {
+                lblWebUIStatus.Text = "✓ Status: Server is running";
+                lblWebUIStatus.ForeColor = Color.Green;
+            }
+            else
+            {
+                lblWebUIStatus.Text = "✗ Status: Server is not running";
+                lblWebUIStatus.ForeColor = Color.Gray;
+            }
+        }
+        
         private void UpdateWebUIUrl()
         {
             try

@@ -2,11 +2,18 @@
 const API_BASE_URL = '/api';
 
 // DOM Elements
-const navLinks = document.querySelectorAll('.nav-link');
-const tabContents = document.querySelectorAll('.tab-content');
+let navLinks, tabContents;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Content Loaded - Web UI initializing...');
+    
+    navLinks = document.querySelectorAll('.nav-link');
+    tabContents = document.querySelectorAll('.tab-content');
+    
+    console.log('Found', navLinks.length, 'navigation links');
+    console.log('Found', tabContents.length, 'tab contents');
+    
     setupNavigation();
     setupForms();
     loadStatus();
@@ -14,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Set up periodic refresh
     setInterval(loadStatus, 30000); // Refresh every 30 seconds
+    
+    console.log('Web UI initialization complete');
 });
 
 /**
@@ -115,6 +124,7 @@ async function loadStatus() {
  * Refresh all data
  */
 async function refreshData() {
+    console.log('refreshData() called');
     loadStatus();
 }
 
@@ -518,8 +528,10 @@ async function saveRadarSettings() {
  * Action handlers
  */
 async function startCycle() {
+    console.log('startCycle() called');
     try {
         const response = await fetch(`${API_BASE_URL}/actions/start-cycle`, { method: 'POST' });
+        console.log('startCycle response:', response.status);
         if (response.ok) {
             updateCycleStatus('Running');
             showNotification('Cycle started', 'success');
@@ -533,8 +545,10 @@ async function startCycle() {
 }
 
 async function stopCycle() {
+    console.log('stopCycle() called');
     try {
         const response = await fetch(`${API_BASE_URL}/actions/stop-cycle`, { method: 'POST' });
+        console.log('stopCycle response:', response.status);
         if (response.ok) {
             updateCycleStatus('Stopped');
             showNotification('Cycle stopped', 'success');
@@ -548,8 +562,10 @@ async function stopCycle() {
 }
 
 async function generateStill() {
+    console.log('generateStill() called');
     try {
         const response = await fetch(`${API_BASE_URL}/actions/generate-still`, { method: 'POST' });
+        console.log('generateStill response:', response.status);
         if (response.ok) {
             showNotification('Generating still images...', 'success');
         } else {
@@ -562,8 +578,10 @@ async function generateStill() {
 }
 
 async function generateVideo() {
+    console.log('generateVideo() called');
     try {
         const response = await fetch(`${API_BASE_URL}/actions/generate-video`, { method: 'POST' });
+        console.log('generateVideo response:', response.status);
         if (response.ok) {
             showNotification('Generating video...', 'success');
         } else {
@@ -594,6 +612,13 @@ async function updateLocationApi(idx, api) {
 
 async function removeLocation(idx) {
     // Remove location
+    showNotification('Location removed', 'success');
+}
+
+/**
+ * Show a notification message
+ */
+function showNotification(message, type = 'info') {
     // Create notification element
     const notification = document.createElement('div');
     notification.style.cssText = `

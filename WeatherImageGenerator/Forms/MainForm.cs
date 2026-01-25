@@ -228,6 +228,9 @@ namespace WeatherImageGenerator.Forms
             _videoBtn.Click += (s, e) => VideoClicked();
             _fetchBtn.Click += (s, e) => FetchClicked(_fetchBtn);
             _stillBtn.Click += (s, e) => StillClicked(_stillBtn);
+            
+            // Subscribe to WebUI events if the service is running
+            SubscribeToWebUIEvents();
             _cancelBtn.Click += (s, e) => CancelOperationsClicked();
 
             // Subscribe to only the leveled event and receive the explicit LogLevel (fixes coloring detection)
@@ -815,6 +818,54 @@ namespace WeatherImageGenerator.Forms
 
                 // Use colorized append to improve readability and highlight search matches (assume Info-level for legacy/unnamed messages)
                 AppendColoredLine(rtb, text, _txtSearch?.Text ?? string.Empty, Logger.LogLevel.Info);
+            }
+        }
+
+        /// <summary>
+        /// Subscribe to Web UI action events
+        /// </summary>
+        private void SubscribeToWebUIEvents()
+        {
+            var webUIService = Program.WebUIService;
+            if (webUIService != null)
+            {
+                webUIService.StartCycleRequested += (s, e) =>
+                {
+                    Logger.Log("Web UI: Start Cycle requested", Logger.LogLevel.Info);
+                    if (_startBtn != null && _stopBtn != null)
+                    {
+                        this.Invoke(() => StartClicked(_startBtn, _stopBtn));
+                    }
+                };
+
+                webUIService.StopCycleRequested += (s, e) =>
+                {
+                    Logger.Log("Web UI: Stop Cycle requested", Logger.LogLevel.Info);
+                    if (_startBtn != null && _stopBtn != null)
+                    {
+                        this.Invoke(() => StopClicked(_startBtn, _stopBtn));
+                    }
+                };
+
+                webUIService.GenerateStillRequested += (s, e) =>
+                {
+                    Logger.Log("Web UI: Generate Still requested", Logger.LogLevel.Info);
+                    if (_stillBtn != null)
+                    {
+                        this.Invoke(() => StillClicked(_stillBtn));
+                    }
+                };
+
+                webUIService.GenerateVideoRequested += (s, e) =>
+                {
+                    Logger.Log("Web UI: Generate Video requested", Logger.LogLevel.Info);
+                    if (_videoBtn != null)
+                    {
+                        this.Invoke(() => VideoClicked());
+                    }
+                };
+
+                Logger.Log("Web UI action handlers registered", Logger.LogLevel.Info);
             }
         }
 

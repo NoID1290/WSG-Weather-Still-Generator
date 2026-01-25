@@ -23,6 +23,15 @@ namespace WeatherImageGenerator
     {
         // Static instance of Web UI service
         private static WebUIService? _webUIService;
+        
+        // Public accessor for WebUI service (used by SettingsForm)
+        public static WebUIService? WebUIService => _webUIService;
+        
+        // Method to set the WebUI service instance (used when restarting with new settings)
+        public static void SetWebUIService(WebUIService? service)
+        {
+            _webUIService = service;
+        }
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool AllocConsole();
