@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.7.0125] - 2026-01-25
+
+- feat: Add Enhanced Web UI with comprehensive control and settings management
+- Enable Web UI and update configuration settings for improved server management
+- Add Web UI for Weather Image Generator with API integration
+
 ## [1.6.6.0125] - 2026-01-25
 
 - Update control label text for clarity in MainForm
