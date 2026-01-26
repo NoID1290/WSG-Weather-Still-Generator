@@ -117,7 +117,16 @@ async function loadStatus() {
         if (statusEl) {
             statusEl.innerHTML = '<span class="status-indicator inactive"></span>Offline';
         }
+        const versionEl = document.getElementById('app-version');
+        if (versionEl) {
+            versionEl.textContent = 'Unknown';
+        }   
+        const versionBottomEl = document.getElementById('btm-version');
+        if (versionBottomEl) {
+            versionBottomEl.textContent = 'Unknown';
+        }
     }
+    
 }
 
 /**

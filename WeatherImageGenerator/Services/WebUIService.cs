@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Net;
+using System.Reflection;
 using WeatherImageGenerator.Utilities;
 
 namespace WeatherImageGenerator.Services
@@ -358,11 +359,16 @@ namespace WeatherImageGenerator.Services
 
         private void GetStatus(HttpListenerContext context)
         {
+            var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+            var version = assembly?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                          ?? assembly?.GetName().Version?.ToString()
+                          ?? "unknown";
+
             RespondWithJson(context, new
             {
                 timestamp = DateTime.UtcNow,
-                status = "running",
-                version = "1.0.0"
+                status = IsRunning ? "running" : "stopped",
+                version
             });
         }
 
