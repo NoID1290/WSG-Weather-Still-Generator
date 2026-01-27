@@ -12,6 +12,8 @@ using System.Drawing;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 using WeatherImageGenerator.Models;
+using WeatherImageGenerator.Forms;
+
 using EAS;
 
 namespace WeatherImageGenerator.Forms
@@ -43,7 +45,7 @@ namespace WeatherImageGenerator.Forms
         private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
         private System.Threading.Timer? _logArchiveTimer;
-
+        private Button? _openWebUIBtn;
         // NAAD Status Panel
         private Panel? _naadPanel;
         private Label? _naadTitleLabel;
@@ -78,6 +80,7 @@ namespace WeatherImageGenerator.Forms
         // Store fetched weather data for detail views
         private OpenMeteo.WeatherForecast?[]? _cachedForecasts;
         private System.Collections.Generic.List<AlertEntry>? _cachedAlerts;
+        private TextBox? _txtWebUIUrl;
 
         public MainForm()
         {
@@ -124,6 +127,8 @@ namespace WeatherImageGenerator.Forms
             _musicBtn = CreateStyledButton("🎵 Music", 1055, 28, 120, 38, Color.Gray, Color.White);
             _settingsBtn = CreateStyledButton("⚙ Settings", 925, 76, 120, 38, Color.Gray, Color.White);
             _aboutBtn = CreateStyledButton("ℹ About", 1055, 76, 120, 38, Color.Gray, Color.White);
+            _openWebUIBtn = CreateStyledButton("🌐 WebUI", 925, 124, 100, 38, Color.Gray, Color.White);
+
 
             // Progress & Status (Below buttons - adjusted for 2-row settings)
             _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 124, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
@@ -220,7 +225,6 @@ namespace WeatherImageGenerator.Forms
             _logPanel.Controls.Add(_chkCompact);
             _logPanel.Controls.Add(_txtSearch);
             _logPanel.Controls.Add(_clearLogBtn);
-
             _startBtn.Click += (s, e) => StartClicked(_startBtn, _stopBtn);
             _stopBtn.Click += (s, e) => StopClicked(_startBtn, _stopBtn);
             _openOutputBtn.Click += (s, e) => OpenOutputDirectory();
@@ -228,6 +232,7 @@ namespace WeatherImageGenerator.Forms
             _videoBtn.Click += (s, e) => VideoClicked();
             _fetchBtn.Click += (s, e) => FetchClicked(_fetchBtn);
             _stillBtn.Click += (s, e) => StillClicked(_stillBtn);
+            _openWebUIBtn.Click += (s, e) => OpenWebUIInBrowser();
             
             // Subscribe to WebUI events if the service is running
             SubscribeToWebUIEvents();
@@ -287,7 +292,7 @@ namespace WeatherImageGenerator.Forms
                     f.ShowDialog();
                 }
             };
-
+            
             _galleryBtn.Click += (s, e) =>
             {
                 var galleryForm = new GalleryForm();
@@ -320,6 +325,8 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_galleryBtn);
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
+            _topPanel.Controls.Add(_openWebUIBtn);
+            _topPanel.Controls.Add(_txtWebUIUrl);
             // Add progress and status
             _topPanel.Controls.Add(_progressLabel);
             _topPanel.Controls.Add(_statusLabel2);
@@ -377,6 +384,29 @@ namespace WeatherImageGenerator.Forms
             this.Resize += MainForm_Resize;
             this.FormClosing += MainForm_FormClosing;
         }
+
+        public void OpenWebUIInBrowser()
+        {
+            try
+            {
+                var url = _txtWebUIUrl?.Text ?? string.Empty;
+                if (string.IsNullOrEmpty(url))
+                {
+                    url = "http://localhost:5000"; // Default URL
+                }
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }    
+        
 
         private void ApplyTheme(string? themeName)
         {
@@ -533,6 +563,7 @@ namespace WeatherImageGenerator.Forms
             SetCombo(_cmbVerbosity);
             if (_chkCompact != null) _chkCompact.ForeColor = headerTextColor;
             if (_txtSearch != null) { _txtSearch.BackColor = buttonColor; _txtSearch.ForeColor = neutralBtnText; }
+            if (_txtWebUIUrl != null) { _txtWebUIUrl.BackColor = buttonColor; _txtWebUIUrl.ForeColor = neutralBtnText; }
             if (_progress != null) _progress.ForeColor = headerTextColor;
 
             // NAAD Panel theme colors
@@ -2022,6 +2053,11 @@ namespace WeatherImageGenerator.Forms
                 Logger.Log($"Failed to generate alert media: {ex.Message}", Logger.LogLevel.Error);
             }
         }
+    }
+
+    internal class _openWebUIBtn
+    {
+        public static Func<object, object, object> Click { get; internal set; }
     }
 }
 

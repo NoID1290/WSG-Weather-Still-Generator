@@ -1939,7 +1939,7 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
-        private void OpenWebUIInBrowser()
+        public void OpenWebUIInBrowser()
         {
             try
             {
