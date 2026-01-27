@@ -11,9 +11,9 @@
     <Company>NoID Softwork</Company>
     <Copyright>Copyright (c) NoID Softwork 2026</Copyright>
     <Description>Library for OpenStreetMap tile downloading and rendering with support for various map styles and overlay composition.</Description>
-    <Version>1.4.0.0126</Version>
-    <AssemblyVersion>1.4.0.0126</AssemblyVersion>
-    <FileVersion>1.4.0.0126</FileVersion>
+    <Version>1.4.1.0127</Version>
+    <AssemblyVersion>1.4.1.0127</AssemblyVersion>
+    <FileVersion>1.4.1.0127</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
