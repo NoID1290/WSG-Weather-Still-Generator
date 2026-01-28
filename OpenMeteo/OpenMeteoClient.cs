@@ -43,6 +43,7 @@ namespace OpenMeteo
                 Latitude = response.Locations[0].Latitude,
                 Longitude = response.Locations[0].Longitude,
                 Current = CurrentOptions.All, // Get all current weather data if nothing else is provided
+                Hourly = HourlyOptions.All, // Request hourly fields (temperature, weathercode, wind, etc.)
                 Daily = DailyOptions.All // Get all daily forecast data for 5-day forecast
             };
 
@@ -66,6 +67,7 @@ namespace OpenMeteo
                 Latitude = response.Locations[0].Latitude,
                 Longitude = response.Locations[0].Longitude,
                 Current = CurrentOptions.All, // Get all current weather data if nothing else is provided
+                Hourly = HourlyOptions.All, // Request hourly fields (temperature, weathercode, wind, etc.)
                 Daily = DailyOptions.All // Get all daily forecast data for 5-day forecast
             };
 

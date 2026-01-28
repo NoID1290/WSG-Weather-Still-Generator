@@ -13,6 +13,7 @@ using OpenMeteo;
 using OpenMap;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Services;
+using WeatherImageGenerator.Utilities;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -287,12 +288,25 @@ namespace WeatherImageGenerator.Forms
 
             if (_forecast?.Hourly?.Time == null || _forecast.Hourly.Time.Length == 0)
             {
+                // Diagnostic information to help understand why no hourly rows are shown
+                var hasHourlyObj = _forecast?.Hourly != null;
+                var timeCount = _forecast?.Hourly?.Time?.Length ?? 0;
+                var firstSample = (timeCount > 0) ? _forecast!.Hourly!.Time![0] : "(none)";
+
+                string diagText = $"No hourly data available for this location.\n\n" +
+                                  $"Diagnostics:\n- Hourly object present: {hasHourlyObj}\n- Time entries: {timeCount}\n- First sample: {firstSample}\n" +
+                                  $"Timezone: {_forecast?.Timezone ?? "(none)"}";
+
+                Logger.Log($"[Hourly Debug] Hourly present={hasHourlyObj}, count={timeCount}, firstSample={firstSample}");
+
                 var noDataLabel = new Label
                 {
-                    Text = "No hourly data available for this location.",
+                    Text = diagText,
                     Dock = DockStyle.Fill,
                     TextAlign = ContentAlignment.MiddleCenter,
-                    Font = new Font("Segoe UI", 12F, FontStyle.Italic)
+                    Font = new Font("Segoe UI", 11F, FontStyle.Italic),
+                    ForeColor = Color.Gray,
+                    MaximumSize = new Size(800, 0)
                 };
                 panel.Controls.Add(noDataLabel);
                 return panel;
@@ -319,16 +333,19 @@ namespace WeatherImageGenerator.Forms
 
             // Show next 48 hours
             int maxHours = Math.Min(48, hourly.Time.Length);
-            DateTime now = DateTime.Now;
 
             for (int i = 0; i < maxHours; i++)
             {
-                if (!DateTime.TryParse(hourly.Time[i], out DateTime time)) continue;
+                // Parse as DateTimeOffset so we respect timezone/UTC offsets and convert to local time
+                if (!DateTimeOffset.TryParse(hourly.Time[i], out DateTimeOffset timeOffset)) continue;
 
-                // Skip past hours
-                if (time < now.AddHours(-1)) continue;
+                // Use local time for display and comparison
+                var localTime = timeOffset.ToLocalTime();
 
-                var item = new ListViewItem(time.ToString("ddd HH:mm"));
+                // Skip past hours (more than 1 hour ago)
+                if (localTime < DateTimeOffset.Now.AddHours(-1)) continue;
+
+                var item = new ListViewItem(localTime.ToString("ddd HH:mm"));
 
                 // Temperature
                 string temp = hourly.Temperature_2m != null && i < hourly.Temperature_2m.Length && hourly.Temperature_2m[i].HasValue
@@ -360,8 +377,8 @@ namespace WeatherImageGenerator.Forms
                     : "N/A";
                 item.SubItems.Add(wind);
 
-                // Highlight current hour
-                if (time.Hour == now.Hour && time.Date == now.Date)
+                // Highlight current hour (compare local times)
+                if (localTime.Hour == DateTimeOffset.Now.Hour && localTime.Date == DateTimeOffset.Now.Date)
                 {
                     item.BackColor = Color.LightCyan;
                     item.Font = new Font(listView.Font, FontStyle.Bold);
