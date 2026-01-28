@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.2.0128] - 2026-01-28
+
+- Implement location management API
+- Enhance weather data handling: request hourly fields and improve diagnostics for missing hourly data
+
 ## [1.7.1.0127] - 2026-01-27
 
 - Add WebUI button in MainForm
