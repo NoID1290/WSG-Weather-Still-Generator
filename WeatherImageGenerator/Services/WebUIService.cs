@@ -181,6 +181,10 @@ namespace WeatherImageGenerator.Services
                 {
                     GetLocations(context);
                 }
+                else if (path.StartsWith("/api/config/locations") && method == "POST")
+                {
+                    UpdateLocations(context);
+                }
                 else if (path.StartsWith("/api/config/general") && method == "POST")
                 {
                     UpdateGeneralConfig(context);
@@ -662,6 +666,58 @@ namespace WeatherImageGenerator.Services
 
                 ConfigManager.SaveConfig(config);
                 RespondWithJson(context, new { status = "success", message = "Radar settings updated" });
+            }
+            catch (Exception ex)
+            {
+                RespondWithJson(context, new { error = ex.Message }, 500);
+            }
+        }
+
+        private void UpdateLocations(HttpListenerContext context)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                if (config.Locations == null) config.Locations = new LocationSettings();
+                var body = ReadRequestBody(context);
+                var updates = JsonSerializer.Deserialize<Dictionary<string, object>>(body) ?? new();
+
+                if (updates != null && updates.ContainsKey("index") && int.TryParse(updates["index"]?.ToString() ?? "", out int index)
+                    && index >= 0 && index <= 8)
+                {
+                    // Remove
+                    if (updates.ContainsKey("action") && updates["action"]?.ToString() == "remove")
+                    {
+                        var prop = config.Locations?.GetType().GetProperty($"Location{index}");
+                        if (prop != null) prop.SetValue(config.Locations, null);
+                    }
+
+                    // Update name
+                    if (updates.ContainsKey("name"))
+                    {
+                        var prop = config.Locations?.GetType().GetProperty($"Location{index}");
+                        if (prop != null) prop.SetValue(config.Locations, updates["name"]?.ToString());
+                    }
+
+                    // Update api
+                    if (updates.ContainsKey("api"))
+                    {
+                        if (int.TryParse(updates["api"]?.ToString() ?? "", out int apiInt))
+                        {
+                            if (Enum.IsDefined(typeof(Models.WeatherApiType), apiInt))
+                            {
+                                config.Locations?.SetApiPreference(index, (Models.WeatherApiType)apiInt);
+                            }
+                        }
+                    }
+
+                    ConfigManager.SaveConfig(config);
+                    RespondWithJson(context, new { status = "success", message = "Location updated" });
+                }
+                else
+                {
+                    RespondWithJson(context, new { error = "Invalid or missing index" }, 400);
+                }
             }
             catch (Exception ex)
             {

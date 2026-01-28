@@ -58,6 +58,53 @@ header .subtitle {
     opacity: 0.95;
 }
 
+/* Header controls */
+.header-controls {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    align-items: center;
+}
+
+.server-status-header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    color: rgba(255,255,255,0.95);
+    font-weight: 600;
+}
+
+.header-version {
+    background: rgba(255,255,255,0.12);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    color: white;
+    font-weight: 700;
+}
+
+/* Notifications */
+.notifications {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 9999;
+}
+
+.notification {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    animation: slideIn 0.25s ease;
+}
+
+.notification.success { background: var(--success-color); }
+.notification.error { background: var(--error-color); }
+.notification.info { background: var(--primary-color); }
+
 /* Navigation Bar */
 .navbar {
     background-color: white;

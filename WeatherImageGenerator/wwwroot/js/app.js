@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     setupForms();
     loadStatus();
+    loadAllSettings();
+    loadLocations();
     refreshData();
     
     // Set up periodic refresh
@@ -94,22 +96,47 @@ async function loadStatus() {
         const response = await fetch(`${API_BASE_URL}/status`);
         const data = await response.json();
         
+        const statusEl = document.getElementById('server-status');
+        const headerDot = document.getElementById('header-status-dot');
+        const headerText = document.getElementById('header-status-text');
+        const headerVersion = document.getElementById('header-version');
+        const versionEl = document.getElementById('app-version');
+        const versionBottomEl = document.getElementById('btm-version');
+
         if (response.ok) {
-            const statusEl = document.getElementById('server-status');
             if (statusEl) {
                 statusEl.innerHTML = '<span class="status-indicator active"></span>Running';
             }
-            
-            const versionEl = document.getElementById('app-version');
-            if (versionEl && data.version) {
-                versionEl.textContent = data.version;
+            if (headerDot) {
+                headerDot.classList.remove('inactive');
+                headerDot.classList.add('active');
             }
-            
+            if (headerText) headerText.textContent = 'Running';
+
+            if (versionEl && data.version) versionEl.textContent = data.version;
+            if (headerVersion && data.version) headerVersion.textContent = data.version;
+            if (versionBottomEl && data.version) versionBottomEl.textContent = data.version;
+
+            // update last update timestamp
             const lastUpdateEl = document.getElementById('last-update');
             if (lastUpdateEl) {
                 const now = new Date();
                 lastUpdateEl.textContent = now.toLocaleTimeString();
             }
+
+            if (data.version) {
+                document.title = `WSG - ${data.version}`;
+            }
+        } else {
+            // Non-ok responses
+            if (statusEl) statusEl.innerHTML = '<span class="status-indicator inactive"></span>Offline';
+            if (headerDot) {
+                headerDot.classList.remove('active');
+                headerDot.classList.add('inactive');
+            }
+            if (headerText) headerText.textContent = 'Offline';
+            if (versionBottomEl) versionBottomEl.textContent = 'Unknown';
+            if (headerVersion) headerVersion.textContent = 'Unknown';
         }
     } catch (error) {
         console.error('Error loading status:', error);
@@ -120,13 +147,141 @@ async function loadStatus() {
         const versionEl = document.getElementById('app-version');
         if (versionEl) {
             versionEl.textContent = 'Unknown';
-        }   
+        }
         const versionBottomEl = document.getElementById('btm-version');
         if (versionBottomEl) {
             versionBottomEl.textContent = 'Unknown';
         }
+        const headerDot = document.getElementById('header-status-dot');
+        if (headerDot) {
+            headerDot.classList.remove('active');
+            headerDot.classList.add('inactive');
+        }
+        const headerText = document.getElementById('header-status-text');
+        if (headerText) headerText.textContent = 'Offline';
+    }
+}
+
+/**
+ * Show a notification message
+ */
+function showNotification(message, type = 'info') {
+    // Ensure notifications container
+    let container = document.getElementById('notifications');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notifications';
+        container.className = 'notifications';
+        document.body.appendChild(container);
+    }
+
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+
+    container.appendChild(notification);
+
+    // Auto-remove with fade
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Add slide animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
     }
     
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+/**
+ * Update a location name
+ */
+async function updateLocation(idx, name) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/config/locations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ index: idx, name })
+        });
+
+        if (response.ok) {
+            showNotification('Location updated', 'success');
+            loadLocations();
+        } else {
+            showNotification('Failed to update location', 'error');
+        }
+    } catch (err) {
+        console.error('Error updating location:', err);
+        showNotification('Error updating location', 'error');
+    }
+}
+
+/**
+ * Update a location API selection
+ */
+async function updateLocationApi(idx, api) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/config/locations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ index: idx, api: parseInt(api, 10) })
+        });
+
+        if (response.ok) {
+            showNotification('Location API updated', 'success');
+            loadLocations();
+        } else {
+            showNotification('Failed to update location API', 'error');
+        }
+    } catch (err) {
+        console.error('Error updating location API:', err);
+        showNotification('Error updating location API', 'error');
+    }
+}
+
+/**
+ * Remove a location
+ */
+async function removeLocation(idx) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/config/locations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ index: idx, action: 'remove' })
+        });
+
+        if (response.ok) {
+            showNotification('Location removed', 'success');
+            loadLocations();
+        } else {
+            showNotification('Failed to remove location', 'error');
+        }
+    } catch (err) {
+        console.error('Error removing location:', err);
+        showNotification('Error removing location', 'error');
+    }
 }
 
 /**
@@ -386,6 +541,7 @@ async function saveGeneralSettings() {
         
         if (response.ok) {
             showNotification('General settings saved successfully!', 'success');
+            loadAllSettings();
         } else {
             showNotification('Failed to save general settings', 'error');
         }
@@ -412,6 +568,7 @@ async function saveImageSettings() {
         
         if (response.ok) {
             showNotification('Image settings saved successfully!', 'success');
+            loadAllSettings();
         } else {
             showNotification('Failed to save image settings', 'error');
         }
@@ -445,6 +602,7 @@ async function saveVideoSettings() {
         
         if (response.ok) {
             showNotification('Video settings saved successfully!', 'success');
+            loadAllSettings();
         } else {
             showNotification('Failed to save video settings', 'error');
         }
@@ -470,6 +628,7 @@ async function saveMusicSettings() {
         
         if (response.ok) {
             showNotification('Music settings saved successfully!', 'success');
+            loadAllSettings();
         } else {
             showNotification('Failed to save music settings', 'error');
         }
@@ -498,6 +657,7 @@ async function saveAlertSettings() {
         
         if (response.ok) {
             showNotification('Alert settings saved successfully!', 'success');
+            loadAllSettings();
         } else {
             showNotification('Failed to save alert settings', 'error');
         }
@@ -524,6 +684,7 @@ async function saveRadarSettings() {
         
         if (response.ok) {
             showNotification('Radar settings saved successfully!', 'success');
+            loadAllSettings();
         } else {
             showNotification('Failed to save radar settings', 'error');
         }

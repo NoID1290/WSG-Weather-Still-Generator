@@ -12,6 +12,13 @@
             <h1>🌤 WSG - WEATHER STILL GENERATOR</h1>
             <p class="subtitle">Remote Web Interface</p>
             <p class="subtitle">Under Construction</p>
+            <div class="header-controls">
+                <div class="server-status-header" aria-live="polite">
+                    <span id="header-status-dot" class="status-indicator inactive" aria-hidden="true"></span>
+                    <span id="header-status-text">Offline</span>
+                </div>
+                <div class="header-version">v<span id="header-version">Loading...</span></div>
+            </div>
         </header>
 
         <nav class="navbar">
@@ -54,11 +61,11 @@
                 <div class="card">
                     <h2>Quick Actions</h2>
                     <div class="button-grid">
-                        <button class="btn btn-primary" onclick="startCycle()">▶️ Start Cycle</button>
-                        <button class="btn btn-danger" onclick="stopCycle()">⏹️ Stop Cycle</button>
-                        <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
-                        <button class="btn btn-info" onclick="generateStill()">📸 Generate Still</button>
-                        <button class="btn btn-warning" onclick="generateVideo()">🎥 Make Video</button>
+                        <button type="button" class="btn btn-primary" onclick="startCycle()">▶️ Start Cycle</button>
+                        <button type="button" class="btn btn-danger" onclick="stopCycle()">⏹️ Stop Cycle</button>
+                        <button type="button" class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+                        <button type="button" class="btn btn-info" onclick="generateStill()">📸 Generate Still</button>
+                        <button type="button" class="btn btn-warning" onclick="generateVideo()">🎥 Make Video</button>
                     </div>
                     <div class="button-grid" style="margin-top: 1rem;">
                         <button class="btn btn-secondary" onclick="testButtonClick()">🧪 Test JavaScript</button>
@@ -366,6 +373,9 @@
             console.log('All buttons:', document.querySelectorAll('button').length);
         });
     </script>
+
+    <div id="notifications" class="notifications" aria-live="polite" aria-atomic="true"></div>
+
     <script src="js/app.js?v=3"></script>
 </body>
 </html>
