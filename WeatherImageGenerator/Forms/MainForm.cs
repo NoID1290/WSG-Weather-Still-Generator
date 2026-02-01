@@ -127,7 +127,7 @@ namespace WeatherImageGenerator.Forms
             _musicBtn = CreateStyledButton("🎵 Music", 1055, 28, 120, 38, Color.Gray, Color.White);
             _settingsBtn = CreateStyledButton("⚙ Settings", 925, 76, 120, 38, Color.Gray, Color.White);
             _aboutBtn = CreateStyledButton("ℹ About", 1055, 76, 120, 38, Color.Gray, Color.White);
-            _openWebUIBtn = CreateStyledButton("🌐 WebUI", 925, 124, 100, 38, Color.Gray, Color.White);
+            _openWebUIBtn = CreateStyledButton("🌐 WebUI", 1055, 124, 120, 38, Color.Gray, Color.White);
 
 
             // Progress & Status (Below buttons - adjusted for 2-row settings)
