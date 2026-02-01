@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using ECCC.Api;
@@ -13,6 +14,7 @@ namespace ECCC.Services
 {
     /// <summary>
     /// Main client for fetching weather data from ECCC.
+    /// Uses the OGC API (JSON) as primary source, with RSS as fallback.
     /// Handles finding nearby reference cities for small towns.
     /// </summary>
     public class ECCCClient
@@ -34,6 +36,8 @@ namespace ECCC.Services
 
         /// <summary>
         /// Fetches weather data for a city by name.
+        /// Uses OGC API first, falls back to RSS if needed.
+        /// Uses OGC API first, falls back to RSS if needed.
         /// Automatically finds nearby reference cities for small towns.
         /// </summary>
         public async Task<EcccWeatherData?> GetWeatherByNameAsync(string cityName)
@@ -43,28 +47,65 @@ namespace ECCC.Services
                 // First, try to find the city in our database
                 var city = CityDatabase.GetCityByName(cityName);
                 
-                if (city != null)
+                if (city == null)
                 {
-                    // Found in database, fetch weather directly
-                    if (!city.IsCoordinateBased)
+                    // City not found - try to find using search
+                    var searchResults = CityDatabase.SearchCities(cityName, 1);
+                    if (searchResults.Count > 0)
                     {
-                        return await FetchWeatherFromCityAsync(city);
+                        city = searchResults[0];
                     }
                 }
                 
-                // City not found or no city code - try to find using geocoding
-                // For now, we'll use a simple approach: search nearby cities
-                var searchResults = CityDatabase.SearchCities(cityName, 1);
-                if (searchResults.Count > 0)
+                if (city == null)
                 {
-                    var foundCity = searchResults[0];
-                    return await FetchWeatherFromCityAsync(foundCity);
+                    return new EcccWeatherData
+                    {
+                        Success = false,
+                        ErrorMessage = $"City '{cityName}' not found in ECCC database"
+                    };
+                }
+                
+                // Log the city info for debugging
+                System.Diagnostics.Debug.WriteLine($"[ECCC] Found city: {city.Name}, code: {city.Province}-{city.CityCode}, coord-based: {city.IsCoordinateBased}");
+                
+                // Try the OGC API first (more reliable, returns JSON)
+                if (!city.IsCoordinateBased)
+                {
+                    var cityId = $"{city.Province.ToLower()}-{city.CityCode}";
+                    System.Diagnostics.Debug.WriteLine($"[ECCC] Fetching API for cityId: {cityId}");
+                    var apiResult = await FetchWeatherFromApiAsync(city, cityId);
+                    if (apiResult != null && apiResult.Success)
+                    {
+                        return apiResult;
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"[ECCC] API failed, falling back to RSS for {cityId}");
+                    // Fall back to RSS if API fails
+                    return await FetchWeatherFromRssAsync(city);
+                }
+                
+                // For coordinate-based cities, find nearest reference city
+                var nearestCity = CityDatabase.FindNearestCityWithWeatherData(
+                    city.Latitude, city.Longitude, _settings.MaxReferenceCityDistanceKm);
+                    
+                if (nearestCity != null)
+                {
+                    var cityId = $"{nearestCity.Province.ToLower()}-{nearestCity.CityCode}";
+                    var apiResult = await FetchWeatherFromApiAsync(nearestCity, cityId);
+                    if (apiResult != null && apiResult.Success)
+                    {
+                        apiResult.IsFromReferenceCity = true;
+                        apiResult.ReferenceCityName = nearestCity.Name;
+                        apiResult.City = city;
+                        return apiResult;
+                    }
                 }
                 
                 return new EcccWeatherData
                 {
                     Success = false,
-                    ErrorMessage = $"City '{cityName}' not found in ECCC database"
+                    ErrorMessage = $"No weather data available for '{cityName}'"
                 };
             }
             catch (Exception ex)
@@ -79,6 +120,7 @@ namespace ECCC.Services
 
         /// <summary>
         /// Fetches weather data for a location by coordinates.
+        /// Uses OGC API first, falls back to RSS if needed.
         /// Finds the nearest reference city with weather data.
         /// </summary>
         public async Task<EcccWeatherData?> GetWeatherByCoordinatesAsync(
@@ -103,8 +145,14 @@ namespace ECCC.Services
                     };
                 }
                 
-                // Fetch weather from the nearest city
-                var weatherData = await FetchWeatherFromCityAsync(nearestCity);
+                // Try API first, then RSS as fallback
+                var cityId = $"{nearestCity.Province.ToLower()}-{nearestCity.CityCode}";
+                var weatherData = await FetchWeatherFromApiAsync(nearestCity, cityId);
+                
+                if (weatherData == null || !weatherData.Success)
+                {
+                    weatherData = await FetchWeatherFromRssAsync(nearestCity);
+                }
                 
                 if (weatherData != null && weatherData.Success)
                 {
@@ -138,7 +186,372 @@ namespace ECCC.Services
         }
 
         /// <summary>
-        /// Fetches weather data directly from an ECCC city feed.
+        /// Fetches weather data from the ECCC OGC API (JSON format).
+        /// This is the primary method - more reliable than RSS feeds.
+        /// </summary>
+        private async Task<EcccWeatherData?> FetchWeatherFromApiAsync(CityInfo city, string cityId)
+        {
+            try
+            {
+                var url = $"{UrlBuilder.BaseApiUrl}/collections/citypageweather-realtime/items?f=json&identifier={cityId}&limit=1";
+                
+                var response = await _httpClient.GetAsync(url);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+                
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                return ParseApiJsonResponse(jsonResponse, city, url);
+            }
+            catch
+            {
+                return null; // Silent fail, will fall back to RSS
+            }
+        }
+
+        /// <summary>
+        /// Fetches weather data from ECCC RSS feed (fallback method).
+        /// </summary>
+        private async Task<EcccWeatherData?> FetchWeatherFromRssAsync(CityInfo city)
+        {
+            try
+            {
+                var feedUrl = city.GetCityFeedUrl(_settings.DefaultLanguage);
+                if (string.IsNullOrEmpty(feedUrl))
+                {
+                    return new EcccWeatherData
+                    {
+                        Success = false,
+                        ErrorMessage = $"No weather feed available for {city.Name}"
+                    };
+                }
+                
+                var response = await _httpClient.GetAsync(feedUrl);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new EcccWeatherData
+                    {
+                        City = city,
+                        Success = false,
+                        ErrorMessage = $"RSS feed returned {response.StatusCode}"
+                    };
+                }
+                
+                var content = await response.Content.ReadAsStringAsync();
+                return ParseWeatherRss(content, city, feedUrl);
+            }
+            catch (Exception ex)
+            {
+                return new EcccWeatherData
+                {
+                    City = city,
+                    Success = false,
+                    ErrorMessage = $"Error fetching RSS: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Parses ECCC OGC API JSON response.
+        /// Handles both direct values and language-nested values (en/fr).
+        /// </summary>
+        private EcccWeatherData ParseApiJsonResponse(string json, CityInfo city, string sourceUrl)
+        {
+            var weatherData = new EcccWeatherData
+            {
+                City = city,
+                SourceUrl = sourceUrl,
+                FetchTime = DateTime.Now,
+                Success = false,
+                Current = new WeatherObservation()
+            };
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                
+                // Navigate to the feature properties
+                if (!root.TryGetProperty("features", out var features) || features.GetArrayLength() == 0)
+                {
+                    weatherData.ErrorMessage = "No features in API response";
+                    return weatherData;
+                }
+                    
+                var feature = features[0];
+                if (!feature.TryGetProperty("properties", out var props))
+                {
+                    weatherData.ErrorMessage = "No properties in API response";
+                    return weatherData;
+                }
+                
+                // Extract current conditions
+                if (props.TryGetProperty("currentConditions", out var currentCond))
+                {
+                    // Temperature and dewpoint use the standard structure
+                    weatherData.Current.Temperature = ExtractDoubleValue(currentCond, "temperature");
+                    weatherData.Current.DewPoint = ExtractDoubleValue(currentCond, "dewpoint");
+                    
+                    // Humidity is named "relativeHumidity" in the API
+                    weatherData.Current.Humidity = ExtractDoubleValue(currentCond, "relativeHumidity");
+                    
+                    // Visibility (may not always be present)
+                    weatherData.Current.Visibility = ExtractDoubleValue(currentCond, "visibility");
+                    
+                    // Pressure needs conversion from kPa to hPa
+                    var pressure = ExtractDoubleValue(currentCond, "pressure");
+                    if (pressure.HasValue)
+                        weatherData.Current.Pressure = pressure.Value * 10;
+                    
+                    // Wind data is nested under "wind" object
+                    if (currentCond.TryGetProperty("wind", out var windObj))
+                    {
+                        weatherData.Current.WindSpeed = ExtractDoubleValue(windObj, "speed");
+                        weatherData.Current.WindGust = ExtractDoubleValue(windObj, "gust");
+                        weatherData.Current.WindDirection = ExtractStringValue(windObj, "direction");
+                    }
+                    
+                    // Icon code is nested: iconCode.value (number)
+                    if (currentCond.TryGetProperty("iconCode", out var iconCodeObj) &&
+                        iconCodeObj.TryGetProperty("value", out var iconVal))
+                    {
+                        if (iconVal.ValueKind == JsonValueKind.Number)
+                            weatherData.Current.WeatherCode = ParseIconCodeToWmoCode(iconVal.GetInt32().ToString());
+                    }
+                    
+                    // Condition text is directly a language object
+                    weatherData.Current.Condition = ExtractStringFromElement(currentCond, "condition");
+                    
+                    // Parse observation time from "timestamp" (language object)
+                    var timestampStr = ExtractStringFromElement(currentCond, "timestamp");
+                    if (!string.IsNullOrEmpty(timestampStr) && DateTime.TryParse(timestampStr, out var obsTime))
+                    {
+                        weatherData.Current.ObservationTime = obsTime;
+                    }
+                }
+                
+                // Extract daily forecasts - try "forecasts" (plural, OGC API) or "forecast" (singular, older format)
+                JsonElement? forecastArray = null;
+                if (props.TryGetProperty("forecastGroup", out var forecastGrp))
+                {
+                    if (forecastGrp.TryGetProperty("forecasts", out var fcs))
+                        forecastArray = fcs;
+                    else if (forecastGrp.TryGetProperty("forecast", out var fc))
+                        forecastArray = fc;
+                }
+                
+                if (forecastArray.HasValue && forecastArray.Value.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var fc in forecastArray.Value.EnumerateArray())
+                    {
+                        try
+                        {
+                            var dailyForecast = new DailyForecast();
+                            
+                            var periodName = ExtractStringValue(fc, "period", "textForecastName");
+                            dailyForecast.Period = periodName ?? "";
+                            
+                            dailyForecast.Summary = ExtractStringValue(fc, "textSummary") ?? "";
+                            
+                            // Extract temperature - handle array or single object
+                            if (fc.TryGetProperty("temperatures", out var temps) &&
+                                temps.TryGetProperty("temperature", out var tempField))
+                            {
+                                // Temperature can be an array, object, or empty string
+                                if (tempField.ValueKind == JsonValueKind.Array)
+                                {
+                                    // Array of temperatures (e.g., high and low)
+                                    foreach (var tempObj in tempField.EnumerateArray())
+                                    {
+                                        var tempValue = ExtractDoubleFromElement(tempObj, "value");
+                                        if (tempValue.HasValue)
+                                        {
+                                            var clsStr = ExtractStringFromElement(tempObj, "class") ?? "";
+                                            if (clsStr.Contains("low", StringComparison.OrdinalIgnoreCase))
+                                                dailyForecast.LowTemperature = tempValue;
+                                            else
+                                                dailyForecast.HighTemperature = tempValue;
+                                        }
+                                    }
+                                }
+                                else if (tempField.ValueKind == JsonValueKind.Object)
+                                {
+                                    // Single temperature object
+                                    var tempValue = ExtractDoubleFromElement(tempField, "value");
+                                    if (tempValue.HasValue)
+                                    {
+                                        var clsStr = ExtractStringFromElement(tempField, "class") ?? "";
+                                        if (clsStr.Contains("low", StringComparison.OrdinalIgnoreCase))
+                                            dailyForecast.LowTemperature = tempValue;
+                                        else
+                                            dailyForecast.HighTemperature = tempValue;
+                                    }
+                                }
+                                // If empty string or null, skip temperature extraction
+                            }
+                            
+                            // Extract icon code - located at abbreviatedForecast.icon.value (number)
+                            if (fc.TryGetProperty("abbreviatedForecast", out var abbrev) &&
+                                abbrev.TryGetProperty("icon", out var iconObj) &&
+                                iconObj.TryGetProperty("value", out var iconValue))
+                            {
+                                // Icon value is a number (not a language object)
+                                if (iconValue.ValueKind == JsonValueKind.Number)
+                                {
+                                    dailyForecast.WeatherCode = ParseIconCodeToWmoCode(iconValue.GetInt32().ToString());
+                                }
+                            }
+                            
+                            weatherData.DailyForecasts.Add(dailyForecast);
+                        }
+                        catch
+                        {
+                            // Skip malformed forecast entries silently
+                        }
+                    }
+                }
+                
+                weatherData.Success = weatherData.Current.Temperature.HasValue || weatherData.DailyForecasts.Count > 0;
+                
+                if (!weatherData.Success)
+                {
+                    weatherData.ErrorMessage = "No weather data parsed from API response";
+                }
+            }
+            catch (Exception ex)
+            {
+                weatherData.ErrorMessage = $"Error parsing API JSON: {ex.Message}";
+            }
+
+            return weatherData;
+        }
+
+        /// <summary>
+        /// Extracts a double value from a property, handling both direct numbers and language-nested values.
+        /// </summary>
+        private double? ExtractDoubleValue(JsonElement parent, string propertyName)
+        {
+            if (!parent.TryGetProperty(propertyName, out var prop))
+                return null;
+            return ExtractDoubleFromElement(prop, "value");
+        }
+
+        /// <summary>
+        /// Extracts a double from an element's property, handling both direct numbers and language-nested values.
+        /// </summary>
+        private double? ExtractDoubleFromElement(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var valueElem))
+                return null;
+            
+            // Direct number
+            if (valueElem.ValueKind == JsonValueKind.Number)
+                return valueElem.GetDouble();
+            
+            // Language-nested object (try "en" then "fr")
+            if (valueElem.ValueKind == JsonValueKind.Object)
+            {
+                if (valueElem.TryGetProperty("en", out var enVal) && enVal.ValueKind == JsonValueKind.Number)
+                    return enVal.GetDouble();
+                if (valueElem.TryGetProperty("fr", out var frVal) && frVal.ValueKind == JsonValueKind.Number)
+                    return frVal.GetDouble();
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Extracts a string value from a property, handling both direct strings and language-nested values.
+        /// </summary>
+        private string? ExtractStringValue(JsonElement parent, string propertyName)
+        {
+            if (!parent.TryGetProperty(propertyName, out var prop))
+                return null;
+            return ExtractStringFromElement(prop);
+        }
+
+        /// <summary>
+        /// Extracts a string value from a nested property path.
+        /// </summary>
+        private string? ExtractStringValue(JsonElement parent, string propertyName, string nestedPropertyName)
+        {
+            if (!parent.TryGetProperty(propertyName, out var prop))
+                return null;
+            return ExtractStringFromElement(prop, nestedPropertyName);
+        }
+
+        /// <summary>
+        /// Extracts a string from an element, handling both direct strings and language-nested values.
+        /// </summary>
+        private string? ExtractStringFromElement(JsonElement element)
+        {
+            // Direct string
+            if (element.ValueKind == JsonValueKind.String)
+                return element.GetString();
+            
+            // Try "value" property first
+            if (element.TryGetProperty("value", out var valueElem))
+                return ExtractStringFromElement(valueElem);
+            
+            // Language-nested object (try French then English for this app)
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                if (element.TryGetProperty("fr", out var frVal) && frVal.ValueKind == JsonValueKind.String)
+                    return frVal.GetString();
+                if (element.TryGetProperty("en", out var enVal) && enVal.ValueKind == JsonValueKind.String)
+                    return enVal.GetString();
+            }
+            
+            return null;
+        }
+
+        /// <summary>
+        /// Extracts a string from an element's nested property, handling both direct strings and language-nested values.
+        /// </summary>
+        private string? ExtractStringFromElement(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var prop))
+                return null;
+            return ExtractStringFromElement(prop);
+        }
+
+        /// <summary>
+        /// Converts ECCC icon codes to WMO weather codes.
+        /// </summary>
+        private int ParseIconCodeToWmoCode(string? iconCode)
+        {
+            if (string.IsNullOrEmpty(iconCode)) return 0;
+            
+            // ECCC icon codes: https://dd.weather.gc.ca/observations/doc/icon_code_descriptions_e.csv
+            return iconCode switch
+            {
+                "00" or "01" => 0,   // Sunny / Clear
+                "02" or "03" => 1,   // Mainly Sunny / Partly Cloudy
+                "04" or "05" => 2,   // A mix of sun and cloud / Mostly Cloudy
+                "06" or "07" or "08" => 3, // Overcast / Fog
+                "09" => 45,          // Fog
+                "10" => 3,           // Overcast
+                "11" or "12" or "13" => 51, // Light rain / Drizzle
+                "14" or "15" => 61,  // Rain / Heavy Rain
+                "16" or "17" => 67,  // Freezing Rain
+                "18" or "19" => 71,  // Snow
+                "20" or "21" => 73,  // Light Snow / Flurries
+                "22" or "23" => 75,  // Heavy Snow
+                "24" or "25" => 79,  // Ice Pellets
+                "26" or "27" => 95,  // Thunderstorms
+                "28" => 80,          // Showers
+                "30" or "31" or "32" or "33" => 0,  // Night clear variants
+                "34" or "35" or "36" or "37" or "38" => 2, // Night cloudy variants
+                "39" or "40" => 61,  // Night rain
+                "41" or "42" or "43" or "44" or "45" or "46" or "47" => 71, // Night snow variants
+                _ => 0
+            };
+        }
+
+        /// <summary>
+        /// Fetches weather data directly from an ECCC city feed (legacy method).
         /// </summary>
         private async Task<EcccWeatherData?> FetchWeatherFromCityAsync(CityInfo city)
         {

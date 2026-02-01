@@ -44,7 +44,8 @@ namespace ECCC
                 
                 if (ecccData == null || !ecccData.Success)
                 {
-                    LogMessage($"[ECCC API] Failed to fetch weather: {ecccData?.ErrorMessage ?? "Unknown error"}");
+                    var error = ecccData?.ErrorMessage ?? "Unknown error";
+                    LogMessage($"[ECCC API] Failed to fetch weather: {error}");
                     return null;
                 }
                 

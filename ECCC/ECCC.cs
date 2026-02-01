@@ -1779,7 +1779,8 @@ namespace WeatherImageGenerator.Services
         {
             var result = new Dictionary<string, (string, string, string, string)>(StringComparer.OrdinalIgnoreCase);
             var today = DateTime.UtcNow.ToString("yyyyMMdd");
-            var baseUrl = $"https://dd.weather.gc.ca/today/alerts/cap/{today}/{stationCode}/";
+            // Updated URL: ECCC Datamart changed structure in 2025
+            var baseUrl = $"https://dd.weather.gc.ca/{today}/WXO-DD/alerts/cap/{today}/{stationCode}/";
             
             try
             {
@@ -2077,7 +2078,8 @@ namespace WeatherImageGenerator.Services
         {
             var result = new List<AlertEntry>();
             var today = DateTime.UtcNow.ToString("yyyyMMdd");
-            var baseUrl = $"https://dd.weather.gc.ca/today/alerts/cap/{today}/";
+            // Updated URL: ECCC Datamart changed structure in 2025
+            var baseUrl = $"https://dd.weather.gc.ca/{today}/WXO-DD/alerts/cap/{today}/";
             
             try
             {
@@ -2086,7 +2088,7 @@ namespace WeatherImageGenerator.Services
                 
                 // Parse folder names from HTML directory listing
                 var stationFolders = new List<string>();
-                var matches = System.Text.RegularExpressions.Regex.Matches(dirContent, @"href=""(CW\w+)/""");
+                var matches = System.Text.RegularExpressions.Regex.Matches(dirContent, @"href=""(CW\w+|CY\w+)/""");
                 foreach (System.Text.RegularExpressions.Match m in matches)
                 {
                     stationFolders.Add(m.Groups[1].Value);
