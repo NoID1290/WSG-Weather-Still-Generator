@@ -772,75 +772,10 @@ function updateAlerts() {
     // Called when alert settings change
 }
 
-async function updateLocation(idx, name) {
-    // Update location name
-}
-
-async function updateLocationApi(idx, api) {
-    // Update location API
-}
-
-async function removeLocation(idx) {
-    // Remove location
-    showNotification('Location removed', 'success');
-}
-
 /**
- * Show a notification message
+ * Test button click handler
  */
-function showNotification(message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 1rem 1.5rem;
-        background-color: ${
-            type === 'success' ? '#43a047' :
-            type === 'error' ? '#e53935' :
-            '#1976d2'
-        };
-        color: white;
-        border-radius: 4px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        z-index: 9999;
-        animation: slideIn 0.3s ease-in-out;
-    `;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-in-out';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+function testButtonClick() {
+    console.log('Test button clicked!');
+    showNotification('JavaScript is working! Test successful.', 'success');
 }
-
-// Add slide animations
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    @keyframes slideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        to {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-    }
-`;
-document.head.appendChild(style);
