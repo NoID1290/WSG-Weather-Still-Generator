@@ -297,37 +297,134 @@ async function refreshData() {
  */
 async function loadWeatherData() {
     try {
-        const currentResponse = await fetch(`${API_BASE_URL}/weather/current`);
-        const forecastResponse = await fetch(`${API_BASE_URL}/weather/forecast`);
+        const weatherContainer = document.getElementById('weather-container');
+        const forecastContainer = document.getElementById('forecast-container');
+        const lastUpdateEl = document.getElementById('weather-last-update');
+        
+        if (weatherContainer) weatherContainer.innerHTML = '<p class="loading">Loading weather data...</p>';
+        if (forecastContainer) forecastContainer.innerHTML = '<p class="loading">Loading forecast data...</p>';
+
+        const [currentResponse, forecastResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/weather/current`),
+            fetch(`${API_BASE_URL}/weather/forecast`)
+        ]);
         
         const currentData = await currentResponse.json();
         const forecastData = await forecastResponse.json();
         
+        // Update last update time
+        if (lastUpdateEl && currentData.lastUpdate) {
+            const updateTime = new Date(currentData.lastUpdate);
+            lastUpdateEl.textContent = `Last update: ${updateTime.toLocaleTimeString()}`;
+        }
+        
         // Populate current weather
-        const weatherContainer = document.getElementById('weather-container');
         if (weatherContainer) {
-            if (currentResponse.ok && currentData) {
+            if (currentResponse.ok && currentData.status === 'ok' && currentData.locations?.length > 0) {
+                let html = '';
+                currentData.locations.forEach(loc => {
+                    if (loc.error) {
+                        html += `
+                            <div class="weather-card weather-card-error">
+                                <h3>${loc.name}</h3>
+                                <p class="error-text">${loc.error}</p>
+                            </div>
+                        `;
+                    } else {
+                        const weatherIcon = getWeatherIcon(loc.weatherCode, loc.isDay);
+                        html += `
+                            <div class="weather-card">
+                                <div class="weather-card-header">
+                                    <h3>${loc.name}</h3>
+                                    <span class="weather-icon">${weatherIcon}</span>
+                                </div>
+                                <div class="weather-temp-main">
+                                    <span class="temp-value">${Math.round(loc.temperature || 0)}</span>
+                                    <span class="temp-unit">${loc.temperatureUnit}</span>
+                                </div>
+                                <p class="weather-description">${loc.weatherDescription}</p>
+                                <div class="weather-details">
+                                    <div class="weather-detail">
+                                        <span class="detail-icon">🌡️</span>
+                                        <span class="detail-label">Feels like</span>
+                                        <span class="detail-value">${Math.round(loc.feelsLike || 0)}${loc.temperatureUnit}</span>
+                                    </div>
+                                    <div class="weather-detail">
+                                        <span class="detail-icon">💧</span>
+                                        <span class="detail-label">Humidity</span>
+                                        <span class="detail-value">${loc.humidity || 0}%</span>
+                                    </div>
+                                    <div class="weather-detail">
+                                        <span class="detail-icon">💨</span>
+                                        <span class="detail-label">Wind</span>
+                                        <span class="detail-value">${loc.windSpeed || 0} ${loc.windSpeedUnit} ${loc.windDirectionCardinal}</span>
+                                    </div>
+                                    <div class="weather-detail">
+                                        <span class="detail-icon">☁️</span>
+                                        <span class="detail-label">Cloud Cover</span>
+                                        <span class="detail-value">${loc.cloudCover || 0}%</span>
+                                    </div>
+                                    ${loc.precipitation > 0 ? `
+                                    <div class="weather-detail">
+                                        <span class="detail-icon">🌧️</span>
+                                        <span class="detail-label">Precipitation</span>
+                                        <span class="detail-value">${loc.precipitation} mm</span>
+                                    </div>
+                                    ` : ''}
+                                    ${loc.pressure ? `
+                                    <div class="weather-detail">
+                                        <span class="detail-icon">📊</span>
+                                        <span class="detail-label">Pressure</span>
+                                        <span class="detail-value">${Math.round(loc.pressure)} hPa</span>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                weatherContainer.innerHTML = html;
+            } else if (currentData.status === 'no_data') {
                 weatherContainer.innerHTML = `
-                    <div class="card">
-                        <p><strong>Status:</strong> ${currentData.status || 'Unknown'}</p>
-                        <p><strong>Message:</strong> ${currentData.message || 'No data'}</p>
+                    <div class="no-data-message">
+                        <span class="no-data-icon">🌤️</span>
+                        <p>${currentData.message}</p>
+                        <button class="btn btn-primary" onclick="startCycle()">▶️ Start Cycle</button>
                     </div>
                 `;
             } else {
-                weatherContainer.innerHTML = '<p class="loading">No current weather data available</p>';
+                weatherContainer.innerHTML = '<p class="loading">No weather data available</p>';
             }
         }
         
         // Populate forecast
-        const forecastContainer = document.getElementById('forecast-container');
         if (forecastContainer) {
-            if (forecastResponse.ok && forecastData) {
+            if (forecastResponse.ok && forecastData.status === 'ok' && forecastData.locations?.length > 0) {
+                // Build location selector
+                const selectorContainer = document.getElementById('forecast-location-selector');
+                if (selectorContainer) {
+                    let selectorHtml = '<select id="forecast-location-select" onchange="displayForecastForLocation()">';
+                    forecastData.locations.forEach((loc, idx) => {
+                        selectorHtml += `<option value="${idx}">${loc.name}</option>`;
+                    });
+                    selectorHtml += '</select>';
+                    selectorContainer.innerHTML = selectorHtml;
+                }
+                
+                // Store forecast data globally for the selector
+                window.forecastDataCache = forecastData.locations;
+                
+                // Display first location's forecast
+                displayForecastForLocation(0);
+            } else if (forecastData.status === 'no_data') {
                 forecastContainer.innerHTML = `
-                    <div class="card">
-                        <p><strong>Locations:</strong> ${forecastData.locations || 0}</p>
-                        <p><strong>Status:</strong> ${forecastData.status || 'Unknown'}</p>
+                    <div class="no-data-message">
+                        <span class="no-data-icon">📅</span>
+                        <p>${forecastData.message}</p>
                     </div>
                 `;
+                const selectorContainer = document.getElementById('forecast-location-selector');
+                if (selectorContainer) selectorContainer.innerHTML = '';
             } else {
                 forecastContainer.innerHTML = '<p class="loading">No forecast data available</p>';
             }
@@ -339,6 +436,87 @@ async function loadWeatherData() {
         if (weatherContainer) weatherContainer.innerHTML = '<p class="error">Error loading weather data</p>';
         if (forecastContainer) forecastContainer.innerHTML = '<p class="error">Error loading forecast data</p>';
     }
+}
+
+/**
+ * Display forecast for a selected location
+ */
+function displayForecastForLocation(index) {
+    const forecastContainer = document.getElementById('forecast-container');
+    if (!forecastContainer || !window.forecastDataCache) return;
+    
+    const selectEl = document.getElementById('forecast-location-select');
+    const idx = index !== undefined ? index : (selectEl ? parseInt(selectEl.value) : 0);
+    const location = window.forecastDataCache[idx];
+    
+    if (!location || location.error) {
+        forecastContainer.innerHTML = `<p class="error">${location?.error || 'No forecast data'}</p>`;
+        return;
+    }
+    
+    let html = '<div class="forecast-days">';
+    location.dailyForecasts.forEach((day, dayIdx) => {
+        const date = new Date(day.date);
+        const dayName = dayIdx === 0 ? 'Today' : (dayIdx === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'short' }));
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const weatherIcon = getWeatherIcon(day.weatherCode, true);
+        
+        html += `
+            <div class="forecast-day-card">
+                <div class="forecast-day-header">
+                    <span class="forecast-day-name">${dayName}</span>
+                    <span class="forecast-day-date">${dateStr}</span>
+                </div>
+                <div class="forecast-day-icon">${weatherIcon}</div>
+                <div class="forecast-day-temps">
+                    <span class="forecast-temp-high">↑ ${Math.round(day.tempMax || 0)}°</span>
+                    <span class="forecast-temp-low">↓ ${Math.round(day.tempMin || 0)}°</span>
+                </div>
+                <p class="forecast-day-description">${day.weatherDescription}</p>
+                <div class="forecast-day-details">
+                    ${day.precipitationSum > 0 ? `<span class="forecast-precip">🌧️ ${day.precipitationSum.toFixed(1)} mm</span>` : ''}
+                    ${day.windSpeedMax ? `<span class="forecast-wind">💨 ${Math.round(day.windSpeedMax)} km/h</span>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    forecastContainer.innerHTML = html;
+}
+
+/**
+ * Get weather icon based on weather code
+ */
+function getWeatherIcon(weatherCode, isDay = true) {
+    const code = parseInt(weatherCode) || 0;
+    
+    // Clear
+    if (code === 0) return isDay ? '☀️' : '🌙';
+    if (code === 1) return isDay ? '🌤️' : '🌙';
+    if (code === 2) return isDay ? '⛅' : '☁️';
+    if (code === 3) return '☁️';
+    
+    // Fog
+    if (code === 45 || code === 48) return '🌫️';
+    
+    // Drizzle
+    if (code >= 51 && code <= 57) return '🌧️';
+    
+    // Rain
+    if (code >= 61 && code <= 67) return '🌧️';
+    
+    // Snow
+    if (code >= 71 && code <= 77) return '❄️';
+    
+    // Showers
+    if (code >= 80 && code <= 82) return '🌧️';
+    if (code >= 85 && code <= 86) return '🌨️';
+    
+    // Thunderstorm
+    if (code >= 95 && code <= 99) return '⛈️';
+    
+    return '🌡️';
 }
 
 /**

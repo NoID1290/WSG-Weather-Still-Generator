@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Net;
 using System.Reflection;
 using WeatherImageGenerator.Utilities;
+using WeatherImageGenerator.Models;
+using OpenMeteo;
 
 namespace WeatherImageGenerator.Services
 {
@@ -27,6 +30,22 @@ namespace WeatherImageGenerator.Services
 
         public int Port { get; set; } = 5000;
         public bool IsRunning { get; private set; } = false;
+
+        // Cached weather data
+        private WeatherForecast?[]? _cachedForecasts;
+        private string[]? _cachedLocationNames;
+        private DateTime _lastWeatherUpdate = DateTime.MinValue;
+
+        /// <summary>
+        /// Updates the cached weather data from the main application
+        /// </summary>
+        public void UpdateWeatherData(WeatherForecast?[] forecasts, string[] locationNames)
+        {
+            _cachedForecasts = forecasts;
+            _cachedLocationNames = locationNames;
+            _lastWeatherUpdate = DateTime.Now;
+            Logger.Log($"WebUI: Weather data updated for {locationNames.Length} locations", Logger.LogLevel.Debug);
+        }
 
         public WebUIService(int port = 5000)
         {
@@ -323,23 +342,197 @@ namespace WeatherImageGenerator.Services
         // Endpoint handlers
         private void GetCurrentWeather(HttpListenerContext context)
         {
-            RespondWithJson(context, new
+            try
             {
-                timestamp = DateTime.UtcNow,
-                status = "ok",
-                message = "Current weather data placeholder"
-            });
+                if (_cachedForecasts == null || _cachedForecasts.Length == 0)
+                {
+                    RespondWithJson(context, new
+                    {
+                        timestamp = DateTime.UtcNow,
+                        status = "no_data",
+                        message = "No weather data available. Start a cycle to fetch weather.",
+                        locations = new List<object>()
+                    });
+                    return;
+                }
+
+                var locations = new List<object>();
+                for (int i = 0; i < _cachedForecasts.Length; i++)
+                {
+                    var forecast = _cachedForecasts[i];
+                    var name = _cachedLocationNames != null && i < _cachedLocationNames.Length
+                        ? _cachedLocationNames[i]
+                        : $"Location {i + 1}";
+
+                    if (forecast?.Current != null)
+                    {
+                        var current = forecast.Current;
+                        var units = forecast.CurrentUnits;
+                        locations.Add(new
+                        {
+                            name,
+                            temperature = current.Temperature_2m,
+                            temperatureUnit = units?.Temperature_2m ?? "°C",
+                            feelsLike = current.Apparent_temperature,
+                            humidity = current.Relativehumidity_2m,
+                            weatherCode = current.Weathercode,
+                            weatherDescription = GetWeatherDescription(current.Weathercode ?? 0),
+                            windSpeed = current.Windspeed_10m,
+                            windSpeedUnit = units?.Windspeed_10m ?? "km/h",
+                            windDirection = current.Winddirection_10m,
+                            windDirectionCardinal = DegreesToCardinal(current.Winddirection_10m),
+                            precipitation = current.Precipitation,
+                            cloudCover = current.Cloudcover,
+                            pressure = current.Pressure_msl,
+                            isDay = current.Is_day == 1,
+                            time = current.Time
+                        });
+                    }
+                    else
+                    {
+                        locations.Add(new
+                        {
+                            name,
+                            error = "No current data available"
+                        });
+                    }
+                }
+
+                RespondWithJson(context, new
+                {
+                    timestamp = DateTime.UtcNow,
+                    lastUpdate = _lastWeatherUpdate,
+                    status = "ok",
+                    locationCount = locations.Count,
+                    locations
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error in GetCurrentWeather: {ex.Message}", Logger.LogLevel.Error);
+                RespondWithJson(context, new { status = "error", message = ex.Message }, 500);
+            }
         }
 
         private void GetWeatherForecast(HttpListenerContext context)
         {
-            RespondWithJson(context, new
+            try
             {
-                timestamp = DateTime.UtcNow,
-                status = "ok",
-                locations = 0,
-                message = "Weather forecast data placeholder"
-            });
+                if (_cachedForecasts == null || _cachedForecasts.Length == 0)
+                {
+                    RespondWithJson(context, new
+                    {
+                        timestamp = DateTime.UtcNow,
+                        status = "no_data",
+                        message = "No forecast data available. Start a cycle to fetch weather.",
+                        locations = new List<object>()
+                    });
+                    return;
+                }
+
+                var locations = new List<object>();
+                for (int i = 0; i < _cachedForecasts.Length; i++)
+                {
+                    var forecast = _cachedForecasts[i];
+                    var name = _cachedLocationNames != null && i < _cachedLocationNames.Length
+                        ? _cachedLocationNames[i]
+                        : $"Location {i + 1}";
+
+                    if (forecast?.Daily != null && forecast.Daily.Time != null)
+                    {
+                        var daily = forecast.Daily;
+                        var dailyForecasts = new List<object>();
+
+                        for (int d = 0; d < Math.Min(7, daily.Time.Length); d++)
+                        {
+                            dailyForecasts.Add(new
+                            {
+                                date = daily.Time[d],
+                                weatherCode = daily.Weathercode?[d],
+                                weatherDescription = GetWeatherDescription((int)(daily.Weathercode?[d] ?? 0)),
+                                tempMax = daily.Temperature_2m_max?[d],
+                                tempMin = daily.Temperature_2m_min?[d],
+                                precipitationSum = daily.Precipitation_sum?[d],
+                                windSpeedMax = daily.Windspeed_10m_max?[d],
+                                sunrise = daily.Sunrise?[d],
+                                sunset = daily.Sunset?[d]
+                            });
+                        }
+
+                        locations.Add(new
+                        {
+                            name,
+                            dailyForecasts
+                        });
+                    }
+                    else
+                    {
+                        locations.Add(new
+                        {
+                            name,
+                            error = "No forecast data available"
+                        });
+                    }
+                }
+
+                RespondWithJson(context, new
+                {
+                    timestamp = DateTime.UtcNow,
+                    lastUpdate = _lastWeatherUpdate,
+                    status = "ok",
+                    locationCount = locations.Count,
+                    locations
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error in GetWeatherForecast: {ex.Message}", Logger.LogLevel.Error);
+                RespondWithJson(context, new { status = "error", message = ex.Message }, 500);
+            }
+        }
+
+        // Weather helper methods
+        private static string DegreesToCardinal(int? degrees)
+        {
+            if (!degrees.HasValue) return "N/A";
+            string[] cardinals = { "N", "NE", "E", "SE", "S", "SW", "W", "NW", "N" };
+            return cardinals[(int)Math.Round(((double)degrees % 360) / 45)];
+        }
+
+        private static string GetWeatherDescription(int weatherCode)
+        {
+            return weatherCode switch
+            {
+                0 => "Clear sky",
+                1 => "Mainly clear",
+                2 => "Partly cloudy",
+                3 => "Overcast",
+                45 => "Fog",
+                48 => "Depositing rime fog",
+                51 => "Light drizzle",
+                53 => "Moderate drizzle",
+                55 => "Dense drizzle",
+                56 => "Light freezing drizzle",
+                57 => "Dense freezing drizzle",
+                61 => "Slight rain",
+                63 => "Moderate rain",
+                65 => "Heavy rain",
+                66 => "Light freezing rain",
+                67 => "Heavy freezing rain",
+                71 => "Slight snow",
+                73 => "Moderate snow",
+                75 => "Heavy snow",
+                77 => "Snow grains",
+                80 => "Slight rain showers",
+                81 => "Moderate rain showers",
+                82 => "Violent rain showers",
+                85 => "Slight snow showers",
+                86 => "Heavy snow showers",
+                95 => "Thunderstorm",
+                96 => "Thunderstorm with light hail",
+                99 => "Thunderstorm with heavy hail",
+                _ => "Unknown"
+            };
         }
 
         private void GetWebSettings(HttpListenerContext context)

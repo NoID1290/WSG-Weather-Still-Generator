@@ -76,15 +76,22 @@
             <!-- Weather Tab -->
             <section id="weather-tab" class="tab-content">
                 <div class="card">
-                    <h2>Current Weather</h2>
+                    <h2>🌡️ Current Weather</h2>
+                    <div class="weather-controls">
+                        <button class="btn btn-primary" onclick="loadWeatherData()">🔄 Refresh Weather</button>
+                        <span id="weather-last-update" class="last-update-text">Last update: Never</span>
+                    </div>
                     <div id="weather-container" class="weather-grid">
                         <p class="loading">Loading weather data...</p>
                     </div>
                 </div>
 
                 <div class="card">
-                    <h2>Forecast</h2>
-                    <div id="forecast-container" class="forecast-grid">
+                    <h2>📅 7-Day Forecast</h2>
+                    <div id="forecast-location-selector" class="forecast-selector">
+                        <!-- Location selector will be populated dynamically -->
+                    </div>
+                    <div id="forecast-container" class="forecast-container">
                         <p class="loading">Loading forecast data...</p>
                     </div>
                 </div>

@@ -564,6 +564,10 @@ namespace WeatherImageGenerator
 
                 WeatherDataFetched?.Invoke(allForecasts);
 
+                // Update WebUI with weather data
+                var locationNames = locations.Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l!).ToArray();
+                _webUIService?.UpdateWeatherData(allForecasts, locationNames);
+
                 if (cancellationToken.IsCancellationRequested) return;
 
                 Logger.Log("[Alerts] Fetching weather alerts...");
@@ -627,6 +631,10 @@ namespace WeatherImageGenerator
                 }
 
                 WeatherDataFetched?.Invoke(allForecasts);
+
+                // Update WebUI with weather data
+                var locationNamesForUI = locations.Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l!).ToArray();
+                _webUIService?.UpdateWeatherData(allForecasts, locationNamesForUI);
 
                 if (cancellationToken.IsCancellationRequested) return;
 
@@ -805,6 +813,10 @@ namespace WeatherImageGenerator
 
                         // Notify GUI that weather data has been fetched
                         WeatherDataFetched?.Invoke(allForecasts);
+
+                        // Update WebUI with weather data
+                        var webUILocationNames = locations.Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l!).ToArray();
+                        _webUIService?.UpdateWeatherData(allForecasts, webUILocationNames);
 
                         // Fetch weather alerts from ECCC and Alert Ready
                         var alerts = new List<AlertEntry>();
