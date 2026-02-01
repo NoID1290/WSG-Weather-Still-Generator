@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.3.0201] - 2026-02-01
+
+- Fix button alignment for WebUI in MainForm
+- Update ECCC API URLs and enhance error logging Fetching optimization Fixing call for ECCC
+- Enhance Web UI: Update weather data display, add refresh button, and improve layout for current weather and forecast sections
+- fixing duplicate function that crash webgui
+
 ## [1.7.2.0128] - 2026-01-28
 
 - Implement location management API
