@@ -74,6 +74,12 @@ public class WeatherMapService
         // Composite the weather data on top of the map
         using var compositeImage = _mapService.OverlayImageOnMap(mapBackground, weatherOverlay, opacity: 0.7f);
 
+        // Add legal attribution overlay
+        using (var g = Graphics.FromImage(compositeImage))
+        {
+            MapOverlayService.DrawAttributionOverlay(g, compositeImage.Width, compositeImage.Height, mapStyle, includeWeatherData: true);
+        }
+
         // Save the result
         var outputPath = Path.Combine(_outputDirectory, outputFileName);
         compositeImage.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
@@ -104,6 +110,12 @@ public class WeatherMapService
             using var radarImage = new Bitmap(radarImagePath);
             using var composite = _mapService.OverlayImageOnMap(mapBackground, radarImage, opacity: 0.75f);
 
+            // Add legal attribution overlay
+            using (var g = Graphics.FromImage(composite))
+            {
+                MapOverlayService.DrawAttributionOverlay(g, composite.Width, composite.Height, MapStyle.Standard, includeRadar: true);
+            }
+
             var outputPath = Path.Combine(_outputDirectory, outputFileName);
             composite.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
 
@@ -112,7 +124,12 @@ public class WeatherMapService
         }
         else
         {
-            // If radar image doesn't exist, just save the map
+            // If radar image doesn't exist, just save the map with attribution
+            using (var g = Graphics.FromImage(mapBackground))
+            {
+                MapOverlayService.DrawAttributionOverlay(g, mapBackground.Width, mapBackground.Height, MapStyle.Standard);
+            }
+
             var outputPath = Path.Combine(_outputDirectory, outputFileName);
             mapBackground.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
             Logger.Log($"⚠ Radar image not found, saved map only: {outputPath}", ConsoleColor.Yellow);
@@ -177,6 +194,12 @@ public class WeatherMapService
 
         // Composite all layers
         using var finalComposite = LayerCompositor.CompositeLayers(layers, mapBackground.Width, mapBackground.Height);
+
+        // Add legal attribution overlay
+        using (var g = Graphics.FromImage(finalComposite))
+        {
+            MapOverlayService.DrawAttributionOverlay(g, finalComposite.Width, finalComposite.Height, MapStyle.Standard, includeRadar: true, includeWeatherData: true);
+        }
 
         // Save the result
         var outputPath = Path.Combine(_outputDirectory, outputFileName);
@@ -266,6 +289,12 @@ public class WeatherMapService
             bounds.MinLat, bounds.MinLon,
             bounds.MaxLat, bounds.MaxLon,
             style: style);
+
+        // Add legal attribution overlay
+        using (var g = Graphics.FromImage(mapImage))
+        {
+            MapOverlayService.DrawAttributionOverlay(g, mapImage.Width, mapImage.Height, style);
+        }
 
         var fileName = $"map_{regionName.Replace(" ", "_").ToLower()}.png";
         var outputPath = Path.Combine(_outputDirectory, "regional_maps", fileName);

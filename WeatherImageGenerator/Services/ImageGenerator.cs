@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using OpenMap;
 using OpenMeteo;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Utilities;
@@ -359,6 +360,9 @@ namespace WeatherImageGenerator.Services
                     string timestamp = $"Updated: {DateTime.Now}";
                     graphics.DrawString(timestamp, labelFont, whiteBrush, new PointF(50, 100));
                 }
+
+                // Draw legal attribution overlay (OSM map + Radar + Weather data)
+                MapOverlayService.DrawAttributionOverlay(graphics, width, height, MapStyle.Standard, includeRadar: true, includeWeatherData: true);
 
                 // Default maps filename uses 00_ prefix so it's easily readable/first in listings
                 string filename = Path.Combine(outputDir, config.WeatherImages?.WeatherMapsFilename ?? "00_WeatherMaps.png");

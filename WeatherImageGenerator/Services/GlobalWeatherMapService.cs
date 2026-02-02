@@ -128,6 +128,9 @@ namespace WeatherImageGenerator.Services
 
                 // Draw title and timestamp at bottom
                 DrawMapHeader(g);
+
+                // Draw legal attribution overlay (OSM map + Weather data)
+                MapOverlayService.DrawAttributionOverlay(g, _width, _height, MapStyle.Standard, includeRadar: false, includeWeatherData: true);
             }
 
             // Save the image
@@ -379,6 +382,9 @@ namespace WeatherImageGenerator.Services
 
                 // Draw header
                 DrawMapHeader(g);
+
+                // Draw legal attribution overlay (OSM map + Weather data)
+                MapOverlayService.DrawAttributionOverlay(g, _width, _height, MapStyle.Standard, includeRadar: false, includeWeatherData: true);
             }
 
             // Save

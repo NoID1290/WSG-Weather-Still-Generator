@@ -373,6 +373,9 @@ namespace WeatherImageGenerator.Services
                     0, 0, radarOverlay.Width, radarOverlay.Height,
                     GraphicsUnit.Pixel,
                     imageAttributes);
+
+                // Draw legal attribution overlay (OSM map + ECCC radar)
+                MapOverlayService.DrawAttributionOverlay(g, width, height, MapStyle.Standard, includeRadar: true);
             }
             
             return result;

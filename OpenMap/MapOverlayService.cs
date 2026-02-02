@@ -494,6 +494,104 @@ public class MapOverlayService
     }
 
     /// <summary>
+    /// Draws legal attribution credits on a Graphics object at the bottom of the image.
+    /// This method ensures compliance with OSM and data provider licensing requirements.
+    /// </summary>
+    /// <param name="g">Graphics object to draw on</param>
+    /// <param name="width">Image width in pixels</param>
+    /// <param name="height">Image height in pixels</param>
+    /// <param name="mapStyle">The map style being used (affects attribution text)</param>
+    /// <param name="includeRadar">If true, includes ECCC radar attribution</param>
+    /// <param name="includeWeatherData">If true, includes weather data provider attribution</param>
+    public static void DrawAttributionOverlay(
+        Graphics g,
+        int width,
+        int height,
+        MapStyle mapStyle = MapStyle.Standard,
+        bool includeRadar = false,
+        bool includeWeatherData = false)
+    {
+        // Build attribution lines
+        var attributionLines = new List<string>();
+        
+        // Map attribution (always included)
+        attributionLines.Add(GetAttributionText(mapStyle));
+        
+        // Radar data attribution
+        if (includeRadar)
+        {
+            attributionLines.Add("Radar: Environment and Climate Change Canada");
+        }
+        
+        // Weather data attribution
+        if (includeWeatherData)
+        {
+            attributionLines.Add("Weather: Open-Meteo.com (CC BY 4.0)");
+        }
+
+        // Calculate text dimensions
+        using var font = new Font("Arial", 10, FontStyle.Regular);
+        using var textBrush = new SolidBrush(Color.FromArgb(220, 255, 255, 255));
+        using var shadowBrush = new SolidBrush(Color.FromArgb(180, 0, 0, 0));
+        using var bgBrush = new SolidBrush(Color.FromArgb(160, 0, 0, 0));
+
+        float padding = 6f;
+        float lineHeight = font.GetHeight(g) + 2;
+        float totalHeight = attributionLines.Count * lineHeight + padding * 2;
+        
+        // Calculate max width needed
+        float maxWidth = 0;
+        foreach (var line in attributionLines)
+        {
+            var size = g.MeasureString(line, font);
+            if (size.Width > maxWidth) maxWidth = size.Width;
+        }
+        
+        float boxWidth = maxWidth + padding * 2;
+        float boxX = width - boxWidth - 8;
+        float boxY = height - totalHeight - 8;
+
+        // Draw semi-transparent background
+        g.FillRectangle(bgBrush, boxX, boxY, boxWidth, totalHeight);
+
+        // Draw each attribution line
+        float textY = boxY + padding;
+        foreach (var line in attributionLines)
+        {
+            float textX = boxX + padding;
+            // Shadow
+            g.DrawString(line, font, shadowBrush, textX + 1, textY + 1);
+            // Text
+            g.DrawString(line, font, textBrush, textX, textY);
+            textY += lineHeight;
+        }
+    }
+
+    /// <summary>
+    /// Gets the full attribution text including all data sources.
+    /// Useful for displaying in credits or about sections.
+    /// </summary>
+    /// <param name="mapStyle">The map style being used</param>
+    /// <param name="includeRadar">Include ECCC radar attribution</param>
+    /// <param name="includeWeatherData">Include weather data attribution</param>
+    /// <returns>Multi-line attribution string</returns>
+    public static string GetFullAttributionText(
+        MapStyle mapStyle = MapStyle.Standard,
+        bool includeRadar = false,
+        bool includeWeatherData = false)
+    {
+        var lines = new List<string> { GetAttributionText(mapStyle) };
+        
+        if (includeRadar)
+            lines.Add("Radar: Environment and Climate Change Canada");
+        
+        if (includeWeatherData)
+            lines.Add("Weather: Open-Meteo.com (CC BY 4.0)");
+        
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>
     /// Parses a hex color string to System.Drawing.Color
     /// </summary>
     private static Color ParseColor(string hexColor)
