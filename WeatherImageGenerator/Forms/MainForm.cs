@@ -370,11 +370,35 @@ namespace WeatherImageGenerator.Forms
 
             _tabControl.TabPages.Add(_logTab);
 
+            // Save selected tab when user changes tabs
+            _tabControl.SelectedIndexChanged += (s, e) =>
+            {
+                try
+                {
+                    var config = ConfigManager.LoadConfig();
+                    config.SelectedTabIndex = _tabControl.SelectedIndex;
+                    ConfigManager.SaveConfig(config);
+                }
+                catch { /* Ignore save errors */ }
+            };
+
             _splitContainer.Panel2.Controls.Add(_tabControl);
             
             // Configure splitter (distance will be set in Load event when form has proper size)
             _splitContainer.SplitterWidth = 6;
             _splitContainer.Panel2MinSize = 100;
+            
+            // Save splitter position when user moves it
+            _splitContainer.SplitterMoved += (s, e) =>
+            {
+                try
+                {
+                    var config = ConfigManager.LoadConfig();
+                    config.SplitterDistance = _splitContainer.SplitterDistance;
+                    ConfigManager.SaveConfig(config);
+                }
+                catch { /* Ignore save errors */ }
+            };
 
             this.Controls.Add(_splitContainer);
             this.Controls.Add(_topPanel);
@@ -382,13 +406,53 @@ namespace WeatherImageGenerator.Forms
             // Set splitter distance after form is loaded to avoid size constraint issues
             this.Load += (s, e) =>
             {
-                // Make console larger by default (smaller SplitterDistance = more space for logs at bottom)
-                // Target: logs panel takes about 60% of the split container height
-                int targetDistance = (int)(_splitContainer.Height * 0.35);
+                // Restore saved splitter distance, or use default
+                var config = ConfigManager.LoadConfig();
+                int targetDistance;
+                
+                if (config.SplitterDistance > 0)
+                {
+                    targetDistance = config.SplitterDistance;
+                }
+                else
+                {
+                    // Default: logs panel takes about 60% of the split container height
+                    targetDistance = (int)(_splitContainer.Height * 0.35);
+                }
+                
                 if (targetDistance >= _splitContainer.Panel1MinSize && 
                     targetDistance <= _splitContainer.Height - _splitContainer.Panel2MinSize)
                 {
                     _splitContainer.SplitterDistance = targetDistance;
+                }
+                
+                // Restore saved tab selection
+                if (config.SelectedTabIndex >= 0 && config.SelectedTabIndex < _tabControl.TabCount)
+                {
+                    _tabControl.SelectedIndex = config.SelectedTabIndex;
+                }
+                
+                // Restore saved window size
+                if (config.WindowWidth > 0 && config.WindowHeight > 0)
+                {
+                    this.Width = config.WindowWidth;
+                    this.Height = config.WindowHeight;
+                }
+            };
+            
+            // Save window size when resized
+            this.ResizeEnd += (s, e) =>
+            {
+                if (this.WindowState == FormWindowState.Normal)
+                {
+                    try
+                    {
+                        var config = ConfigManager.LoadConfig();
+                        config.WindowWidth = this.Width;
+                        config.WindowHeight = this.Height;
+                        ConfigManager.SaveConfig(config);
+                    }
+                    catch { /* Ignore save errors */ }
                 }
             };
 

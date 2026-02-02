@@ -156,6 +156,18 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("WebUI")]
         public WebUISettings? WebUI { get; set; }
+
+        [JsonPropertyName("SelectedTabIndex")]
+        public int SelectedTabIndex { get; set; } = 0;
+
+        [JsonPropertyName("SplitterDistance")]
+        public int SplitterDistance { get; set; } = 0;
+
+        [JsonPropertyName("WindowWidth")]
+        public int WindowWidth { get; set; } = 0;
+
+        [JsonPropertyName("WindowHeight")]
+        public int WindowHeight { get; set; } = 0;
     }
 
     /// <summary>
