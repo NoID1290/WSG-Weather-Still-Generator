@@ -139,6 +139,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("StartMinimizedToTray")]
         public bool StartMinimizedToTray { get; set; } = false;
 
+        [JsonPropertyName("CheckForUpdatesOnStartup")]
+        public bool CheckForUpdatesOnStartup { get; set; } = true;
+
         [JsonPropertyName("Music")]
         public MusicSettings? Music { get; set; }
 

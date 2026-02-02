@@ -185,6 +185,12 @@ namespace WeatherImageGenerator.Forms
                     {
                         Logger.Log("AlertReady is not enabled in config.", Logger.LogLevel.Info);
                     }
+                    
+                    // Check for updates on startup if enabled
+                    if (cfg.CheckForUpdatesOnStartup)
+                    {
+                        _ = CheckForUpdatesOnStartupAsync();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -2053,15 +2059,6 @@ namespace WeatherImageGenerator.Forms
                 Logger.Log($"Failed to generate alert media: {ex.Message}", Logger.LogLevel.Error);
             }
         }
-    }
-
-    internal class _openWebUIBtn
-    {
-        public static Func<object, object, object> Click { get; internal set; }
-    }
-}
-
-/* Note: No Designer file is required for this simple form — controls are created at runtime */
 
         // Custom progress bar that paints a centered overlay text (percentage) and supports a simple marquee animation.
         internal class TextProgressBar : ProgressBar
@@ -2149,6 +2146,131 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
+        /// <summary>
+        /// Checks for updates on application startup and prompts the user if one is available
+        /// </summary>
+        private async Task CheckForUpdatesOnStartupAsync()
+        {
+            try
+            {
+                // Small delay to let the UI finish loading
+                await Task.Delay(2000);
+                
+                var updateInfo = await UpdateService.CheckForUpdatesAsync();
+                
+                if (updateInfo.IsUpdateAvailable && !string.IsNullOrEmpty(updateInfo.DownloadUrl))
+                {
+                    var message = $"A new version of WSG is available!\n\n" +
+                                  $"Current version: {updateInfo.CurrentVersion}\n" +
+                                  $"Latest version: {updateInfo.LatestVersion}\n";
+                    
+                    if (updateInfo.PublishedAt.HasValue)
+                    {
+                        message += $"Released: {updateInfo.PublishedAt.Value:MMMM dd, yyyy}\n";
+                    }
+                    
+                    message += "\nWould you like to download and install the update now?\n\n" +
+                               "(You can disable this check in the About dialog)";
+                    
+                    var result = MessageBox.Show(
+                        this,
+                        message,
+                        "Update Available",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+                    
+                    if (result == DialogResult.Yes)
+                    {
+                        // Show a simple progress form
+                        await DownloadAndInstallUpdateWithProgressAsync(updateInfo.DownloadUrl);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Startup update check failed: {ex.Message}", Logger.LogLevel.Warning);
+                // Don't show error to user for startup check - silent fail
+            }
+        }
+
+        /// <summary>
+        /// Downloads and installs update with a progress dialog
+        /// </summary>
+        private async Task DownloadAndInstallUpdateWithProgressAsync(string downloadUrl)
+        {
+            using var progressForm = new Form
+            {
+                Text = "Downloading Update",
+                Width = 450,
+                Height = 150,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition = FormStartPosition.CenterParent,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            var progressBar = new ProgressBar
+            {
+                Left = 20,
+                Top = 30,
+                Width = 390,
+                Height = 25,
+                Style = ProgressBarStyle.Continuous
+            };
+
+            var statusLabel = new Label
+            {
+                Left = 20,
+                Top = 65,
+                Width = 390,
+                Height = 25,
+                Text = "Starting download..."
+            };
+
+            progressForm.Controls.Add(progressBar);
+            progressForm.Controls.Add(statusLabel);
+
+            var progress = new Progress<(int Percent, string Status)>(p =>
+            {
+                progressBar.Value = Math.Min(100, p.Percent);
+                statusLabel.Text = p.Status;
+            });
+
+            progressForm.Show(this);
+            progressForm.Refresh();
+
+            try
+            {
+                var (success, message) = await UpdateService.DownloadAndInstallUpdateAsync(downloadUrl, progress);
+
+                progressForm.Hide();
+
+                if (success)
+                {
+                    var restart = MessageBox.Show(
+                        this,
+                        message + "\n\nRestart now?",
+                        "Update Complete",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (restart == DialogResult.Yes)
+                    {
+                        UpdateService.RestartApplication();
+                    }
+                }
+                else
+                {
+                    MessageBox.Show(this, message, "Update Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                progressForm.Hide();
+                MessageBox.Show(this, $"Update failed: {ex.Message}", "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         // A compact About dialog kept in the same file to avoid namespace collisions.
         internal class AboutDialog : Form
         {
@@ -2196,19 +2318,19 @@ namespace WeatherImageGenerator.Forms
                 { 
                     Text = product, 
                     Font = new Font("Segoe UI", 16F, FontStyle.Bold), 
-                    Left = 25, Top = 25, Width = 620, Height = 35,
+                    Left = 25, Top = 20, Width = 620, Height = 35,
                     ForeColor = accentColor
                 };
                 var lblVersion = new Label 
                 { 
                     Text = $"Version: {version}", 
-                    Left = 25, Top = 70, Width = 620, 
+                    Left = 25, Top = 58, Width = 300, 
                     Font = new Font("Segoe UI", 10.5F) 
                 };
                 var lblCopyright = new Label 
                 { 
                     Text = copyright, 
-                    Left = 25, Top = 95, Width = 620, 
+                    Left = 25, Top = 82, Width = 620, 
                     Font = new Font("Segoe UI", 9.5F),
                     ForeColor = Color.DimGray
                 };
@@ -2217,12 +2339,233 @@ namespace WeatherImageGenerator.Forms
                 var linkGithub = new LinkLabel 
                 { 
                     Text = "🔗 GitHub Repository", 
-                    Left = 25, Top = 130, Width = 620, 
+                    Left = 25, Top = 108, Width = 620, 
                     LinkColor = accentColor,
                     ActiveLinkColor = Color.FromArgb(Math.Max(0, accentColor.R - 40), Math.Max(0, accentColor.G - 40), Math.Max(0, accentColor.B - 40)),
                     Font = new Font("Segoe UI", 10.5F, FontStyle.Underline)
                 };
                 linkGithub.LinkClicked += (s, e) => OpenUrl(githubUrl);
+
+                // --- Updates Section ---
+                var updateGroup = new GroupBox
+                {
+                    Text = "🔄 Updates",
+                    Left = 25, Top = 140, Width = 620, Height = 145,
+                    Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                    ForeColor = accentColor
+                };
+
+                var lblCurrentVersion = new Label
+                {
+                    Text = $"Current Version: {version}",
+                    Left = 15, Top = 28, Width = 280, Height = 22,
+                    Font = new Font("Segoe UI", 10F),
+                    ForeColor = Color.FromArgb(64, 64, 64)
+                };
+
+                var lblLatestVersion = new Label
+                {
+                    Text = "Latest Version: Checking...",
+                    Left = 15, Top = 52, Width = 280, Height = 22,
+                    Font = new Font("Segoe UI", 10F),
+                    ForeColor = Color.FromArgb(64, 64, 64)
+                };
+
+                var lblUpdateStatus = new Label
+                {
+                    Text = "",
+                    Left = 15, Top = 76, Width = 400, Height = 22,
+                    Font = new Font("Segoe UI", 9.5F, FontStyle.Italic),
+                    ForeColor = Color.DimGray
+                };
+
+                var btnCheckUpdate = new Button
+                {
+                    Text = "🔍 Check for Updates",
+                    Left = 310, Top = 25, Width = 150, Height = 32,
+                    Font = new Font("Segoe UI", 9.5F),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = accentColor,
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+                btnCheckUpdate.FlatAppearance.BorderSize = 0;
+
+                var btnDownloadUpdate = new Button
+                {
+                    Text = "⬇ Download & Install",
+                    Left = 470, Top = 25, Width = 135, Height = 32,
+                    Font = new Font("Segoe UI", 9.5F),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.ForestGreen,
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand,
+                    Enabled = false,
+                    Visible = false
+                };
+                btnDownloadUpdate.FlatAppearance.BorderSize = 0;
+
+                var updateProgress = new ProgressBar
+                {
+                    Left = 310, Top = 62, Width = 295, Height = 20,
+                    Visible = false,
+                    Style = ProgressBarStyle.Continuous
+                };
+
+                var lblUpdateProgress = new Label
+                {
+                    Text = "",
+                    Left = 310, Top = 85, Width = 295, Height = 20,
+                    Font = new Font("Segoe UI", 8.5F),
+                    ForeColor = Color.DimGray,
+                    Visible = false
+                };
+
+                var chkAutoUpdate = new CheckBox
+                {
+                    Text = "Check for updates on startup",
+                    Left = 15, Top = 110, Width = 250, Height = 22,
+                    Font = new Font("Segoe UI", 9.5F),
+                    ForeColor = Color.FromArgb(64, 64, 64),
+                    Checked = aboutCfg.CheckForUpdatesOnStartup
+                };
+                chkAutoUpdate.CheckedChanged += (s, e) =>
+                {
+                    try
+                    {
+                        var cfg = ConfigManager.LoadConfig();
+                        cfg.CheckForUpdatesOnStartup = chkAutoUpdate.Checked;
+                        ConfigManager.SaveConfig(cfg);
+                    }
+                    catch { /* Ignore save errors */ }
+                };
+
+                string? pendingDownloadUrl = null;
+
+                // Check for updates action
+                btnCheckUpdate.Click += async (s, e) =>
+                {
+                    btnCheckUpdate.Enabled = false;
+                    btnCheckUpdate.Text = "Checking...";
+                    lblUpdateStatus.Text = "";
+                    lblLatestVersion.Text = "Latest Version: Checking...";
+                    btnDownloadUpdate.Visible = false;
+
+                    try
+                    {
+                        var updateInfo = await UpdateService.CheckForUpdatesAsync();
+                        
+                        if (!string.IsNullOrEmpty(updateInfo.Error))
+                        {
+                            lblLatestVersion.Text = "Latest Version: Unknown";
+                            lblUpdateStatus.Text = updateInfo.Error;
+                            lblUpdateStatus.ForeColor = Color.OrangeRed;
+                        }
+                        else
+                        {
+                            lblLatestVersion.Text = $"Latest Version: {updateInfo.LatestVersion}";
+                            
+                            if (updateInfo.IsUpdateAvailable)
+                            {
+                                lblUpdateStatus.Text = $"🎉 New version available! ({updateInfo.PublishedAt?.ToString("MMM dd, yyyy") ?? "Recent"})";
+                                lblUpdateStatus.ForeColor = Color.ForestGreen;
+                                pendingDownloadUrl = updateInfo.DownloadUrl;
+                                btnDownloadUpdate.Visible = true;
+                                btnDownloadUpdate.Enabled = !string.IsNullOrEmpty(pendingDownloadUrl);
+                            }
+                            else
+                            {
+                                lblUpdateStatus.Text = "✓ You are running the latest version!";
+                                lblUpdateStatus.ForeColor = Color.ForestGreen;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lblUpdateStatus.Text = $"Error: {ex.Message}";
+                        lblUpdateStatus.ForeColor = Color.OrangeRed;
+                    }
+                    finally
+                    {
+                        btnCheckUpdate.Enabled = true;
+                        btnCheckUpdate.Text = "🔍 Check for Updates";
+                    }
+                };
+
+                // Download and install update action
+                btnDownloadUpdate.Click += async (s, e) =>
+                {
+                    if (string.IsNullOrEmpty(pendingDownloadUrl))
+                    {
+                        MessageBox.Show("No download URL available. Please try checking for updates again.",
+                            "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    var confirm = MessageBox.Show(
+                        "This will download and install the latest version.\n\n" +
+                        "The application will need to restart after the update.\n" +
+                        "Your settings will be preserved.\n\n" +
+                        "Continue?",
+                        "Confirm Update",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+
+                    if (confirm != DialogResult.Yes) return;
+
+                    btnDownloadUpdate.Enabled = false;
+                    btnCheckUpdate.Enabled = false;
+                    updateProgress.Visible = true;
+                    lblUpdateProgress.Visible = true;
+                    updateProgress.Value = 0;
+
+                    var progress = new Progress<(int Percent, string Status)>(p =>
+                    {
+                        updateProgress.Value = Math.Min(100, p.Percent);
+                        lblUpdateProgress.Text = p.Status;
+                    });
+
+                    try
+                    {
+                        var (success, message) = await UpdateService.DownloadAndInstallUpdateAsync(pendingDownloadUrl, progress);
+
+                        if (success)
+                        {
+                            var restart = MessageBox.Show(
+                                message + "\n\nRestart now?",
+                                "Update Complete",
+                                MessageBoxButtons.YesNo,
+                                MessageBoxIcon.Information);
+
+                            if (restart == DialogResult.Yes)
+                            {
+                                UpdateService.RestartApplication();
+                            }
+                        }
+                        else
+                        {
+                            MessageBox.Show(message, "Update Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Update failed: {ex.Message}", "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        updateProgress.Visible = false;
+                        lblUpdateProgress.Visible = false;
+                        btnCheckUpdate.Enabled = true;
+                        btnDownloadUpdate.Enabled = true;
+                    }
+                };
+
+                updateGroup.Controls.AddRange(new Control[] 
+                { 
+                    lblCurrentVersion, lblLatestVersion, lblUpdateStatus, 
+                    btnCheckUpdate, btnDownloadUpdate, 
+                    updateProgress, lblUpdateProgress, chkAutoUpdate 
+                });
 
                 var lblDesc = new Label 
                 { 
@@ -2232,11 +2575,11 @@ namespace WeatherImageGenerator.Forms
                            "• High-quality text-to-speech for Canadian French and English\n" +
                            "• Video generation with background music and transitions\n" +
                            "• Multiple themes and customizable layouts",
-                    Left = 25, Top = 175, Width = 620, Height = 280,
+                    Left = 25, Top = 295, Width = 620, Height = 200,
                     Font = new Font("Segoe UI", 10F)
                 };
 
-                tabGeneral.Controls.AddRange(new Control[] { lblProduct, lblVersion, lblCopyright, linkGithub, lblDesc });
+                tabGeneral.Controls.AddRange(new Control[] { lblProduct, lblVersion, lblCopyright, linkGithub, updateGroup, lblDesc });
 
                 // --- Tab 2: Credits & Attribution ---
                 var tabCredits = new TabPage("Credits & Licenses") { BackColor = Color.White };
@@ -2531,3 +2874,5 @@ By using this software, you acknowledge and accept these limitations.";
                 catch { /* best-effort only */ }
             }
         }
+    }
+}
