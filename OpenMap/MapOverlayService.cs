@@ -35,6 +35,11 @@ public class MapOverlayService
     private readonly string? _tileCacheDirectory;
     private readonly int _cacheDurationHours;
     private readonly bool _useDarkMode;
+    
+    /// <summary>
+    /// Optional logging callback for cache and download activity
+    /// </summary>
+    public Action<string>? Log { get; set; }
 
     /// <summary>
     /// Creates a new MapOverlayService with default settings
@@ -289,11 +294,13 @@ public class MapOverlayService
         var cachedTile = GetCachedTile(url);
         if (cachedTile != null)
         {
+            Log?.Invoke($"[MapCache] HIT: {url}");
             return cachedTile;
         }
 
         try
         {
+            Log?.Invoke($"[MapCache] MISS - Downloading: {url}");
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
@@ -301,14 +308,15 @@ public class MapOverlayService
                 
                 // Save to cache
                 SaveTileToCache(url, bytes);
+                Log?.Invoke($"[MapCache] SAVED: {GetCacheFilePath(url)}");
                 
                 using var stream = new MemoryStream(bytes);
                 return new Bitmap(stream);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore download failures
+            Log?.Invoke($"[MapCache] ERROR downloading {url}: {ex.Message}");
         }
         return null;
     }

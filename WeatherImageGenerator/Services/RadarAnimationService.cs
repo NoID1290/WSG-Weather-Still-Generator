@@ -31,6 +31,7 @@ namespace WeatherImageGenerator.Services
             var openMapSettings = ConvertToOpenMapSettings(config.OpenMap);
             
             _mapService = new MapOverlayService(width, height, openMapSettings);
+            _mapService.Log = msg => Logger.Log(msg, ConsoleColor.DarkGray);
         }
         
         private static OpenMap.OpenMapSettings? ConvertToOpenMapSettings(Services.OpenMapSettings? configSettings)

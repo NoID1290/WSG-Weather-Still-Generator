@@ -56,6 +56,7 @@ namespace WeatherImageGenerator.Services
             var openMapSettings = ConvertToOpenMapSettings(config.OpenMap);
             
             _mapService = new MapOverlayService(width, height, openMapSettings);
+            _mapService.Log = msg => Logger.Log(msg, ConsoleColor.DarkGray);
             _httpClient = new HttpClient();
         }
 
