@@ -153,22 +153,95 @@ namespace WeatherImageGenerator.Forms
             int progressWidth = 520;
             int statusLeft = progressWidth + 40;
             
-            _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = statusSectionTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
-            _progress = new TextProgressBar { Left = 15, Top = statusRowTop, Width = progressWidth, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = statusSectionTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(140, 150, 170) };
+            _progress = new TextProgressBar { Left = 15, Top = statusRowTop, Width = progressWidth, Height = 28, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9.5F, FontStyle.Bold) };
 
-            // NAAD Status Panel (inline below progress bar)
-            _naadPanel = new Panel { Left = 15, Top = statusRow2Top, Width = progressWidth, Height = 22, BackColor = Color.Transparent, Padding = new Padding(0) };
-            _naadTitleLabel = new Label { Text = "📡 NAAD", Left = 0, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold) };
-            _naadConnectionLabel = new Label { Text = "⚪ Offline", Left = 70, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold) };
-            _naadHeartbeatLabel = new Label { Text = "💓 --:--:--", Left = 175, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Regular) };
-            _naadAlertLabel = new Label { Text = "⚠ 0 alerts", Left = 290, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold) };
+            // NAAD Status Panel - Modern professional status bar design
+            _naadPanel = new Panel { 
+                Left = 15, 
+                Top = statusRow2Top, 
+                Width = progressWidth, 
+                Height = 28, 
+                BackColor = Color.FromArgb(35, 45, 60), 
+                Padding = new Padding(8, 0, 8, 0) 
+            };
+            _naadPanel.Paint += (s, e) => {
+                // Draw rounded rectangle background
+                var rect = _naadPanel.ClientRectangle;
+                rect.Width -= 1; rect.Height -= 1;
+                using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    int r = 6;
+                    path.AddArc(rect.X, rect.Y, r * 2, r * 2, 180, 90);
+                    path.AddArc(rect.Right - r * 2, rect.Y, r * 2, r * 2, 270, 90);
+                    path.AddArc(rect.Right - r * 2, rect.Bottom - r * 2, r * 2, r * 2, 0, 90);
+                    path.AddArc(rect.X, rect.Bottom - r * 2, r * 2, r * 2, 90, 90);
+                    path.CloseFigure();
+                    e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(rect, 
+                        Color.FromArgb(40, 52, 70), Color.FromArgb(30, 40, 55), 
+                        System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+                    {
+                        e.Graphics.FillPath(brush, path);
+                    }
+                    using (var pen = new Pen(Color.FromArgb(55, 70, 90), 1f))
+                    {
+                        e.Graphics.DrawPath(pen, path);
+                    }
+                }
+            };
+            
+            // Title with modern styling
+            _naadTitleLabel = new Label { 
+                Text = "◈ NAAD", 
+                Left = 10, 
+                Top = 5, 
+                AutoSize = true, 
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold), 
+                ForeColor = Color.FromArgb(200, 210, 225),
+                BackColor = Color.Transparent
+            };
+            
+            // Connection status with colored indicator
+            _naadConnectionLabel = new Label { 
+                Text = "○ Offline", 
+                Left = 85, 
+                Top = 5, 
+                AutoSize = true, 
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(120, 130, 150),
+                BackColor = Color.Transparent
+            };
+            
+            // Heartbeat with subtle styling
+            _naadHeartbeatLabel = new Label { 
+                Text = "♡ --:--:--", 
+                Left = 200, 
+                Top = 5, 
+                AutoSize = true, 
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                ForeColor = Color.FromArgb(140, 150, 170),
+                BackColor = Color.Transparent
+            };
+            
+            // Alert counter with emphasis styling
+            _naadAlertLabel = new Label { 
+                Text = "△ 0 alerts", 
+                Left = 320, 
+                Top = 5, 
+                AutoSize = true, 
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(140, 150, 170),
+                BackColor = Color.Transparent
+            };
+            
             _naadPanel.Controls.Add(_naadTitleLabel);
             _naadPanel.Controls.Add(_naadConnectionLabel);
             _naadPanel.Controls.Add(_naadHeartbeatLabel);
             _naadPanel.Controls.Add(_naadAlertLabel);
 
-            _statusLabel2 = new Label { Text = "STATUS", Left = statusLeft, Top = statusSectionTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
-            _statusLabel = new Label { Left = statusLeft, Top = statusRowTop, Width = 300, Height = 24, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 10F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
+            _statusLabel2 = new Label { Text = "STATUS", Left = statusLeft, Top = statusSectionTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(140, 150, 170) };
+            _statusLabel = new Label { Left = statusLeft, Top = statusRowTop, Width = 400, Height = 28, Text = "✦ Idle — Ready to process", AutoSize = false, Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 0, 0, 0) };
             _sleepLabel = new Label { Left = statusLeft, Top = statusRow2Top, Width = 350, Height = 20, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9F, FontStyle.Regular), BackColor = Color.Transparent };
             _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 26, Text = "📡 Last fetch: Never", Font = new Font("Segoe UI", 9F, FontStyle.Regular), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 4, 0, 0) };
 
@@ -332,7 +405,7 @@ namespace WeatherImageGenerator.Forms
                 await GenerateTestAlertAsync();
             };
 
-            _topPanel = new Panel { Dock = DockStyle.Top, Height = 170, Padding = new Padding(8, 4, 8, 4) };
+            _topPanel = new Panel { Dock = DockStyle.Top, Height = 178, Padding = new Padding(8, 4, 8, 4) };
             // Add group labels
             _topPanel.Controls.Add(_groupLabel1);
             _topPanel.Controls.Add(_groupLabel2);
@@ -1851,14 +1924,59 @@ namespace WeatherImageGenerator.Forms
                 return;
             }
 
-            // Gentle color coding for statuses
+            // Enhanced status display with professional icons and color coding
             if (status == null) status = string.Empty;
             var lower = status.ToLowerInvariant();
-            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("fail")) _statusLabel.ForeColor = _themeDangerColor;
-            else if (lower.Contains("encoding") || lower.Contains("video") || lower.Contains("running")) _statusLabel.ForeColor = _themeAccentColor;
-            else _statusLabel.ForeColor = _themeTextColor;
-
-            _statusLabel.Text = status;
+            string icon = "✦";  // Default icon
+            Color statusColor = _themeTextColor;
+            
+            // Determine status type and apply appropriate styling
+            if (lower.Contains("error") || lower.Contains("failed") || lower.Contains("fail"))
+            {
+                icon = "✖";
+                statusColor = _themeDangerColor;
+            }
+            else if (lower.Contains("complete") || lower.Contains("success") || lower.Contains("done") || lower.Contains("finished"))
+            {
+                icon = "✓";
+                statusColor = _themeSuccessColor;
+            }
+            else if (lower.Contains("encoding") || lower.Contains("video") || lower.Contains("generating"))
+            {
+                icon = "◉";
+                statusColor = Color.FromArgb(155, 89, 182);  // Purple for media processing
+            }
+            else if (lower.Contains("running") || lower.Contains("processing") || lower.Contains("working"))
+            {
+                icon = "◈";
+                statusColor = _themeAccentColor;
+            }
+            else if (lower.Contains("fetch") || lower.Contains("download") || lower.Contains("loading"))
+            {
+                icon = "↻";
+                statusColor = Color.FromArgb(52, 152, 219);  // Blue for network operations
+            }
+            else if (lower.Contains("wait") || lower.Contains("sleep") || lower.Contains("idle"))
+            {
+                icon = "◇";
+                statusColor = Color.FromArgb(149, 165, 166);  // Gray for idle/waiting
+            }
+            else if (lower.Contains("start") || lower.Contains("begin") || lower.Contains("init"))
+            {
+                icon = "▶";
+                statusColor = _themeSuccessColor;
+            }
+            else if (lower.Contains("stop") || lower.Contains("cancel") || lower.Contains("abort"))
+            {
+                icon = "■";
+                statusColor = _themeWarningColor;
+            }
+            
+            _statusLabel.ForeColor = statusColor;
+            
+            // Format status with icon - ensure proper spacing
+            string formattedStatus = $"{icon} {status}";
+            _statusLabel.Text = formattedStatus;
         }
 
         private void OpenOutputDirectory()
@@ -2159,8 +2277,8 @@ namespace WeatherImageGenerator.Forms
             }
 
             var localTime = e.Timestamp.ToLocalTime();
-            _naadHeartbeatLabel!.Text = $"💓 {localTime:HH:mm:ss}";
-            _naadHeartbeatLabel.ForeColor = _themeTextColor;
+            _naadHeartbeatLabel!.Text = $"♡ {localTime:HH:mm:ss}";
+            _naadHeartbeatLabel.ForeColor = Color.FromArgb(155, 170, 190);
         }
 
         private void OnNaadAlertReceived(object? sender, AlertReceivedEventArgs e)
@@ -2171,8 +2289,12 @@ namespace WeatherImageGenerator.Forms
                 return;
             }
 
-            _naadAlertLabel!.Text = $"⚠ {e.TotalActiveAlerts} alert{(e.TotalActiveAlerts != 1 ? "s" : "")}";
-            _naadAlertLabel.ForeColor = e.TotalActiveAlerts > 0 ? _themeWarningColor : _themeTextColor;
+            // Enhanced alert display with animated feel
+            string alertIcon = e.TotalActiveAlerts > 0 ? "▲" : "△";
+            _naadAlertLabel!.Text = $"{alertIcon} {e.TotalActiveAlerts} alert{(e.TotalActiveAlerts != 1 ? "s" : "")}";
+            _naadAlertLabel.ForeColor = e.TotalActiveAlerts > 0 
+                ? Color.FromArgb(241, 196, 15)   // Bright warning yellow for active alerts
+                : Color.FromArgb(140, 150, 170);  // Muted for no alerts
 
             // Log the alert
             Logger.Log($"[NAAD] Alert received: {e.Alert?.Title}", Logger.LogLevel.Info);
@@ -2195,16 +2317,16 @@ namespace WeatherImageGenerator.Forms
             switch (status)
             {
                 case NaadConnectionStatus.Connected:
-                    _naadConnectionLabel!.Text = "🟢 Connected";
-                    _naadConnectionLabel.ForeColor = _themeSuccessColor;
+                    _naadConnectionLabel!.Text = "● Connected";
+                    _naadConnectionLabel.ForeColor = Color.FromArgb(46, 204, 113);  // Bright green
                     break;
                 case NaadConnectionStatus.Connecting:
-                    _naadConnectionLabel!.Text = "🟡 Connecting...";
-                    _naadConnectionLabel.ForeColor = _themeWarningColor;
+                    _naadConnectionLabel!.Text = "◐ Connecting...";
+                    _naadConnectionLabel.ForeColor = Color.FromArgb(241, 196, 15);  // Yellow
                     break;
                 case NaadConnectionStatus.Disconnected:
-                    _naadConnectionLabel!.Text = "🔴 Offline";
-                    _naadConnectionLabel.ForeColor = _themeDangerColor;
+                    _naadConnectionLabel!.Text = "○ Offline";
+                    _naadConnectionLabel.ForeColor = Color.FromArgb(231, 76, 60);   // Red
                     break;
             }
         }
@@ -2236,26 +2358,46 @@ namespace WeatherImageGenerator.Forms
         }
 
         // Custom progress bar that paints a centered overlay text (percentage) and supports a simple marquee animation.
+        // Enhanced with modern professional styling: rounded corners, gradients, glow effects, and segment animation.
         internal class TextProgressBar : ProgressBar
         {
             private readonly System.Windows.Forms.Timer _marqueeTimer;
+            private readonly System.Windows.Forms.Timer _pulseTimer;
             private int _marqueeOffset = 0;
-            private int _marqueeWidth = 80;
+            private int _marqueeWidth = 120;
+            private float _pulsePhase = 0f;
+            private int _cornerRadius = 6;
+            
+            // Modern color scheme
+            private Color _progressStartColor = Color.FromArgb(0, 180, 120);   // Teal green
+            private Color _progressEndColor = Color.FromArgb(0, 220, 160);     // Lighter teal
+            private Color _progressGlowColor = Color.FromArgb(80, 0, 220, 160); // Glow overlay
+            private Color _trackColor = Color.FromArgb(45, 55, 72);            // Dark slate
+            private Color _trackBorderColor = Color.FromArgb(60, 70, 90);      // Subtle border
+            private Color _segmentLineColor = Color.FromArgb(35, 255, 255, 255); // Subtle segments
 
             public TextProgressBar()
             {
-                // We handle painting ourselves
-                SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
-                _marqueeTimer = new System.Windows.Forms.Timer { Interval = 60 };
+                SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw, true);
+                
+                _marqueeTimer = new System.Windows.Forms.Timer { Interval = 35 };
                 _marqueeTimer.Tick += (s, e) =>
                 {
-                    _marqueeOffset = (_marqueeOffset + 8) % (this.Width + _marqueeWidth);
+                    _marqueeOffset = (_marqueeOffset + 6) % (this.Width + _marqueeWidth);
                     this.Invalidate();
                 };
 
-                // Provide a pleasant default look
-                this.ForeColor = Color.Black;
-                this.BackColor = Color.FromArgb(240, 240, 240);
+                _pulseTimer = new System.Windows.Forms.Timer { Interval = 50 };
+                _pulseTimer.Tick += (s, e) =>
+                {
+                    _pulsePhase = (_pulsePhase + 0.12f) % (float)(Math.PI * 2);
+                    this.Invalidate();
+                };
+                _pulseTimer.Start();
+
+                this.ForeColor = Color.White;
+                this.BackColor = _trackColor;
+                this.Height = 28;
             }
 
             public void StartMarquee()
@@ -2272,52 +2414,144 @@ namespace WeatherImageGenerator.Forms
                 this.Invalidate();
             }
 
+            private System.Drawing.Drawing2D.GraphicsPath CreateRoundedRectPath(Rectangle rect, int radius)
+            {
+                var path = new System.Drawing.Drawing2D.GraphicsPath();
+                int d = radius * 2;
+                path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+                path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+                path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+                path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+                path.CloseFigure();
+                return path;
+            }
+
             protected override void OnPaint(PaintEventArgs e)
             {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                
                 var rect = this.ClientRectangle;
+                rect.Width -= 1; rect.Height -= 1;
 
-                // Background gradient
-                using (var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect, Color.FromArgb(240, 240, 240), Color.FromArgb(220, 220, 220), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
-                    e.Graphics.FillRectangle(bg, rect);
+                // Draw track background with rounded corners
+                using (var trackPath = CreateRoundedRectPath(rect, _cornerRadius))
+                {
+                    using (var trackBrush = new System.Drawing.Drawing2D.LinearGradientBrush(rect, 
+                        Color.FromArgb(35, 45, 60), Color.FromArgb(50, 60, 75), 
+                        System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+                    {
+                        e.Graphics.FillPath(trackBrush, trackPath);
+                    }
+                    // Inner shadow effect
+                    using (var innerShadow = new Pen(Color.FromArgb(30, 0, 0, 0), 2f))
+                    {
+                        e.Graphics.DrawPath(innerShadow, trackPath);
+                    }
+                }
 
-                // Draw progress or marquee
                 if (this.Style == ProgressBarStyle.Marquee)
                 {
-                    int w = Math.Min(_marqueeWidth, rect.Width);
+                    // Animated marquee with glow
+                    int w = Math.Min(_marqueeWidth, rect.Width - 4);
                     int x = _marqueeOffset - w;
-                    var mar = new Rectangle(x, 2, w, rect.Height - 4);
-                    if (mar.Width > 0)
+                    var marRect = new Rectangle(x + 2, 3, w, rect.Height - 6);
+                    if (marRect.Width > 0 && marRect.Right > 2)
                     {
-                        using (var b = new System.Drawing.Drawing2D.LinearGradientBrush(mar, Color.FromArgb(150, 200, 255), Color.FromArgb(100, 160, 255), 0f))
-                            e.Graphics.FillRectangle(b, mar);
+                        using (var marPath = CreateRoundedRectPath(marRect, _cornerRadius - 2))
+                        {
+                            // Gradient fill
+                            using (var marBrush = new System.Drawing.Drawing2D.LinearGradientBrush(marRect,
+                                Color.FromArgb(60, 180, 255), Color.FromArgb(100, 200, 255),
+                                System.Drawing.Drawing2D.LinearGradientMode.Horizontal))
+                            {
+                                e.Graphics.FillPath(marBrush, marPath);
+                            }
+                            // Glow overlay
+                            using (var glowBrush = new SolidBrush(Color.FromArgb((int)(40 + 20 * Math.Sin(_pulsePhase)), 150, 220, 255)))
+                            {
+                                e.Graphics.FillPath(glowBrush, marPath);
+                            }
+                        }
                     }
                 }
                 else
                 {
                     double pct = (this.Maximum > this.Minimum) ? (this.Value - this.Minimum) / (double)(this.Maximum - this.Minimum) : 0.0;
-                    int width = (int)Math.Round(rect.Width * pct);
-                    if (width > 0)
+                    int progressWidth = (int)Math.Round((rect.Width - 4) * pct);
+                    
+                    if (progressWidth > 2)
                     {
-                        var fill = new Rectangle(0, 2, width, rect.Height - 4);
-                        using (var g = new System.Drawing.Drawing2D.LinearGradientBrush(fill, Color.FromArgb(105, 180, 255), Color.FromArgb(40, 120, 255), System.Drawing.Drawing2D.LinearGradientMode.Horizontal))
-                            e.Graphics.FillRectangle(g, fill);
+                        var fillRect = new Rectangle(2, 3, progressWidth, rect.Height - 6);
+                        using (var fillPath = CreateRoundedRectPath(fillRect, Math.Min(_cornerRadius - 2, progressWidth / 2)))
+                        {
+                            // Main gradient fill
+                            using (var fillBrush = new System.Drawing.Drawing2D.LinearGradientBrush(fillRect,
+                                _progressStartColor, _progressEndColor,
+                                System.Drawing.Drawing2D.LinearGradientMode.Horizontal))
+                            {
+                                e.Graphics.FillPath(fillBrush, fillPath);
+                            }
+
+                            // Animated glow/shine overlay
+                            float pulseIntensity = (float)(0.15 + 0.1 * Math.Sin(_pulsePhase));
+                            using (var shineBrush = new System.Drawing.Drawing2D.LinearGradientBrush(fillRect,
+                                Color.FromArgb((int)(255 * pulseIntensity), 255, 255, 255),
+                                Color.FromArgb(0, 255, 255, 255),
+                                System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+                            {
+                                e.Graphics.FillPath(shineBrush, fillPath);
+                            }
+
+                            // Draw subtle segment lines for professional look
+                            int segmentSpacing = 30;
+                            using (var segPen = new Pen(_segmentLineColor, 1f))
+                            {
+                                for (int sx = segmentSpacing; sx < progressWidth; sx += segmentSpacing)
+                                {
+                                    e.Graphics.DrawLine(segPen, 2 + sx, 5, 2 + sx, rect.Height - 5);
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Border
-                using (var p = new Pen(Color.FromArgb(170, 170, 170)))
-                    e.Graphics.DrawRectangle(p, 0, 0, rect.Width - 1, rect.Height - 1);
-
-                // Centered text (use Text property if set, otherwise default to percent)
-                string text = string.IsNullOrEmpty(this.Text) ? (this.Maximum > 0 ? $"{(int)Math.Round((this.Value / (double)this.Maximum) * 100.0)}%" : "0%") : this.Text;
-                Color textColor = Color.Black;
-                try
+                // Outer border
+                using (var borderPath = CreateRoundedRectPath(rect, _cornerRadius))
+                using (var borderPen = new Pen(_trackBorderColor, 1.5f))
                 {
-                    if (this.Value / (double)Math.Max(1, this.Maximum) > 0.5) textColor = Color.White;
+                    e.Graphics.DrawPath(borderPen, borderPath);
                 }
-                catch { }
 
-                TextRenderer.DrawText(e.Graphics, text, this.Font, rect, textColor, System.Windows.Forms.TextFormatFlags.HorizontalCenter | System.Windows.Forms.TextFormatFlags.VerticalCenter);
+                // Draw centered text with shadow for depth
+                double displayPct = (this.Maximum > 0) ? (this.Value / (double)this.Maximum) * 100.0 : 0.0;
+                string text = string.IsNullOrEmpty(this.Text) ? $"{(int)Math.Round(displayPct)}%" : this.Text;
+                
+                var textFont = new Font(this.Font.FontFamily, this.Font.Size, FontStyle.Bold);
+                
+                // Text shadow
+                var shadowRect = rect;
+                shadowRect.Offset(1, 1);
+                TextRenderer.DrawText(e.Graphics, text, textFont, shadowRect, Color.FromArgb(100, 0, 0, 0),
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                
+                // Main text
+                TextRenderer.DrawText(e.Graphics, text, textFont, rect, Color.White,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                
+                textFont.Dispose();
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    _marqueeTimer?.Stop();
+                    _marqueeTimer?.Dispose();
+                    _pulseTimer?.Stop();
+                    _pulseTimer?.Dispose();
+                }
+                base.Dispose(disposing);
             }
         }
 
