@@ -113,7 +113,7 @@ namespace WeatherImageGenerator.Forms
             _groupLabel1 = new Label { Text = "CONTROL CYCLE", Left = g1Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
             _startBtn = CreateStyledButton("Start", g1Left, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(39, 174, 96), Color.White);
             _stopBtn = CreateStyledButton("Stop", g1Left + g1BtnWidth + btnSpacing, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(192, 57, 43), Color.White);
-            _stopBtn.Enabled = false;
+            SetButtonEnabled(_stopBtn, false);
             
             // Group 2: Generate (Fetch, Still, Video, Cancel, Test Alert)
             int g2Left = g1Left + (g1BtnWidth * 2) + btnSpacing + groupSpacing;
@@ -123,7 +123,7 @@ namespace WeatherImageGenerator.Forms
             _stillBtn = CreateStyledButton("Still", g2Left + (g2BtnWidth + btnSpacing), row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
             _videoBtn = CreateStyledButton("Video", g2Left + (g2BtnWidth + btnSpacing) * 2, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
             _cancelBtn = CreateStyledButton("Cancel", g2Left + (g2BtnWidth + btnSpacing) * 3, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(192, 57, 43), Color.White);
-            _cancelBtn.Enabled = false;
+            SetButtonEnabled(_cancelBtn, false);
             _testAlertBtn = CreateStyledButton("Test Alert", g2Left, row2Top, (g2BtnWidth * 2) + btnSpacing, btnHeight, Color.FromArgb(230, 126, 34), Color.White);
             
             // Group 3: Files (Open, Clear, Gallery, WebUI)
@@ -711,14 +711,22 @@ namespace WeatherImageGenerator.Forms
             SetLabel(_sleepLabel, labelTextColor);
             if (_statusLabel != null) _statusLabel.ForeColor = successColor; // Idle is success color usually
 
-            // Buttons
+            // Buttons - update stored colors and apply only if enabled
             void SetBtn(Button? b, Color bg, Color fg) { 
                 if (b != null) { 
-                    b.BackColor = bg; 
-                    b.ForeColor = fg; 
-                    b.FlatAppearance.BorderColor = ControlPaint.Light(bg, 0.2f);
-                    b.FlatAppearance.MouseOverBackColor = ControlPaint.Light(bg, 0.15f);
-                    b.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(bg, 0.15f);
+                    // Update the stored original colors in Tag
+                    b.Tag = new Color[] { bg, fg };
+                    
+                    // Only apply colors if the button is enabled; disabled buttons stay gray
+                    if (b.Enabled)
+                    {
+                        b.BackColor = bg; 
+                        b.ForeColor = fg; 
+                        b.FlatAppearance.BorderColor = ControlPaint.Light(bg, 0.2f);
+                        b.FlatAppearance.MouseOverBackColor = ControlPaint.Light(bg, 0.15f);
+                        b.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(bg, 0.15f);
+                    }
+                    // Disabled buttons keep their gray appearance
                 } 
             }
             SetBtn(_startBtn, successColor, coloredBtnText);
@@ -774,7 +782,69 @@ namespace WeatherImageGenerator.Forms
             btn.FlatAppearance.BorderColor = ControlPaint.Light(backColor, 0.2f);
             btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(backColor, 0.15f);
             btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(backColor, 0.15f);
+            
+            // Store original colors in Tag for restoration when re-enabled
+            btn.Tag = new Color[] { backColor, foreColor };
+            
+            // Handle enabled/disabled state visual changes
+            btn.EnabledChanged += (s, e) =>
+            {
+                if (s is Button b && b.Tag is Color[] colors && colors.Length == 2)
+                {
+                    Color origBack = colors[0];
+                    Color origFore = colors[1];
+                    
+                    if (b.Enabled)
+                    {
+                        // Restore original colors
+                        b.BackColor = origBack;
+                        b.ForeColor = origFore;
+                        b.Cursor = Cursors.Hand;
+                        b.FlatAppearance.MouseOverBackColor = ControlPaint.Light(origBack, 0.15f);
+                        b.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(origBack, 0.15f);
+                    }
+                    else
+                    {
+                        // Gray out the button
+                        b.BackColor = Color.FromArgb(100, 100, 100);
+                        b.ForeColor = Color.FromArgb(160, 160, 160);
+                        b.Cursor = Cursors.Default;
+                        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(100, 100, 100);
+                        b.FlatAppearance.MouseDownBackColor = Color.FromArgb(100, 100, 100);
+                    }
+                }
+            };
+            
             return btn;
+        }
+
+        /// <summary>
+        /// Sets a styled button's enabled state and applies the appropriate visual styling immediately.
+        /// </summary>
+        private void SetButtonEnabled(Button btn, bool enabled)
+        {
+            btn.Enabled = enabled;
+            
+            // Apply visual styling immediately (in case EnabledChanged doesn't fire)
+            if (btn.Tag is Color[] colors && colors.Length == 2)
+            {
+                if (enabled)
+                {
+                    btn.BackColor = colors[0];
+                    btn.ForeColor = colors[1];
+                    btn.Cursor = Cursors.Hand;
+                    btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(colors[0], 0.15f);
+                    btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(colors[0], 0.15f);
+                }
+                else
+                {
+                    btn.BackColor = Color.FromArgb(100, 100, 100);
+                    btn.ForeColor = Color.FromArgb(160, 160, 160);
+                    btn.Cursor = Cursors.Default;
+                    btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(100, 100, 100);
+                    btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(100, 100, 100);
+                }
+            }
         }
 
         private void InitializeNotifyIcon()
@@ -1082,8 +1152,8 @@ namespace WeatherImageGenerator.Forms
         {
             if (_cts != null) return;
             _cts = new CancellationTokenSource();
-            startBtn.Enabled = false;
-            stopBtn.Enabled = true;
+            SetButtonEnabled(startBtn, false);
+            SetButtonEnabled(stopBtn, true);
             // Clear any previous sleep indicator when starting
             SetSleepRemaining(TimeSpan.Zero);
 
@@ -1096,8 +1166,8 @@ namespace WeatherImageGenerator.Forms
             if (_cts == null) return;
             _cts.Cancel();
             _cts = null;
-            startBtn.Enabled = true;
-            stopBtn.Enabled = false;
+            SetButtonEnabled(startBtn, true);
+            SetButtonEnabled(stopBtn, false);
             // Clear any sleep countdown when stopped
             SetSleepRemaining(TimeSpan.Zero);
             Logger.Log("Stop requested. Background worker will exit shortly.");
@@ -1169,7 +1239,7 @@ namespace WeatherImageGenerator.Forms
 
         private void FetchClicked(Button fetchBtn)
         {
-            fetchBtn.Enabled = false;
+            SetButtonEnabled(fetchBtn, false);
             _operationCts?.Dispose();
             _operationCts = new CancellationTokenSource();
             SetCancelState(true);
@@ -1186,9 +1256,9 @@ namespace WeatherImageGenerator.Forms
                 finally
                 {
                     if (fetchBtn.InvokeRequired)
-                        fetchBtn.Invoke(new Action(() => fetchBtn.Enabled = true));
+                        fetchBtn.Invoke(new Action(() => SetButtonEnabled(fetchBtn, true)));
                     else
-                        fetchBtn.Enabled = true;
+                        SetButtonEnabled(fetchBtn, true);
 
                     _operationCts?.Dispose();
                     _operationCts = null;
@@ -1199,7 +1269,7 @@ namespace WeatherImageGenerator.Forms
 
         private void StillClicked(Button stillBtn)
         {
-            stillBtn.Enabled = false;
+            SetButtonEnabled(stillBtn, false);
             _operationCts?.Dispose();
             _operationCts = new CancellationTokenSource();
             SetCancelState(true);
@@ -1216,9 +1286,9 @@ namespace WeatherImageGenerator.Forms
                 finally
                 {
                     if (stillBtn.InvokeRequired)
-                        stillBtn.Invoke(new Action(() => stillBtn.Enabled = true));
+                        stillBtn.Invoke(new Action(() => SetButtonEnabled(stillBtn, true)));
                     else
-                        stillBtn.Enabled = true;
+                        SetButtonEnabled(stillBtn, true);
 
                     _operationCts?.Dispose();
                     _operationCts = null;
@@ -1247,7 +1317,7 @@ namespace WeatherImageGenerator.Forms
                 _cancelBtn.BeginInvoke(new Action(() => SetCancelState(enabled)));
                 return;
             }
-            _cancelBtn.Enabled = enabled;
+            SetButtonEnabled(_cancelBtn, enabled);
         }
 
         private void OnMessageLogged(string text, Logger.LogLevel level)
@@ -2093,8 +2163,8 @@ namespace WeatherImageGenerator.Forms
         /// </summary>
         private async Task GenerateTestAlertAsync()
         {
-            _testAlertBtn!.Enabled = false;
-            _testAlertBtn.Text = "⏳ Generating...";
+            SetButtonEnabled(_testAlertBtn!, false);
+            _testAlertBtn!.Text = "⏳ Generating...";
 
             try
             {
@@ -2176,8 +2246,8 @@ namespace WeatherImageGenerator.Forms
             }
             finally
             {
-                _testAlertBtn!.Enabled = true;
-                _testAlertBtn.Text = "🧪 Emergency Test Alert";
+                SetButtonEnabled(_testAlertBtn!, true);
+                _testAlertBtn!.Text = "🧪 Emergency Test Alert";
             }
         }
 
