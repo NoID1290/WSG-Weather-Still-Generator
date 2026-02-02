@@ -285,12 +285,24 @@ public class MapOverlayService
 
     private async Task<Bitmap?> DownloadTileAsync(string url)
     {
+        // Check cache first
+        var cachedTile = GetCachedTile(url);
+        if (cachedTile != null)
+        {
+            return cachedTile;
+        }
+
         try
         {
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
-                var stream = await response.Content.ReadAsStreamAsync();
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                
+                // Save to cache
+                SaveTileToCache(url, bytes);
+                
+                using var stream = new MemoryStream(bytes);
                 return new Bitmap(stream);
             }
         }
@@ -299,6 +311,79 @@ public class MapOverlayService
             // Ignore download failures
         }
         return null;
+    }
+
+    private string GetCacheFilePath(string url)
+    {
+        // Create a safe filename from the URL
+        var hash = url.GetHashCode().ToString("X8");
+        var uri = new Uri(url);
+        var pathParts = uri.AbsolutePath.Trim('/').Replace("/", "_");
+        var fileName = $"{pathParts}_{hash}.png";
+        
+        var cacheDir = _tileCacheDirectory ?? "MapCache";
+        if (!Path.IsPathRooted(cacheDir))
+        {
+            cacheDir = Path.Combine(AppContext.BaseDirectory, cacheDir);
+        }
+        
+        return Path.Combine(cacheDir, fileName);
+    }
+
+    private Bitmap? GetCachedTile(string url)
+    {
+        if (!_enableTileCache)
+            return null;
+
+        try
+        {
+            var cachePath = GetCacheFilePath(url);
+            if (File.Exists(cachePath))
+            {
+                var fileInfo = new FileInfo(cachePath);
+                var age = DateTime.Now - fileInfo.LastWriteTime;
+                
+                if (age.TotalHours <= _cacheDurationHours)
+                {
+                    // Load from cache
+                    using var stream = new FileStream(cachePath, FileMode.Open, FileAccess.Read);
+                    return new Bitmap(stream);
+                }
+                else
+                {
+                    // Cache expired, delete it
+                    File.Delete(cachePath);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore cache read failures
+        }
+        return null;
+    }
+
+    private void SaveTileToCache(string url, byte[] data)
+    {
+        if (!_enableTileCache)
+            return;
+
+        try
+        {
+            var cachePath = GetCacheFilePath(url);
+            var cacheDir = Path.GetDirectoryName(cachePath);
+            
+            if (!string.IsNullOrEmpty(cacheDir) && !Directory.Exists(cacheDir))
+            {
+                Directory.CreateDirectory(cacheDir);
+            }
+            
+            File.WriteAllBytes(cachePath, data);
+        }
+        catch
+        {
+            // Ignore cache write failures
+        }
     }
 
     private int LonToTileX(double lon, int zoom)

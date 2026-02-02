@@ -1285,6 +1285,7 @@ namespace WeatherImageGenerator.Forms
                 numMapTileTimeout.Value = openMap.TileDownloadTimeoutSeconds;
                 chkMapEnableCache.Checked = openMap.EnableTileCache;
                 txtMapCacheDirectory.Text = openMap.TileCacheDirectory ?? "MapCache";
+                txtMapCacheDirectory.Enabled = openMap.EnableTileCache;
                 numMapCacheDuration.Value = openMap.CacheDurationHours;
                 chkMapUseDarkMode.Checked = openMap.UseDarkMode;
 
