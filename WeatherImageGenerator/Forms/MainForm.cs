@@ -98,62 +98,84 @@ namespace WeatherImageGenerator.Forms
                 try { TryArchiveLogsIfNeededSafe(); } catch { }
             }, null, 30000, 30000); // every 30s
             
-            // === CONTROL GROUPS - Compact Layout ===
-            // Row 1: Main Operations
-            // Group 1: Control Operations
-            _groupLabel1 = new Label { Text = "CONTROL CYCLE", Left = 15, Top = 4, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold) };
-            _startBtn = CreateStyledButton("Start", 15, 20, 85, 30, Color.Gray, Color.White);
-            _stopBtn = CreateStyledButton("Stop", 105, 20, 85, 30, Color.Gray, Color.White);
+            // === CONTROL GROUPS - Professional Aligned Layout ===
+            // Constants for consistent spacing and sizing
+            int btnHeight = 32;
+            int btnSpacing = 6;
+            int groupSpacing = 20;
+            int row1Top = 22;
+            int row2Top = 58;
+            int labelTop = 6;
+            
+            // Group 1: Control Cycle (Start/Stop)
+            int g1Left = 15;
+            int g1BtnWidth = 70;
+            _groupLabel1 = new Label { Text = "CONTROL CYCLE", Left = g1Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
+            _startBtn = CreateStyledButton("Start", g1Left, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(39, 174, 96), Color.White);
+            _stopBtn = CreateStyledButton("Stop", g1Left + g1BtnWidth + btnSpacing, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(192, 57, 43), Color.White);
             _stopBtn.Enabled = false;
             
-            // Group 2: Generation Operations
-            _groupLabel2 = new Label { Text = "GENERATE", Left = 205, Top = 4, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold) };
-            _fetchBtn = CreateStyledButton("Fetch", 205, 20, 85, 30, Color.Gray, Color.White);
-            _stillBtn = CreateStyledButton("Still", 295, 20, 85, 30, Color.Gray, Color.White);
-            _videoBtn = CreateStyledButton("Video", 385, 20, 85, 30, Color.Gray, Color.White);
-            _cancelBtn = CreateStyledButton("Cancel", 475, 20, 90, 30, Color.DarkRed, Color.White);
+            // Group 2: Generate (Fetch, Still, Video, Cancel, Test Alert)
+            int g2Left = g1Left + (g1BtnWidth * 2) + btnSpacing + groupSpacing;
+            int g2BtnWidth = 75;
+            _groupLabel2 = new Label { Text = "GENERATE", Left = g2Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
+            _fetchBtn = CreateStyledButton("Fetch", g2Left, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
+            _stillBtn = CreateStyledButton("Still", g2Left + (g2BtnWidth + btnSpacing), row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
+            _videoBtn = CreateStyledButton("Video", g2Left + (g2BtnWidth + btnSpacing) * 2, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
+            _cancelBtn = CreateStyledButton("Cancel", g2Left + (g2BtnWidth + btnSpacing) * 3, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(192, 57, 43), Color.White);
             _cancelBtn.Enabled = false;
-            _testAlertBtn = CreateStyledButton("Test Alert", 205, 54, 160, 28, Color.DarkOrange, Color.White);
+            _testAlertBtn = CreateStyledButton("Test Alert", g2Left, row2Top, (g2BtnWidth * 2) + btnSpacing, btnHeight, Color.FromArgb(230, 126, 34), Color.White);
             
-            // Group 3: File Operations
-            _groupLabel3 = new Label { Text = "FILES", Left = 580, Top = 4, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold) };
-            _openOutputBtn = CreateStyledButton("Open", 580, 20, 80, 30, Color.Gray, Color.White);
-            _clearDirBtn = CreateStyledButton("Clear", 665, 20, 80, 30, Color.Gray, Color.White);
-            _galleryBtn = CreateStyledButton("Gallery", 580, 54, 85, 28, Color.Gray, Color.White);
+            // Group 3: Files (Open, Clear, Gallery, WebUI)
+            int g3Left = g2Left + (g2BtnWidth + btnSpacing) * 4 + groupSpacing;
+            int g3BtnWidth = 70;
+            _groupLabel3 = new Label { Text = "FILES", Left = g3Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
+            _openOutputBtn = CreateStyledButton("Open", g3Left, row1Top, g3BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _clearDirBtn = CreateStyledButton("Clear", g3Left + g3BtnWidth + btnSpacing, row1Top, g3BtnWidth, btnHeight, Color.FromArgb(127, 140, 141), Color.White);
+            _galleryBtn = CreateStyledButton("Gallery", g3Left, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _openWebUIBtn = CreateStyledButton("WebUI", g3Left + g3BtnWidth + btnSpacing, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
             
-            // Row 2: Settings & Configuration (compact 2 rows)
-            _groupLabel4 = new Label { Text = "SETTINGS", Left = 760, Top = 4, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold) };
-            _locationsBtn = CreateStyledButton("Locations", 760, 20, 100, 30, Color.Gray, Color.White);
-            _musicBtn = CreateStyledButton("Music", 865, 20, 90, 30, Color.Gray, Color.White);
-            _settingsBtn = CreateStyledButton("Settings", 960, 20, 100, 30, Color.Gray, Color.White);
-            _aboutBtn = CreateStyledButton("About", 1065, 20, 90, 30, Color.Gray, Color.White);
-            _openWebUIBtn = CreateStyledButton("WebUI", 670, 54, 90, 28, Color.Gray, Color.White);
+            // Group 4: Settings (Locations, Music, Settings, About)
+            int g4Left = g3Left + (g3BtnWidth + btnSpacing) * 2 + groupSpacing;
+            int g4BtnWidth = 90;
+            _groupLabel4 = new Label { Text = "SETTINGS", Left = g4Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
+            _locationsBtn = CreateStyledButton("Locations", g4Left, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _musicBtn = CreateStyledButton("Music", g4Left + g4BtnWidth + btnSpacing, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _settingsBtn = CreateStyledButton("Settings", g4Left + (g4BtnWidth + btnSpacing) * 2, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _aboutBtn = CreateStyledButton("About", g4Left + (g4BtnWidth + btnSpacing) * 3, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
 
 
-            // Progress & Status (Below buttons - compact layout)
-            _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = 86, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold) };
-            _progress = new TextProgressBar { Left = 15, Top = 100, Width = 500, Height = 22, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            // Progress & Status Section (Below buttons - properly spaced below row2)
+            // Row 2 buttons end at: row2Top(58) + btnHeight(32) = 90, add 8px padding
+            int statusSectionTop = row2Top + btnHeight + 10; // 100
+            int statusRowTop = statusSectionTop + 14; // 114 - for progress bar
+            int statusRow2Top = statusRowTop + 26; // 140 - for NAAD panel
+            int progressWidth = 520;
+            int statusLeft = progressWidth + 40;
+            
+            _progressLabel = new Label { Text = "PROGRESS", Left = 15, Top = statusSectionTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
+            _progress = new TextProgressBar { Left = 15, Top = statusRowTop, Width = progressWidth, Height = 24, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
 
-            // NAAD Status Panel (compact inline layout)
-            _naadPanel = new Panel { Left = 15, Top = 124, Width = 500, Height = 20, BackColor = Color.Transparent, Padding = new Padding(1) };
-            _naadTitleLabel = new Label { Text = "📡 NAAD", Left = 0, Top = 1, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _naadConnectionLabel = new Label { Text = "⚪ Offline", Left = 60, Top = 1, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
-            _naadHeartbeatLabel = new Label { Text = "💓 --:--:--", Left = 160, Top = 1, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Regular) };
-            _naadAlertLabel = new Label { Text = "⚠ 0 alerts", Left = 270, Top = 1, AutoSize = true, Font = new Font("Segoe UI", 8F, FontStyle.Bold) };
+            // NAAD Status Panel (inline below progress bar)
+            _naadPanel = new Panel { Left = 15, Top = statusRow2Top, Width = progressWidth, Height = 22, BackColor = Color.Transparent, Padding = new Padding(0) };
+            _naadTitleLabel = new Label { Text = "📡 NAAD", Left = 0, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold) };
+            _naadConnectionLabel = new Label { Text = "⚪ Offline", Left = 70, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold) };
+            _naadHeartbeatLabel = new Label { Text = "💓 --:--:--", Left = 175, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Regular) };
+            _naadAlertLabel = new Label { Text = "⚠ 0 alerts", Left = 290, Top = 2, AutoSize = true, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold) };
             _naadPanel.Controls.Add(_naadTitleLabel);
             _naadPanel.Controls.Add(_naadConnectionLabel);
             _naadPanel.Controls.Add(_naadHeartbeatLabel);
             _naadPanel.Controls.Add(_naadAlertLabel);
 
-            _statusLabel2 = new Label { Text = "STATUS", Left = 530, Top = 86, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold) };
-            _statusLabel = new Label { Left = 530, Top = 100, Width = 300, Height = 22, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 9F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
-            _sleepLabel = new Label { Left = 530, Top = 124, Width = 300, Height = 18, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 8.5F, FontStyle.Regular), BackColor = Color.Transparent };
+            _statusLabel2 = new Label { Text = "STATUS", Left = statusLeft, Top = statusSectionTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
+            _statusLabel = new Label { Left = statusLeft, Top = statusRowTop, Width = 300, Height = 24, Text = "● Idle", AutoSize = false, Font = new Font("Segoe UI", 10F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
+            _sleepLabel = new Label { Left = statusLeft, Top = statusRow2Top, Width = 350, Height = 20, Text = string.Empty, AutoSize = false, Font = new Font("Segoe UI", 9F, FontStyle.Regular), BackColor = Color.Transparent };
             _lastFetchLabel = new Label { Dock = DockStyle.Top, Height = 26, Text = "📡 Last fetch: Never", Font = new Font("Segoe UI", 9F, FontStyle.Regular), TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10, 4, 0, 0) };
 
-            // --- Log Controls Panel (Compact) ---
-            _logPanel = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 4, 8, 4) };
+            // --- Log Controls Panel (Professional Layout) ---
+            _logPanel = new Panel { Dock = DockStyle.Top, Height = 42, Padding = new Padding(10, 6, 10, 6) };
             
-            _lblLog = new Label { Text = "📋 LOGS", Left = 8, Top = 10, AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            _lblLog = new Label { Text = "📋 LOGS", Left = 10, Top = 12, AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
 
             // When the form is first shown, optionally auto-start the update cycle based on configuration
             this.Shown += (s, e) =>
@@ -198,24 +220,24 @@ namespace WeatherImageGenerator.Forms
                 }
             };
             
-            _cmbFilter = new ComboBox { Left = 75, Top = 7, Width = 100, Height = 26, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Regular) };
+            _cmbFilter = new ComboBox { Left = 80, Top = 9, Width = 95, Height = 26, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Regular) };
             _cmbFilter.Items.AddRange(new object[] { "All", "Errors", "Warnings", "Info" });
             _cmbFilter.SelectedIndex = 0;
             _cmbFilter.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _cmbVerbosity = new ComboBox { Left = 180, Top = 7, Width = 90, Height = 26, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Regular) };
+            _cmbVerbosity = new ComboBox { Left = 182, Top = 9, Width = 88, Height = 26, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F, FontStyle.Regular) };
             _cmbVerbosity.Items.AddRange(new object[] { "Verbose", "Normal", "Minimal" });
             _cmbVerbosity.SelectedIndex = 1; // Normal
             _cmbVerbosity.SelectedIndexChanged += (s, e) => RefreshLogView();
 
-            _chkCompact = new CheckBox { Left = 280, Top = 9, Width = 80, Text = "Compact", Font = new Font("Segoe UI", 9F, FontStyle.Bold), FlatStyle = FlatStyle.Flat };
+            _chkCompact = new CheckBox { Left = 280, Top = 11, Width = 78, Text = "Compact", Font = new Font("Segoe UI", 9F, FontStyle.Regular), FlatStyle = FlatStyle.Flat };
             _chkCompact.CheckedChanged += (s, e) => RefreshLogView();
 
-            _txtSearch = new TextBox { Left = 365, Top = 8, Width = 260, Height = 24, Font = new Font("Segoe UI", 9F), BorderStyle = BorderStyle.FixedSingle };
+            _txtSearch = new TextBox { Left = 365, Top = 9, Width = 240, Height = 26, Font = new Font("Segoe UI", 9F), BorderStyle = BorderStyle.FixedSingle };
             _txtSearch.PlaceholderText = "🔍 Search logs...";
             _txtSearch.TextChanged += (s, e) => RefreshLogView();
 
-            _clearLogBtn = CreateStyledButton("Clear", 635, 6, 65, 26, Color.Gray, Color.White);
+            _clearLogBtn = CreateStyledButton("Clear", 615, 7, 70, 28, Color.FromArgb(127, 140, 141), Color.White);
             _clearLogBtn.Click += (s, e) => 
             {
                 lock (_logBuffer)
@@ -310,7 +332,7 @@ namespace WeatherImageGenerator.Forms
                 await GenerateTestAlertAsync();
             };
 
-            _topPanel = new Panel { Dock = DockStyle.Top, Height = 150, Padding = new Padding(3) };
+            _topPanel = new Panel { Dock = DockStyle.Top, Height = 170, Padding = new Padding(8, 4, 8, 4) };
             // Add group labels
             _topPanel.Controls.Add(_groupLabel1);
             _topPanel.Controls.Add(_groupLabel2);
