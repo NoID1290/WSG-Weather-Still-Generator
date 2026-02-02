@@ -372,12 +372,25 @@ namespace WeatherImageGenerator.Forms
 
             _splitContainer.Panel2.Controls.Add(_tabControl);
             
-            // Make console smaller (Panel2 is bottom)
-            _splitContainer.SplitterDistance = 280;
+            // Configure splitter (distance will be set in Load event when form has proper size)
             _splitContainer.SplitterWidth = 6;
+            _splitContainer.Panel2MinSize = 100;
 
             this.Controls.Add(_splitContainer);
             this.Controls.Add(_topPanel);
+            
+            // Set splitter distance after form is loaded to avoid size constraint issues
+            this.Load += (s, e) =>
+            {
+                // Make console larger by default (smaller SplitterDistance = more space for logs at bottom)
+                // Target: logs panel takes about 60% of the split container height
+                int targetDistance = (int)(_splitContainer.Height * 0.35);
+                if (targetDistance >= _splitContainer.Panel1MinSize && 
+                    targetDistance <= _splitContainer.Height - _splitContainer.Panel2MinSize)
+                {
+                    _splitContainer.SplitterDistance = targetDistance;
+                }
+            };
 
             Program.WeatherDataFetched += OnWeatherDataFetched;
             Program.AlertsFetched += OnAlertsFetched;
@@ -1304,30 +1317,106 @@ namespace WeatherImageGenerator.Forms
             };
         }
 
+        // Format log line with appropriate category icon for better visual scanning
+        private string FormatLogLineWithIcon(string line, Logger.LogLevel level)
+        {
+            var lower = line.ToLowerInvariant().TrimStart();
+            
+            // Don't add icons if line already starts with an emoji or category marker
+            if (line.TrimStart().StartsWith("[") || 
+                line.TrimStart().StartsWith("✓") || 
+                line.TrimStart().StartsWith("✗") ||
+                line.TrimStart().StartsWith("⚠") ||
+                line.TrimStart().StartsWith("�") ||
+                line.TrimStart().StartsWith("🎵") ||
+                line.TrimStart().StartsWith("🔄") ||
+                line.TrimStart().StartsWith("💾"))
+            {
+                return line;
+            }
+
+            // Add subtle prefix icon based on level for uncategorized messages
+            string prefix = level switch
+            {
+                Logger.LogLevel.Error => "✗ ",
+                Logger.LogLevel.Warning => "⚠ ",
+                Logger.LogLevel.Debug => "· ",
+                _ => "› "
+            };
+
+            // Only add prefix if line doesn't already have structured formatting
+            if (!line.TrimStart().StartsWith(prefix.TrimEnd()))
+            {
+                return prefix + line.TrimStart();
+            }
+            return line;
+        }
+
         // Append a single line to the RichTextBox with color, optional bolding for level tokens, and search highlighting
         private void AppendColoredLine(RichTextBox rtb, string line, string search, Logger.LogLevel level)
         {
             if (rtb == null) return;
 
+            // Format the line with category icon prefix for better visual scanning
+            string formattedLine = FormatLogLineWithIcon(line, level);
+
             int start = rtb.TextLength;
-            rtb.AppendText(line);
-            int length = line.Length;
+            rtb.AppendText(formattedLine);
+            int length = formattedLine.Length;
 
             var lower = line.ToLowerInvariant();
             Color color;
             FontStyle style = FontStyle.Regular;
 
-            // Prefer explicit level when deciding color; allow content-based overrides for video/running and success
-            switch (level)
+            // Enhanced color scheme with better visual hierarchy
+            // Category-based coloring takes priority for better scanability
+            if (lower.Contains("[alertready]") || lower.Contains("[alerts]") || lower.Contains("[naad]"))
             {
-                case Logger.LogLevel.Error: color = Color.FromArgb(255, 100, 100); style = FontStyle.Bold; break;
-                case Logger.LogLevel.Warning: color = Color.FromArgb(255, 215, 0); break;
-                case Logger.LogLevel.Debug: color = Color.Gray; break;
-                default: color = Color.WhiteSmoke; break;
+                color = Color.FromArgb(255, 183, 77); // Orange-amber for alerts
+                style = FontStyle.Bold;
+            }
+            else if (lower.Contains("[ffmpeg]") || lower.Contains("[video]") || lower.Contains("[encoding]"))
+            {
+                color = Color.FromArgb(100, 181, 246); // Light blue for video/encoding
+            }
+            else if (lower.Contains("[music]"))
+            {
+                color = Color.FromArgb(186, 104, 200); // Purple for music
+            }
+            else if (lower.Contains("[radar]") || lower.Contains("[eccc]") || lower.Contains("[openmap]"))
+            {
+                color = Color.FromArgb(77, 208, 225); // Cyan for map/radar
+            }
+            else if (lower.Contains("[webui]"))
+            {
+                color = Color.FromArgb(129, 199, 132); // Green for WebUI
+            }
+            else if (lower.Contains("[weather]") || lower.Contains("[fetch]"))
+            {
+                color = Color.FromArgb(144, 202, 249); // Sky blue for weather data
+            }
+            else
+            {
+                // Fall back to level-based coloring
+                switch (level)
+                {
+                    case Logger.LogLevel.Error: color = Color.FromArgb(255, 82, 82); style = FontStyle.Bold; break; // Bright red
+                    case Logger.LogLevel.Warning: color = Color.FromArgb(255, 213, 79); break; // Warm yellow
+                    case Logger.LogLevel.Debug: color = Color.FromArgb(158, 158, 158); break; // Muted gray
+                    default: color = Color.FromArgb(224, 224, 224); break; // Light gray for info
+                }
             }
 
-            if (lower.Contains("saved") || lower.Contains("completed") || lower.Contains("success")) { color = Color.LightGreen; style = FontStyle.Bold; }
-            else if (lower.Contains("[running]") || lower.Contains("video") || lower.Contains("encoding") || lower.Contains("[done]")) color = Color.LightSkyBlue;
+            // Success states get special treatment
+            if (lower.Contains("saved") || lower.Contains("completed") || lower.Contains("success") || lower.Contains("✓"))
+            {
+                color = Color.FromArgb(129, 199, 132); // Success green
+                style = FontStyle.Bold;
+            }
+            else if (lower.Contains("[running]") || lower.Contains("[done]"))
+            {
+                color = Color.FromArgb(100, 181, 246); // Progress blue
+            }
 
             // Apply color and font
             rtb.Select(start, length);
