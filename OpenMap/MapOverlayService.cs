@@ -159,6 +159,9 @@ public class MapOverlayService
             }
         }
 
+        // Log cache summary after generating the map
+        LogCacheSummary();
+
         return bitmap;
     }
 
@@ -288,19 +291,36 @@ public class MapOverlayService
         };
     }
 
+    // Cache statistics for summary logging
+    private int _cacheHits = 0;
+    private int _cacheMisses = 0;
+    
+    /// <summary>
+    /// Resets cache statistics and optionally logs a summary
+    /// </summary>
+    public void LogCacheSummary()
+    {
+        if (_cacheHits > 0 || _cacheMisses > 0)
+        {
+            Log?.Invoke($"[MapCache] Tiles: {_cacheHits} from cache, {_cacheMisses} downloaded");
+            _cacheHits = 0;
+            _cacheMisses = 0;
+        }
+    }
+
     private async Task<Bitmap?> DownloadTileAsync(string url)
     {
         // Check cache first
         var cachedTile = GetCachedTile(url);
         if (cachedTile != null)
         {
-            Log?.Invoke($"[MapCache] HIT: {url}");
+            _cacheHits++;
             return cachedTile;
         }
 
         try
         {
-            Log?.Invoke($"[MapCache] MISS - Downloading: {url}");
+            _cacheMisses++;
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
@@ -308,7 +328,6 @@ public class MapOverlayService
                 
                 // Save to cache
                 SaveTileToCache(url, bytes);
-                Log?.Invoke($"[MapCache] SAVED: {GetCacheFilePath(url)}");
                 
                 using var stream = new MemoryStream(bytes);
                 return new Bitmap(stream);
@@ -316,18 +335,18 @@ public class MapOverlayService
         }
         catch (Exception ex)
         {
-            Log?.Invoke($"[MapCache] ERROR downloading {url}: {ex.Message}");
+            Log?.Invoke($"[MapCache] ERROR: {ex.Message}");
         }
         return null;
     }
 
     private string GetCacheFilePath(string url)
     {
-        // Create a safe filename from the URL
-        var hash = url.GetHashCode().ToString("X8");
+        // Create a safe filename from the URL using a deterministic hash
+        // Note: String.GetHashCode() is NOT deterministic across app restarts in .NET Core
         var uri = new Uri(url);
         var pathParts = uri.AbsolutePath.Trim('/').Replace("/", "_");
-        var fileName = $"{pathParts}_{hash}.png";
+        var fileName = $"{uri.Host}_{pathParts}";
         
         var cacheDir = _tileCacheDirectory ?? "MapCache";
         if (!Path.IsPathRooted(cacheDir))
@@ -353,8 +372,9 @@ public class MapOverlayService
                 
                 if (age.TotalHours <= _cacheDurationHours)
                 {
-                    // Load from cache
-                    using var stream = new FileStream(cachePath, FileMode.Open, FileAccess.Read);
+                    // Load from cache - read all bytes first to avoid stream issues
+                    var bytes = File.ReadAllBytes(cachePath);
+                    using var stream = new MemoryStream(bytes);
                     return new Bitmap(stream);
                 }
                 else
@@ -364,9 +384,9 @@ public class MapOverlayService
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore cache read failures
+            Log?.Invoke($"[MapCache] Cache read error: {ex.Message}");
         }
         return null;
     }
