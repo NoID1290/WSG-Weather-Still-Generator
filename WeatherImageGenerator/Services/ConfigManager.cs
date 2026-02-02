@@ -72,7 +72,9 @@ namespace WeatherImageGenerator.Services
         /// <summary>
         /// Saves the provided settings back to appsettings.json and updates the cached settings.
         /// </summary>
-        public static void SaveConfig(AppSettings settings)
+        /// <param name="settings">The settings to save</param>
+        /// <param name="silent">If true, suppresses the log message (useful for UI state changes like window size/position)</param>
+        public static void SaveConfig(AppSettings settings, bool silent = false)
         {
             try
             {
@@ -80,7 +82,10 @@ namespace WeatherImageGenerator.Services
                 var json = JsonSerializer.Serialize(settings, options);
                 File.WriteAllText(ConfigFilePath, json);
                 _settings = settings;
-                Logger.Log($"✓ Configuration saved to: {ConfigFilePath}");
+                if (!silent)
+                {
+                    Logger.Log($"✓ Configuration saved to: {ConfigFilePath}");
+                }
             }
             catch (Exception ex)
             {

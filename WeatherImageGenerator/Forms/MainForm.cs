@@ -465,14 +465,14 @@ namespace WeatherImageGenerator.Forms
 
             _tabControl.TabPages.Add(_logTab);
 
-            // Save selected tab when user changes tabs
+            // Save selected tab when user changes tabs (silent to avoid log spam)
             _tabControl.SelectedIndexChanged += (s, e) =>
             {
                 try
                 {
                     var config = ConfigManager.LoadConfig();
                     config.SelectedTabIndex = _tabControl.SelectedIndex;
-                    ConfigManager.SaveConfig(config);
+                    ConfigManager.SaveConfig(config, silent: true);
                 }
                 catch { /* Ignore save errors */ }
             };
@@ -483,14 +483,14 @@ namespace WeatherImageGenerator.Forms
             _splitContainer.SplitterWidth = 6;
             _splitContainer.Panel2MinSize = 100;
             
-            // Save splitter position when user moves it
+            // Save splitter position when user moves it (silent to avoid log spam)
             _splitContainer.SplitterMoved += (s, e) =>
             {
                 try
                 {
                     var config = ConfigManager.LoadConfig();
                     config.SplitterDistance = _splitContainer.SplitterDistance;
-                    ConfigManager.SaveConfig(config);
+                    ConfigManager.SaveConfig(config, silent: true);
                 }
                 catch { /* Ignore save errors */ }
             };
@@ -535,7 +535,7 @@ namespace WeatherImageGenerator.Forms
                 }
             };
             
-            // Save window size when resized
+            // Save window size when resized (silent to avoid log spam)
             this.ResizeEnd += (s, e) =>
             {
                 if (this.WindowState == FormWindowState.Normal)
@@ -545,7 +545,7 @@ namespace WeatherImageGenerator.Forms
                         var config = ConfigManager.LoadConfig();
                         config.WindowWidth = this.Width;
                         config.WindowHeight = this.Height;
-                        ConfigManager.SaveConfig(config);
+                        ConfigManager.SaveConfig(config, silent: true);
                     }
                     catch { /* Ignore save errors */ }
                 }
