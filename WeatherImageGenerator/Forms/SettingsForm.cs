@@ -891,13 +891,13 @@ namespace WeatherImageGenerator.Forms
             var lblDesc = CreateHelpLabel("Choose where to get FFmpeg binaries from:", labelX, y, 400);
             y += 30;
 
-            var lblSourceLabel = CreateLabel("Source:", labelX, y);
+            var lblSourceLabel = CreateLabel("Source:", labelX, y, 100);
             cmbFfmpegSource = CreateComboBox(fieldX, y - 2, 220);
             cmbFfmpegSource.Items.AddRange(new object[] { "Bundled (Auto-download)", "System PATH", "Custom Path" });
             cmbFfmpegSource.SelectedIndex = 0;
             y += 40;
 
-            var lblCustomPath = CreateLabel("Custom Path:", labelX, y);
+            var lblCustomPath = CreateLabel("Custom Path:", labelX, y, 150);
             txtFfmpegCustomPath = CreateTextBox(fieldX, y - 2, 380);
             txtFfmpegCustomPath.Enabled = false;
             btnBrowseFfmpegPath = CreateSecondaryButton("...", fieldX + 390, y - 3, 40, 26);
