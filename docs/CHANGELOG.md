@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1.0203] - 2026-02-03
+
+- Add Piper TTS support and settings to the application
+- Improve process handling and error reporting in AlertToneGenerator; enhance HttpClient usage in MainForm
+- feat: Enhance Emergency Alert Generation with Video Support
+- Add Alert Tone Generation and Testing Functionality
+- Fix label widths in SettingsForm that overlaping
+
 ## [1.8.0.0202] - 2026-02-02
 
 - Implement feature X to enhance user experience and optimize performance
