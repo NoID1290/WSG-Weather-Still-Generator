@@ -12,7 +12,26 @@ namespace WeatherImageGenerator.Forms
 {
     public class SettingsForm : Form
     {
-        private bool _isLoadingSettings = false; // Prevent event loops during load
+        private bool _isLoadingSettings = false;
+        
+        // UI Style Constants
+        private static readonly Color AccentColor = Color.FromArgb(41, 128, 185);
+        private static readonly Color AccentColorLight = Color.FromArgb(52, 152, 219);
+        private static readonly Color SuccessColor = Color.FromArgb(39, 174, 96);
+        private static readonly Color WarningColor = Color.FromArgb(230, 126, 34);
+        private static readonly Color DangerColor = Color.FromArgb(192, 57, 43);
+        private static readonly Color BackgroundColor = Color.FromArgb(248, 249, 250);
+        private static readonly Color CardColor = Color.White;
+        private static readonly Color BorderColor = Color.FromArgb(222, 226, 230);
+        private static readonly Color TextColor = Color.FromArgb(33, 37, 41);
+        private static readonly Color TextMutedColor = Color.FromArgb(108, 117, 125);
+        private static readonly Font HeaderFont = new Font("Segoe UI", 12F, FontStyle.Bold);
+        private static readonly Font SubHeaderFont = new Font("Segoe UI", 10F, FontStyle.Bold);
+        private static readonly Font LabelFont = new Font("Segoe UI", 9.5F);
+        private static readonly Font SmallFont = new Font("Segoe UI", 8.5F);
+        private static readonly Font HelpFont = new Font("Segoe UI", 8F, FontStyle.Italic);
+        
+        // Controls
         TextBox txtImageOutputDir;
         TextBox txtVideoOutputDir;
         NumericUpDown numStatic;
@@ -28,28 +47,25 @@ namespace WeatherImageGenerator.Forms
         ComboBox cmbResolution;
         CheckBox chkEnableProvinceRadar;
         CheckBox chkEnableWeatherMaps;
-        ComboBox cmbFontFamily; // Font family selector for generated images
-        PictureBox _alertPreviewPanel; // Preview picture box for alert image
-        PictureBox _weatherPreviewPanel; // Preview picture box for weather details image
-        ComboBox cmbCodec;  // Changed from TextBox to ComboBox
-        ComboBox cmbBitrate; // Changed from TextBox to ComboBox
-        ComboBox cmbQualityPreset; // New quality preset selector
+        ComboBox cmbFontFamily;
+        PictureBox _alertPreviewPanel;
+        PictureBox _weatherPreviewPanel;
+        ComboBox cmbCodec;
+        ComboBox cmbBitrate;
+        ComboBox cmbQualityPreset;
         NumericUpDown numFps;
         ComboBox cmbContainer;
         CheckBox chkVideoGeneration;
         CheckBox chkVerbose;
         CheckBox chkShowFfmpeg;
-        CheckBox chkEnableHardwareEncoding; // New: toggle NVENC / hardware encoding
-        CheckBox chkEnableExperimental; // Opt-in for experimental features
-        TabPage tabExperimental; // Experimental tab container
-        // New video encoding controls
+        CheckBox chkEnableHardwareEncoding;
+        CheckBox chkEnableExperimental;
+        TabPage tabExperimental;
         CheckBox chkUseCrfEncoding;
         NumericUpDown numCrf;
         ComboBox cmbEncoderPreset;
-        System.Windows.Forms.TextBox txtMaxBitrate;
-        System.Windows.Forms.TextBox txtBufferSize;
-        // End new controls
-        // FFmpeg source controls
+        TextBox txtMaxBitrate;
+        TextBox txtBufferSize;
         ComboBox cmbFfmpegSource;
         TextBox txtFfmpegCustomPath;
         Button btnBrowseFfmpegPath;
@@ -57,15 +73,13 @@ namespace WeatherImageGenerator.Forms
         Button btnValidateFfmpeg;
         Button btnClearFfmpegCache;
         Button btnDownloadBundled;
-        // End FFmpeg source controls
-        CheckBox chkMinimizeToTray; // Enable minimize to system tray
-        CheckBox chkMinimizeToTrayOnClose; // Minimize to tray when closing
-        CheckBox chkAutoStartCycle; // Auto-start update cycle on application start
-        CheckBox chkStartWithWindows; // Start WSG when Windows starts
-        CheckBox chkStartMinimizedToTray; // Start minimized to tray when launched from Windows startup
+        CheckBox chkMinimizeToTray;
+        CheckBox chkMinimizeToTrayOnClose;
+        CheckBox chkAutoStartCycle;
+        CheckBox chkStartWithWindows;
+        CheckBox chkStartMinimizedToTray;
         Label lblHwStatus;
         Button btnCheckHw;
-        // EAS/AlertReady controls
         CheckBox chkAlertReadyEnabled;
         TextBox txtAlertReadyFeedUrls;
         CheckBox chkAlertReadyIncludeTests;
@@ -75,11 +89,9 @@ namespace WeatherImageGenerator.Forms
         TextBox txtAlertReadyJurisdictions;
         CheckBox chkAlertReadyHighRiskOnly;
         CheckBox chkAlertReadyExcludeWeather;
-        // EdgeTTS controls
         ComboBox cmbTtsVoice;
         TextBox txtTtsRate;
         TextBox txtTtsPitch;
-        // OpenMap controls
         ComboBox cmbMapStyle;
         NumericUpDown numMapZoomLevel;
         TextBox txtMapBackgroundColor;
@@ -88,7 +100,6 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkMapEnableCache;
         TextBox txtMapCacheDirectory;
         NumericUpDown numMapCacheDuration;
-        // Web UI controls
         CheckBox chkWebUIEnabled;
         NumericUpDown numWebUIPort;
         CheckBox chkWebUIAllowRemote;
@@ -96,398 +107,762 @@ namespace WeatherImageGenerator.Forms
         Button btnTestWebUI;
         TextBox txtWebUIUrl;
         CheckBox chkMapUseDarkMode;
-        // Skip Detailed Weather on alert
         CheckBox chkSkipDetailedWeatherOnAlert;
-        // Radar and Alert display settings
         NumericUpDown numPlayRadarAnimationCountOnAlert;
         NumericUpDown numAlertDisplayDurationSeconds;
+
         public SettingsForm()
         {
+            InitializeForm();
+            BuildUI();
+            LoadSettings();
+        }
+
+        private void InitializeForm()
+        {
             this.Text = "⚙ Settings";
-            this.Width = 750;
-            this.Height = 720;
+            this.Width = 820;
+            this.Height = 740;
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = false;
             this.MinimizeBox = true;
             this.StartPosition = FormStartPosition.Manual;
-            this.BackColor = Color.FromArgb(245, 245, 250);
-            this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
+            this.BackColor = BackgroundColor;
+            this.Font = LabelFont;
+            this.Padding = new Padding(10);
+        }
 
-            var tabControl = new TabControl 
-            { 
-                Dock = DockStyle.Top, 
-                Height = 600,
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular)
+        #region UI Helper Methods
+        
+        private Panel CreateCard(int x, int y, int width, int height)
+        {
+            return new Panel
+            {
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = height,
+                BackColor = CardColor,
+                Padding = new Padding(15),
             };
-            
-            // --- General Tab ---
-            var tabGeneral = new TabPage("⚙ General") { BackColor = Color.White };
-            int gTop = 20;
-            int rowH = 35;
-            int leftLabel = 10;
-            int leftField = 160;
+        }
 
-            var lblRefresh = new Label { Text = "Refresh Interval (min):", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numRefresh = new NumericUpDown { Left = leftField, Top = gTop, Width = 80, Minimum = 1, Maximum = 1440, Value = 10 };
-            
-            gTop += rowH;
-            var lblTheme = new Label { Text = "Theme:", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbTheme = new ComboBox { Left = leftField, Top = gTop, Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
+        private Label CreateSectionHeader(string text, int x, int y, string icon = "")
+        {
+            return new Label
+            {
+                Text = string.IsNullOrEmpty(icon) ? text : $"{icon} {text}",
+                Left = x,
+                Top = y,
+                Width = 650,
+                Height = 28,
+                Font = HeaderFont,
+                ForeColor = AccentColor,
+                AutoSize = false
+            };
+        }
+
+        private Label CreateSubHeader(string text, int x, int y)
+        {
+            return new Label
+            {
+                Text = text,
+                Left = x,
+                Top = y,
+                Width = 400,
+                Height = 24,
+                Font = SubHeaderFont,
+                ForeColor = TextColor,
+                AutoSize = false
+            };
+        }
+
+        private Label CreateLabel(string text, int x, int y, int width = 180)
+        {
+            return new Label
+            {
+                Text = text,
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = 24,
+                Font = LabelFont,
+                ForeColor = TextColor,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoSize = false
+            };
+        }
+
+        private Label CreateHelpLabel(string text, int x, int y, int width = 200)
+        {
+            return new Label
+            {
+                Text = text,
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = 20,
+                Font = HelpFont,
+                ForeColor = TextMutedColor,
+                AutoSize = false
+            };
+        }
+
+        private Label CreateDivider(int x, int y, int width)
+        {
+            return new Label
+            {
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = 1,
+                BackColor = BorderColor,
+                AutoSize = false
+            };
+        }
+
+        private Button CreatePrimaryButton(string text, int x, int y, int width = 130, int height = 32)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = height,
+                BackColor = AccentColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.MouseEnter += (s, e) => btn.BackColor = AccentColorLight;
+            btn.MouseLeave += (s, e) => btn.BackColor = AccentColor;
+            return btn;
+        }
+
+        private Button CreateSecondaryButton(string text, int x, int y, int width = 130, int height = 32)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = height,
+                BackColor = Color.FromArgb(233, 236, 239),
+                ForeColor = TextColor,
+                FlatStyle = FlatStyle.Flat,
+                Font = LabelFont,
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.BorderColor = BorderColor;
+            btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(222, 226, 230);
+            btn.MouseLeave += (s, e) => btn.BackColor = Color.FromArgb(233, 236, 239);
+            return btn;
+        }
+
+        private Button CreateSuccessButton(string text, int x, int y, int width = 130, int height = 32)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = height,
+                BackColor = SuccessColor,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(46, 204, 113);
+            btn.MouseLeave += (s, e) => btn.BackColor = SuccessColor;
+            return btn;
+        }
+
+        private GroupBox CreateGroupBox(string title, int x, int y, int width, int height)
+        {
+            return new GroupBox
+            {
+                Text = title,
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = height,
+                Font = SubHeaderFont,
+                ForeColor = TextColor,
+                BackColor = CardColor,
+                Padding = new Padding(10)
+            };
+        }
+
+        private CheckBox CreateCheckBox(string text, int x, int y, int width = 300)
+        {
+            return new CheckBox
+            {
+                Text = text,
+                Left = x,
+                Top = y,
+                Width = width,
+                Height = 24,
+                Font = LabelFont,
+                ForeColor = TextColor,
+                AutoSize = false
+            };
+        }
+
+        private ComboBox CreateComboBox(int x, int y, int width = 200)
+        {
+            return new ComboBox
+            {
+                Left = x,
+                Top = y,
+                Width = width,
+                Font = LabelFont,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+        }
+
+        private NumericUpDown CreateNumericUpDown(int x, int y, int width = 100, decimal min = 0, decimal max = 100, decimal value = 0)
+        {
+            return new NumericUpDown
+            {
+                Left = x,
+                Top = y,
+                Width = width,
+                Font = LabelFont,
+                Minimum = min,
+                Maximum = max,
+                Value = Math.Max(min, Math.Min(max, value))
+            };
+        }
+
+        private TextBox CreateTextBox(int x, int y, int width = 200)
+        {
+            return new TextBox
+            {
+                Left = x,
+                Top = y,
+                Width = width,
+                Font = LabelFont
+            };
+        }
+
+        #endregion
+
+        private void BuildUI()
+        {
+            var tabControl = new TabControl
+            {
+                Dock = DockStyle.Top,
+                Height = 615,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
+                Padding = new Point(12, 6)
+            };
+
+            // Build all tabs
+            var tabGeneral = BuildGeneralTab();
+            var tabImage = BuildImageTab();
+            var tabVideo = BuildVideoTab();
+            var tabFfmpeg = BuildFfmpegTab();
+            var tabOpenMap = BuildOpenMapTab();
+            var tabEas = BuildEasTab();
+            var tabWebUI = BuildWebUITab();
+            tabExperimental = BuildExperimentalTab();
+
+            tabControl.TabPages.AddRange(new TabPage[] { 
+                tabGeneral, tabImage, tabVideo, tabFfmpeg, 
+                tabOpenMap, tabEas, tabWebUI, tabExperimental 
+            });
+
+            // Footer buttons
+            var btnSave = CreateSuccessButton("✔ Save Settings", 470, 630, 140, 38);
+            btnSave.Click += (s, e) => SaveClicked();
+
+            var btnCancel = CreateSecondaryButton("✖ Cancel", 620, 630, 110, 38);
+            btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
+
+            this.Controls.Add(tabControl);
+            this.Controls.Add(btnSave);
+            this.Controls.Add(btnCancel);
+
+            // Position form relative to owner
+            this.Shown += (s, e) => {
+                if (this.Owner != null)
+                {
+                    this.Location = new Point(
+                        this.Owner.Location.X + (this.Owner.Width - this.Width) / 2,
+                        this.Owner.Location.Y + (this.Owner.Height - this.Height) / 2
+                    );
+                }
+            };
+        }
+
+        #region Tab Builders
+
+        private TabPage BuildGeneralTab()
+        {
+            var tab = new TabPage("⚙ General") { BackColor = BackgroundColor, Padding = new Padding(20) };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 200;
+            int rowHeight = 38;
+
+            // Application Settings Section
+            var lblAppSettings = CreateSectionHeader("Application Settings", labelX, y, "🔧");
+            y += 35;
+
+            var lblRefresh = CreateLabel("Refresh Interval:", labelX, y);
+            numRefresh = CreateNumericUpDown(fieldX, y - 2, 100, 1, 1440, 10);
+            var lblRefreshUnit = CreateHelpLabel("minutes", fieldX + 110, y + 2);
+            y += rowHeight;
+
+            var lblTheme = CreateLabel("Color Theme:", labelX, y);
+            cmbTheme = CreateComboBox(fieldX, y - 2, 180);
             cmbTheme.Items.AddRange(new object[] { "Blue", "Light", "Dark", "Green" });
             cmbTheme.SelectedIndex = 0;
+            y += rowHeight;
 
-            gTop += rowH;
-            var lblOutImg = new Label { Text = "Image Output Dir:", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtImageOutputDir = new TextBox { Left = leftField, Top = gTop, Width = 300 };
-            var btnBrowseImg = new Button { Text = "...", Left = 470, Top = gTop - 1, Width = 40, Height = 23 };
+            // Divider
+            var divider1 = CreateDivider(labelX, y + 5, 700);
+            y += 25;
+
+            // Output Directories Section
+            var lblOutputDirs = CreateSectionHeader("Output Directories", labelX, y, "📁");
+            y += 35;
+
+            var lblOutImg = CreateLabel("Image Output:", labelX, y);
+            txtImageOutputDir = CreateTextBox(fieldX, y - 2, 380);
+            var btnBrowseImg = CreateSecondaryButton("...", fieldX + 390, y - 3, 40, 26);
             btnBrowseImg.Click += (s, e) => BrowseClicked(txtImageOutputDir);
+            y += rowHeight;
 
-            gTop += rowH;
-            var lblOutVid = new Label { Text = "Video Output Dir:", Left = leftLabel, Top = gTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtVideoOutputDir = new TextBox { Left = leftField, Top = gTop, Width = 300 };
-            var btnBrowseVid = new Button { Text = "...", Left = 470, Top = gTop - 1, Width = 40, Height = 23 };
+            var lblOutVid = CreateLabel("Video Output:", labelX, y);
+            txtVideoOutputDir = CreateTextBox(fieldX, y - 2, 380);
+            var btnBrowseVid = CreateSecondaryButton("...", fieldX + 390, y - 3, 40, 26);
             btnBrowseVid.Click += (s, e) => BrowseClicked(txtVideoOutputDir);
+            y += rowHeight;
 
-            gTop += rowH;
-            chkMinimizeToTray = new CheckBox { Text = "Minimize to system tray", Left = leftLabel, Top = gTop, Width = 300 };
+            // Divider
+            var divider2 = CreateDivider(labelX, y + 5, 700);
+            y += 25;
 
-            gTop += rowH;
-            chkMinimizeToTrayOnClose = new CheckBox { Text = "Minimize to tray on close (X button)", Left = leftLabel, Top = gTop, Width = 300 };
+            // System Tray Section
+            var lblTraySettings = CreateSectionHeader("System Tray & Startup", labelX, y, "💻");
+            y += 35;
 
-            gTop += rowH;
-            chkAutoStartCycle = new CheckBox { Text = "Auto start update cycle on application start", Left = leftLabel, Top = gTop, Width = 420 };
+            chkMinimizeToTray = CreateCheckBox("Minimize to system tray when minimizing", labelX, y, 350);
+            y += 30;
 
-            gTop += rowH;
-            chkStartWithWindows = new CheckBox { Text = "Start WSG when Windows starts", Left = leftLabel, Top = gTop, Width = 300 };
+            chkMinimizeToTrayOnClose = CreateCheckBox("Minimize to tray when closing (X button)", labelX, y, 350);
+            y += 30;
 
-            gTop += rowH;
-            chkStartMinimizedToTray = new CheckBox { Text = "    ↳ Start minimized to system tray", Left = leftLabel, Top = gTop, Width = 300 };
-            chkStartMinimizedToTray.Enabled = false; // Enabled only when chkStartWithWindows is checked
+            chkAutoStartCycle = CreateCheckBox("Auto-start weather update cycle on application launch", labelX, y, 420);
+            y += 35;
+
+            chkStartWithWindows = CreateCheckBox("Start WSG when Windows starts", labelX, y, 350);
+            y += 28;
+
+            chkStartMinimizedToTray = CreateCheckBox("  └─ Start minimized to system tray", labelX + 20, y, 350);
+            chkStartMinimizedToTray.ForeColor = TextMutedColor;
+            chkStartMinimizedToTray.Enabled = false;
             
-            // Enable/disable the minimized checkbox based on Windows startup checkbox
-            chkStartWithWindows.CheckedChanged += (s, e) => { chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked; };
+            chkStartWithWindows.CheckedChanged += (s, e) => {
+                chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked;
+                chkStartMinimizedToTray.ForeColor = chkStartWithWindows.Checked ? TextColor : TextMutedColor;
+            };
 
-            tabGeneral.Controls.AddRange(new Control[] { lblRefresh, numRefresh, lblTheme, cmbTheme, lblOutImg, txtImageOutputDir, btnBrowseImg, lblOutVid, txtVideoOutputDir, btnBrowseVid, chkMinimizeToTray, chkMinimizeToTrayOnClose, chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray });
+            tab.Controls.AddRange(new Control[] {
+                lblAppSettings, lblRefresh, numRefresh, lblRefreshUnit,
+                lblTheme, cmbTheme, divider1,
+                lblOutputDirs, lblOutImg, txtImageOutputDir, btnBrowseImg,
+                lblOutVid, txtVideoOutputDir, btnBrowseVid, divider2,
+                lblTraySettings, chkMinimizeToTray, chkMinimizeToTrayOnClose,
+                chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray
+            });
 
-            // --- Image Tab ---
-            var tabImage = new TabPage("🖼 Image") { BackColor = Color.White, AutoScroll = true };
-            int iTop = 20;
+            return tab;
+        }
 
-            var lblImgSize = new Label { Text = "Resolution (WxH):", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numImgWidth = new NumericUpDown { Left = leftField, Top = iTop, Width = 80, Minimum = 320, Maximum = 7680, Value = 1920, Increment = 10 };
-            var lblX = new Label { Text = "x", Left = leftField + 85, Top = iTop, Width = 15, AutoSize = true };
-            numImgHeight = new NumericUpDown { Left = leftField + 105, Top = iTop, Width = 80, Minimum = 240, Maximum = 4320, Value = 1080, Increment = 10 };
-            
-            iTop += rowH;
-            var lblFormat = new Label { Text = "Format:", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbImgFormat = new ComboBox { Left = leftField, Top = iTop, Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
+        private TabPage BuildImageTab()
+        {
+            var tab = new TabPage("🖼 Image") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 200;
+            int rowHeight = 38;
+
+            // Image Settings Section
+            var lblImgSettings = CreateSectionHeader("Image Generation Settings", labelX, y, "🎨");
+            y += 35;
+
+            var lblImgSize = CreateLabel("Resolution (W × H):", labelX, y);
+            numImgWidth = CreateNumericUpDown(fieldX, y - 2, 90, 320, 7680, 1920);
+            numImgWidth.Increment = 10;
+            var lblX = new Label { Text = "×", Left = fieldX + 95, Top = y, Width = 20, Height = 24, TextAlign = ContentAlignment.MiddleCenter, Font = LabelFont };
+            numImgHeight = CreateNumericUpDown(fieldX + 118, y - 2, 90, 240, 4320, 1080);
+            numImgHeight.Increment = 10;
+            var lblPixels = CreateHelpLabel("pixels", fieldX + 215, y + 2);
+            y += rowHeight;
+
+            var lblFormat = CreateLabel("Image Format:", labelX, y);
+            cmbImgFormat = CreateComboBox(fieldX, y - 2, 120);
             cmbImgFormat.Items.AddRange(new object[] { "png", "jpeg", "bmp", "gif" });
             cmbImgFormat.SelectedIndex = 0;
+            var lblFormatHelp = CreateHelpLabel("PNG recommended for quality", fieldX + 130, y + 2, 200);
+            y += rowHeight;
 
-            iTop += rowH;
-            var lblFontFamily = new Label { Text = "Font Family:", Left = leftLabel, Top = iTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbFontFamily = new ComboBox { Left = leftField, Top = iTop, Width = 250, DropDownStyle = ComboBoxStyle.DropDownList };
-            // Populate with all installed system fonts
+            var lblFontFamily = CreateLabel("Font Family:", labelX, y);
+            cmbFontFamily = CreateComboBox(fieldX, y - 2, 250);
             try
             {
-                var installedFonts = System.Drawing.FontFamily.Families.Select(f => f.Name).OrderBy(n => n).ToArray();
+                var installedFonts = FontFamily.Families.Select(f => f.Name).OrderBy(n => n).ToArray();
                 cmbFontFamily.Items.AddRange(installedFonts.Cast<object>().ToArray());
                 if (cmbFontFamily.Items.Count > 0) cmbFontFamily.SelectedIndex = 0;
             }
-            catch (Exception ex)
+            catch
             {
-                Logger.Log($"Error loading system fonts: {ex.Message}", Logger.LogLevel.Warning);
-                // Fallback to common fonts if system fonts cannot be loaded
-                var fallbackFonts = new[] { "Arial", "Segoe UI", "Times New Roman", "Courier New", "Georgia", "Tahoma", "Verdana" };
-                cmbFontFamily.Items.AddRange(fallbackFonts.Cast<object>().ToArray());
-                if (cmbFontFamily.Items.Count > 0) cmbFontFamily.SelectedIndex = 0;
+                cmbFontFamily.Items.AddRange(new object[] { "Arial", "Segoe UI", "Times New Roman", "Courier New", "Georgia", "Tahoma", "Verdana" });
+                cmbFontFamily.SelectedIndex = 0;
             }
+            y += rowHeight;
 
-            iTop += rowH;
-            chkEnableProvinceRadar = new CheckBox { Text = "Enable Province Radar Animation", Left = leftLabel, Top = iTop, Width = 250, Enabled = true };
+            // Divider
+            var divider1 = CreateDivider(labelX, y + 5, 700);
+            y += 25;
 
-            iTop += rowH;
-            chkEnableWeatherMaps = new CheckBox { Text = "Enable Weather Maps Generation", Left = leftLabel, Top = iTop, Width = 250, Enabled = true };
+            // Features Section
+            var lblFeatures = CreateSectionHeader("Image Features", labelX, y, "✨");
+            y += 35;
 
-            iTop += rowH;
-            var btnRegenIcons = new Button { Text = "Regenerate Icons", Left = leftLabel, Top = iTop, Width = 150, Height = 25 };
-            btnRegenIcons.Click += (s, e) =>
+            chkEnableProvinceRadar = CreateCheckBox("Enable Province Radar Animation", labelX, y, 300);
+            y += 30;
+
+            chkEnableWeatherMaps = CreateCheckBox("Enable Weather Maps Generation", labelX, y, 300);
+            y += 35;
+
+            var btnRegenIcons = CreateSecondaryButton("🔄 Regenerate Icons", labelX, y, 160, 30);
+            btnRegenIcons.Click += (s, e) => RegenerateIcons(btnRegenIcons);
+            y += 45;
+
+            // Divider
+            var divider2 = CreateDivider(labelX, y + 5, 700);
+            y += 25;
+
+            // Font Preview Section
+            var lblPreview = CreateSectionHeader("Font Preview", labelX, y, "👁");
+            y += 35;
+
+            _alertPreviewPanel = new PictureBox
             {
-                try
-                {
-                    btnRegenIcons.Enabled = false;
-                    btnRegenIcons.Text = "Generating...";
-                    string outDir = txtImageOutputDir.Text;
-                    if (string.IsNullOrWhiteSpace(outDir)) outDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
-                    
-                    string iconsDir = Path.Combine(outDir, "Icons");
-                    IconGenerator.GenerateAll(iconsDir);
-                    MessageBox.Show($"Icons regenerated successfully in {iconsDir}!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Error regenerating icons: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                finally
-                {
-                    btnRegenIcons.Enabled = true;
-                    btnRegenIcons.Text = "Regenerate Icons";
-                }
+                Left = labelX,
+                Top = y,
+                Width = 700,
+                Height = 110,
+                BorderStyle = BorderStyle.None,
+                BackColor = CardColor,
+                SizeMode = PictureBoxSizeMode.CenterImage
+            };
+            y += 120;
+
+            _weatherPreviewPanel = new PictureBox
+            {
+                Left = labelX,
+                Top = y,
+                Width = 700,
+                Height = 110,
+                BorderStyle = BorderStyle.None,
+                BackColor = CardColor,
+                SizeMode = PictureBoxSizeMode.CenterImage
             };
 
-            iTop += rowH;
-            var lblDivider = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = iTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
-            
-            iTop += 25;
-            var lblPreviewTitle = new Label { Text = "Font Preview", Left = leftLabel, Top = iTop, Width = 400, Font = new Font(this.Font, FontStyle.Bold) };
-            iTop += 30;
-            
-            _alertPreviewPanel = new PictureBox { Left = leftLabel, Top = iTop, Width = 700, Height = 130, BorderStyle = BorderStyle.Fixed3D, BackColor = Color.White, SizeMode = PictureBoxSizeMode.CenterImage };
-            iTop += 145;
-            
-            _weatherPreviewPanel = new PictureBox { Left = leftLabel, Top = iTop, Width = 700, Height = 130, BorderStyle = BorderStyle.Fixed3D, BackColor = Color.White, SizeMode = PictureBoxSizeMode.CenterImage };
-            
-            tabImage.Controls.AddRange(new Control[] { lblImgSize, numImgWidth, lblX, numImgHeight, lblFormat, cmbImgFormat, lblFontFamily, cmbFontFamily, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons, lblDivider, lblPreviewTitle, _alertPreviewPanel, _weatherPreviewPanel });
-
-            // Hook font change to update preview
             cmbFontFamily.SelectedIndexChanged += (s, e) => UpdateFontPreview();
-            
-            // Generate initial previews
             UpdateFontPreview();
 
-            // --- Video Tab ---
-            var tabVideo = new TabPage("🎥 Video") { BackColor = Color.FromArgb(248, 249, 250), AutoScroll = true };
-            int vTop = 10;
-            int grpPadding = 15;
-            int ctrlLeft = 15;
-            int ctrlWidth = 280;
-            int rightCol = 360;
+            tab.Controls.AddRange(new Control[] {
+                lblImgSettings, lblImgSize, numImgWidth, lblX, numImgHeight, lblPixels,
+                lblFormat, cmbImgFormat, lblFormatHelp,
+                lblFontFamily, cmbFontFamily, divider1,
+                lblFeatures, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons, divider2,
+                lblPreview, _alertPreviewPanel, _weatherPreviewPanel
+            });
 
-            // ═══════════════════════════════════════════════════════════════
-            // TOP ROW - Main toggle
-            // ═══════════════════════════════════════════════════════════════
-            chkVideoGeneration = new CheckBox { Text = "  Enable Video Generation", Left = ctrlLeft, Top = vTop, Width = 220, Height = 28, Font = new Font(this.Font.FontFamily, 10f, FontStyle.Bold) };
-            vTop += 35;
+            return tab;
+        }
 
-            // ═══════════════════════════════════════════════════════════════
-            // LEFT SIDE - GroupBox: Alert Settings
-            // ═══════════════════════════════════════════════════════════════
-            var grpAlerts = new GroupBox { Text = "🚨 Alert Settings", Left = ctrlLeft, Top = vTop, Width = 330, Height = 115, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
-            int aTop = 22;
-            
-            chkSkipDetailedWeatherOnAlert = new CheckBox { Text = "Skip Detailed Weather if alert active", Left = grpPadding, Top = aTop, Width = 280, Font = new Font(this.Font.FontFamily, 9f) };
-            aTop += 28;
-            
-            var lblRadarCount = new Label { Text = "Replay Radar:", Left = grpPadding, Top = aTop + 2, Width = 90, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            numPlayRadarAnimationCountOnAlert = new NumericUpDown { Left = grpPadding + 95, Top = aTop, Width = 55, Minimum = 1, Maximum = 10, Value = 1 };
-            var lblRadarCountHelp = new Label { Text = "times when alert active", Left = grpPadding + 155, Top = aTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
-            aTop += 28;
-            
-            var lblAlertDuration = new Label { Text = "Alert Duration:", Left = grpPadding, Top = aTop + 2, Width = 90, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            numAlertDisplayDurationSeconds = new NumericUpDown { Left = grpPadding + 95, Top = aTop, Width = 55, Minimum = 1, Maximum = 120, DecimalPlaces = 1, Increment = 0.5M, Value = 6 };
-            var lblAlertDurationHelp = new Label { Text = "seconds", Left = grpPadding + 155, Top = aTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
-            
-            grpAlerts.Controls.AddRange(new Control[] { chkSkipDetailedWeatherOnAlert, lblRadarCount, numPlayRadarAnimationCountOnAlert, lblRadarCountHelp, lblAlertDuration, numAlertDisplayDurationSeconds, lblAlertDurationHelp });
+        private TabPage BuildVideoTab()
+        {
+            var tab = new TabPage("🎥 Video") { BackColor = BackgroundColor, Padding = new Padding(15), AutoScroll = true };
+            int y = 10;
+            int leftCol = 15;
+            int rightCol = 380;
+            int colWidth = 345;
+            int grpHeight = 130;
+            int innerPad = 15;
 
-            // ═══════════════════════════════════════════════════════════════
-            // RIGHT SIDE - GroupBox: Output Format
-            // ═══════════════════════════════════════════════════════════════
-            var grpFormat = new GroupBox { Text = "📹 Output Format", Left = rightCol, Top = vTop, Width = 330, Height = 115, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
-            int fTop = 22;
+            // Main Toggle
+            chkVideoGeneration = CreateCheckBox("  Enable Video Generation", leftCol, y, 280);
+            chkVideoGeneration.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            chkVideoGeneration.ForeColor = AccentColor;
+            y += 40;
+
+            // Row 1: Alert Settings & Output Format
+            var grpAlerts = CreateGroupBox("🚨 Alert Behavior", leftCol, y, colWidth, grpHeight);
+            int aY = 25;
             
-            var lblQualityPreset = new Label { Text = "Quality Preset:", Left = grpPadding, Top = fTop + 2, Width = 95, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            cmbQualityPreset = new ComboBox { Left = grpPadding + 100, Top = fTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            chkSkipDetailedWeatherOnAlert = CreateCheckBox("Skip detailed weather during alerts", innerPad, aY, 280);
+            chkSkipDetailedWeatherOnAlert.Font = SmallFont;
+            aY += 28;
+            
+            var lblRadarCount = CreateLabel("Radar replays:", innerPad, aY);
+            lblRadarCount.Width = 95;
+            lblRadarCount.Font = SmallFont;
+            numPlayRadarAnimationCountOnAlert = CreateNumericUpDown(innerPad + 100, aY - 2, 55, 1, 10, 1);
+            var lblRadarHelp = CreateHelpLabel("times during alert", innerPad + 160, aY);
+            aY += 30;
+            
+            var lblAlertDur = CreateLabel("Alert duration:", innerPad, aY);
+            lblAlertDur.Width = 95;
+            lblAlertDur.Font = SmallFont;
+            numAlertDisplayDurationSeconds = CreateNumericUpDown(innerPad + 100, aY - 2, 55, 1, 120, 6);
+            numAlertDisplayDurationSeconds.DecimalPlaces = 1;
+            numAlertDisplayDurationSeconds.Increment = 0.5M;
+            var lblAlertDurHelp = CreateHelpLabel("seconds", innerPad + 160, aY);
+            
+            grpAlerts.Controls.AddRange(new Control[] {
+                chkSkipDetailedWeatherOnAlert, lblRadarCount, numPlayRadarAnimationCountOnAlert, lblRadarHelp,
+                lblAlertDur, numAlertDisplayDurationSeconds, lblAlertDurHelp
+            });
+
+            var grpFormat = CreateGroupBox("📹 Output Format", rightCol, y, colWidth, grpHeight);
+            int fY = 25;
+            
+            var lblQualityPreset = CreateLabel("Quality Preset:", innerPad, fY);
+            lblQualityPreset.Width = 100;
+            lblQualityPreset.Font = SmallFont;
+            cmbQualityPreset = CreateComboBox(innerPad + 105, fY - 2, 180);
             cmbQualityPreset.Items.AddRange(new object[] { "Ultra (Best Quality)", "High Quality", "Balanced", "Web Optimized", "Low Bandwidth", "Custom" });
             cmbQualityPreset.SelectedIndex = 2;
-            fTop += 28;
+            fY += 30;
             
-            var lblResPreset = new Label { Text = "Resolution:", Left = grpPadding, Top = fTop + 2, Width = 95, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            cmbResolution = new ComboBox { Left = grpPadding + 100, Top = fTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            var lblResPreset = CreateLabel("Resolution:", innerPad, fY);
+            lblResPreset.Width = 100;
+            lblResPreset.Font = SmallFont;
+            cmbResolution = CreateComboBox(innerPad + 105, fY - 2, 180);
             cmbResolution.Items.AddRange(new object[] { "3840x2160 (4K/UHD)", "2560x1440 (2K/QHD)", "1920x1080 (Full HD)", "1600x900 (HD+)", "1280x720 (HD)", "960x540 (qHD)", "854x480 (FWVGA)", "640x480 (VGA)" });
             cmbResolution.SelectedIndex = 2;
-            fTop += 28;
+            fY += 30;
             
-            var lblContainer = new Label { Text = "Container:", Left = grpPadding, Top = fTop + 2, Width = 95, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            cmbContainer = new ComboBox { Left = grpPadding + 100, Top = fTop, Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
+            var lblContainer = CreateLabel("Container:", innerPad, fY);
+            lblContainer.Width = 100;
+            lblContainer.Font = SmallFont;
+            cmbContainer = CreateComboBox(innerPad + 105, fY - 2, 80);
             cmbContainer.Items.AddRange(new object[] { "mp4", "mkv", "mov", "avi", "webm" });
             cmbContainer.SelectedIndex = 0;
-            var lblFps = new Label { Text = "FPS:", Left = grpPadding + 200, Top = fTop + 2, Width = 35, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            numFps = new NumericUpDown { Left = grpPadding + 240, Top = fTop, Width = 55, Minimum = 1, Maximum = 240, Value = 30 };
             
-            grpFormat.Controls.AddRange(new Control[] { lblQualityPreset, cmbQualityPreset, lblResPreset, cmbResolution, lblContainer, cmbContainer, lblFps, numFps });
+            var lblFps = CreateLabel("FPS:", innerPad + 195, fY);
+            lblFps.Width = 35;
+            lblFps.Font = SmallFont;
+            numFps = CreateNumericUpDown(innerPad + 235, fY - 2, 55, 1, 240, 30);
+            
+            grpFormat.Controls.AddRange(new Control[] {
+                lblQualityPreset, cmbQualityPreset, lblResPreset, cmbResolution,
+                lblContainer, cmbContainer, lblFps, numFps
+            });
 
-            vTop += 125;
+            y += grpHeight + 10;
 
-            // ═══════════════════════════════════════════════════════════════
-            // LEFT SIDE - GroupBox: Timing Settings
-            // ═══════════════════════════════════════════════════════════════
-            var grpTiming = new GroupBox { Text = "⏱ Timing Settings", Left = ctrlLeft, Top = vTop, Width = 330, Height = 140, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
-            int tTop = 22;
+            // Row 2: Timing & Encoding
+            var grpTiming = CreateGroupBox("⏱ Timing", leftCol, y, colWidth, 155);
+            int tY = 25;
             
-            var lblStatic = new Label { Text = "Slide Duration:", Left = grpPadding, Top = tTop + 2, Width = 100, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            numStatic = new NumericUpDown { Left = grpPadding + 105, Top = tTop, Width = 70, Minimum = 1, Maximum = 60, DecimalPlaces = 1, Increment = 1, Value = 8 };
-            var lblStaticHelp = new Label { Text = "seconds per slide", Left = grpPadding + 180, Top = tTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
-            tTop += 30;
+            var lblStatic = CreateLabel("Slide Duration:", innerPad, tY);
+            lblStatic.Width = 100;
+            lblStatic.Font = SmallFont;
+            numStatic = CreateNumericUpDown(innerPad + 105, tY - 2, 70, 1, 60, 8);
+            numStatic.DecimalPlaces = 1;
+            var lblStaticHelp = CreateHelpLabel("seconds per slide", innerPad + 180, tY);
+            tY += 30;
             
-            var lblTotal = new Label { Text = "Total Duration:", Left = grpPadding, Top = tTop + 2, Width = 100, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            numTotalDuration = new NumericUpDown { Left = grpPadding + 105, Top = tTop, Width = 70, Minimum = 1, Maximum = 86400, DecimalPlaces = 1, Increment = 1, Value = 60 };
-            var lblTotalHelp = new Label { Text = "seconds total", Left = grpPadding + 180, Top = tTop + 3, AutoSize = true, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
-            tTop += 28;
-            chkUseTotalDuration = new CheckBox { Text = "Enforce total duration (overrides slide)", Left = grpPadding, Top = tTop, Width = 280, Font = new Font(this.Font.FontFamily, 9f) };
-            chkUseTotalDuration.CheckedChanged += (s, e) => { numTotalDuration.Enabled = chkUseTotalDuration.Checked; numStatic.Enabled = !chkUseTotalDuration.Checked; };
+            var lblTotal = CreateLabel("Total Duration:", innerPad, tY);
+            lblTotal.Width = 100;
+            lblTotal.Font = SmallFont;
+            numTotalDuration = CreateNumericUpDown(innerPad + 105, tY - 2, 70, 1, 86400, 60);
+            numTotalDuration.DecimalPlaces = 1;
             numTotalDuration.Enabled = false;
-            tTop += 28;
-
-            var lblFade = new Label { Text = "Fade Duration:", Left = grpPadding, Top = tTop + 2, Width = 100, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 9f) };
-            numFade = new NumericUpDown { Left = grpPadding + 105, Top = tTop, Width = 70, Minimum = 0, Maximum = 10, DecimalPlaces = 2, Increment = 0.1M, Value = 0.5M, Enabled = false };
-            chkFade = new CheckBox { Text = "Enable", Left = grpPadding + 180, Top = tTop, Width = 80, Enabled = false, Font = new Font(this.Font.FontFamily, 9f) };
+            var lblTotalHelp = CreateHelpLabel("seconds total", innerPad + 180, tY);
+            tY += 28;
             
-            grpTiming.Controls.AddRange(new Control[] { lblStatic, numStatic, lblStaticHelp, lblTotal, numTotalDuration, lblTotalHelp, chkUseTotalDuration, lblFade, numFade, chkFade });
-
-            // ═══════════════════════════════════════════════════════════════
-            // RIGHT SIDE - GroupBox: Encoding Settings
-            // ═══════════════════════════════════════════════════════════════
-            var grpEncoding = new GroupBox { Text = "🎬 Encoding", Left = rightCol, Top = vTop, Width = 330, Height = 140, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
-            int eTop = 22;
+            chkUseTotalDuration = CreateCheckBox("Use total duration mode", innerPad, tY, 220);
+            chkUseTotalDuration.Font = SmallFont;
+            chkUseTotalDuration.CheckedChanged += (s, e) => {
+                numTotalDuration.Enabled = chkUseTotalDuration.Checked;
+                numStatic.Enabled = !chkUseTotalDuration.Checked;
+            };
+            tY += 32;
             
-            var lblCodec = new Label { Text = "Codec:", Left = grpPadding, Top = eTop + 2, Width = 80, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            cmbCodec = new ComboBox { Left = grpPadding + 85, Top = eTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
+            var lblFade = CreateLabel("Fade Duration:", innerPad, tY);
+            lblFade.Width = 100;
+            lblFade.Font = SmallFont;
+            lblFade.ForeColor = TextMutedColor;
+            numFade = CreateNumericUpDown(innerPad + 105, tY - 2, 70, 0, 10, 0.5M);
+            numFade.DecimalPlaces = 2;
+            numFade.Increment = 0.1M;
+            numFade.Enabled = false;
+            
+            chkFade = CreateCheckBox("Enable", innerPad + 180, tY, 80);
+            chkFade.Font = SmallFont;
+            chkFade.Enabled = false;
+            chkFade.ForeColor = TextMutedColor;
+            
+            grpTiming.Controls.AddRange(new Control[] {
+                lblStatic, numStatic, lblStaticHelp,
+                lblTotal, numTotalDuration, lblTotalHelp,
+                chkUseTotalDuration, lblFade, numFade, chkFade
+            });
+
+            var grpEncoding = CreateGroupBox("🎬 Encoding", rightCol, y, colWidth, 155);
+            int eY = 25;
+            
+            var lblCodec = CreateLabel("Codec:", innerPad, eY);
+            lblCodec.Width = 80;
+            lblCodec.Font = SmallFont;
+            cmbCodec = CreateComboBox(innerPad + 85, eY - 2, 200);
             cmbCodec.Items.AddRange(new object[] { "libx264 (H.264)", "libx265 (H.265/HEVC)", "libvpx-vp9 (VP9)", "libaom-av1 (AV1)", "mpeg4", "msmpeg4" });
             cmbCodec.SelectedIndex = 0;
-            eTop += 28;
+            eY += 30;
             
-            var lblBitrate = new Label { Text = "Bitrate:", Left = grpPadding, Top = eTop + 2, Width = 80, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Font = new Font(this.Font.FontFamily, 9f) };
-            cmbBitrate = new ComboBox { Left = grpPadding + 85, Top = eTop, Width = 180, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbBitrate.Items.AddRange(new object[] { 
-                "1M (Low)", "2M (Medium-Low)", "4M (Medium)", "6M (Medium-High)", "8M (High)", "12M (Very High)", "16M (Ultra)"
-            });
+            var lblBitrate = CreateLabel("Bitrate:", innerPad, eY);
+            lblBitrate.Width = 80;
+            lblBitrate.Font = SmallFont;
+            cmbBitrate = CreateComboBox(innerPad + 85, eY - 2, 200);
+            cmbBitrate.Items.AddRange(new object[] { "1M (Low)", "2M (Medium-Low)", "4M (Medium)", "6M (Medium-High)", "8M (High)", "12M (Very High)", "16M (Ultra)" });
             cmbBitrate.SelectedIndex = 2;
-            eTop += 28;
+            eY += 30;
             
-            chkEnableHardwareEncoding = new CheckBox { Text = "⚡ Hardware Encoding (NVENC)", Left = grpPadding, Top = eTop, Width = 200, Font = new Font(this.Font.FontFamily, 9f) };
-            btnCheckHw = new Button { Text = "Check", Left = grpPadding + 205, Top = eTop - 2, Width = 60, Height = 24 };
-            eTop += 26;
-            lblHwStatus = new Label { Text = "Click Check to verify", Left = grpPadding + 20, Top = eTop, Width = 260, ForeColor = Color.Gray, AutoSize = true, Font = new Font(this.Font.FontFamily, 8f) };
+            chkEnableHardwareEncoding = CreateCheckBox("⚡ Hardware Encoding (NVENC)", innerPad, eY, 220);
+            chkEnableHardwareEncoding.Font = SmallFont;
+            btnCheckHw = CreateSecondaryButton("Check", innerPad + 225, eY - 3, 60, 24);
+            btnCheckHw.Font = SmallFont;
+            eY += 28;
             
-            grpEncoding.Controls.AddRange(new Control[] { lblCodec, cmbCodec, lblBitrate, cmbBitrate, chkEnableHardwareEncoding, btnCheckHw, lblHwStatus });
-
-            vTop += 150;
-
-            // ═══════════════════════════════════════════════════════════════
-            // BOTTOM SECTION - Debug & Experimental
-            // ═══════════════════════════════════════════════════════════════
-            var grpDebug = new GroupBox { Text = "🔧 Debug & Options", Left = ctrlLeft, Top = vTop, Width = 675, Height = 85, Font = new Font(this.Font.FontFamily, 9f, FontStyle.Bold) };
-            int dTop = 22;
+            lblHwStatus = CreateHelpLabel("Click Check to verify GPU support", innerPad + 20, eY, 280);
             
-            chkVerbose = new CheckBox { Text = "Verbose FFmpeg Output", Left = grpPadding, Top = dTop, Width = 180, Font = new Font(this.Font.FontFamily, 9f) };
-            chkShowFfmpeg = new CheckBox { Text = "Show FFmpeg Console Window", Left = grpPadding + 200, Top = dTop, Width = 220, Font = new Font(this.Font.FontFamily, 9f) };
-            chkEnableExperimental = new CheckBox { Text = "Enable Experimental Features", Left = grpPadding + 440, Top = dTop, Width = 210, Font = new Font(this.Font.FontFamily, 9f) };
-            chkEnableExperimental.CheckedChanged += (s, e) => { if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked; };
-            dTop += 28;
+            grpEncoding.Controls.AddRange(new Control[] {
+                lblCodec, cmbCodec, lblBitrate, cmbBitrate,
+                chkEnableHardwareEncoding, btnCheckHw, lblHwStatus
+            });
+
+            y += 165;
+
+            // Row 3: Debug Options
+            var grpDebug = CreateGroupBox("🔧 Debug & Advanced", leftCol, y, colWidth * 2 + 20, 85);
+            int dY = 25;
             
-            var lblDebugNote = new Label { Text = "💡 Tip: Use Debug options to troubleshoot video generation issues. Enable Experimental for advanced encoder settings.", Left = grpPadding, Top = dTop, Width = 640, AutoSize = false, ForeColor = Color.Gray, Font = new Font(this.Font.FontFamily, 8f) };
+            chkVerbose = CreateCheckBox("Verbose FFmpeg Output", innerPad, dY, 200);
+            chkVerbose.Font = SmallFont;
             
-            grpDebug.Controls.AddRange(new Control[] { chkVerbose, chkShowFfmpeg, chkEnableExperimental, lblDebugNote });
-
-            // Experimental controls (for Experimental tab)
-            var lblCrf = new Label { Text = "CRF Value:", Left = 15, Top = 60, Width = 130, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
-            chkUseCrfEncoding = new CheckBox { Text = "Use CRF encoding (quality-based)", Left = 150, Top = 60, Width = 220 };
-            numCrf = new NumericUpDown { Left = 380, Top = 60, Width = 80, Minimum = 0, Maximum = 51, Value = 23 };
-
-            var lblEncoderPreset = new Label { Text = "Encoder Preset:", Left = 15, Top = 95, Width = 130, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
-            cmbEncoderPreset = new ComboBox { Left = 150, Top = 95, Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbEncoderPreset.Items.AddRange(new object[] { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow" });
-            cmbEncoderPreset.SelectedIndex = 5;
-
-            var lblMaxRate = new Label { Text = "Max Bitrate:", Left = 15, Top = 130, Width = 130, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
-            txtMaxBitrate = new TextBox { Left = 150, Top = 130, Width = 145 };
-            var lblBuf = new Label { Text = "Buffer Size:", Left = 310, Top = 130, Width = 90, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft };
-            txtBufferSize = new TextBox { Left = 400, Top = 130, Width = 90 };
-
+            chkShowFfmpeg = CreateCheckBox("Show FFmpeg Console", innerPad + 210, dY, 200);
+            chkShowFfmpeg.Font = SmallFont;
             
-            // Quality preset change handler
-            cmbQualityPreset.SelectedIndexChanged += (s, e) =>
-            {
-                if (_isLoadingSettings || cmbQualityPreset.SelectedIndex == 5) return; // Custom - don't change anything
+            chkEnableExperimental = CreateCheckBox("⚠ Enable Experimental Features", innerPad + 440, dY, 240);
+            chkEnableExperimental.Font = SmallFont;
+            chkEnableExperimental.ForeColor = WarningColor;
+            chkEnableExperimental.CheckedChanged += (s, e) => {
+                if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked;
+            };
+            dY += 30;
+            
+            var lblDebugTip = CreateHelpLabel("💡 Enable Debug options for troubleshooting. Experimental tab unlocks advanced encoder settings.", innerPad, dY, 680);
+            
+            grpDebug.Controls.AddRange(new Control[] {
+                chkVerbose, chkShowFfmpeg, chkEnableExperimental, lblDebugTip
+            });
+
+            // Setup event handlers
+            SetupVideoTabEventHandlers();
+
+            tab.Controls.AddRange(new Control[] {
+                chkVideoGeneration, grpAlerts, grpFormat, grpTiming, grpEncoding, grpDebug
+            });
+
+            return tab;
+        }
+
+        private void SetupVideoTabEventHandlers()
+        {
+            // Quality preset handler
+            cmbQualityPreset.SelectedIndexChanged += (s, e) => {
+                if (_isLoadingSettings || cmbQualityPreset.SelectedIndex == 5) return;
                 
-                // Temporarily disable the markCustom handlers
                 _isLoadingSettings = true;
-                
-                // Apply preset values
                 switch (cmbQualityPreset.SelectedIndex)
                 {
                     case 0: // Ultra
-                        cmbResolution.SelectedIndex = 0; // 4K
-                        cmbCodec.SelectedIndex = 0; // H.264
-                        cmbBitrate.SelectedIndex = 6; // 16M
+                        cmbResolution.SelectedIndex = 0;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 6;
                         numFps.Value = 60;
                         break;
                     case 1: // High Quality
-                        cmbResolution.SelectedIndex = 2; // 1080p
-                        cmbCodec.SelectedIndex = 0; // H.264
-                        cmbBitrate.SelectedIndex = 4; // 8M
+                        cmbResolution.SelectedIndex = 2;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 4;
                         numFps.Value = 30;
                         break;
                     case 2: // Balanced
-                        cmbResolution.SelectedIndex = 2; // 1080p
-                        cmbCodec.SelectedIndex = 0; // H.264
-                        cmbBitrate.SelectedIndex = 2; // 4M
+                        cmbResolution.SelectedIndex = 2;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 2;
                         numFps.Value = 30;
                         break;
                     case 3: // Web Optimized
-                        cmbResolution.SelectedIndex = 4; // 720p
-                        cmbCodec.SelectedIndex = 0; // H.264
-                        cmbBitrate.SelectedIndex = 1; // 2M
+                        cmbResolution.SelectedIndex = 4;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 1;
                         numFps.Value = 30;
                         break;
                     case 4: // Low Bandwidth
-                        cmbResolution.SelectedIndex = 6; // 480p
-                        cmbCodec.SelectedIndex = 0; // H.264
-                        cmbBitrate.SelectedIndex = 0; // 1M
+                        cmbResolution.SelectedIndex = 6;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 0;
                         numFps.Value = 24;
                         break;
                 }
-                
                 _isLoadingSettings = false;
             };
-            
-            // Mark as custom when user manually changes settings
-            EventHandler markCustom = (s, e) => 
-            { 
-                if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5) 
-                    cmbQualityPreset.SelectedIndex = 5; 
+
+            // Mark as custom when user changes
+            EventHandler markCustom = (s, e) => {
+                if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5)
+                    cmbQualityPreset.SelectedIndex = 5;
             };
             cmbResolution.SelectedIndexChanged += markCustom;
             cmbCodec.SelectedIndexChanged += markCustom;
             cmbBitrate.SelectedIndexChanged += markCustom;
             numFps.ValueChanged += markCustom;
-            // New controls should mark preset as custom when changed
-            cmbEncoderPreset.SelectedIndexChanged += markCustom;
-            txtMaxBitrate.TextChanged += (s, e) => { if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5) cmbQualityPreset.SelectedIndex = 5; };
-            txtBufferSize.TextChanged += (s, e) => { if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5) cmbQualityPreset.SelectedIndex = 5; };
-            chkUseCrfEncoding.CheckedChanged += markCustom;
-            numCrf.ValueChanged += markCustom;
-            
-            // Sync Alert Duration with Static Duration
-            numStatic.ValueChanged += (s, e) => 
-            { 
-                if (!_isLoadingSettings) 
+
+            // Sync alert duration
+            numStatic.ValueChanged += (s, e) => {
+                if (!_isLoadingSettings)
                     numAlertDisplayDurationSeconds.Value = numStatic.Value;
             };
-            
-            btnCheckHw.Click += (s, e) =>
-            {
+
+            // Hardware check
+            btnCheckHw.Click += (s, e) => {
                 btnCheckHw.Enabled = false;
                 lblHwStatus.Text = "Checking...";
-                Task.Run(() =>
-                {
+                Task.Run(() => {
                     bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
-                    this.Invoke((Action)(() =>
-                    {
+                    this.Invoke((Action)(() => {
                         lblHwStatus.Text = msg;
-                        lblHwStatus.ForeColor = ok ? Color.Green : Color.Red;
+                        lblHwStatus.ForeColor = ok ? SuccessColor : DangerColor;
                         btnCheckHw.Enabled = true;
-
                         if (!ok)
                         {
                             chkEnableHardwareEncoding.Checked = false;
@@ -500,680 +875,572 @@ namespace WeatherImageGenerator.Forms
                     }));
                 });
             };
+        }
 
-            // Add all controls to the Video tab
-            tabVideo.Controls.AddRange(new Control[] { chkVideoGeneration, grpAlerts, grpFormat, grpTiming, grpEncoding, grpDebug });
+        private TabPage BuildFfmpegTab()
+        {
+            var tab = new TabPage("🎬 FFmpeg") { BackColor = BackgroundColor, Padding = new Padding(20) };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 180;
 
-            // --- Experimental Tab (moved from Video tab) ---
-            tabExperimental = new TabPage("⚠ Experimental") { BackColor = Color.FromArgb(255, 252, 245) };
-            var lblExpNote = new Label { Text = "⚠ These are experimental encoder options. Changes may affect video quality and encoding performance.", Left = 15, Top = 20, Width = 650, Height = 35, ForeColor = Color.OrangeRed, AutoSize = false, Font = new Font(this.Font.FontFamily, 9f) };
-            tabExperimental.Controls.AddRange(new Control[] {
-                lblExpNote, lblCrf, chkUseCrfEncoding, numCrf, lblEncoderPreset, cmbEncoderPreset, lblMaxRate, txtMaxBitrate, lblBuf, txtBufferSize
-            });
-            tabExperimental.Enabled = false; // Disabled by default until user opts-in
+            // Source Section
+            var lblSource = CreateSectionHeader("FFmpeg Source Configuration", labelX, y, "📦");
+            y += 35;
 
-            // --- FFmpeg Tab ---
-            var tabFfmpeg = new TabPage("🎬 FFmpeg") { BackColor = Color.White };
-            int ffTop = 20;
+            var lblDesc = CreateHelpLabel("Choose where to get FFmpeg binaries from:", labelX, y, 400);
+            y += 30;
 
-            var lblFfmpegSource = new Label { Text = "🎬 FFmpeg Source", Left = leftLabel, Top = ffTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
-
-            ffTop += 30;
-            var lblFfmpegSourceDesc = new Label { Text = "Choose where to get FFmpeg binaries from:", Left = leftLabel, Top = ffTop, Width = 400, AutoSize = false };
-
-            ffTop += 25;
-            var lblSource = new Label { Text = "Source:", Left = leftLabel, Top = ffTop, Width = 80, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbFfmpegSource = new ComboBox { Left = leftField, Top = ffTop, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbFfmpegSource.Items.AddRange(new object[] { 
-                "Bundled (Auto-download)", 
-                "System PATH", 
-                "Custom Path" 
-            });
+            var lblSourceLabel = CreateLabel("Source:", labelX, y);
+            cmbFfmpegSource = CreateComboBox(fieldX, y - 2, 220);
+            cmbFfmpegSource.Items.AddRange(new object[] { "Bundled (Auto-download)", "System PATH", "Custom Path" });
             cmbFfmpegSource.SelectedIndex = 0;
+            y += 40;
 
-            ffTop += rowH + 5;
-            var lblCustomPath = new Label { Text = "Custom Path:", Left = leftLabel, Top = ffTop, Width = 100, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtFfmpegCustomPath = new TextBox { Left = leftField, Top = ffTop, Width = 350, Enabled = false };
-            btnBrowseFfmpegPath = new Button { Text = "...", Left = leftField + 355, Top = ffTop - 1, Width = 40, Height = 23, Enabled = false };
+            var lblCustomPath = CreateLabel("Custom Path:", labelX, y);
+            txtFfmpegCustomPath = CreateTextBox(fieldX, y - 2, 380);
+            txtFfmpegCustomPath.Enabled = false;
+            btnBrowseFfmpegPath = CreateSecondaryButton("...", fieldX + 390, y - 3, 40, 26);
+            btnBrowseFfmpegPath.Enabled = false;
             btnBrowseFfmpegPath.Click += (s, e) => {
                 using (var dlg = new FolderBrowserDialog())
                 {
                     dlg.Description = "Select FFmpeg directory (containing ffmpeg.exe)";
                     if (dlg.ShowDialog() == DialogResult.OK)
-                    {
                         txtFfmpegCustomPath.Text = dlg.SelectedPath;
-                    }
                 }
             };
 
-            // Enable/disable custom path based on source selection
             cmbFfmpegSource.SelectedIndexChanged += (s, e) => {
                 bool isCustom = cmbFfmpegSource.SelectedIndex == 2;
                 txtFfmpegCustomPath.Enabled = isCustom;
                 btnBrowseFfmpegPath.Enabled = isCustom;
             };
 
-            ffTop += rowH + 10;
-            var lblFfmpegDivider = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = ffTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            y += 55;
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 30;
 
-            ffTop += 20;
-            var lblFfmpegStatusGroup = new Label { Text = "📋 Status", Left = leftLabel, Top = ffTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            // Status Section
+            var lblStatusHeader = CreateSectionHeader("Status", labelX, y, "📋");
+            y += 32;
 
-            ffTop += 30;
-            lblFfmpegStatus = new Label { Text = "Not validated", Left = leftLabel, Top = ffTop, Width = 500, AutoSize = true, ForeColor = System.Drawing.Color.Gray };
-
-            ffTop += rowH;
-            btnValidateFfmpeg = new Button { Text = "Validate FFmpeg", Left = leftLabel, Top = ffTop, Width = 130, Height = 28 };
-            btnValidateFfmpeg.Click += (s, e) => {
-                ValidateFfmpegConfiguration();
+            lblFfmpegStatus = new Label
+            {
+                Text = "Not validated",
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 28,
+                Font = LabelFont,
+                ForeColor = TextMutedColor,
+                AutoSize = false
             };
+            y += 40;
 
-            btnDownloadBundled = new Button { Text = "Download Bundled", Left = leftLabel + 140, Top = ffTop, Width = 130, Height = 28 };
-            btnDownloadBundled.Click += async (s, e) => {
-                btnDownloadBundled.Enabled = false;
-                lblFfmpegStatus.Text = "Downloading FFmpeg binaries...";
-                lblFfmpegStatus.ForeColor = System.Drawing.Color.Blue;
-                
-                try
-                {
-                    var progress = new Progress<float>(pct => 
-                    {
-                        if (this.IsHandleCreated)
-                        {
-                            this.Invoke((Action)(() => 
-                            {
-                                lblFfmpegStatus.Text = $"Downloading FFmpeg binaries... {pct:F0}%";
-                            }));
-                        }
-                    });
-                    
-                    bool success = await FFmpegLocator.InitializeAsync(progress);
-                    
-                    if (success)
-                    {
-                        lblFfmpegStatus.Text = "FFmpeg downloaded successfully!";
-                        lblFfmpegStatus.ForeColor = System.Drawing.Color.Green;
-                    }
-                    else
-                    {
-                        lblFfmpegStatus.Text = "Failed to download FFmpeg. Check logs for details.";
-                        lblFfmpegStatus.ForeColor = System.Drawing.Color.Red;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    lblFfmpegStatus.Text = $"Error: {ex.Message}";
-                    lblFfmpegStatus.ForeColor = System.Drawing.Color.Red;
-                }
-                finally
-                {
-                    btnDownloadBundled.Enabled = true;
-                }
-            };
+            btnValidateFfmpeg = CreatePrimaryButton("✓ Validate", labelX, y, 110, 32);
+            btnValidateFfmpeg.Click += (s, e) => ValidateFfmpegConfiguration();
 
-            btnClearFfmpegCache = new Button { Text = "Clear Cache", Left = leftLabel + 280, Top = ffTop, Width = 110, Height = 28 };
+            btnDownloadBundled = CreateSecondaryButton("⬇ Download", labelX + 120, y, 110, 32);
+            btnDownloadBundled.Click += async (s, e) => await DownloadFfmpegAsync();
+
+            btnClearFfmpegCache = CreateSecondaryButton("🗑 Clear Cache", labelX + 240, y, 120, 32);
             btnClearFfmpegCache.Click += (s, e) => {
                 var result = MessageBox.Show(
                     "This will delete the downloaded FFmpeg binaries. They will be re-downloaded when needed.\n\nContinue?",
-                    "Clear FFmpeg Cache",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
+                    "Clear FFmpeg Cache", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (result == DialogResult.Yes)
                 {
                     FFmpegLocator.ClearCache();
                     lblFfmpegStatus.Text = "Cache cleared. FFmpeg will be re-downloaded when needed.";
-                    lblFfmpegStatus.ForeColor = System.Drawing.Color.Orange;
+                    lblFfmpegStatus.ForeColor = WarningColor;
                 }
             };
 
-            ffTop += rowH + 15;
-            var lblFfmpegDivider2 = new Label { Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", Left = leftLabel, Top = ffTop, Width = 540, Height = 15, ForeColor = System.Drawing.Color.LightGray };
+            y += 55;
+            var divider2 = CreateDivider(labelX, y, 700);
+            y += 30;
 
-            ffTop += 20;
-            var lblFfmpegHelp = new Label { Text = "ℹ Help", Left = leftLabel, Top = ffTop, Width = 200, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
+            // Help Section
+            var lblHelpHeader = CreateSectionHeader("Help", labelX, y, "ℹ");
+            y += 32;
 
-            ffTop += 25;
-            var lblHelpText = new Label { 
+            var helpText = new Label
+            {
                 Text = "• Bundled: Automatically downloads FFmpeg to AppData (recommended)\n" +
                        "• System PATH: Uses FFmpeg installed on your system (must be in PATH)\n" +
                        "• Custom Path: Specify a folder containing ffmpeg.exe",
-                Left = leftLabel, 
-                Top = ffTop, 
-                Width = 500, 
-                Height = 60, 
-                AutoSize = false 
-            };
-
-            ffTop += 70;
-            var lblBundledPath = new Label { 
-                Text = $"Bundled location: {FFmpegLocator.FFmpegDirectory}",
-                Left = leftLabel, 
-                Top = ffTop, 
-                Width = 550, 
-                AutoSize = true,
-                ForeColor = System.Drawing.Color.DarkGray,
-                Font = new System.Drawing.Font(this.Font.FontFamily, 7.5f)
-            };
-
-            tabFfmpeg.Controls.AddRange(new Control[] {
-                lblFfmpegSource, lblFfmpegSourceDesc, lblSource, cmbFfmpegSource,
-                lblCustomPath, txtFfmpegCustomPath, btnBrowseFfmpegPath,
-                lblFfmpegDivider, lblFfmpegStatusGroup, lblFfmpegStatus, btnValidateFfmpeg, btnDownloadBundled, btnClearFfmpegCache,
-                lblFfmpegDivider2, lblFfmpegHelp, lblHelpText, lblBundledPath
-            });
-
-            // --- EAS Tab ---
-            var tabEas = new TabPage("🚨 EAS & TTS") { BackColor = Color.White, AutoScroll = true };
-            int easTop = 20;
-
-            // AlertReady section
-            var lblAlertReadyGroup = new Label { Text = "🚨 Alert Ready (NAAD)", Left = leftLabel, Top = easTop, Width = 300, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
-            
-            easTop += 30;
-            chkAlertReadyEnabled = new CheckBox { Text = "Enable Alert Ready", Left = leftLabel, Top = easTop, Width = 200 };
-            
-            easTop += rowH;
-            var lblFeedUrls = new Label { Text = "Feed URLs (one per line):", Left = leftLabel, Top = easTop, Width = 180, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            
-            easTop += 25;
-            txtAlertReadyFeedUrls = new TextBox { Left = leftLabel, Top = easTop, Width = 480, Height = 60, Multiline = true, ScrollBars = ScrollBars.Vertical };
-            
-            easTop += 70;
-            chkAlertReadyIncludeTests = new CheckBox { Text = "Include Test Alerts", Left = leftLabel, Top = easTop, Width = 200 };
-            
-            easTop += rowH;
-            var lblMaxAge = new Label { Text = "Max Alert Age (hours):", Left = leftLabel, Top = easTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numAlertReadyMaxAgeHours = new NumericUpDown { Left = leftLabel + 155, Top = easTop, Width = 80, Minimum = 0, Maximum = 168, Value = 24 };
-            
-            easTop += rowH;
-            var lblLanguage = new Label { Text = "Preferred Language:", Left = leftLabel, Top = easTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbAlertReadyLanguage = new ComboBox { Left = leftLabel + 155, Top = easTop, Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbAlertReadyLanguage.Items.AddRange(new object[] { "en-CA", "fr-CA" });
-            cmbAlertReadyLanguage.SelectedIndex = 0;
-            
-            easTop += rowH;
-            var lblAreaFilters = new Label { Text = "Area Filters (comma-separated):", Left = leftLabel, Top = easTop, Width = 220, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtAlertReadyAreaFilters = new TextBox { Left = leftLabel + 225, Top = easTop, Width = 255 };
-            
-            easTop += rowH;
-            var lblJurisdictions = new Label { Text = "Jurisdictions (comma-separated):", Left = leftLabel, Top = easTop, Width = 220, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtAlertReadyJurisdictions = new TextBox { Left = leftLabel + 225, Top = easTop, Width = 255 };
-            
-            easTop += rowH;
-            chkAlertReadyHighRiskOnly = new CheckBox { Text = "High Risk Alerts Only (Severe/Extreme)", Left = leftLabel, Top = easTop, Width = 300 };
-            
-            easTop += rowH;
-            chkAlertReadyExcludeWeather = new CheckBox { Text = "Exclude Weather Alerts (use ECCC instead)", Left = leftLabel, Top = easTop, Width = 350 };
-            
-            easTop += rowH + 10;
-            var lblDividerEas = new Label { Text = "", Left = leftLabel, Top = easTop, Width = 700, Height = 2, BorderStyle = BorderStyle.Fixed3D };
-            
-            // TTS section
-            easTop += 15;
-            var lblTtsGroup = new Label { Text = "🎤 Text-to-Speech (EdgeTTS)", Left = leftLabel, Top = easTop, Width = 300, Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold) };
-            
-            easTop += 30;
-            var lblTtsVoice = new Label { Text = "Voice:", Left = leftLabel, Top = easTop, Width = 150, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            cmbTtsVoice = new ComboBox { Left = leftLabel + 155, Top = easTop, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbTtsVoice.Items.AddRange(new object[] { 
-                "fr-CA-SylvieNeural (Female)", 
-                "fr-CA-JeanNeural (Male)", 
-                "fr-CA-AntoineNeural (Male)",
-                "fr-CA-ThierryNeural (Male)",
-                "en-CA-ClaraNeural (Female)",
-                "en-CA-LiamNeural (Male)",
-                "en-US-JennyNeural (Female)",
-                "en-US-GuyNeural (Male)"
-            });
-            cmbTtsVoice.SelectedIndex = 0;
-            
-            easTop += rowH;
-            var lblTtsRate = new Label { Text = "Speech Rate (e.g., +0%, +10%):", Left = leftLabel, Top = easTop, Width = 200, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtTtsRate = new TextBox { Left = leftLabel + 205, Top = easTop, Width = 100 };
-            txtTtsRate.Text = "+0%";
-            
-            easTop += rowH;
-            var lblTtsPitch = new Label { Text = "Pitch (e.g., +0Hz, +10Hz):", Left = leftLabel, Top = easTop, Width = 200, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtTtsPitch = new TextBox { Left = leftLabel + 205, Top = easTop, Width = 100 };
-            txtTtsPitch.Text = "+0Hz";
-            
-            easTop += rowH + 5;
-            var btnDownloadVoices = new Button 
-            { 
-                Text = "📥 Download Windows TTS Voices", 
-                Left = leftLabel, 
-                Top = easTop, 
-                Width = 240, 
-                Height = 30,
-                BackColor = System.Drawing.Color.FromArgb(52, 152, 219),
-                ForeColor = System.Drawing.Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Cursor = Cursors.Hand
-            };
-            btnDownloadVoices.FlatAppearance.BorderSize = 0;
-            btnDownloadVoices.Click += (s, e) => 
-            {
-                try 
-                {
-                    // Open Windows Settings to Time & Language > Language & Region > Add a language
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "ms-settings:regionlanguage",
-                        UseShellExecute = true
-                    });
-                    MessageBox.Show(this,
-                        "Windows Settings will open.\n\n" +
-                        "To add French TTS voices:\n" +
-                        "1. Click 'Add a language'\n" +
-                        "2. Search for 'French' and select your region (Canada or France)\n" +
-                        "3. Check 'Text-to-speech' option\n" +
-                        "4. Click Install\n\n" +
-                        "Common French voices:\n" +
-                        "• French (Canada) - Includes Sylvie, Claude\n" +
-                        "• French (France) - Includes Hortense, Julie, Pauline\n\n" +
-                        "After installation, restart the application.",
-                        "Download TTS Voices",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, $"Could not open Windows Settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            };
-            
-            easTop += 40;
-            var lblTtsNote = new Label 
-            { 
-                Text = "💡 EdgeTTS works online without installation. Windows SAPI is the offline fallback.\nIf using SAPI, install French language packs above for French TTS support.",
-                Left = leftLabel, 
-                Top = easTop, 
-                Width = 480, 
-                Height = 60,
-                ForeColor = System.Drawing.Color.FromArgb(100, 100, 100),
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 65,
+                Font = LabelFont,
+                ForeColor = TextColor,
                 AutoSize = false
             };
 
-            tabEas.Controls.AddRange(new Control[] {
-                lblAlertReadyGroup, chkAlertReadyEnabled, lblFeedUrls, txtAlertReadyFeedUrls,
-                chkAlertReadyIncludeTests, lblMaxAge, numAlertReadyMaxAgeHours,
-                lblLanguage, cmbAlertReadyLanguage, lblAreaFilters, txtAlertReadyAreaFilters,
-                lblJurisdictions, txtAlertReadyJurisdictions, chkAlertReadyHighRiskOnly, chkAlertReadyExcludeWeather,
-                lblDividerEas, lblTtsGroup, lblTtsVoice, cmbTtsVoice, lblTtsRate, txtTtsRate,
-                lblTtsPitch, txtTtsPitch, btnDownloadVoices, lblTtsNote
+            tab.Controls.AddRange(new Control[] {
+                lblSource, lblDesc, lblSourceLabel, cmbFfmpegSource,
+                lblCustomPath, txtFfmpegCustomPath, btnBrowseFfmpegPath, divider1,
+                lblStatusHeader, lblFfmpegStatus, btnValidateFfmpeg, btnDownloadBundled, btnClearFfmpegCache, divider2,
+                lblHelpHeader, helpText
             });
 
-            // --- OpenMap Tab ---
-            var tabOpenMap = new TabPage("🗺 OpenMap") { BackColor = Color.White, AutoScroll = true };
-            int omTop = 20;
-            int omLeft = 20;
-            int omLabelWidth = 200;
-            int omControlWidth = 250;
+            return tab;
+        }
 
-            // Section: Basic Settings
-            var lblMapBasicSection = new Label
-            {
-                Text = "Basic Map Settings",
-                Left = omLeft,
-                Top = omTop,
-                Width = 600,
-                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(41, 128, 185)
-            };
-            omTop += 30;
+        private TabPage BuildOpenMapTab()
+        {
+            var tab = new TabPage("🗺 OpenMap") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 230;
+            int rowHeight = 38;
 
-            var lblMapStyle = new Label { Text = "Default Map Style:", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
-            cmbMapStyle = new ComboBox
-            {
-                Left = omLeft + omLabelWidth + 10,
-                Top = omTop - 3,
-                Width = omControlWidth,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
+            // Basic Settings
+            var lblBasic = CreateSectionHeader("Basic Map Settings", labelX, y, "🗺");
+            y += 35;
+
+            var lblMapStyle = CreateLabel("Default Map Style:", labelX, y);
+            cmbMapStyle = CreateComboBox(fieldX, y - 2, 200);
             cmbMapStyle.Items.AddRange(new object[] { "Standard", "Minimal", "Terrain", "Satellite" });
             cmbMapStyle.SelectedIndex = 0;
-            omTop += 35;
+            y += rowHeight;
 
-            var lblMapZoom = new Label { Text = "Default Zoom Level (0-18):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
-            numMapZoomLevel = new NumericUpDown
-            {
-                Left = omLeft + omLabelWidth + 10,
-                Top = omTop - 3,
-                Width = 100,
-                Minimum = 0,
-                Maximum = 18,
-                Value = 10
-            };
-            var lblMapZoomHelp = new Label
-            {
-                Text = "(7-10 for regional weather)",
-                Left = omLeft + omLabelWidth + 120,
-                Top = omTop,
-                Width = 200,
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 8.5F)
-            };
-            omTop += 35;
+            var lblMapZoom = CreateLabel("Default Zoom Level:", labelX, y);
+            numMapZoomLevel = CreateNumericUpDown(fieldX, y - 2, 80, 0, 18, 10);
+            var lblZoomHelp = CreateHelpLabel("(7-10 for regional weather)", fieldX + 90, y + 2, 180);
+            y += rowHeight;
 
-            var lblMapBgColor = new Label { Text = "Background Color (Hex):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
-            txtMapBackgroundColor = new TextBox
-            {
-                Left = omLeft + omLabelWidth + 10,
-                Top = omTop - 3,
-                Width = 120,
-                Text = "#D3D3D3"
-            };
-            var lblMapBgHelp = new Label
-            {
-                Text = "e.g., #E8F4F8 for light blue",
-                Left = omLeft + omLabelWidth + 140,
-                Top = omTop,
-                Width = 200,
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 8.5F)
-            };
-            omTop += 35;
+            var lblMapBgColor = CreateLabel("Background Color (Hex):", labelX, y);
+            txtMapBackgroundColor = CreateTextBox(fieldX, y - 2, 120);
+            txtMapBackgroundColor.Text = "#D3D3D3";
+            var lblBgHelp = CreateHelpLabel("e.g., #E8F4F8 for light blue", fieldX + 130, y + 2, 180);
+            y += rowHeight;
 
-            var lblMapOpacity = new Label { Text = "Overlay Opacity (0-100%):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
-            numMapOverlayOpacity = new NumericUpDown
-            {
-                Left = omLeft + omLabelWidth + 10,
-                Top = omTop - 3,
-                Width = 100,
-                Minimum = 0,
-                Maximum = 100,
-                Value = 70,
-                DecimalPlaces = 0
-            };
-            var lblMapOpacityHelp = new Label
-            {
-                Text = "(70-85% recommended)",
-                Left = omLeft + omLabelWidth + 120,
-                Top = omTop,
-                Width = 200,
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 8.5F)
-            };
-            omTop += 35;
+            var lblMapOpacity = CreateLabel("Overlay Opacity:", labelX, y);
+            numMapOverlayOpacity = CreateNumericUpDown(fieldX, y - 2, 80, 0, 100, 70);
+            var lblOpacityUnit = CreateHelpLabel("% (70-85 recommended)", fieldX + 90, y + 2, 180);
+            y += rowHeight;
 
-            chkMapUseDarkMode = new CheckBox
-            {
-                Text = "🌙 Use Dark Mode (for Terrain style)",
-                Left = omLeft,
-                Top = omTop,
-                Width = 400,
-                Checked = false,
-                Font = new Font("Segoe UI", 9F)
-            };
-            var lblMapDarkHelp = new Label
-            {
-                Text = "Best for night weather displays",
-                Left = omLeft + 410,
-                Top = omTop + 3,
-                Width = 250,
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 8.5F)
-            };
-            omTop += 45;
+            chkMapUseDarkMode = CreateCheckBox("🌙 Use Dark Mode (for Terrain style)", labelX, y, 350);
+            var lblDarkHelp = CreateHelpLabel("Best for night weather displays", labelX + 360, y + 3, 200);
+            y += rowHeight + 10;
 
-            // Section: Performance Settings
-            var lblMapPerfSection = new Label
-            {
-                Text = "Performance & Caching",
-                Left = omLeft,
-                Top = omTop,
-                Width = 600,
-                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(41, 128, 185)
-            };
-            omTop += 30;
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 25;
 
-            var lblMapTimeout = new Label { Text = "Tile Download Timeout (sec):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
-            numMapTileTimeout = new NumericUpDown
-            {
-                Left = omLeft + omLabelWidth + 10,
-                Top = omTop - 3,
-                Width = 100,
-                Minimum = 10,
-                Maximum = 120,
-                Value = 30
-            };
-            omTop += 35;
+            // Performance Settings
+            var lblPerf = CreateSectionHeader("Performance & Caching", labelX, y, "⚡");
+            y += 35;
 
-            chkMapEnableCache = new CheckBox
-            {
-                Text = "Enable Tile Caching (Recommended)",
-                Left = omLeft,
-                Top = omTop,
-                Width = 400,
-                Checked = true
-            };
-            omTop += 30;
+            var lblMapTimeout = CreateLabel("Tile Download Timeout:", labelX, y);
+            numMapTileTimeout = CreateNumericUpDown(fieldX, y - 2, 80, 10, 120, 30);
+            var lblTimeoutUnit = CreateHelpLabel("seconds", fieldX + 90, y + 2);
+            y += rowHeight;
 
-            var lblMapCacheDir = new Label { Text = "Cache Directory:", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
-            txtMapCacheDirectory = new TextBox
-            {
-                Left = omLeft + omLabelWidth + 10,
-                Top = omTop - 3,
-                Width = omControlWidth,
-                Text = "MapCache",
-                Enabled = true
-            };
+            chkMapEnableCache = CreateCheckBox("Enable Tile Caching (Recommended)", labelX, y, 350);
+            chkMapEnableCache.Checked = true;
+            y += 32;
+
+            var lblCacheDir = CreateLabel("Cache Directory:", labelX, y);
+            txtMapCacheDirectory = CreateTextBox(fieldX, y - 2, 200);
+            txtMapCacheDirectory.Text = "MapCache";
             chkMapEnableCache.CheckedChanged += (s, e) => txtMapCacheDirectory.Enabled = chkMapEnableCache.Checked;
-            omTop += 35;
+            y += rowHeight;
 
-            var lblMapCacheDuration = new Label { Text = "Cache Duration (hours):", Left = omLeft, Top = omTop, Width = omLabelWidth, TextAlign = ContentAlignment.MiddleLeft };
-            numMapCacheDuration = new NumericUpDown
-            {
-                Left = omLeft + omLabelWidth + 10,
-                Top = omTop - 3,
-                Width = 100,
-                Minimum = 1,
-                Maximum = 8760,
-                Value = 168
-            };
-            var lblMapCacheHelp = new Label
-            {
-                Text = "(168 hrs = 7 days)",
-                Left = omLeft + omLabelWidth + 120,
-                Top = omTop,
-                Width = 200,
-                ForeColor = Color.Gray,
-                Font = new Font("Segoe UI", 8.5F)
-            };
-            omTop += 45;
+            var lblCacheDuration = CreateLabel("Cache Duration:", labelX, y);
+            numMapCacheDuration = CreateNumericUpDown(fieldX, y - 2, 80, 1, 8760, 168);
+            var lblCacheHelp = CreateHelpLabel("hours (168 = 7 days)", fieldX + 90, y + 2, 150);
+            y += rowHeight + 10;
 
-            // Section: Map Style Guide
-            var lblMapStyleSection = new Label
-            {
-                Text = "Map Style Reference",
-                Left = omLeft,
-                Top = omTop,
-                Width = 600,
-                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(41, 128, 185)
-            };
-            omTop += 30;
+            var divider2 = CreateDivider(labelX, y, 700);
+            y += 25;
 
-            var lblMapStyleGuide = new Label
+            // Style Guide
+            var lblStyleGuide = CreateSectionHeader("Map Style Reference", labelX, y, "📖");
+            y += 35;
+
+            var styleGuide = new Label
             {
                 Text = "• Standard: Traditional OpenStreetMap with detailed roads and cities\n" +
                        "• Minimal: Clean, simplified style (HOT)\n" +
                        "• Terrain: Topographic with elevation contours\n" +
-                       "• Satellite: High-resolution imagery (Esri)\n\n" +
-                       "Note: All maps require proper attribution. See OpenMap/LEGAL.md",
-                Left = omLeft,
-                Top = omTop,
-                Width = 650,
-                Height = 130,
-                Font = new Font("Segoe UI", 9F),
-                ForeColor = Color.FromArgb(52, 73, 94)
+                       "• Satellite: High-resolution imagery (Esri)",
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 90,
+                Font = LabelFont,
+                ForeColor = TextColor,
+                AutoSize = false
             };
-            omTop += 140;
+            y += 100;
 
-            // Attribution note
-            var lblMapAttribution = new Label
+            var lblAttribution = new Label
             {
                 Text = "⚠ Legal: Generated maps automatically include required attribution per OSM usage policy.",
-                Left = omLeft,
-                Top = omTop,
+                Left = labelX,
+                Top = y,
                 Width = 650,
-                Height = 30,
-                Font = new Font("Segoe UI", 8.5F, FontStyle.Italic),
-                ForeColor = Color.FromArgb(192, 57, 43)
+                Height = 25,
+                Font = HelpFont,
+                ForeColor = DangerColor,
+                AutoSize = false
             };
 
-            tabOpenMap.Controls.AddRange(new Control[]
-            {
-                lblMapBasicSection,
-                lblMapStyle, cmbMapStyle,
-                lblMapZoom, numMapZoomLevel, lblMapZoomHelp,
-                lblMapBgColor, txtMapBackgroundColor, lblMapBgHelp,
-                lblMapOpacity, numMapOverlayOpacity, lblMapOpacityHelp,
-                chkMapUseDarkMode, lblMapDarkHelp,
-                lblMapPerfSection,
-                lblMapTimeout, numMapTileTimeout,
-                chkMapEnableCache,
-                lblMapCacheDir, txtMapCacheDirectory,
-                lblMapCacheDuration, numMapCacheDuration, lblMapCacheHelp,
-                lblMapStyleSection,
-                lblMapStyleGuide,
-                lblMapAttribution
+            tab.Controls.AddRange(new Control[] {
+                lblBasic, lblMapStyle, cmbMapStyle, lblMapZoom, numMapZoomLevel, lblZoomHelp,
+                lblMapBgColor, txtMapBackgroundColor, lblBgHelp,
+                lblMapOpacity, numMapOverlayOpacity, lblOpacityUnit,
+                chkMapUseDarkMode, lblDarkHelp, divider1,
+                lblPerf, lblMapTimeout, numMapTileTimeout, lblTimeoutUnit,
+                chkMapEnableCache, lblCacheDir, txtMapCacheDirectory,
+                lblCacheDuration, numMapCacheDuration, lblCacheHelp, divider2,
+                lblStyleGuide, styleGuide, lblAttribution
             });
 
-            // --- Web UI Tab ---
-            var tabWebUI = new TabPage("🌐 Web UI") { BackColor = Color.White, AutoScroll = true };
-            int wTop = 20;
+            return tab;
+        }
 
-            var lblWebUIInfo = new Label 
-            { 
-                Text = "Remote Web Interface Settings", 
-                Left = leftLabel, 
-                Top = wTop, 
-                Width = 400, 
-                AutoSize = false, 
-                Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                TextAlign = System.Drawing.ContentAlignment.MiddleLeft 
+        private TabPage BuildEasTab()
+        {
+            var tab = new TabPage("🚨 EAS & TTS") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 230;
+            int rowHeight = 35;
+
+            // Alert Ready Section
+            var lblAlertReady = CreateSectionHeader("Alert Ready (NAAD)", labelX, y, "🚨");
+            y += 35;
+
+            chkAlertReadyEnabled = CreateCheckBox("Enable Alert Ready", labelX, y, 250);
+            y += rowHeight;
+
+            var lblFeedUrls = CreateLabel("Feed URLs:", labelX, y);
+            y += 25;
+            txtAlertReadyFeedUrls = new TextBox
+            {
+                Left = labelX,
+                Top = y,
+                Width = 500,
+                Height = 55,
+                Font = SmallFont,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical
+            };
+            y += 65;
+
+            chkAlertReadyIncludeTests = CreateCheckBox("Include Test Alerts", labelX, y, 200);
+            y += rowHeight;
+
+            var lblMaxAge = CreateLabel("Max Alert Age:", labelX, y);
+            numAlertReadyMaxAgeHours = CreateNumericUpDown(fieldX, y - 2, 80, 0, 168, 24);
+            var lblMaxAgeUnit = CreateHelpLabel("hours", fieldX + 90, y + 2);
+            y += rowHeight;
+
+            var lblLanguage = CreateLabel("Preferred Language:", labelX, y);
+            cmbAlertReadyLanguage = CreateComboBox(fieldX, y - 2, 120);
+            cmbAlertReadyLanguage.Items.AddRange(new object[] { "en-CA", "fr-CA" });
+            cmbAlertReadyLanguage.SelectedIndex = 0;
+            y += rowHeight;
+
+            var lblAreaFilters = CreateLabel("Area Filters:", labelX, y);
+            txtAlertReadyAreaFilters = CreateTextBox(fieldX, y - 2, 270);
+            var lblAreaHelp = CreateHelpLabel("comma-separated", fieldX + 280, y + 2);
+            y += rowHeight;
+
+            var lblJurisdictions = CreateLabel("Jurisdictions:", labelX, y);
+            txtAlertReadyJurisdictions = CreateTextBox(fieldX, y - 2, 270);
+            txtAlertReadyJurisdictions.Text = "QC, CA";
+            var lblJurisHelp = CreateHelpLabel("comma-separated", fieldX + 280, y + 2);
+            y += rowHeight;
+
+            chkAlertReadyHighRiskOnly = CreateCheckBox("High Risk Alerts Only (Severe/Extreme)", labelX, y, 320);
+            y += 30;
+
+            chkAlertReadyExcludeWeather = CreateCheckBox("Exclude Weather Alerts (use ECCC instead)", labelX, y, 350);
+            y += 40;
+
+            var divider = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // TTS Section
+            var lblTts = CreateSectionHeader("Text-to-Speech (EdgeTTS)", labelX, y, "🎤");
+            y += 35;
+
+            var lblVoice = CreateLabel("Voice:", labelX, y);
+            cmbTtsVoice = CreateComboBox(fieldX, y - 2, 220);
+            cmbTtsVoice.Items.AddRange(new object[] {
+                "fr-CA-SylvieNeural (Female)", "fr-CA-JeanNeural (Male)",
+                "fr-CA-AntoineNeural (Male)", "fr-CA-ThierryNeural (Male)",
+                "en-CA-ClaraNeural (Female)", "en-CA-LiamNeural (Male)",
+                "en-US-JennyNeural (Female)", "en-US-GuyNeural (Male)"
+            });
+            cmbTtsVoice.SelectedIndex = 0;
+            y += rowHeight;
+
+            var lblRate = CreateLabel("Speech Rate:", labelX, y);
+            txtTtsRate = CreateTextBox(fieldX, y - 2, 100);
+            txtTtsRate.Text = "+0%";
+            var lblRateHelp = CreateHelpLabel("e.g., +0%, +10%, -5%", fieldX + 110, y + 2);
+            y += rowHeight;
+
+            var lblPitch = CreateLabel("Pitch:", labelX, y);
+            txtTtsPitch = CreateTextBox(fieldX, y - 2, 100);
+            txtTtsPitch.Text = "+0Hz";
+            var lblPitchHelp = CreateHelpLabel("e.g., +0Hz, +10Hz", fieldX + 110, y + 2);
+            y += rowHeight + 5;
+
+            var btnDownloadVoices = CreatePrimaryButton("📥 Download Windows TTS Voices", labelX, y, 260, 32);
+            btnDownloadVoices.Click += (s, e) => DownloadWindowsVoices();
+            y += 45;
+
+            var lblTtsNote = new Label
+            {
+                Text = "💡 EdgeTTS works online without installation. Windows SAPI is the offline fallback.\n   If using SAPI, install French language packs above for French TTS support.",
+                Left = labelX,
+                Top = y,
+                Width = 550,
+                Height = 45,
+                Font = SmallFont,
+                ForeColor = TextMutedColor,
+                AutoSize = false
             };
 
-            wTop += 40;
-            chkWebUIEnabled = new CheckBox { Text = "Enable Web UI Server", Left = leftLabel, Top = wTop, Width = 300 };
+            tab.Controls.AddRange(new Control[] {
+                lblAlertReady, chkAlertReadyEnabled, lblFeedUrls, txtAlertReadyFeedUrls,
+                chkAlertReadyIncludeTests, lblMaxAge, numAlertReadyMaxAgeHours, lblMaxAgeUnit,
+                lblLanguage, cmbAlertReadyLanguage, lblAreaFilters, txtAlertReadyAreaFilters, lblAreaHelp,
+                lblJurisdictions, txtAlertReadyJurisdictions, lblJurisHelp,
+                chkAlertReadyHighRiskOnly, chkAlertReadyExcludeWeather, divider,
+                lblTts, lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp,
+                lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices, lblTtsNote
+            });
 
-            wTop += rowH;
-            var lblPort = new Label { Text = "Port:", Left = leftLabel, Top = wTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            numWebUIPort = new NumericUpDown { Left = leftField, Top = wTop, Width = 80, Minimum = 1024, Maximum = 65535, Value = 5000 };
+            return tab;
+        }
 
-            wTop += rowH;
-            chkWebUIAllowRemote = new CheckBox { Text = "Allow Remote Access (other computers on network)", Left = leftLabel, Top = wTop, Width = 400 };
+        private TabPage BuildWebUITab()
+        {
+            var tab = new TabPage("🌐 Web UI") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 200;
+            int rowHeight = 38;
 
-            wTop += rowH;
-            var lblURL = new Label { Text = "Access URL:", Left = leftLabel, Top = wTop, Width = 140, AutoSize = false, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-            txtWebUIUrl = new TextBox { Left = leftField, Top = wTop, Width = 350, ReadOnly = true };
+            // Header
+            var lblHeader = CreateSectionHeader("Remote Web Interface", labelX, y, "🌐");
+            y += 35;
 
-            wTop += rowH;
-            lblWebUIStatus = new Label { Text = "Status: Inactive", Left = leftLabel, Top = wTop, Width = 400, AutoSize = false };
+            var lblDesc = new Label
+            {
+                Text = "Enable a web interface to access your weather display from any browser on your network.",
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 25,
+                Font = LabelFont,
+                ForeColor = TextMutedColor,
+                AutoSize = false
+            };
+            y += 40;
 
-            wTop += 45;
-            btnTestWebUI = new Button { Text = "🔗 Test Connection", Left = leftLabel, Top = wTop, Width = 150, Height = 30 };
+            chkWebUIEnabled = CreateCheckBox("Enable Web UI Server", labelX, y, 250);
+            chkWebUIEnabled.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            y += 40;
+
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // Configuration
+            var lblConfig = CreateSubHeader("Configuration", labelX, y);
+            y += 30;
+
+            var lblPort = CreateLabel("Port:", labelX, y);
+            numWebUIPort = CreateNumericUpDown(fieldX, y - 2, 100, 1024, 65535, 5000);
+            var lblPortHelp = CreateHelpLabel("(1024-65535)", fieldX + 110, y + 2);
+            y += rowHeight;
+
+            chkWebUIAllowRemote = CreateCheckBox("Allow Remote Access (other computers on network)", labelX, y, 400);
+            y += rowHeight;
+
+            var lblUrl = CreateLabel("Access URL:", labelX, y);
+            txtWebUIUrl = CreateTextBox(fieldX, y - 2, 350);
+            txtWebUIUrl.ReadOnly = true;
+            txtWebUIUrl.BackColor = Color.FromArgb(248, 249, 250);
+            y += rowHeight + 5;
+
+            lblWebUIStatus = new Label
+            {
+                Left = labelX,
+                Top = y,
+                Width = 450,
+                Height = 25,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                ForeColor = TextMutedColor,
+                Text = "Status: Not running",
+                AutoSize = false
+            };
+            y += 40;
+
+            // Buttons
+            btnTestWebUI = CreateSecondaryButton("🔗 Test Connection", labelX, y, 150, 34);
             btnTestWebUI.Click += (s, e) => TestWebUIConnection();
 
-            var btnOpenInBrowser = new Button { Text = "🌐 Open in Browser", Left = 170, Top = wTop, Width = 150, Height = 30 };
+            var btnOpenInBrowser = CreatePrimaryButton("🌐 Open in Browser", labelX + 165, y, 150, 34);
             btnOpenInBrowser.Click += (s, e) => OpenWebUIInBrowser();
+            y += 55;
 
-            wTop += 50;
-            var lblNote = new Label 
-            { 
-                Text = "Note: This allows access to your weather interface from any web browser on your network or the internet.", 
-                Left = leftLabel, 
-                Top = wTop, 
-                Width = 600, 
+            var divider2 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // Security Notice
+            var lblSecurityHeader = CreateSubHeader("⚠ Security Notice", labelX, y);
+            lblSecurityHeader.ForeColor = WarningColor;
+            y += 30;
+
+            var lblSecurityNote = new Label
+            {
+                Text = "When 'Allow Remote Access' is enabled, any device on your local network can access the web interface.\n" +
+                       "If you want to access from the internet, you'll need to configure port forwarding on your router.\n" +
+                       "Consider using a VPN or reverse proxy with authentication for internet access.",
+                Left = labelX,
+                Top = y,
+                Width = 680,
                 Height = 60,
-                AutoSize = false,
-                Font = new Font("Segoe UI", 9F, FontStyle.Italic),
-                ForeColor = Color.Gray
+                Font = SmallFont,
+                ForeColor = TextColor,
+                AutoSize = false
             };
 
-            tabWebUI.Controls.AddRange(new Control[] {
-                lblWebUIInfo,
-                chkWebUIEnabled,
-                lblPort, numWebUIPort,
-                chkWebUIAllowRemote,
-                lblURL, txtWebUIUrl,
-                lblWebUIStatus,
-                btnTestWebUI, btnOpenInBrowser,
-                lblNote
-            });
-
-            // Add tabs to tab control
-            tabControl.TabPages.Add(tabGeneral);
-            tabControl.TabPages.Add(tabImage);
-            tabControl.TabPages.Add(tabVideo);
-            tabControl.TabPages.Add(tabFfmpeg);
-            tabControl.TabPages.Add(tabOpenMap);
-            tabControl.TabPages.Add(tabEas);
-            tabControl.TabPages.Add(tabWebUI);
-            tabControl.TabPages.Add(tabExperimental);
-
-            var btnSave = new Button 
-            { 
-                Text = "✔ Save", 
-                Left = 380, 
-                Top = 620, 
-                Width = 110, 
-                Height = 35,
-                BackColor = Color.FromArgb(76, 175, 80),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            btnSave.FlatAppearance.BorderSize = 0;
-            btnSave.MouseEnter += (s, e) => btnSave.BackColor = Color.FromArgb(67, 160, 71);
-            btnSave.MouseLeave += (s, e) => btnSave.BackColor = Color.FromArgb(76, 175, 80);
-            
-            var btnCancel = new Button 
-            { 
-                Text = "❌ Cancel", 
-                Left = 500, 
-                Top = 620, 
-                Width = 110, 
-                Height = 35,
-                BackColor = Color.FromArgb(220, 220, 220),
-                ForeColor = Color.Black,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10F),
-                Cursor = Cursors.Hand
-            };
-            btnCancel.FlatAppearance.BorderSize = 0;
-            btnCancel.MouseEnter += (s, e) => btnCancel.BackColor = Color.FromArgb(200, 200, 200);
-            btnCancel.MouseLeave += (s, e) => btnCancel.BackColor = Color.FromArgb(220, 220, 220);
-
-            btnSave.Click += (s, e) => SaveClicked();
-            btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
-
-            // Add event handlers for Web UI controls
+            // Event handlers
             chkWebUIEnabled.CheckedChanged += (s, e) => { if (!_isLoadingSettings) OnWebUIEnabledChanged(); };
             numWebUIPort.ValueChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
             chkWebUIAllowRemote.CheckedChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
 
-            this.Controls.Add(tabControl);
-            this.Controls.Add(btnSave);
-            this.Controls.Add(btnCancel);
+            tab.Controls.AddRange(new Control[] {
+                lblHeader, lblDesc, chkWebUIEnabled, divider1,
+                lblConfig, lblPort, numWebUIPort, lblPortHelp,
+                chkWebUIAllowRemote, lblUrl, txtWebUIUrl, lblWebUIStatus,
+                btnTestWebUI, btnOpenInBrowser, divider2,
+                lblSecurityHeader, lblSecurityNote
+            });
 
-            // Position form relative to owner when shown
-            this.Shown += (s, e) => {
-                if (this.Owner != null)
-                {
-                    // Center on the owner's screen/monitor
-                    this.Location = new Point(
-                        this.Owner.Location.X + (this.Owner.Width - this.Width) / 2,
-                        this.Owner.Location.Y + (this.Owner.Height - this.Height) / 2
-                    );
-                }
+            return tab;
+        }
+
+        private TabPage BuildExperimentalTab()
+        {
+            var tab = new TabPage("⚠ Experimental") { BackColor = Color.FromArgb(255, 252, 245), Padding = new Padding(20) };
+            tab.Enabled = false;
+            
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 200;
+            int rowHeight = 38;
+
+            // Warning Banner
+            var warningPanel = new Panel
+            {
+                Left = labelX,
+                Top = y,
+                Width = 700,
+                Height = 50,
+                BackColor = Color.FromArgb(255, 243, 205)
+            };
+            var lblWarning = new Label
+            {
+                Text = "⚠ EXPERIMENTAL FEATURES - These settings can affect video quality and encoding performance.\n   Use with caution. Enable from the Video tab's Debug section.",
+                Left = 15,
+                Top = 8,
+                Width = 670,
+                Height = 35,
+                Font = LabelFont,
+                ForeColor = Color.FromArgb(133, 100, 4),
+                AutoSize = false
+            };
+            warningPanel.Controls.Add(lblWarning);
+            y += 70;
+
+            // CRF Encoding
+            var lblCrfSection = CreateSectionHeader("Quality-Based Encoding (CRF)", labelX, y, "🎯");
+            y += 35;
+
+            chkUseCrfEncoding = CreateCheckBox("Use CRF encoding (quality-based)", labelX, y, 280);
+            y += 35;
+
+            var lblCrf = CreateLabel("CRF Value:", labelX, y);
+            numCrf = CreateNumericUpDown(fieldX, y - 2, 80, 0, 51, 23);
+            var lblCrfHelp = CreateHelpLabel("Lower = better quality (18-28 typical)", fieldX + 90, y + 2, 250);
+            y += rowHeight + 5;
+
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // Encoder Settings
+            var lblEncoderSection = CreateSectionHeader("Encoder Settings", labelX, y, "⚙");
+            y += 35;
+
+            var lblPreset = CreateLabel("Encoder Preset:", labelX, y);
+            cmbEncoderPreset = CreateComboBox(fieldX, y - 2, 150);
+            cmbEncoderPreset.Items.AddRange(new object[] { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow" });
+            cmbEncoderPreset.SelectedIndex = 5;
+            var lblPresetHelp = CreateHelpLabel("Slower = smaller file, better quality", fieldX + 160, y + 2, 250);
+            y += rowHeight;
+
+            var lblMaxBitrate = CreateLabel("Max Bitrate:", labelX, y);
+            txtMaxBitrate = CreateTextBox(fieldX, y - 2, 100);
+            var lblMaxBrHelp = CreateHelpLabel("e.g., 8M, 12M (optional)", fieldX + 110, y + 2);
+            y += rowHeight;
+
+            var lblBuffer = CreateLabel("Buffer Size:", labelX, y);
+            txtBufferSize = CreateTextBox(fieldX, y - 2, 100);
+            var lblBufferHelp = CreateHelpLabel("e.g., 16M (optional)", fieldX + 110, y + 2);
+            y += rowHeight + 10;
+
+            // Tips
+            var lblTips = new Label
+            {
+                Text = "💡 Tips:\n" +
+                       "• CRF mode provides consistent quality but variable file size\n" +
+                       "• Use 'slow' or 'slower' preset for best quality when time isn't critical\n" +
+                       "• Set Max Bitrate to limit file size while using CRF mode\n" +
+                       "• Leave optional fields empty to use defaults",
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 90,
+                Font = SmallFont,
+                ForeColor = TextColor,
+                AutoSize = false
             };
 
-            LoadSettings();
+            // Mark custom on change
+            EventHandler markCustom = (s, e) => {
+                if (!_isLoadingSettings && cmbQualityPreset != null && cmbQualityPreset.SelectedIndex != 5)
+                    cmbQualityPreset.SelectedIndex = 5;
+            };
+            cmbEncoderPreset.SelectedIndexChanged += markCustom;
+            txtMaxBitrate.TextChanged += markCustom;
+            txtBufferSize.TextChanged += markCustom;
+            chkUseCrfEncoding.CheckedChanged += markCustom;
+            numCrf.ValueChanged += markCustom;
+
+            tab.Controls.AddRange(new Control[] {
+                warningPanel, lblCrfSection, chkUseCrfEncoding, lblCrf, numCrf, lblCrfHelp, divider1,
+                lblEncoderSection, lblPreset, cmbEncoderPreset, lblPresetHelp,
+                lblMaxBitrate, txtMaxBitrate, lblMaxBrHelp,
+                lblBuffer, txtBufferSize, lblBufferHelp, lblTips
+            });
+
+            return tab;
         }
+
+        #endregion
+
+        #region Helper Methods
 
         private void BrowseClicked(TextBox target)
         {
@@ -1181,51 +1448,132 @@ namespace WeatherImageGenerator.Forms
             {
                 dlg.Description = "Select output directory";
                 if (dlg.ShowDialog() == DialogResult.OK)
-                {
                     target.Text = dlg.SelectedPath;
-                }
             }
         }
 
+        private void RegenerateIcons(Button btn)
+        {
+            try
+            {
+                btn.Enabled = false;
+                btn.Text = "Generating...";
+                string outDir = txtImageOutputDir.Text;
+                if (string.IsNullOrWhiteSpace(outDir))
+                    outDir = Path.Combine(Directory.GetCurrentDirectory(), "WeatherImages");
+
+                string iconsDir = Path.Combine(outDir, "Icons");
+                IconGenerator.GenerateAll(iconsDir);
+                MessageBox.Show($"Icons regenerated successfully in {iconsDir}!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error regenerating icons: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btn.Enabled = true;
+                btn.Text = "🔄 Regenerate Icons";
+            }
+        }
+
+        private void DownloadWindowsVoices()
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "ms-settings:regionlanguage",
+                    UseShellExecute = true
+                });
+                MessageBox.Show(this,
+                    "Windows Settings will open.\n\n" +
+                    "To add French TTS voices:\n" +
+                    "1. Click 'Add a language'\n" +
+                    "2. Search for 'French' and select your region\n" +
+                    "3. Check 'Text-to-speech' option\n" +
+                    "4. Click Install\n\n" +
+                    "After installation, restart the application.",
+                    "Download TTS Voices", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Could not open Windows Settings: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task DownloadFfmpegAsync()
+        {
+            btnDownloadBundled.Enabled = false;
+            lblFfmpegStatus.Text = "Downloading FFmpeg binaries...";
+            lblFfmpegStatus.ForeColor = AccentColor;
+
+            try
+            {
+                var progress = new Progress<float>(pct =>
+                {
+                    if (this.IsHandleCreated)
+                    {
+                        this.Invoke((Action)(() =>
+                        {
+                            lblFfmpegStatus.Text = $"Downloading FFmpeg binaries... {pct:F0}%";
+                        }));
+                    }
+                });
+
+                bool success = await FFmpegLocator.InitializeAsync(progress);
+
+                if (success)
+                {
+                    lblFfmpegStatus.Text = "✓ FFmpeg downloaded successfully!";
+                    lblFfmpegStatus.ForeColor = SuccessColor;
+                }
+                else
+                {
+                    lblFfmpegStatus.Text = "✗ Failed to download FFmpeg. Check logs for details.";
+                    lblFfmpegStatus.ForeColor = DangerColor;
+                }
+            }
+            catch (Exception ex)
+            {
+                lblFfmpegStatus.Text = $"✗ Error: {ex.Message}";
+                lblFfmpegStatus.ForeColor = DangerColor;
+            }
+            finally
+            {
+                btnDownloadBundled.Enabled = true;
+            }
+        }
+
+        #endregion
+
+        #region Load/Save Settings
+
         private void LoadSettings()
         {
-            _isLoadingSettings = true; // Prevent event handlers from firing
+            _isLoadingSettings = true;
             try
             {
                 var cfg = ConfigManager.LoadConfig();
+                
+                // General Tab
                 txtImageOutputDir.Text = Path.Combine(Directory.GetCurrentDirectory(), cfg.ImageGeneration?.OutputDirectory ?? "WeatherImages");
                 txtVideoOutputDir.Text = Path.Combine(Directory.GetCurrentDirectory(), cfg.Video?.OutputDirectory ?? cfg.ImageGeneration?.OutputDirectory ?? "WeatherImages");
                 numRefresh.Value = cfg.RefreshTimeMinutes;
-                numImgWidth.Value = cfg.ImageGeneration?.ImageWidth ?? 1920;
-                numImgHeight.Value = cfg.ImageGeneration?.ImageHeight ?? 1080;
-                var fmt = (cfg.ImageGeneration?.ImageFormat ?? "png").ToLowerInvariant();
-                if (cmbImgFormat.Items.Contains(fmt)) cmbImgFormat.SelectedItem = fmt;
                 
-                // Load font family setting
-                var fontFamily = cfg.ImageGeneration?.FontFamily ?? "Arial";
-                if (cmbFontFamily.Items.Contains(fontFamily)) cmbFontFamily.SelectedItem = fontFamily;
-                else cmbFontFamily.SelectedIndex = 0; // Default to first font if not found
-                
-                chkEnableProvinceRadar.Checked = cfg.ECCC?.EnableProvinceRadar ?? true;
-                chkEnableWeatherMaps.Checked = cfg.ImageGeneration?.EnableWeatherMaps ?? true;
-
                 var theme = cfg.Theme ?? "Blue";
                 if (cmbTheme.Items.Contains(theme)) cmbTheme.SelectedItem = theme;
                 else cmbTheme.SelectedItem = "Blue";
 
                 chkMinimizeToTray.Checked = cfg.MinimizeToTray;
                 chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose;
-                chkAutoStartCycle.Checked = cfg.AutoStartCycle; // New setting: auto-start cycle on launch
+                chkAutoStartCycle.Checked = cfg.AutoStartCycle;
                 
-                // Load Windows startup setting - check actual registry state
                 try
                 {
                     chkStartWithWindows.Checked = WindowsStartupManager.IsStartupEnabled();
-                    // Sync config with actual state if they differ
                     if (chkStartWithWindows.Checked != cfg.StartWithWindows)
-                    {
                         cfg.StartWithWindows = chkStartWithWindows.Checked;
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -1236,79 +1584,33 @@ namespace WeatherImageGenerator.Forms
                 chkStartMinimizedToTray.Checked = cfg.StartMinimizedToTray;
                 chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked;
 
-                // Load EAS/AlertReady settings
-                var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
-                chkAlertReadyEnabled.Checked = alertReady.Enabled;
-                txtAlertReadyFeedUrls.Text = alertReady.FeedUrls != null ? string.Join(Environment.NewLine, alertReady.FeedUrls) : "";
-                chkAlertReadyIncludeTests.Checked = alertReady.IncludeTests;
-                numAlertReadyMaxAgeHours.Value = alertReady.MaxAgeHours;
-                cmbAlertReadyLanguage.SelectedItem = alertReady.PreferredLanguage;
-                txtAlertReadyAreaFilters.Text = alertReady.AreaFilters != null ? string.Join(", ", alertReady.AreaFilters) : "";
-                txtAlertReadyJurisdictions.Text = alertReady.Jurisdictions != null ? string.Join(", ", alertReady.Jurisdictions) : "QC, CA";
-                chkAlertReadyHighRiskOnly.Checked = alertReady.HighRiskOnly;
-                chkAlertReadyExcludeWeather.Checked = alertReady.ExcludeWeatherAlerts;
+                // Image Tab
+                numImgWidth.Value = cfg.ImageGeneration?.ImageWidth ?? 1920;
+                numImgHeight.Value = cfg.ImageGeneration?.ImageHeight ?? 1080;
+                var fmt = (cfg.ImageGeneration?.ImageFormat ?? "png").ToLowerInvariant();
+                if (cmbImgFormat.Items.Contains(fmt)) cmbImgFormat.SelectedItem = fmt;
                 
-                // Load TTS settings
-                var tts = cfg.TTS ?? new TTSSettings();
-                // Map voice to display format
-                var voiceDisplay = tts.Voice switch
-                {
-                    "fr-CA-SylvieNeural" => "fr-CA-SylvieNeural (Female)",
-                    "fr-CA-JeanNeural" => "fr-CA-JeanNeural (Male)",
-                    "fr-CA-AntoineNeural" => "fr-CA-AntoineNeural (Male)",
-                    "fr-CA-ThierryNeural" => "fr-CA-ThierryNeural (Male)",
-                    "en-CA-ClaraNeural" => "en-CA-ClaraNeural (Female)",
-                    "en-CA-LiamNeural" => "en-CA-LiamNeural (Male)",
-                    "en-US-JennyNeural" => "en-US-JennyNeural (Female)",
-                    "en-US-GuyNeural" => "en-US-GuyNeural (Male)",
-                    _ => "fr-CA-SylvieNeural (Female)"
-                };
-                if (cmbTtsVoice.Items.Contains(voiceDisplay)) cmbTtsVoice.SelectedItem = voiceDisplay;
-                else cmbTtsVoice.SelectedIndex = 0;
-                txtTtsRate.Text = tts.Rate;
-                txtTtsPitch.Text = tts.Pitch;
+                var fontFamily = cfg.ImageGeneration?.FontFamily ?? "Arial";
+                if (cmbFontFamily.Items.Contains(fontFamily)) cmbFontFamily.SelectedItem = fontFamily;
+                else cmbFontFamily.SelectedIndex = 0;
+                
+                chkEnableProvinceRadar.Checked = cfg.ECCC?.EnableProvinceRadar ?? true;
+                chkEnableWeatherMaps.Checked = cfg.ImageGeneration?.EnableWeatherMaps ?? true;
 
-                // Load OpenMap settings
-                var openMap = cfg.OpenMap ?? new OpenMapSettings();
-                var mapStyle = openMap.DefaultMapStyle?.ToLowerInvariant() ?? "standard";
-                cmbMapStyle.SelectedIndex = mapStyle switch
-                {
-                    "standard" => 0,
-                    "minimal" => 1,
-                    "terrain" => 2,
-                    "satellite" => 3,
-                    _ => 0
-                };
-                numMapZoomLevel.Value = openMap.DefaultZoomLevel;
-                txtMapBackgroundColor.Text = openMap.BackgroundColor;
-                numMapOverlayOpacity.Value = (decimal)(openMap.OverlayOpacity * 100); // Convert 0.0-1.0 to 0-100
-                numMapTileTimeout.Value = openMap.TileDownloadTimeoutSeconds;
-                chkMapEnableCache.Checked = openMap.EnableTileCache;
-                txtMapCacheDirectory.Text = openMap.TileCacheDirectory ?? "MapCache";
-                txtMapCacheDirectory.Enabled = openMap.EnableTileCache;
-                numMapCacheDuration.Value = openMap.CacheDurationHours;
-                chkMapUseDarkMode.Checked = openMap.UseDarkMode;
-
-                // Load Web UI settings
-                var webUI = cfg.WebUI ?? new WebUISettings();
-                chkWebUIEnabled.Checked = webUI.Enabled;
-                numWebUIPort.Value = webUI.Port;
-                chkWebUIAllowRemote.Checked = webUI.AllowRemoteAccess;
-                UpdateWebUIUrl();
-                UpdateWebUIStatus();
-
+                // Video Tab
+                chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
+                chkSkipDetailedWeatherOnAlert.Checked = cfg.Video?.SkipDetailedWeatherOnAlert ?? false;
+                numPlayRadarAnimationCountOnAlert.Value = cfg.Video?.PlayRadarAnimationCountOnAlert ?? 1;
+                numAlertDisplayDurationSeconds.Value = (decimal)(cfg.Video?.AlertDisplayDurationSeconds ?? 10);
+                
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
                 chkFade.Checked = cfg.Video?.EnableFadeTransitions ?? false;
-                chkFade.Enabled = false; // Disable for now, xfade problems
-
-                // Total duration mode
                 chkUseTotalDuration.Checked = cfg.Video?.UseTotalDuration ?? false;
                 numTotalDuration.Value = (decimal)(cfg.Video?.TotalDurationSeconds ?? 60);
                 numTotalDuration.Enabled = chkUseTotalDuration.Checked;
                 numStatic.Enabled = !chkUseTotalDuration.Checked;
                 
-                // Map old ResolutionMode enum values to new display format
                 var resMode = cfg.Video?.ResolutionMode ?? "Mode1080p";
                 var resDisplay = resMode switch
                 {
@@ -1320,15 +1622,13 @@ namespace WeatherImageGenerator.Forms
                     "Mode540p" => "960x540 (qHD)",
                     "Mode480p" => "854x480 (FWVGA)",
                     "ModeVGA" => "640x480 (VGA)",
-                    "ModeVertical" => "1920x1080 (Full HD)", // Map old vertical to 1080p
                     _ => "1920x1080 (Full HD)"
                 };
                 if (cmbResolution.Items.Contains(resDisplay)) cmbResolution.SelectedItem = resDisplay;
-                else cmbResolution.SelectedIndex = 2; // Default to 1080p
+                else cmbResolution.SelectedIndex = 2;
                 
                 numFps.Value = cfg.Video?.FrameRate ?? 30;
                 
-                // Load codec - map from config value to display value
                 var codec = cfg.Video?.VideoCodec ?? "libx264";
                 var codecDisplay = codec switch
                 {
@@ -1343,7 +1643,6 @@ namespace WeatherImageGenerator.Forms
                 if (cmbCodec.Items.Contains(codecDisplay)) cmbCodec.SelectedItem = codecDisplay;
                 else cmbCodec.SelectedIndex = 0;
                 
-                // Load bitrate - map from config value to display value
                 var bitrate = cfg.Video?.VideoBitrate ?? "4M";
                 var bitrateDisplay = bitrate.ToUpper() switch
                 {
@@ -1361,28 +1660,13 @@ namespace WeatherImageGenerator.Forms
                 
                 var container = (cfg.Video?.Container ?? "mp4").ToLowerInvariant();
                 if (cmbContainer.Items.Contains(container)) cmbContainer.SelectedItem = container;
-                chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
-                chkSkipDetailedWeatherOnAlert.Checked = cfg.Video?.SkipDetailedWeatherOnAlert ?? false;
-                numPlayRadarAnimationCountOnAlert.Value = cfg.Video?.PlayRadarAnimationCountOnAlert ?? 1;
-                numAlertDisplayDurationSeconds.Value = (decimal)(cfg.Video?.AlertDisplayDurationSeconds ?? 10);
+                
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
                 chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
-
-                // New encoder-related settings
-                chkUseCrfEncoding.Checked = cfg.Video?.UseCrfEncoding ?? true;
-                numCrf.Value = cfg.Video?.CrfValue ?? 23;
-                txtMaxBitrate.Text = cfg.Video?.MaxBitrate ?? string.Empty;
-                txtBufferSize.Text = cfg.Video?.BufferSize ?? string.Empty;
-                var preset = cfg.Video?.EncoderPreset ?? "medium";
-                if (cmbEncoderPreset.Items.Contains(preset)) cmbEncoderPreset.SelectedItem = preset;
-                else cmbEncoderPreset.SelectedIndex = 5;
-
-                // Experimental opt-in state (disabled by default)
                 chkEnableExperimental.Checked = cfg.Video?.ExperimentalEnabled ?? false;
                 if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked;
-
-                // Load quality preset
+                
                 var qualityPreset = cfg.Video?.QualityPreset ?? "Balanced";
                 var presetDisplay = qualityPreset switch
                 {
@@ -1395,30 +1679,18 @@ namespace WeatherImageGenerator.Forms
                     _ => "Balanced"
                 };
                 if (cmbQualityPreset.Items.Contains(presetDisplay)) cmbQualityPreset.SelectedItem = presetDisplay;
-                else cmbQualityPreset.SelectedIndex = 2; // Default to Balanced
+                else cmbQualityPreset.SelectedIndex = 2;
 
-                // Check hardware encoder availability asynchronously and display the result
-                Task.Run(() =>
-                {
-                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
-                    this.Invoke((Action)(() =>
-                    {
-                        lblHwStatus.Text = msg;
-                        lblHwStatus.ForeColor = ok ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+                // Experimental Tab
+                chkUseCrfEncoding.Checked = cfg.Video?.UseCrfEncoding ?? true;
+                numCrf.Value = cfg.Video?.CrfValue ?? 23;
+                txtMaxBitrate.Text = cfg.Video?.MaxBitrate ?? string.Empty;
+                txtBufferSize.Text = cfg.Video?.BufferSize ?? string.Empty;
+                var preset = cfg.Video?.EncoderPreset ?? "medium";
+                if (cmbEncoderPreset.Items.Contains(preset)) cmbEncoderPreset.SelectedItem = preset;
+                else cmbEncoderPreset.SelectedIndex = 5;
 
-                        if (!ok)
-                        {
-                            chkEnableHardwareEncoding.Checked = false;
-                            chkEnableHardwareEncoding.Enabled = false;
-                        }
-                        else
-                        {
-                            chkEnableHardwareEncoding.Enabled = true;
-                        }
-                    }));
-                });
-
-                // Load FFmpeg settings
+                // FFmpeg Tab
                 var ffmpegSource = cfg.FFmpeg?.Source?.ToLowerInvariant() ?? "bundled";
                 cmbFfmpegSource.SelectedIndex = ffmpegSource switch
                 {
@@ -1431,7 +1703,85 @@ namespace WeatherImageGenerator.Forms
                 txtFfmpegCustomPath.Enabled = cmbFfmpegSource.SelectedIndex == 2;
                 btnBrowseFfmpegPath.Enabled = cmbFfmpegSource.SelectedIndex == 2;
 
-                // Validate FFmpeg configuration asynchronously
+                // EAS Tab
+                var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
+                chkAlertReadyEnabled.Checked = alertReady.Enabled;
+                txtAlertReadyFeedUrls.Text = alertReady.FeedUrls != null ? string.Join(Environment.NewLine, alertReady.FeedUrls) : "";
+                chkAlertReadyIncludeTests.Checked = alertReady.IncludeTests;
+                numAlertReadyMaxAgeHours.Value = alertReady.MaxAgeHours;
+                cmbAlertReadyLanguage.SelectedItem = alertReady.PreferredLanguage;
+                txtAlertReadyAreaFilters.Text = alertReady.AreaFilters != null ? string.Join(", ", alertReady.AreaFilters) : "";
+                txtAlertReadyJurisdictions.Text = alertReady.Jurisdictions != null ? string.Join(", ", alertReady.Jurisdictions) : "QC, CA";
+                chkAlertReadyHighRiskOnly.Checked = alertReady.HighRiskOnly;
+                chkAlertReadyExcludeWeather.Checked = alertReady.ExcludeWeatherAlerts;
+                
+                var tts = cfg.TTS ?? new TTSSettings();
+                var voiceDisplay = tts.Voice switch
+                {
+                    "fr-CA-SylvieNeural" => "fr-CA-SylvieNeural (Female)",
+                    "fr-CA-JeanNeural" => "fr-CA-JeanNeural (Male)",
+                    "fr-CA-AntoineNeural" => "fr-CA-AntoineNeural (Male)",
+                    "fr-CA-ThierryNeural" => "fr-CA-ThierryNeural (Male)",
+                    "en-CA-ClaraNeural" => "en-CA-ClaraNeural (Female)",
+                    "en-CA-LiamNeural" => "en-CA-LiamNeural (Male)",
+                    "en-US-JennyNeural" => "en-US-JennyNeural (Female)",
+                    "en-US-GuyNeural" => "en-US-GuyNeural (Male)",
+                    _ => "fr-CA-SylvieNeural (Female)"
+                };
+                if (cmbTtsVoice.Items.Contains(voiceDisplay)) cmbTtsVoice.SelectedItem = voiceDisplay;
+                else cmbTtsVoice.SelectedIndex = 0;
+                txtTtsRate.Text = tts.Rate;
+                txtTtsPitch.Text = tts.Pitch;
+
+                // OpenMap Tab
+                var openMap = cfg.OpenMap ?? new OpenMapSettings();
+                var mapStyle = openMap.DefaultMapStyle?.ToLowerInvariant() ?? "standard";
+                cmbMapStyle.SelectedIndex = mapStyle switch
+                {
+                    "standard" => 0,
+                    "minimal" => 1,
+                    "terrain" => 2,
+                    "satellite" => 3,
+                    _ => 0
+                };
+                numMapZoomLevel.Value = openMap.DefaultZoomLevel;
+                txtMapBackgroundColor.Text = openMap.BackgroundColor;
+                numMapOverlayOpacity.Value = (decimal)(openMap.OverlayOpacity * 100);
+                numMapTileTimeout.Value = openMap.TileDownloadTimeoutSeconds;
+                chkMapEnableCache.Checked = openMap.EnableTileCache;
+                txtMapCacheDirectory.Text = openMap.TileCacheDirectory ?? "MapCache";
+                txtMapCacheDirectory.Enabled = openMap.EnableTileCache;
+                numMapCacheDuration.Value = openMap.CacheDurationHours;
+                chkMapUseDarkMode.Checked = openMap.UseDarkMode;
+
+                // Web UI Tab
+                var webUI = cfg.WebUI ?? new WebUISettings();
+                chkWebUIEnabled.Checked = webUI.Enabled;
+                numWebUIPort.Value = webUI.Port;
+                chkWebUIAllowRemote.Checked = webUI.AllowRemoteAccess;
+                UpdateWebUIUrl();
+                UpdateWebUIStatus();
+
+                // Async validations
+                Task.Run(() =>
+                {
+                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
+                    this.Invoke((Action)(() =>
+                    {
+                        lblHwStatus.Text = msg;
+                        lblHwStatus.ForeColor = ok ? SuccessColor : DangerColor;
+                        if (!ok)
+                        {
+                            chkEnableHardwareEncoding.Checked = false;
+                            chkEnableHardwareEncoding.Enabled = false;
+                        }
+                        else
+                        {
+                            chkEnableHardwareEncoding.Enabled = true;
+                        }
+                    }));
+                });
+
                 Task.Run(() =>
                 {
                     bool valid = FFmpegLocator.ValidateConfiguration(out var msg);
@@ -1440,7 +1790,7 @@ namespace WeatherImageGenerator.Forms
                         this.Invoke((Action)(() =>
                         {
                             lblFfmpegStatus.Text = msg;
-                            lblFfmpegStatus.ForeColor = valid ? Color.Green : Color.Orange;
+                            lblFfmpegStatus.ForeColor = valid ? SuccessColor : WarningColor;
                         }));
                     }
                 });
@@ -1451,7 +1801,7 @@ namespace WeatherImageGenerator.Forms
             }
             finally
             {
-                _isLoadingSettings = false; // Re-enable event handlers
+                _isLoadingSettings = false;
             }
         }
 
@@ -1460,8 +1810,7 @@ namespace WeatherImageGenerator.Forms
             try
             {
                 var cfg = ConfigManager.LoadConfig();
-                var oldTheme = cfg.Theme;
-                cfg.RefreshTimeMinutes = (int)numRefresh.Value; 
+                cfg.RefreshTimeMinutes = (int)numRefresh.Value;
 
                 var imageGen = cfg.ImageGeneration ?? new ImageGenerationSettings();
                 imageGen.OutputDirectory = ToRelative(txtImageOutputDir.Text, "WeatherImages");
@@ -1476,7 +1825,6 @@ namespace WeatherImageGenerator.Forms
                 eccc.EnableProvinceRadar = chkEnableProvinceRadar.Checked;
                 cfg.ECCC = eccc;
 
-                // Save EAS/AlertReady settings
                 var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
                 alertReady.Enabled = chkAlertReadyEnabled.Checked;
                 alertReady.FeedUrls = txtAlertReadyFeedUrls.Text
@@ -1500,12 +1848,10 @@ namespace WeatherImageGenerator.Forms
                 alertReady.HighRiskOnly = chkAlertReadyHighRiskOnly.Checked;
                 alertReady.ExcludeWeatherAlerts = chkAlertReadyExcludeWeather.Checked;
                 cfg.AlertReady = alertReady;
-                
-                // Save TTS settings
+
                 var tts = cfg.TTS ?? new TTSSettings();
-                // Extract voice code from display text (e.g., "fr-CA-SylvieNeural (Female)" -> "fr-CA-SylvieNeural")
                 var voiceDisplay = cmbTtsVoice.SelectedItem?.ToString() ?? "fr-CA-SylvieNeural (Female)";
-                tts.Voice = voiceDisplay.Split(' ')[0]; // Extract just the voice code
+                tts.Voice = voiceDisplay.Split(' ')[0];
                 tts.Rate = txtTtsRate.Text.Trim();
                 tts.Pitch = txtTtsPitch.Text.Trim();
                 cfg.TTS = tts;
@@ -1514,11 +1860,9 @@ namespace WeatherImageGenerator.Forms
                 v.StaticDurationSeconds = (double)numStatic.Value;
                 v.FadeDurationSeconds = (double)numFade.Value;
                 v.EnableFadeTransitions = chkFade.Checked;
-                // Total duration mode settings
                 v.UseTotalDuration = chkUseTotalDuration.Checked;
                 v.TotalDurationSeconds = (double)numTotalDuration.Value;
-                
-                // Extract resolution mode from display text and map to enum value
+
                 var resDisplay = cmbResolution.SelectedItem?.ToString() ?? "1920x1080 (Full HD)";
                 v.ResolutionMode = resDisplay switch
                 {
@@ -1532,10 +1876,9 @@ namespace WeatherImageGenerator.Forms
                     "640x480 (VGA)" => "ModeVGA",
                     _ => "Mode1080p"
                 };
-                
+
                 v.FrameRate = (int)numFps.Value;
-                
-                // Extract codec value from display text
+
                 var codecDisplay = cmbCodec.SelectedItem?.ToString() ?? "libx264 (H.264)";
                 v.VideoCodec = codecDisplay switch
                 {
@@ -1547,11 +1890,10 @@ namespace WeatherImageGenerator.Forms
                     "msmpeg4" => "msmpeg4",
                     _ => "libx264"
                 };
-                
-                // Extract bitrate value from display text (e.g., "4M (Medium)" -> "4M")
+
                 var bitrateDisplay = cmbBitrate.SelectedItem?.ToString() ?? "4M (Medium)";
-                v.VideoBitrate = bitrateDisplay.Split(' ')[0]; // Extract just the "4M" part
-                
+                v.VideoBitrate = bitrateDisplay.Split(' ')[0];
+
                 v.Container = cmbContainer.SelectedItem?.ToString() ?? "mp4";
                 v.OutputDirectory = ToRelative(txtVideoOutputDir.Text, imageGen.OutputDirectory ?? "WeatherImages");
                 v.doVideoGeneration = chkVideoGeneration.Checked;
@@ -1560,7 +1902,7 @@ namespace WeatherImageGenerator.Forms
                 v.AlertDisplayDurationSeconds = (double)numAlertDisplayDurationSeconds.Value;
                 v.VerboseFfmpeg = chkVerbose.Checked;
                 v.ShowFfmpegOutputInGui = chkShowFfmpeg.Checked;
-                // If enabling hardware encoding, verify ffmpeg supports NVENC and warn the user if it does not
+
                 if (chkEnableHardwareEncoding.Checked)
                 {
                     bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
@@ -1568,24 +1910,18 @@ namespace WeatherImageGenerator.Forms
                     {
                         var res = MessageBox.Show(this, $"FFmpeg does not appear to support hardware encoding on this system. ({msg})\nEnabling hardware encoding may cause ffmpeg to fail. Continue enabling?", "Hardware Encoding Not Available", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                         if (res == DialogResult.No)
-                        {
                             chkEnableHardwareEncoding.Checked = false;
-                        }
                     }
                 }
                 v.EnableHardwareEncoding = chkEnableHardwareEncoding.Checked;
 
-                // New encoding settings persistence
                 v.UseCrfEncoding = chkUseCrfEncoding.Checked;
                 v.CrfValue = (int)numCrf.Value;
                 v.MaxBitrate = string.IsNullOrWhiteSpace(txtMaxBitrate.Text) ? null : txtMaxBitrate.Text.Trim();
                 v.BufferSize = string.IsNullOrWhiteSpace(txtBufferSize.Text) ? null : txtBufferSize.Text.Trim();
                 v.EncoderPreset = cmbEncoderPreset.SelectedItem?.ToString() ?? "medium";
-
-                // Experimental opt-in persistence
                 v.ExperimentalEnabled = chkEnableExperimental.Checked;
-                
-                // Save quality preset
+
                 var qualityPresetDisplay = cmbQualityPreset.SelectedItem?.ToString() ?? "Balanced";
                 v.QualityPreset = qualityPresetDisplay switch
                 {
@@ -1597,32 +1933,21 @@ namespace WeatherImageGenerator.Forms
                     "Custom" => "Custom",
                     _ => "Balanced"
                 };
-                
+
                 cfg.Video = v;
-
-                // Persist theme choice
                 cfg.Theme = cmbTheme.SelectedItem?.ToString() ?? "Blue";
-
-                // Persist minimize to tray settings
                 cfg.MinimizeToTray = chkMinimizeToTray.Checked;
                 cfg.MinimizeToTrayOnClose = chkMinimizeToTrayOnClose.Checked;
-
-                // Persist new AutoStartCycle setting
                 cfg.AutoStartCycle = chkAutoStartCycle.Checked;
-
-                // Persist and apply Windows startup setting
                 cfg.StartWithWindows = chkStartWithWindows.Checked;
                 cfg.StartMinimizedToTray = chkStartMinimizedToTray.Checked;
+
                 try
                 {
                     if (chkStartWithWindows.Checked)
-                    {
                         WindowsStartupManager.EnableStartup();
-                    }
                     else
-                    {
                         WindowsStartupManager.DisableStartup();
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -1630,7 +1955,6 @@ namespace WeatherImageGenerator.Forms
                     MessageBox.Show($"Failed to update Windows startup setting: {ex.Message}", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
 
-                // Persist OpenMap settings
                 var openMap = cfg.OpenMap ?? new OpenMapSettings();
                 openMap.DefaultMapStyle = cmbMapStyle.SelectedIndex switch
                 {
@@ -1642,7 +1966,7 @@ namespace WeatherImageGenerator.Forms
                 };
                 openMap.DefaultZoomLevel = (int)numMapZoomLevel.Value;
                 openMap.BackgroundColor = txtMapBackgroundColor.Text;
-                openMap.OverlayOpacity = (float)(numMapOverlayOpacity.Value / 100); // Convert 0-100 to 0.0-1.0
+                openMap.OverlayOpacity = (float)(numMapOverlayOpacity.Value / 100);
                 openMap.TileDownloadTimeoutSeconds = (int)numMapTileTimeout.Value;
                 openMap.EnableTileCache = chkMapEnableCache.Checked;
                 openMap.TileCacheDirectory = txtMapCacheDirectory.Text;
@@ -1650,17 +1974,15 @@ namespace WeatherImageGenerator.Forms
                 openMap.UseDarkMode = chkMapUseDarkMode.Checked;
                 cfg.OpenMap = openMap;
 
-                // Persist Web UI settings
                 var webUI = cfg.WebUI ?? new WebUISettings();
                 bool wasEnabled = webUI.Enabled;
                 int oldPort = webUI.Port;
-                
+
                 webUI.Enabled = chkWebUIEnabled.Checked;
                 webUI.Port = (int)numWebUIPort.Value;
                 webUI.AllowRemoteAccess = chkWebUIAllowRemote.Checked;
                 cfg.WebUI = webUI;
-                
-                // Restart service if port changed while running
+
                 if (chkWebUIEnabled.Checked && wasEnabled && oldPort != webUI.Port)
                 {
                     StopWebUIService();
@@ -1668,7 +1990,6 @@ namespace WeatherImageGenerator.Forms
                     StartWebUIService();
                 }
 
-                // Persist FFmpeg settings
                 var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();
                 ffmpeg.Source = cmbFfmpegSource.SelectedIndex switch
                 {
@@ -1680,7 +2001,6 @@ namespace WeatherImageGenerator.Forms
                 ffmpeg.CustomPath = cmbFfmpegSource.SelectedIndex == 2 ? txtFfmpegCustomPath.Text : null;
                 cfg.FFmpeg = ffmpeg;
 
-                // Apply FFmpeg settings immediately
                 FFmpegLocator.SetSource(
                     cmbFfmpegSource.SelectedIndex switch
                     {
@@ -1693,8 +2013,7 @@ namespace WeatherImageGenerator.Forms
                 );
 
                 ConfigManager.SaveConfig(cfg);
-
-                this.DialogResult = DialogResult.OK; 
+                this.DialogResult = DialogResult.OK;
             }
             catch (Exception ex)
             {
@@ -1705,7 +2024,6 @@ namespace WeatherImageGenerator.Forms
 
         private void ValidateFfmpegConfiguration()
         {
-            // Temporarily apply settings to validate
             var tempSource = cmbFfmpegSource.SelectedIndex switch
             {
                 0 => Models.FFmpegSource.Bundled,
@@ -1715,30 +2033,22 @@ namespace WeatherImageGenerator.Forms
             };
             var tempCustomPath = cmbFfmpegSource.SelectedIndex == 2 ? txtFfmpegCustomPath.Text : null;
 
-            // Store current settings
             var currentSource = FFmpegLocator.CurrentSource;
             var currentCustomPath = FFmpegLocator.CustomPath;
 
-            // Apply temporary settings
             FFmpegLocator.SetSource(tempSource, tempCustomPath);
-
-            // Validate
             bool valid = FFmpegLocator.ValidateConfiguration(out var message);
-            
-            // Also try to get version if valid
-            if (valid && tempSource != Models.FFmpegSource.Bundled || File.Exists(FFmpegLocator.FFmpegExecutable))
+
+            if (valid && (tempSource != Models.FFmpegSource.Bundled || File.Exists(FFmpegLocator.FFmpegExecutable)))
             {
                 bool hasVersion = VideoGenerator.IsFfmpegInstalled(out var version);
                 if (hasVersion)
-                {
                     message += $"\nVersion: {version}";
-                }
             }
 
-            lblFfmpegStatus.Text = message;
-            lblFfmpegStatus.ForeColor = valid ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+            lblFfmpegStatus.Text = valid ? $"✓ {message}" : $"✗ {message}";
+            lblFfmpegStatus.ForeColor = valid ? SuccessColor : DangerColor;
 
-            // Restore original settings (they'll be saved when user clicks Save)
             FFmpegLocator.SetSource(currentSource, currentCustomPath);
         }
 
@@ -1747,11 +2057,13 @@ namespace WeatherImageGenerator.Forms
             var outDir = string.IsNullOrWhiteSpace(path) ? fallback : path!;
             var cwd = Directory.GetCurrentDirectory();
             if (outDir.StartsWith(cwd, StringComparison.OrdinalIgnoreCase))
-            {
                 outDir = outDir.Substring(cwd.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            }
             return outDir;
         }
+
+        #endregion
+
+        #region Font Preview
 
         private void UpdateFontPreview()
         {
@@ -1762,56 +2074,53 @@ namespace WeatherImageGenerator.Forms
                 string fontName = cmbFontFamily.SelectedItem?.ToString() ?? "Arial";
 
                 // Alert Preview
-                var alertBmp = new Bitmap(700, 130);
+                var alertBmp = new Bitmap(700, 110);
                 using (var g = Graphics.FromImage(alertBmp))
                 {
-                    g.Clear(Color.White);
-                    
-                    // Draw alert style preview
-                    using (var headerFont = new Font(fontName, 28, FontStyle.Bold))
-                    using (var detailFont = new Font(fontName, 14, FontStyle.Regular))
-                    using (var blackBrush = new SolidBrush(Color.Black))
-                    using (var redBrush = new SolidBrush(Color.FromArgb(192, 0, 0)))
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                    g.Clear(CardColor);
+
+                    using (var redBgBrush = new SolidBrush(DangerColor))
+                        g.FillRectangle(redBgBrush, 0, 0, 700, 38);
+
+                    using (var headerFont = new Font(fontName, 20, FontStyle.Bold))
+                    using (var detailFont = new Font(fontName, 11, FontStyle.Regular))
+                    using (var whiteBrush = new SolidBrush(Color.White))
+                    using (var blackBrush = new SolidBrush(TextColor))
                     {
-                        // Draw red bar at top
-                        using (var redBgBrush = new SolidBrush(Color.FromArgb(192, 0, 0)))
-                        {
-                            g.FillRectangle(redBgBrush, 0, 0, 700, 40);
-                        }
-                        
-                        g.DrawString("⚠ Weather Alert", headerFont, new SolidBrush(Color.White), new PointF(20, 5));
-                        g.DrawString($"Font: {fontName}", detailFont, blackBrush, new PointF(20, 50));
-                        g.DrawString("This is a sample alert message", detailFont, blackBrush, new PointF(20, 75));
-                        g.DrawString("with your selected font", detailFont, blackBrush, new PointF(20, 100));
+                        g.DrawString("⚠ Weather Alert", headerFont, whiteBrush, new PointF(15, 6));
+                        g.DrawString($"Font: {fontName}", detailFont, blackBrush, new PointF(15, 50));
+                        g.DrawString("Sample alert message with your selected font family", detailFont, blackBrush, new PointF(15, 75));
                     }
                 }
 
-                // Weather Details Preview
-                var weatherBmp = new Bitmap(700, 130);
+                // Weather Preview
+                var weatherBmp = new Bitmap(700, 110);
                 using (var g = Graphics.FromImage(weatherBmp))
                 {
-                    g.Clear(Color.FromArgb(230, 240, 250)); // Light blue background
-                    
-                    using (var cityFont = new Font(fontName, 24, FontStyle.Bold))
-                    using (var tempFont = new Font(fontName, 32, FontStyle.Bold))
-                    using (var labelFont = new Font(fontName, 12, FontStyle.Regular))
-                    using (var blackBrush = new SolidBrush(Color.Black))
-                    using (var blueBrush = new SolidBrush(Color.FromArgb(41, 128, 185)))
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                    g.Clear(Color.FromArgb(235, 245, 255));
+
+                    using (var cityFont = new Font(fontName, 18, FontStyle.Bold))
+                    using (var tempFont = new Font(fontName, 28, FontStyle.Bold))
+                    using (var labelFont = new Font(fontName, 10, FontStyle.Regular))
+                    using (var blackBrush = new SolidBrush(TextColor))
+                    using (var accentBrush = new SolidBrush(AccentColor))
                     {
-                        g.DrawString("Montréal", cityFont, blueBrush, new PointF(20, 8));
-                        g.DrawString("23°C", tempFont, blackBrush, new PointF(20, 35));
-                        g.DrawString("Humidity: 65%  Wind: 12 km/h", labelFont, blackBrush, new PointF(20, 75));
-                        g.DrawString("Partly Cloudy", labelFont, blackBrush, new PointF(20, 100));
+                        g.DrawString("Montréal, QC", cityFont, accentBrush, new PointF(15, 8));
+                        g.DrawString("23°C", tempFont, blackBrush, new PointF(15, 35));
+                        g.DrawString("Humidity: 65%   Wind: 12 km/h   Partly Cloudy", labelFont, blackBrush, new PointF(15, 80));
                     }
                 }
 
-                // Update picture boxes with the new images
                 var oldAlertImage = _alertPreviewPanel.Image;
                 var oldWeatherImage = _weatherPreviewPanel.Image;
-                
+
                 _alertPreviewPanel.Image = alertBmp;
                 _weatherPreviewPanel.Image = weatherBmp;
-                
+
                 oldAlertImage?.Dispose();
                 oldWeatherImage?.Dispose();
             }
@@ -1821,21 +2130,19 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
+        #endregion
+
+        #region Web UI Methods
+
         private void OnWebUIEnabledChanged()
         {
             if (chkWebUIEnabled.Checked)
-            {
-                // Start WebUI service
                 StartWebUIService();
-            }
             else
-            {
-                // Stop WebUI service
                 StopWebUIService();
-            }
             UpdateWebUIStatus();
         }
-        
+
         private void StartWebUIService()
         {
             try
@@ -1843,7 +2150,6 @@ namespace WeatherImageGenerator.Forms
                 var service = Program.WebUIService;
                 if (service == null)
                 {
-                    // Create new service
                     int port = (int)numWebUIPort.Value;
                     service = new WebUIService(port);
                     Program.SetWebUIService(service);
@@ -1863,7 +2169,7 @@ namespace WeatherImageGenerator.Forms
                 chkWebUIEnabled.Checked = false;
             }
         }
-        
+
         private void StopWebUIService()
         {
             try
@@ -1880,24 +2186,24 @@ namespace WeatherImageGenerator.Forms
                 Logger.Log($"Failed to stop Web UI service: {ex.Message}", Logger.LogLevel.Error);
             }
         }
-        
+
         private void UpdateWebUIStatus()
         {
             var service = Program.WebUIService;
             bool isRunning = service?.IsRunning ?? false;
-            
+
             if (isRunning)
             {
                 lblWebUIStatus.Text = "✓ Status: Server is running";
-                lblWebUIStatus.ForeColor = Color.Green;
+                lblWebUIStatus.ForeColor = SuccessColor;
             }
             else
             {
-                lblWebUIStatus.Text = "✗ Status: Server is not running";
-                lblWebUIStatus.ForeColor = Color.Gray;
+                lblWebUIStatus.Text = "○ Status: Server is not running";
+                lblWebUIStatus.ForeColor = TextMutedColor;
             }
         }
-        
+
         private void UpdateWebUIUrl()
         {
             try
@@ -1923,19 +2229,19 @@ namespace WeatherImageGenerator.Forms
                     if (response.IsSuccessStatusCode)
                     {
                         lblWebUIStatus.Text = "✓ Status: Server is running and accessible";
-                        lblWebUIStatus.ForeColor = Color.Green;
+                        lblWebUIStatus.ForeColor = SuccessColor;
                     }
                     else
                     {
                         lblWebUIStatus.Text = "⚠ Status: Server responded with error";
-                        lblWebUIStatus.ForeColor = Color.Orange;
+                        lblWebUIStatus.ForeColor = WarningColor;
                     }
                 }
             }
             catch (Exception ex)
             {
                 lblWebUIStatus.Text = "✗ Status: Server is not running or not accessible";
-                lblWebUIStatus.ForeColor = Color.Red;
+                lblWebUIStatus.ForeColor = DangerColor;
                 Logger.Log($"Web UI connection test failed: {ex.Message}", Logger.LogLevel.Debug);
             }
         }
@@ -1961,5 +2267,8 @@ namespace WeatherImageGenerator.Forms
             {
                 MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }    }
+        }
+
+        #endregion
+    }
 }
