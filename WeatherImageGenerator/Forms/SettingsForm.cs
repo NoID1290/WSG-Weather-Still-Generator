@@ -92,6 +92,9 @@ namespace WeatherImageGenerator.Forms
         ComboBox cmbTtsVoice;
         TextBox txtTtsRate;
         TextBox txtTtsPitch;
+        ComboBox cmbTtsEngine;
+        ComboBox cmbPiperVoice;
+        NumericUpDown numPiperLengthScale;
         ComboBox cmbMapStyle;
         NumericUpDown numMapZoomLevel;
         TextBox txtMapBackgroundColor;
@@ -1167,10 +1170,20 @@ namespace WeatherImageGenerator.Forms
             y += 25;
 
             // TTS Section
-            var lblTts = CreateSectionHeader("Text-to-Speech (EdgeTTS)", labelX, y, "🎤");
+            var lblTts = CreateSectionHeader("Text-to-Speech Settings", labelX, y, "🎤");
             y += 35;
 
-            var lblVoice = CreateLabel("Voice:", labelX, y);
+            var lblEngine = CreateLabel("TTS Engine:", labelX, y);
+            cmbTtsEngine = CreateComboBox(fieldX, y - 2, 220);
+            cmbTtsEngine.Items.AddRange(new object[] {
+                "Piper (Offline, Open-Source)", "EdgeTTS (Online, Microsoft)"
+            });
+            cmbTtsEngine.SelectedIndex = 0;
+            cmbTtsEngine.SelectedIndexChanged += (s, e) => UpdateTtsEngineVisibility();
+            y += rowHeight;
+
+            // EdgeTTS Settings
+            var lblVoice = CreateLabel("EdgeTTS Voice:", labelX, y);
             cmbTtsVoice = CreateComboBox(fieldX, y - 2, 220);
             cmbTtsVoice.Items.AddRange(new object[] {
                 "fr-CA-SylvieNeural (Female)", "fr-CA-JeanNeural (Male)",
@@ -1197,13 +1210,49 @@ namespace WeatherImageGenerator.Forms
             btnDownloadVoices.Click += (s, e) => DownloadWindowsVoices();
             y += 45;
 
+            // Piper Settings
+            var lblPiperVoice = CreateLabel("Piper Voice:", labelX, y);
+            cmbPiperVoice = CreateComboBox(fieldX, y - 2, 340);
+            cmbPiperVoice.Items.AddRange(new object[] {
+                "fr_FR-siwis-medium (French Female)",
+                "fr_FR-upmc-medium (French Male)",
+                "fr_FR-tom-medium (French Male)",
+                "en_US-lessac-medium (English Female)",
+                "en_US-amy-medium (English Female)",
+                "en_US-ryan-medium (English Male)",
+                "en_GB-alan-medium (English UK Male)",
+                "en_GB-alba-medium (English UK Female)"
+            });
+            cmbPiperVoice.SelectedIndex = 0;
+            y += rowHeight;
+
+            var lblPiperSpeed = CreateLabel("Speech Speed:", labelX, y);
+            numPiperLengthScale = new NumericUpDown
+            {
+                Left = fieldX,
+                Top = y - 2,
+                Width = 100,
+                Minimum = 0.5m,
+                Maximum = 2.0m,
+                DecimalPlaces = 1,
+                Increment = 0.1m,
+                Value = 1.0m,
+                Font = LabelFont
+            };
+            var lblPiperSpeedHelp = CreateHelpLabel("0.5=faster, 1.0=normal, 2.0=slower", fieldX + 110, y + 2);
+            y += rowHeight + 5;
+
+            var btnInstallPiper = CreatePrimaryButton("⬇ Install Piper TTS", labelX, y, 260, 32);
+            btnInstallPiper.Click += (s, e) => InstallPiperTts();
+            y += 45;
+
             var lblTtsNote = new Label
             {
-                Text = "💡 EdgeTTS works online without installation. Windows SAPI is the offline fallback.\n   If using SAPI, install French language packs above for French TTS support.",
+                Text = "💡 Piper TTS: Open-source, offline, high-quality neural TTS (requires download).\n   EdgeTTS: Online Microsoft service, works immediately without installation.\n   Piper is recommended for privacy and offline usage.",
                 Left = labelX,
                 Top = y,
                 Width = 550,
-                Height = 45,
+                Height = 55,
                 Font = SmallFont,
                 ForeColor = TextMutedColor,
                 AutoSize = false
@@ -1215,8 +1264,9 @@ namespace WeatherImageGenerator.Forms
                 lblLanguage, cmbAlertReadyLanguage, lblAreaFilters, txtAlertReadyAreaFilters, lblAreaHelp,
                 lblJurisdictions, txtAlertReadyJurisdictions, lblJurisHelp,
                 chkAlertReadyHighRiskOnly, chkAlertReadyExcludeWeather, divider,
-                lblTts, lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp,
-                lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices, lblTtsNote
+                lblTts, lblEngine, cmbTtsEngine, lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp,
+                lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices,
+                lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, btnInstallPiper, lblTtsNote
             });
 
             return tab;
@@ -1502,6 +1552,131 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
+        private void UpdateTtsEngineVisibility()
+        {
+            bool isEdge = cmbTtsEngine.SelectedIndex == 1;
+            
+            // Find controls by iterating through tab pages
+            foreach (TabPage tab in this.Controls.OfType<TabControl>().FirstOrDefault()?.TabPages ?? new TabControl.TabPageCollection(new TabControl()))
+            {
+                if (tab.Text.Contains("Emergency") || tab.Text.Contains("EAS"))
+                {
+                    foreach (Control ctrl in tab.Controls)
+                    {
+                        if (ctrl.Text?.Contains("EdgeTTS Voice") == true ||
+                            (ctrl is ComboBox && ctrl == cmbTtsVoice) ||
+                            ctrl.Text?.Contains("Speech Rate") == true ||
+                            (ctrl is TextBox && (ctrl == txtTtsRate || ctrl == txtTtsPitch)) ||
+                            ctrl.Text?.Contains("Pitch:") == true ||
+                            ctrl.Text?.Contains("Download Windows") == true)
+                        {
+                            ctrl.Visible = isEdge;
+                        }
+                        else if (ctrl.Text?.Contains("Piper Voice") == true ||
+                                 (ctrl is ComboBox && ctrl == cmbPiperVoice) ||
+                                 ctrl.Text?.Contains("Speech Speed") == true ||
+                                 (ctrl is NumericUpDown && ctrl == numPiperLengthScale) ||
+                                 ctrl.Text?.Contains("Install Piper") == true)
+                        {
+                            ctrl.Visible = !isEdge;
+                        }
+                        // Also handle help labels
+                        if (ctrl is Label lbl)
+                        {
+                            if (lbl.Text.Contains("e.g., +0%") || lbl.Text.Contains("e.g., +0Hz"))
+                                lbl.Visible = isEdge;
+                            else if (lbl.Text.Contains("0.5=faster"))
+                                lbl.Visible = !isEdge;
+                        }
+                    }
+                }
+            }
+        }
+
+        private async void InstallPiperTts()
+        {
+            var result = MessageBox.Show(this,
+                "This will download and install Piper TTS (approximately 10-15 MB).\n\n" +
+                "Piper is an open-source, offline text-to-speech engine that provides high-quality neural voices.\n\n" +
+                "Voice models will be downloaded automatically when first used.\n\n" +
+                "Continue?",
+                "Install Piper TTS",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result != DialogResult.Yes)
+                return;
+
+            var progressForm = new Form
+            {
+                Text = "Installing Piper TTS",
+                Width = 400,
+                Height = 150,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition = FormStartPosition.CenterParent,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+
+            var lblStatus = new Label
+            {
+                Text = "Downloading Piper TTS...",
+                Left = 20,
+                Top = 20,
+                Width = 350,
+                Height = 60,
+                Font = new Font("Segoe UI", 10F)
+            };
+
+            progressForm.Controls.Add(lblStatus);
+            progressForm.Show(this);
+
+            try
+            {
+                using var client = new EAS.PiperTtsClient();
+                
+                var progress = new Progress<string>(msg =>
+                {
+                    if (progressForm.IsHandleCreated)
+                    {
+                        progressForm.Invoke((Action)(() => lblStatus.Text = msg));
+                    }
+                });
+
+                bool success = await client.InstallPiperAsync(progress);
+
+                progressForm.Close();
+
+                if (success)
+                {
+                    MessageBox.Show(this,
+                        "Piper TTS has been installed successfully!\n\n" +
+                        "Voice models will be downloaded automatically when you generate audio.",
+                        "Installation Complete",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show(this,
+                        "Failed to install Piper TTS.\n\n" +
+                        "Please check your internet connection and try again.",
+                        "Installation Failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                progressForm.Close();
+                MessageBox.Show(this,
+                    $"Error installing Piper TTS:\n\n{ex.Message}",
+                    "Installation Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+
         private async Task DownloadFfmpegAsync()
         {
             btnDownloadBundled.Enabled = false;
@@ -1716,6 +1891,11 @@ namespace WeatherImageGenerator.Forms
                 chkAlertReadyExcludeWeather.Checked = alertReady.ExcludeWeatherAlerts;
                 
                 var tts = cfg.TTS ?? new TTSSettings();
+                
+                // TTS Engine
+                cmbTtsEngine.SelectedIndex = (tts.Engine?.ToLowerInvariant() == "edge") ? 1 : 0;
+                
+                // EdgeTTS settings
                 var voiceDisplay = tts.Voice switch
                 {
                     "fr-CA-SylvieNeural" => "fr-CA-SylvieNeural (Female)",
@@ -1732,6 +1912,26 @@ namespace WeatherImageGenerator.Forms
                 else cmbTtsVoice.SelectedIndex = 0;
                 txtTtsRate.Text = tts.Rate;
                 txtTtsPitch.Text = tts.Pitch;
+                
+                // Piper settings
+                string piperVoice = tts.PiperVoice ?? "fr_FR-siwis-medium";
+                var piperVoiceDisplay = piperVoice switch
+                {
+                    "fr_FR-siwis-medium" => "fr_FR-siwis-medium (French Female)",
+                    "fr_FR-upmc-medium" => "fr_FR-upmc-medium (French Male)",
+                    "fr_FR-tom-medium" => "fr_FR-tom-medium (French Male)",
+                    "en_US-lessac-medium" => "en_US-lessac-medium (English Female)",
+                    "en_US-amy-medium" => "en_US-amy-medium (English Female)",
+                    "en_US-ryan-medium" => "en_US-ryan-medium (English Male)",
+                    "en_GB-alan-medium" => "en_GB-alan-medium (English UK Male)",
+                    "en_GB-alba-medium" => "en_GB-alba-medium (English UK Female)",
+                    _ => "fr_FR-siwis-medium (French Female)"
+                };
+                if (cmbPiperVoice.Items.Contains(piperVoiceDisplay)) cmbPiperVoice.SelectedItem = piperVoiceDisplay;
+                else cmbPiperVoice.SelectedIndex = 0;
+                numPiperLengthScale.Value = (decimal)(tts.PiperLengthScale ?? 1.0f);
+                
+                UpdateTtsEngineVisibility();
 
                 // OpenMap Tab
                 var openMap = cfg.OpenMap ?? new OpenMapSettings();
@@ -1850,10 +2050,21 @@ namespace WeatherImageGenerator.Forms
                 cfg.AlertReady = alertReady;
 
                 var tts = cfg.TTS ?? new TTSSettings();
+                
+                // Save TTS engine
+                tts.Engine = cmbTtsEngine.SelectedIndex == 1 ? "edge" : "piper";
+                
+                // Save EdgeTTS settings
                 var voiceDisplay = cmbTtsVoice.SelectedItem?.ToString() ?? "fr-CA-SylvieNeural (Female)";
                 tts.Voice = voiceDisplay.Split(' ')[0];
                 tts.Rate = txtTtsRate.Text.Trim();
                 tts.Pitch = txtTtsPitch.Text.Trim();
+                
+                // Save Piper settings
+                var piperVoiceDisplay = cmbPiperVoice.SelectedItem?.ToString() ?? "fr_FR-siwis-medium (French Female)";
+                tts.PiperVoice = piperVoiceDisplay.Split(' ')[0];
+                tts.PiperLengthScale = (float)numPiperLengthScale.Value;
+                
                 cfg.TTS = tts;
 
                 var v = cfg.Video ?? new VideoSettings();
