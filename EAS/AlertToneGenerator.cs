@@ -382,11 +382,34 @@ namespace EAS
                     return false;
                 }
 
-                process.WaitForExit(120000);
+                // Read output streams asynchronously to prevent deadlock
+                // The process can hang if the output buffers fill up and aren't read
+                string? errorOutput = null;
+                var errorTask = System.Threading.Tasks.Task.Run(() => errorOutput = process.StandardError.ReadToEnd());
+                var outputTask = System.Threading.Tasks.Task.Run(() => process.StandardOutput.ReadToEnd());
+
+                bool exited = process.WaitForExit(60000); // 60 second timeout
+                
+                if (!exited)
+                {
+                    Console.WriteLine("[AlertToneGenerator] FFmpeg timed out, killing process.");
+                    try { process.Kill(); } catch { }
+                    try { File.Delete(tempListFile); } catch { }
+                    return false;
+                }
+
+                // Wait for stream reading to complete
+                System.Threading.Tasks.Task.WaitAll(new[] { errorTask, outputTask }, 5000);
 
                 try { File.Delete(tempListFile); } catch { }
 
-                return process.ExitCode == 0 && File.Exists(outputPath);
+                if (process.ExitCode != 0)
+                {
+                    Console.WriteLine($"[AlertToneGenerator] FFmpeg failed with exit code {process.ExitCode}: {errorOutput}");
+                    return false;
+                }
+
+                return File.Exists(outputPath);
             }
             catch (Exception ex)
             {

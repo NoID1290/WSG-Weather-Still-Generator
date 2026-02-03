@@ -2186,8 +2186,8 @@ namespace WeatherImageGenerator.Forms
                     // Generate test alert XML
                     string testAlertXml = EAS.TestAlertGenerator.GenerateAmberAlert(language);
 
-                    // Parse the alert
-                    var httpClient = new System.Net.Http.HttpClient();
+                    // Parse the alert - use 'using' to properly dispose HttpClient
+                    using var httpClient = new System.Net.Http.HttpClient();
                     var options = new EAS.AlertReadyOptions
                     {
                         Enabled = true,
@@ -2204,8 +2204,17 @@ namespace WeatherImageGenerator.Forms
                     var parseMethod = client.GetType().GetMethod("ParseAlerts", 
                         System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                     
-                    var alerts = parseMethod?.Invoke(client, new object[] { testAlertXml, new List<string>() }) 
-                        as List<AlertEntry>;
+                    List<AlertEntry>? alerts;
+                    try
+                    {
+                        alerts = parseMethod?.Invoke(client, new object[] { testAlertXml, new List<string>() }) 
+                            as List<AlertEntry>;
+                    }
+                    finally
+                    {
+                        // Manually dispose AlertReadyClient (has Dispose method but doesn't implement IDisposable)
+                        client.Dispose();
+                    }
 
                     if (alerts != null && alerts.Count > 0)
                     {
