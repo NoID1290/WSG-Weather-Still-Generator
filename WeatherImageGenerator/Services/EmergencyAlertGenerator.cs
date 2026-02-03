@@ -235,6 +235,13 @@ namespace WeatherImageGenerator.Services
             {
                 string filename = $"EmergencyAlert_{index:D2}.wav";
                 string fullPath = Path.Combine(outputDir, filename);
+                
+                // First, ensure the Alert Ready attention signal is generated
+                string? alertTonePath = AlertToneGenerator.GenerateToDirectory(outputDir);
+                if (alertTonePath != null)
+                {
+                    Console.WriteLine($"[EmergencyAlertGenerator] Alert Ready tone available: {Path.GetFileName(alertTonePath)}");
+                }
 
                 // Build alert text for TTS
                 StringBuilder audioText = new StringBuilder();
@@ -325,21 +332,37 @@ namespace WeatherImageGenerator.Services
                 string rate = ttsSettings.Rate ?? "+0%";
                 string pitch = ttsSettings.Pitch ?? "+0Hz";
                 
-                string mp3Path = Path.ChangeExtension(outputPath, ".mp3");
+                // Generate TTS to a temp file first
+                string tempTtsPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_tts_{Guid.NewGuid()}.mp3");
                 
                 Console.WriteLine($"[EdgeTTS] Attempting synthesis with voice: {voice}, rate: {rate}, pitch: {pitch}");
                 
                 // Run async method synchronously
-                var task = client.SynthesizeToFileAsync(text, mp3Path, voice, rate, pitch);
+                var task = client.SynthesizeToFileAsync(text, tempTtsPath, voice, rate, pitch);
                 task.Wait(TimeSpan.FromSeconds(60));
                 
-                if (task.Result && File.Exists(mp3Path))
+                if (task.Result && File.Exists(tempTtsPath))
                 {
-                    // Rename to expected output path (mp3 works fine for playback)
-                    if (outputPath != mp3Path)
+                    // Try to prepend the Alert Ready attention signal
+                    string? alertTonePath = AlertToneGenerator.GetOrGenerateAlertTone();
+                    
+                    if (alertTonePath != null && File.Exists(alertTonePath))
+                    {
+                        // Concatenate: AlertTone + TTS audio
+                        if (AlertToneGenerator.ConcatenateAudioFiles(new[] { alertTonePath, tempTtsPath }, outputPath))
+                        {
+                            Console.WriteLine("[EmergencyAlertGenerator] Successfully prepended Alert Ready tone to TTS audio.");
+                            try { File.Delete(tempTtsPath); } catch { }
+                            return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
+                        }
+                    }
+                    
+                    // Fallback: use TTS audio without alert tone
+                    Console.WriteLine("[EmergencyAlertGenerator] Using TTS audio without Alert Ready tone prefix.");
+                    if (outputPath != tempTtsPath)
                     {
                         if (File.Exists(outputPath)) File.Delete(outputPath);
-                        File.Move(mp3Path, outputPath);
+                        File.Move(tempTtsPath, outputPath);
                     }
                     return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
                 }

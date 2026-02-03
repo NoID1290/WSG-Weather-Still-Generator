@@ -93,6 +93,47 @@ namespace EAS
         /// <summary>If true, exclude weather/meteorological alerts (handled by ECCC).</summary>
         [JsonPropertyName("ExcludeWeatherAlerts")]
         public bool ExcludeWeatherAlerts { get; set; } = true;
+
+        /// <summary>TCP reconnection delay in seconds (default: 30)</summary>
+        [JsonPropertyName("ReconnectDelaySeconds")]
+        public int ReconnectDelaySeconds { get; set; } = 30;
+
+        /// <summary>HTTP request timeout in seconds (default: 30)</summary>
+        [JsonPropertyName("HttpTimeoutSeconds")]
+        public int HttpTimeoutSeconds { get; set; } = 30;
+
+        /// <summary>Maximum number of seen identifiers to cache (prevents memory bloat)</summary>
+        [JsonPropertyName("MaxCachedIdentifiers")]
+        public int MaxCachedIdentifiers { get; set; } = 10000;
+
+        /// <summary>Enable automatic generation of alert tone for broadcast-immediate alerts</summary>
+        [JsonPropertyName("GenerateAlertTone")]
+        public bool GenerateAlertTone { get; set; } = true;
+
+        /// <summary>
+        /// Gets the default NAAD TCP stream URLs for Alert Ready Canada.
+        /// Primary and backup servers for redundancy.
+        /// </summary>
+        public static List<string> GetDefaultNaadUrls()
+        {
+            return new List<string>
+            {
+                "tcp://streaming1.naad-adna.pelmorex.com:8080",
+                "tcp://streaming2.naad-adna.pelmorex.com:8080"
+            };
+        }
+
+        /// <summary>
+        /// Gets the default HTTP API URLs for Alert Ready Canada historical/current alerts.
+        /// </summary>
+        public static List<string> GetDefaultHttpUrls()
+        {
+            return new List<string>
+            {
+                "http://capcp1.naad-adna.pelmorex.com",
+                "http://capcp2.naad-adna.pelmorex.com"
+            };
+        }
     }
 
     /// <summary>
@@ -576,9 +617,10 @@ namespace EAS
 
                 if (!cancellationToken.IsCancellationRequested)
                 {
-                    LogMessage($"Reconnecting to {host}:{port} in 30 seconds...");
-                    OnConnectionStatusChanged(NaadConnectionStatus.Disconnected, host, port, "Reconnecting in 30s...");
-                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                    var reconnectDelay = _options.ReconnectDelaySeconds > 0 ? _options.ReconnectDelaySeconds : 30;
+                    LogMessage($"Reconnecting to {host}:{port} in {reconnectDelay} seconds...");
+                    OnConnectionStatusChanged(NaadConnectionStatus.Disconnected, host, port, $"Reconnecting in {reconnectDelay}s...");
+                    await Task.Delay(TimeSpan.FromSeconds(reconnectDelay), cancellationToken);
                 }
             }
         }
@@ -631,6 +673,14 @@ namespace EAS
                     if (!_seenIdentifiers.Add(identifier))
                     {
                         return;
+                    }
+
+                    // Prevent memory bloat by clearing old identifiers if cache is too large
+                    if (_seenIdentifiers.Count > _options.MaxCachedIdentifiers)
+                    {
+                        LogMessage($"Clearing identifier cache (exceeded {_options.MaxCachedIdentifiers} entries)");
+                        _seenIdentifiers.Clear();
+                        _seenIdentifiers.Add(identifier); // Re-add current one
                     }
                 }
 
@@ -747,11 +797,76 @@ namespace EAS
             }
         }
 
+        /// <summary>
+        /// Gets connection health statistics for monitoring.
+        /// </summary>
+        public ConnectionHealthStats GetConnectionHealth()
+        {
+            var timeSinceLastHeartbeat = _lastHeartbeat != DateTimeOffset.MinValue
+                ? DateTimeOffset.UtcNow - _lastHeartbeat
+                : TimeSpan.MaxValue;
+
+            return new ConnectionHealthStats
+            {
+                Status = _connectionStatus,
+                LastHeartbeat = _lastHeartbeat == DateTimeOffset.MinValue ? null : _lastHeartbeat,
+                TimeSinceLastHeartbeat = timeSinceLastHeartbeat,
+                IsHealthy = _connectionStatus == NaadConnectionStatus.Connected && 
+                           timeSinceLastHeartbeat < TimeSpan.FromMinutes(2),
+                ActiveAlertCount = _activeAlertCount,
+                CachedIdentifierCount = _seenIdentifiers.Count,
+                StreamTasksRunning = _streamTasks.Count(t => !t.IsCompleted)
+            };
+        }
+
+        /// <summary>
+        /// Clears the seen identifiers cache (useful if you want to reprocess alerts).
+        /// </summary>
+        public void ClearSeenIdentifiers()
+        {
+            lock (_lockObj)
+            {
+                _seenIdentifiers.Clear();
+            }
+            LogMessage("Cleared seen identifiers cache.");
+        }
+
+        /// <summary>
+        /// Gets all queued alerts without clearing the queue.
+        /// </summary>
+        public IReadOnlyList<AlertEntry> PeekAlerts()
+        {
+            return _streamAlerts.ToArray();
+        }
+
         public void Dispose()
         {
             _streamCts.Cancel();
             Task.WaitAll(_streamTasks.ToArray(), TimeSpan.FromSeconds(5));
             _streamCts.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Connection health statistics for monitoring the NAAD stream.
+    /// </summary>
+    public class ConnectionHealthStats
+    {
+        public NaadConnectionStatus Status { get; set; }
+        public DateTimeOffset? LastHeartbeat { get; set; }
+        public TimeSpan TimeSinceLastHeartbeat { get; set; }
+        public bool IsHealthy { get; set; }
+        public int ActiveAlertCount { get; set; }
+        public int CachedIdentifierCount { get; set; }
+        public int StreamTasksRunning { get; set; }
+
+        public override string ToString()
+        {
+            var heartbeatStr = LastHeartbeat.HasValue 
+                ? $"{TimeSinceLastHeartbeat.TotalSeconds:F1}s ago" 
+                : "Never";
+            return $"Status: {Status}, Healthy: {IsHealthy}, Heartbeat: {heartbeatStr}, " +
+                   $"Alerts: {ActiveAlertCount}, Cached IDs: {CachedIdentifierCount}, Streams: {StreamTasksRunning}";
         }
     }
 }
