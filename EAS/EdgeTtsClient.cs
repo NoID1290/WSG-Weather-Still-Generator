@@ -17,7 +17,7 @@ namespace EAS
     public class EdgeTtsClient : IDisposable
     {
         private const string TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-        private const string CHROMIUM_FULL_VERSION = "131.0.2903.112";
+        private const string CHROMIUM_FULL_VERSION = "133.0.6943.99";
 
         // French Canadian voices
         public const string VOICE_FR_CA_SYLVIE = "fr-CA-SylvieNeural";      // Female

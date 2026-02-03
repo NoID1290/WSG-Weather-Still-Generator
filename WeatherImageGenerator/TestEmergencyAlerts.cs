@@ -79,13 +79,14 @@ namespace WeatherImageGenerator
                 }
             }
 
-            // Test 3: Generate emergency alert images and audio
-            Console.WriteLine($"\nStep 3: Generating {parsedAlerts.Count} emergency alert image(s) and audio...");
+            // Test 3: Generate emergency alert images, audio, and video
+            Console.WriteLine($"\nStep 3: Generating {parsedAlerts.Count} emergency alert image(s), audio, and video...");
             if (parsedAlerts.Count > 0)
             {
                 try
                 {
-                    var generatedFiles = EmergencyAlertGenerator.GenerateEmergencyAlerts(
+                    // Use the new method that generates both media AND video automatically
+                    var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                         parsedAlerts, 
                         outputDir, 
                         "fr-CA"
@@ -96,6 +97,11 @@ namespace WeatherImageGenerator
                     {
                         var fileInfo = new System.IO.FileInfo(file);
                         Console.WriteLine($"  • {fileInfo.Name} ({fileInfo.Length / 1024.0:F1} KB)");
+                    }
+                    
+                    if (!string.IsNullOrEmpty(videoPath))
+                    {
+                        Console.WriteLine($"\n✓ Alert video generated: {videoPath}");
                     }
                 }
                 catch (Exception ex)
@@ -116,6 +122,7 @@ namespace WeatherImageGenerator
             Console.WriteLine("  • *.xml files (CAP-CP alert XML)");
             Console.WriteLine("  • EmergencyAlert_*.png files (alert images)");
             Console.WriteLine("  • EmergencyAlert_*.wav files (alert audio)");
+            Console.WriteLine("  • alert_video.mp4 (alert video)");
             
             Console.WriteLine("\nPress any key to exit...");
             Console.ReadKey();

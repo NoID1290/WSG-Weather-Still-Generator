@@ -7,6 +7,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using EAS;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Utilities;
@@ -32,11 +33,11 @@ namespace WeatherImageGenerator.Services
 
             if (alerts == null || alerts.Count == 0)
             {
-                Console.WriteLine("[EmergencyAlertGenerator] No emergency alerts to generate.");
+                Logger.Log("[EmergencyAlertGenerator] No emergency alerts to generate.", Logger.LogLevel.Info);
                 return generatedFiles;
             }
 
-            Console.WriteLine($"[EmergencyAlertGenerator] Generating {alerts.Count} emergency alert(s)...");
+            Logger.Log($"[EmergencyAlertGenerator] Generating {alerts.Count} emergency alert(s)...", Logger.LogLevel.Info);
 
             var config = ConfigManager.LoadConfig();
             var imgConfig = config.ImageGeneration ?? new ImageGenerationSettings();
@@ -65,11 +66,245 @@ namespace WeatherImageGenerator.Services
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[EmergencyAlertGenerator] Failed to generate alert {i + 1}: {ex.Message}");
+                    Logger.Log($"[EmergencyAlertGenerator] Failed to generate alert {i + 1}: {ex.Message}", Logger.LogLevel.Error);
                 }
             }
 
             return generatedFiles;
+        }
+
+        /// <summary>
+        /// Generates emergency alert video using the alert image and audio.
+        /// This creates a video that displays the alert image for the duration of the alert audio.
+        /// </summary>
+        /// <param name="alertImagePath">Path to the alert image file</param>
+        /// <param name="alertAudioPath">Path to the alert audio file (WAV or MP3)</param>
+        /// <param name="outputDir">Output directory for the video</param>
+        /// <returns>Path to the generated video, or null if generation failed</returns>
+        public static string? GenerateAlertVideo(string alertImagePath, string alertAudioPath, string outputDir)
+        {
+            try
+            {
+                if (!File.Exists(alertImagePath))
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] Alert image not found: {alertImagePath}", Logger.LogLevel.Error);
+                    return null;
+                }
+
+                if (!File.Exists(alertAudioPath))
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] Alert audio not found: {alertAudioPath}", Logger.LogLevel.Error);
+                    return null;
+                }
+
+                var config = ConfigManager.LoadConfig();
+                var videoConfig = config.Video ?? new VideoSettings();
+
+                // Determine output file path
+                string container = (videoConfig.Container ?? "mp4").Trim().Trim('.');
+                string outputPath = Path.Combine(outputDir, $"alert_video.{container}");
+
+                Logger.Log($"[EmergencyAlertGenerator] Generating alert video...", Logger.LogLevel.Info);
+                Logger.Log($"  Image: {Path.GetFileName(alertImagePath)}", Logger.LogLevel.Debug);
+                Logger.Log($"  Audio: {Path.GetFileName(alertAudioPath)}", Logger.LogLevel.Debug);
+                Logger.Log($"  Output: {outputPath}", Logger.LogLevel.Debug);
+
+                // Get audio duration to determine video length
+                double? audioDuration = GetAudioDuration(alertAudioPath);
+                if (!audioDuration.HasValue || audioDuration.Value <= 0)
+                {
+                    // Default to 30 seconds if we can't determine audio duration
+                    audioDuration = 30.0;
+                    Logger.Log($"[EmergencyAlertGenerator] Could not determine audio duration, using default: {audioDuration}s", Logger.LogLevel.Warning);
+                }
+                else
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] Audio duration: {audioDuration:F2}s", Logger.LogLevel.Debug);
+                }
+
+                // Build FFmpeg command to create video from single image + audio
+                // -loop 1: loop the image indefinitely
+                // -t: set duration to match audio
+                // -shortest: finish when the shortest stream ends
+                var codecArgs = BuildVideoCodecArgs(videoConfig);
+                
+                string ffmpegArgs = $"-y -loop 1 -i \"{alertImagePath}\" -i \"{alertAudioPath}\" " +
+                                   $"-c:v {videoConfig.VideoCodec ?? "libx264"} {codecArgs} " +
+                                   $"-c:a aac -b:a 192k " +
+                                   $"-t {audioDuration:F2} " +
+                                   $"-pix_fmt yuv420p " +
+                                   $"-shortest \"{outputPath}\"";
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = ffmpegArgs,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                };
+
+                Logger.Log($"[EmergencyAlertGenerator] Running FFmpeg for alert video...", Logger.LogLevel.Debug);
+
+                using var process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Failed to start FFmpeg process.", Logger.LogLevel.Error);
+                    return null;
+                }
+
+                // Read stderr asynchronously to avoid deadlocks
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                bool exited = process.WaitForExit(300000); // 5 minute timeout
+                
+                string stderr = "";
+                if (stderrTask.Wait(5000))
+                {
+                    stderr = stderrTask.Result;
+                }
+
+                if (!exited)
+                {
+                    Logger.Log("[EmergencyAlertGenerator] FFmpeg timed out, killing process.", Logger.LogLevel.Warning);
+                    try { process.Kill(); } catch { }
+                    return null;
+                }
+
+                if (process.ExitCode == 0 && File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000)
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] ✓ Alert video generated successfully: {outputPath}", Logger.LogLevel.Info);
+                    return outputPath;
+                }
+                else
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] ✗ FFmpeg failed with exit code {process.ExitCode}", Logger.LogLevel.Error);
+                    if (!string.IsNullOrEmpty(stderr))
+                    {
+                        Logger.Log($"[EmergencyAlertGenerator] FFmpeg error: {stderr.Substring(0, Math.Min(500, stderr.Length))}", Logger.LogLevel.Error);
+                    }
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[EmergencyAlertGenerator] Error generating alert video: {ex.Message}", Logger.LogLevel.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Generates alerts and automatically creates a video from them.
+        /// </summary>
+        /// <param name="alerts">List of emergency alerts</param>
+        /// <param name="outputDir">Output directory</param>
+        /// <param name="language">Language for TTS</param>
+        /// <returns>Tuple containing list of generated files and the video path (if successful)</returns>
+        public static (List<string> GeneratedFiles, string? VideoPath) GenerateEmergencyAlertsWithVideo(
+            List<AlertEntry> alerts, string outputDir, string language = "fr-CA")
+        {
+            // Generate the alert media (images and audio)
+            var generatedFiles = GenerateEmergencyAlerts(alerts, outputDir, language);
+
+            if (generatedFiles.Count == 0)
+            {
+                Logger.Log("[EmergencyAlertGenerator] No alert files generated, skipping video creation.", Logger.LogLevel.Warning);
+                return (generatedFiles, null);
+            }
+
+            // Find the first image and audio pair
+            string? imagePath = generatedFiles.FirstOrDefault(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+            string? audioPath = generatedFiles.FirstOrDefault(f => 
+                f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) || 
+                f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase));
+
+            if (string.IsNullOrEmpty(imagePath) || string.IsNullOrEmpty(audioPath))
+            {
+                Logger.Log("[EmergencyAlertGenerator] Missing image or audio file, skipping video creation.", Logger.LogLevel.Warning);
+                return (generatedFiles, null);
+            }
+
+            // Generate the video
+            string? videoPath = GenerateAlertVideo(imagePath, audioPath, outputDir);
+
+            if (!string.IsNullOrEmpty(videoPath))
+            {
+                generatedFiles.Add(videoPath);
+            }
+
+            return (generatedFiles, videoPath);
+        }
+
+        /// <summary>
+        /// Gets the duration of an audio file using FFprobe.
+        /// </summary>
+        private static double? GetAudioDuration(string audioPath)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "ffprobe",
+                    Arguments = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{audioPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process == null) return null;
+
+                string output = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit(10000);
+
+                if (double.TryParse(output, System.Globalization.NumberStyles.Any, 
+                    System.Globalization.CultureInfo.InvariantCulture, out double duration))
+                {
+                    return duration;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EmergencyAlertGenerator] Error getting audio duration: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Builds FFmpeg video codec arguments based on configuration.
+        /// </summary>
+        private static string BuildVideoCodecArgs(VideoSettings config)
+        {
+            var args = new StringBuilder();
+
+            // Use CRF encoding for quality-based encoding
+            if (config.UseCrfEncoding)
+            {
+                args.Append($"-crf {config.CrfValue} ");
+            }
+            else
+            {
+                args.Append($"-b:v {config.VideoBitrate ?? "4M"} ");
+            }
+
+            // Add encoder preset
+            if (!string.IsNullOrEmpty(config.EncoderPreset))
+            {
+                args.Append($"-preset {config.EncoderPreset} ");
+            }
+
+            // Add maxrate and bufsize if specified
+            if (!string.IsNullOrEmpty(config.MaxBitrate))
+            {
+                args.Append($"-maxrate {config.MaxBitrate} ");
+            }
+            if (!string.IsNullOrEmpty(config.BufferSize))
+            {
+                args.Append($"-bufsize {config.BufferSize} ");
+            }
+
+            return args.ToString().Trim();
         }
 
         private static void CleanupOldAlerts(string outputDir)
@@ -197,7 +432,7 @@ namespace WeatherImageGenerator.Services
                 bmp.Save(fullPath, ImageFormat.Png);
             }
 
-            Console.WriteLine($"[EmergencyAlertGenerator] Generated image: {filename}");
+            Logger.Log($"[EmergencyAlertGenerator] Generated image: {filename}", Logger.LogLevel.Info);
             return fullPath;
         }
 
@@ -233,17 +468,25 @@ namespace WeatherImageGenerator.Services
         {
             try
             {
+                Logger.Log($"[EmergencyAlertGenerator] Starting audio generation for alert {index}...", Logger.LogLevel.Info);
+                
                 string filename = $"EmergencyAlert_{index:D2}.wav";
                 string fullPath = Path.Combine(outputDir, filename);
                 
                 // First, ensure the Alert Ready attention signal is generated
+                Logger.Log("[EmergencyAlertGenerator] Generating Alert Ready attention signal...", Logger.LogLevel.Debug);
                 string? alertTonePath = AlertToneGenerator.GenerateToDirectory(outputDir);
                 if (alertTonePath != null)
                 {
-                    Console.WriteLine($"[EmergencyAlertGenerator] Alert Ready tone available: {Path.GetFileName(alertTonePath)}");
+                    Logger.Log($"[EmergencyAlertGenerator] Alert Ready tone available: {Path.GetFileName(alertTonePath)}", Logger.LogLevel.Debug);
+                }
+                else
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Warning: Could not generate Alert Ready tone", Logger.LogLevel.Warning);
                 }
 
                 // Build alert text for TTS
+                Logger.Log("[EmergencyAlertGenerator] Building TTS text...", Logger.LogLevel.Debug);
                 StringBuilder audioText = new StringBuilder();
                 
                 if (language == "fr-CA")
@@ -268,49 +511,200 @@ namespace WeatherImageGenerator.Services
                 }
 
                 string text = audioText.ToString();
+                Logger.Log($"[EmergencyAlertGenerator] TTS text length: {text.Length} chars", Logger.LogLevel.Debug);
 
-                // Try EdgeTtsClient first (best quality, supports French Canadian, no external dependencies)
-                if (TryGenerateWithEdgeTtsClient(text, fullPath, language))
+                // Load TTS settings to check preferred engine
+                var config = ConfigManager.LoadConfig();
+                var ttsSettings = config.TTS ?? new TTSSettings();
+                string preferredEngine = ttsSettings.Engine?.ToLowerInvariant() ?? "piper";
+
+                // Try Piper TTS first (open-source, offline, high-quality)
+                if (preferredEngine != "edge")
                 {
-                    Console.WriteLine($"[EmergencyAlertGenerator] Generated audio with Edge TTS: {filename}");
-                    return fullPath;
+                    Logger.Log("[EmergencyAlertGenerator] Trying Piper TTS (open-source, offline)...", Logger.LogLevel.Info);
+                    if (TryGenerateWithPiperTts(text, fullPath, language))
+                    {
+                        Logger.Log($"[EmergencyAlertGenerator] Generated audio with Piper TTS: {filename}", Logger.LogLevel.Info);
+                        return fullPath;
+                    }
+                    Logger.Log("[EmergencyAlertGenerator] Piper TTS failed, trying Edge TTS...", Logger.LogLevel.Debug);
                 }
 
+                // Try EdgeTtsClient (high quality neural voices, requires internet)
+                Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS Client...", Logger.LogLevel.Info);
+                if (TryGenerateWithEdgeTtsClient(text, fullPath, language))
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS: {filename}", Logger.LogLevel.Info);
+                    return fullPath;
+                }
+                Logger.Log("[EmergencyAlertGenerator] Edge TTS Client failed, trying CLI...", Logger.LogLevel.Debug);
+
                 // Try edge-tts CLI as backup (if Python installed)
+                Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS CLI...", Logger.LogLevel.Info);
                 if (TryGenerateWithEdgeTTS(text, fullPath, language))
                 {
-                    Console.WriteLine($"[EmergencyAlertGenerator] Generated audio with Edge TTS CLI: {filename}");
+                    Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS CLI: {filename}", Logger.LogLevel.Info);
                     return fullPath;
                 }
 
                 // Try Windows.Media.SpeechSynthesis (more voices than SAPI)
                 if (TryGenerateWithWindowsMediaTTS(text, fullPath, language))
                 {
-                    Console.WriteLine($"[EmergencyAlertGenerator] Generated audio with Windows Media TTS: {filename}");
+                    Logger.Log($"[EmergencyAlertGenerator] Generated audio with Windows Media TTS: {filename}", Logger.LogLevel.Info);
                     return fullPath;
                 }
 
                 // Try espeak-ng (if available)
                 if (TryGenerateWithEspeak(text, fullPath, language))
                 {
-                    Console.WriteLine($"[EmergencyAlertGenerator] Generated audio with espeak: {filename}");
+                    Logger.Log($"[EmergencyAlertGenerator] Generated audio with espeak: {filename}", Logger.LogLevel.Info);
                     return fullPath;
                 }
 
                 // Try PowerShell SAPI as fallback
                 if (TryGenerateWithSAPI(text, fullPath, language))
                 {
-                    Console.WriteLine($"[EmergencyAlertGenerator] Generated audio with SAPI: {filename}");
+                    Logger.Log($"[EmergencyAlertGenerator] Generated audio with SAPI: {filename}", Logger.LogLevel.Info);
                     return fullPath;
                 }
 
-                Console.WriteLine($"[EmergencyAlertGenerator] No TTS engine available for audio generation.");
+                Logger.Log($"[EmergencyAlertGenerator] No TTS engine available for audio generation.", Logger.LogLevel.Error);
                 return string.Empty;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EmergencyAlertGenerator] Audio generation error: {ex.Message}");
+                Logger.Log($"[EmergencyAlertGenerator] Audio generation error: {ex.Message}", Logger.LogLevel.Error);
                 return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Try to generate TTS audio using Piper (open-source, offline, high-quality neural TTS).
+        /// </summary>
+        private static bool TryGenerateWithPiperTts(string text, string outputPath, string language)
+        {
+            try
+            {
+                // Load TTS settings from config
+                var config = ConfigManager.LoadConfig();
+                var ttsSettings = config.TTS ?? new TTSSettings();
+
+                using var client = new PiperTtsClient();
+
+                // Use configured voice or default based on language
+                string voice = !string.IsNullOrEmpty(ttsSettings.PiperVoice)
+                    ? ttsSettings.PiperVoice
+                    : PiperTtsClient.GetVoiceForLanguage(language);
+
+                float lengthScale = ttsSettings.PiperLengthScale ?? 1.0f;
+
+                // Generate TTS to a temp WAV file first (Piper outputs WAV)
+                string tempWavPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_piper_{Guid.NewGuid()}.wav");
+                string tempMp3Path = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_piper_{Guid.NewGuid()}.mp3");
+
+                Logger.Log($"[PiperTTS] Attempting synthesis with voice: {voice}, lengthScale: {lengthScale}", Logger.LogLevel.Info);
+
+                bool ttsResult = false;
+                try
+                {
+                    var synthesisTask = Task.Run(async () =>
+                    {
+                        return await client.SynthesizeToFileAsync(text, tempWavPath, voice, null, lengthScale);
+                    });
+
+                    if (synthesisTask.Wait(TimeSpan.FromSeconds(60)))
+                    {
+                        ttsResult = synthesisTask.Result;
+                        Logger.Log($"[PiperTTS] Synthesis completed, result: {ttsResult}", Logger.LogLevel.Debug);
+                    }
+                    else
+                    {
+                        Logger.Log("[PiperTTS] TTS synthesis timed out after 60 seconds.", Logger.LogLevel.Warning);
+                        return false;
+                    }
+                }
+                catch (AggregateException ex)
+                {
+                    Logger.Log($"[PiperTTS] TTS synthesis failed: {ex.InnerException?.Message ?? ex.Message}", Logger.LogLevel.Error);
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[PiperTTS] TTS synthesis error: {ex.Message}", Logger.LogLevel.Error);
+                    return false;
+                }
+
+                if (ttsResult && File.Exists(tempWavPath))
+                {
+                    // Convert WAV to MP3 if ffmpeg is available
+                    string ttsAudioPath = tempWavPath;
+                    try
+                    {
+                        var convertTask = Task.Run(async () => await PiperTtsClient.ConvertWavToMp3Async(tempWavPath, tempMp3Path));
+                        if (convertTask.Wait(TimeSpan.FromSeconds(30)) && convertTask.Result)
+                        {
+                            ttsAudioPath = tempMp3Path;
+                            try { File.Delete(tempWavPath); } catch { }
+                            Logger.Log("[PiperTTS] Converted WAV to MP3.", Logger.LogLevel.Debug);
+                        }
+                        else
+                        {
+                            Logger.Log("[PiperTTS] WAV to MP3 conversion failed or timed out, using WAV file.", Logger.LogLevel.Debug);
+                        }
+                    }
+                    catch (Exception convEx)
+                    {
+                        Logger.Log($"[PiperTTS] WAV to MP3 conversion error: {convEx.Message}, using WAV file.", Logger.LogLevel.Debug);
+                    }
+
+                    // Try to prepend the Alert Ready attention signal
+                    Logger.Log("[PiperTTS] Attempting to prepend Alert Ready tone...", Logger.LogLevel.Debug);
+                    string? alertTonePath = null;
+                    try
+                    {
+                        alertTonePath = AlertToneGenerator.GetOrGenerateAlertTone();
+                    }
+                    catch (Exception toneEx)
+                    {
+                        Logger.Log($"[PiperTTS] Alert tone generation error: {toneEx.Message}", Logger.LogLevel.Warning);
+                    }
+
+                    if (alertTonePath != null && File.Exists(alertTonePath))
+                    {
+                        Logger.Log($"[PiperTTS] Concatenating alert tone with TTS audio...", Logger.LogLevel.Debug);
+                        // Concatenate: AlertTone + TTS audio
+                        try
+                        {
+                            if (AlertToneGenerator.ConcatenateAudioFiles(new[] { alertTonePath, ttsAudioPath }, outputPath))
+                            {
+                                Logger.Log("[EmergencyAlertGenerator] Successfully prepended Alert Ready tone to Piper TTS audio.", Logger.LogLevel.Debug);
+                                try { File.Delete(ttsAudioPath); } catch { }
+                                return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
+                            }
+                        }
+                        catch (Exception concatEx)
+                        {
+                            Logger.Log($"[PiperTTS] Concatenation error: {concatEx.Message}", Logger.LogLevel.Warning);
+                        }
+                    }
+
+                    // Fallback: use TTS audio without alert tone
+                    Logger.Log("[EmergencyAlertGenerator] Using Piper TTS audio without Alert Ready tone prefix.", Logger.LogLevel.Debug);
+                    if (outputPath != ttsAudioPath)
+                    {
+                        if (File.Exists(outputPath)) File.Delete(outputPath);
+                        File.Move(ttsAudioPath, outputPath);
+                    }
+                    return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[EmergencyAlertGenerator] PiperTtsClient error: {ex.Message}", Logger.LogLevel.Error);
+                if (ex.InnerException != null)
+                    Logger.Log($"[EmergencyAlertGenerator] Inner exception: {ex.InnerException.Message}", Logger.LogLevel.Debug);
+                return false;
             }
         }
 
@@ -335,13 +729,44 @@ namespace WeatherImageGenerator.Services
                 // Generate TTS to a temp file first
                 string tempTtsPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_tts_{Guid.NewGuid()}.mp3");
                 
-                Console.WriteLine($"[EdgeTTS] Attempting synthesis with voice: {voice}, rate: {rate}, pitch: {pitch}");
+                Logger.Log($"[EdgeTTS] Attempting synthesis with voice: {voice}, rate: {rate}, pitch: {pitch}", Logger.LogLevel.Info);
                 
-                // Run async method synchronously
-                var task = client.SynthesizeToFileAsync(text, tempTtsPath, voice, rate, pitch);
-                task.Wait(TimeSpan.FromSeconds(60));
+                // Run async method with proper timeout handling - wrap in Task.Run to avoid deadlocks
+                Logger.Log("[EdgeTTS] Starting TTS synthesis (timeout: 30s)...", Logger.LogLevel.Info);
                 
-                if (task.Result && File.Exists(tempTtsPath))
+                bool ttsResult = false;
+                try
+                {
+                    // Use Task.Run to run on thread pool and avoid synchronization context deadlock
+                    var synthesisTask = Task.Run(async () => 
+                    {
+                        return await client.SynthesizeToFileAsync(text, tempTtsPath, voice, rate, pitch);
+                    });
+                    
+                    // Wait with a shorter timeout
+                    if (synthesisTask.Wait(TimeSpan.FromSeconds(30)))
+                    {
+                        ttsResult = synthesisTask.Result;
+                        Logger.Log($"[EdgeTTS] Synthesis completed, result: {ttsResult}", Logger.LogLevel.Debug);
+                    }
+                    else
+                    {
+                        Logger.Log("[EdgeTTS] TTS synthesis timed out after 30 seconds.", Logger.LogLevel.Warning);
+                        return false;
+                    }
+                }
+                catch (AggregateException ex)
+                {
+                    Logger.Log($"[EdgeTTS] TTS synthesis failed: {ex.InnerException?.Message ?? ex.Message}", Logger.LogLevel.Error);
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[EdgeTTS] TTS synthesis error: {ex.Message}", Logger.LogLevel.Error);
+                    return false;
+                }
+                
+                if (ttsResult && File.Exists(tempTtsPath))
                 {
                     // Try to prepend the Alert Ready attention signal
                     string? alertTonePath = AlertToneGenerator.GetOrGenerateAlertTone();
@@ -351,14 +776,14 @@ namespace WeatherImageGenerator.Services
                         // Concatenate: AlertTone + TTS audio
                         if (AlertToneGenerator.ConcatenateAudioFiles(new[] { alertTonePath, tempTtsPath }, outputPath))
                         {
-                            Console.WriteLine("[EmergencyAlertGenerator] Successfully prepended Alert Ready tone to TTS audio.");
+                            Logger.Log("[EmergencyAlertGenerator] Successfully prepended Alert Ready tone to TTS audio.", Logger.LogLevel.Debug);
                             try { File.Delete(tempTtsPath); } catch { }
                             return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
                         }
                     }
                     
                     // Fallback: use TTS audio without alert tone
-                    Console.WriteLine("[EmergencyAlertGenerator] Using TTS audio without Alert Ready tone prefix.");
+                    Logger.Log("[EmergencyAlertGenerator] Using TTS audio without Alert Ready tone prefix.", Logger.LogLevel.Debug);
                     if (outputPath != tempTtsPath)
                     {
                         if (File.Exists(outputPath)) File.Delete(outputPath);
@@ -370,9 +795,9 @@ namespace WeatherImageGenerator.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EmergencyAlertGenerator] EdgeTtsClient error: {ex.Message}");
+                Logger.Log($"[EmergencyAlertGenerator] EdgeTtsClient error: {ex.Message}", Logger.LogLevel.Error);
                 if (ex.InnerException != null)
-                    Console.WriteLine($"[EmergencyAlertGenerator] Inner exception: {ex.InnerException.Message}");
+                    Logger.Log($"[EmergencyAlertGenerator] Inner exception: {ex.InnerException.Message}", Logger.LogLevel.Debug);
                 return false;
             }
         }

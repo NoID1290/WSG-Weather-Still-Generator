@@ -748,27 +748,47 @@ namespace WeatherImageGenerator.Services
     }
 
     /// <summary>
-    /// Text-to-Speech settings for EdgeTTS
+    /// Text-to-Speech settings for TTS engines (Piper and EdgeTTS)
     /// </summary>
     public class TTSSettings
     {
         /// <summary>
-        /// Voice identifier (e.g., fr-CA-SylvieNeural, en-CA-ClaraNeural)
+        /// Preferred TTS engine: "piper" (default, open-source offline) or "edge" (Microsoft online)
+        /// </summary>
+        [JsonPropertyName("Engine")]
+        public string Engine { get; set; } = "piper";
+
+        /// <summary>
+        /// EdgeTTS voice identifier (e.g., fr-CA-SylvieNeural, en-CA-ClaraNeural)
         /// </summary>
         [JsonPropertyName("Voice")]
         public string Voice { get; set; } = "fr-CA-SylvieNeural";
 
         /// <summary>
-        /// Speech rate modifier (e.g., +0%, +10%, -10%)
+        /// EdgeTTS speech rate modifier (e.g., +0%, +10%, -10%)
         /// </summary>
         [JsonPropertyName("Rate")]
         public string Rate { get; set; } = "+0%";
 
         /// <summary>
-        /// Pitch modifier (e.g., +0Hz, +10Hz, -10Hz)
+        /// EdgeTTS pitch modifier (e.g., +0Hz, +10Hz, -10Hz)
         /// </summary>
         [JsonPropertyName("Pitch")]
         public string Pitch { get; set; } = "+0Hz";
+
+        /// <summary>
+        /// Piper voice model name (e.g., fr_FR-siwis-medium, en_US-lessac-medium)
+        /// Available French: fr_FR-siwis-medium (female), fr_FR-upmc-medium (male), fr_FR-tom-medium (male)
+        /// Available English: en_US-lessac-medium, en_US-amy-medium, en_US-ryan-medium, en_GB-alan-medium, en_GB-alba-medium
+        /// </summary>
+        [JsonPropertyName("PiperVoice")]
+        public string? PiperVoice { get; set; }
+
+        /// <summary>
+        /// Piper speech speed: 1.0 = normal, lower = faster, higher = slower (e.g., 0.8 for faster, 1.2 for slower)
+        /// </summary>
+        [JsonPropertyName("PiperLengthScale")]
+        public float? PiperLengthScale { get; set; } = 1.0f;
     }
 
     /// <summary>

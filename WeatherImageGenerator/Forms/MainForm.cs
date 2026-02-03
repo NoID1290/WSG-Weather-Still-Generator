@@ -2209,15 +2209,21 @@ namespace WeatherImageGenerator.Forms
 
                     if (alerts != null && alerts.Count > 0)
                     {
-                        Logger.Log($"Parsed {alerts.Count} test alert(s). Generating media...", Logger.LogLevel.Info);
+                        Logger.Log($"Parsed {alerts.Count} test alert(s). Generating media and video...", Logger.LogLevel.Info);
 
-                        var generatedFiles = EmergencyAlertGenerator.GenerateEmergencyAlerts(
+                        // Use the new method that generates both media AND video automatically
+                        var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                             alerts,
                             outputDir,
                             language
                         );
 
                         Logger.Log($"Generated {generatedFiles.Count} file(s) in TestAlerts folder.", Logger.LogLevel.Info);
+                        
+                        if (!string.IsNullOrEmpty(videoPath))
+                        {
+                            Logger.Log($"✓ Alert video generated: {videoPath}", Logger.LogLevel.Info);
+                        }
 
                         // Open the output folder
                         if (generatedFiles.Count > 0)
@@ -2237,17 +2243,39 @@ namespace WeatherImageGenerator.Forms
                     {
                         Logger.Log("Failed to parse test alert.", Logger.LogLevel.Warning);
                     }
-                });
+                }).ConfigureAwait(true);  // Ensure we return to UI thread
+                
+                Logger.Log("Test alert generation completed.", Logger.LogLevel.Info);
             }
             catch (Exception ex)
             {
                 Logger.Log($"Test alert generation failed: {ex.Message}", Logger.LogLevel.Error);
-                MessageBox.Show($"Failed to generate test alert: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (ex.InnerException != null)
+                {
+                    Logger.Log($"Inner exception: {ex.InnerException.Message}", Logger.LogLevel.Debug);
+                }
+                try
+                {
+                    MessageBox.Show($"Failed to generate test alert: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                catch { /* If MessageBox fails too */ }
             }
             finally
             {
-                SetButtonEnabled(_testAlertBtn!, true);
-                _testAlertBtn!.Text = "🧪 Emergency Test Alert";
+                // Ensure we're on the UI thread for button updates
+                if (InvokeRequired)
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        SetButtonEnabled(_testAlertBtn!, true);
+                        _testAlertBtn!.Text = "🧪 Emergency Test Alert";
+                    }));
+                }
+                else
+                {
+                    SetButtonEnabled(_testAlertBtn!, true);
+                    _testAlertBtn!.Text = "🧪 Emergency Test Alert";
+                }
             }
         }
 
@@ -2414,12 +2442,23 @@ namespace WeatherImageGenerator.Forms
 
                 string language = cfg.AlertReady?.PreferredLanguage ?? "fr-CA";
 
-                Logger.Log($"Generating media for alert: {alert.Title}", Logger.LogLevel.Info);
+                Logger.Log($"Generating media and video for alert: {alert.Title}", Logger.LogLevel.Info);
 
                 var alerts = new List<AlertEntry> { alert };
-                var generatedFiles = EmergencyAlertGenerator.GenerateEmergencyAlerts(alerts, outputDir, language);
+                
+                // Use the new method that generates both media AND video automatically
+                var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language);
 
                 Logger.Log($"Generated {generatedFiles.Count} file(s) for alert: {alert.Title}", Logger.LogLevel.Info);
+
+                if (!string.IsNullOrEmpty(videoPath))
+                {
+                    Logger.Log($"✓ Alert video generated: {videoPath}", Logger.LogLevel.Info);
+                }
+                else
+                {
+                    Logger.Log("Alert video generation was skipped or failed.", Logger.LogLevel.Warning);
+                }
             }
             catch (Exception ex)
             {
