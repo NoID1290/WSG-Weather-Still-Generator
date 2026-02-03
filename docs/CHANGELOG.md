@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0.0202] - 2026-02-02
+
+- Implement feature X to enhance user experience and optimize performance
+- Add legal attribution overlays for OSM and weather data in multiple services
+- Refactor button enable/disable logic in MainForm for improved visual feedback and maintainability
+- Add cache summary logging and improve cache hit/miss tracking in MapOverlayService
+- Add optional logging for cache and download activity in MapOverlayService
+- Implement tile caching mechanism in MapOverlayService and update SettingsForm for cache directory configuration
+- Implement silent mode for configuration saves to reduce log spam during UI state changes
+- Enhance MainForm UI with modern styling and improved status indicators
+- Refactor MainForm layout for improved organization and aesthetics
+- Implement persistent UI state management for tab selection, splitter position, and window size
+- Refactor MainForm layout for improved compactness and readability
+- Enhance logging functionality with message throttling and timestamp formatting
+- Add WSG auto-update
+- Update version badge from 1.6.3 to 1.7.3
+
 ## [1.7.3.0201] - 2026-02-01
 
 - Fix button alignment for WebUI in MainForm
