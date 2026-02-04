@@ -7,9 +7,9 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CA1416;CS8618</NoWarn>
-    <Version>1.8.4.0204</Version>
-    <AssemblyVersion>1.8.4.0204</AssemblyVersion>
-    <FileVersion>1.8.4.0204</FileVersion>
+    <Version>1.8.5.0204</Version>
+    <AssemblyVersion>1.8.5.0204</AssemblyVersion>
+    <FileVersion>1.8.5.0204</FileVersion>
     <RootNamespace>WeatherImageGenerator</RootNamespace>
     <AssemblyName>WSG</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
@@ -46,12 +46,8 @@
   <ItemGroup>
     <PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
   </ItemGroup>
-
   <!-- Copy the updater executable to the output directory -->
   <Target Name="CopyUpdater" AfterTargets="Build">
-    <Copy SourceFiles="..\WeatherImageGenerator.Updater\bin\$(Configuration)\net10.0\WSG.Updater.exe" 
-          DestinationFolder="$(OutDir)" 
-          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="..\WeatherImageGenerator.Updater\bin\$(Configuration)\net10.0\WSG.Updater.exe" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
-
 </Project>
