@@ -422,10 +422,15 @@ if ($AttachAssets) {
     # Clean previous artifacts
     if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 
-    # Build/publish
+    # Build/publish the main application
     # We use -p:DebugType=None to suppress PDB generation for the main project
     Write-Host "[BUILD] dotnet publish -c Release -o $publishDir -p:DebugType=None" -ForegroundColor Cyan
     dotnet publish $projectFilePath -c Release -o $publishDir -p:DebugType=None
+    
+    # Also publish the updater to the same directory so it's included in the release
+    Write-Host "[BUILD] Publishing updater to $publishDir" -ForegroundColor Cyan
+    $updaterProjectPath = "WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj"
+    dotnet publish $updaterProjectPath -c Release -o $publishDir -p:DebugType=None
 
     if (-not $?) {
         Write-Host "[ERROR] dotnet publish failed; skipping artifact upload" -ForegroundColor Red
