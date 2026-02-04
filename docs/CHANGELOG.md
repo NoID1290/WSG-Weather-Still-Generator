@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.9.0204] - 2026-02-04
+
+- Refactor updater to determine app directory from its own location and support optional directory override
+
 ## [1.8.8.0204] - 2026-02-04
 
 - Enhance build process to include updater in release artifacts
