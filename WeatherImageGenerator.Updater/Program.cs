@@ -29,20 +29,30 @@ namespace WeatherImageGenerator.Updater
 
             try
             {
-                // Usage: WeatherImageGenerator.Updater.exe <app_directory> [wait_for_pid]
-                if (args.Length < 1)
-                {
-                    Log("Usage: WeatherImageGenerator.Updater.exe <app_directory> [wait_for_pid]", logFile);
-                    Environment.Exit(1);
-                }
-
-                var appDirectory = args[0];
+                // Determine the app directory from the updater's own location
+                // The updater is located in the same directory as WSG.exe
+                var appDirectory = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+                appDirectory = Path.GetFullPath(appDirectory);
+                
                 var stagingDirectory = Path.Combine(Path.GetTempPath(), "WSG_Update_Staging");
                 var exePath = Path.Combine(appDirectory, "WSG.exe");
 
-                Log($"App Directory: {appDirectory}", logFile);
+                Log($"Updater Location: {Environment.ProcessPath}", logFile);
+                Log($"App Directory (determined from updater location): {appDirectory}", logFile);
                 Log($"Staging Directory: {stagingDirectory}", logFile);
                 Log($"Exe Path: {exePath}", logFile);
+
+                // Optional: If an app directory was passed as argument, use it as override (for backward compatibility)
+                if (args.Length > 0 && !string.IsNullOrEmpty(args[0]))
+                {
+                    var passedDir = args[0];
+                    if (Directory.Exists(passedDir))
+                    {
+                        Log($"App directory override provided: {passedDir}", logFile);
+                        appDirectory = passedDir;
+                        Log($"Using provided app directory: {appDirectory}", logFile);
+                    }
+                }
 
                 // Verify app directory exists
                 if (!Directory.Exists(appDirectory))
@@ -52,7 +62,18 @@ namespace WeatherImageGenerator.Updater
                 }
 
                 // If a PID was provided, wait for that process to exit
-                if (args.Length > 1 && int.TryParse(args[1], out int pid))
+                // PID can be in args[0] if no app directory was passed, or args[1] if it was
+                int pidArgIndex = 0;
+                if (args.Length > 0 && Directory.Exists(args[0]))
+                {
+                    pidArgIndex = 1; // PID is second argument if first was a directory
+                }
+                else if (args.Length > 0 && int.TryParse(args[0], out _))
+                {
+                    pidArgIndex = 0; // PID is first argument if no directory was passed
+                }
+
+                if (args.Length > pidArgIndex && int.TryParse(args[pidArgIndex], out int pid))
                 {
                     Log($"Waiting for process {pid} to exit...", logFile);
                     try
