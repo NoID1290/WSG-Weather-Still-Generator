@@ -14,12 +14,25 @@ namespace WeatherImageGenerator.Updater
     {
         static void Main(string[] args)
         {
+            // Write to console for debugging
+            var logFile = Path.Combine(Path.GetTempPath(), "WSG_Updater.log");
+            try
+            {
+                using (var writer = new StreamWriter(logFile, append: true))
+                {
+                    writer.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Updater started");
+                    writer.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Arguments: {string.Join(" | ", args)}");
+                    writer.Flush();
+                }
+            }
+            catch { }
+
             try
             {
                 // Usage: WeatherImageGenerator.Updater.exe <app_directory> [wait_for_pid]
                 if (args.Length < 1)
                 {
-                    Console.WriteLine("Usage: WeatherImageGenerator.Updater.exe <app_directory> [wait_for_pid]");
+                    Log("Usage: WeatherImageGenerator.Updater.exe <app_directory> [wait_for_pid]", logFile);
                     Environment.Exit(1);
                 }
 
@@ -27,49 +40,64 @@ namespace WeatherImageGenerator.Updater
                 var stagingDirectory = Path.Combine(Path.GetTempPath(), "WSG_Update_Staging");
                 var exePath = Path.Combine(appDirectory, "WSG.exe");
 
-                Console.WriteLine($"[Updater] App Directory: {appDirectory}");
-                Console.WriteLine($"[Updater] Staging Directory: {stagingDirectory}");
+                Log($"App Directory: {appDirectory}", logFile);
+                Log($"Staging Directory: {stagingDirectory}", logFile);
+                Log($"Exe Path: {exePath}", logFile);
+
+                // Verify app directory exists
+                if (!Directory.Exists(appDirectory))
+                {
+                    Log($"ERROR: App directory not found: {appDirectory}", logFile);
+                    Environment.Exit(1);
+                }
 
                 // If a PID was provided, wait for that process to exit
                 if (args.Length > 1 && int.TryParse(args[1], out int pid))
                 {
-                    Console.WriteLine($"[Updater] Waiting for process {pid} to exit...");
+                    Log($"Waiting for process {pid} to exit...", logFile);
                     try
                     {
                         var process = Process.GetProcessById(pid);
                         if (!process.HasExited)
                         {
+                            Log($"Process {pid} is running, waiting...", logFile);
                             process.WaitForExit(30000); // Wait up to 30 seconds
+                            Log($"Process {pid} exited", logFile);
                         }
                     }
-                    catch { /* Process already exited */ }
-                    Console.WriteLine("[Updater] Process exited, proceeding with update...");
+                    catch (Exception ex)
+                    {
+                        Log($"Process check error: {ex.Message}", logFile);
+                    }
+                    Log("Proceeding with update...", logFile);
                 }
 
                 // Wait for the main EXE to be released
-                Console.WriteLine("[Updater] Waiting for application files to be unlocked...");
-                if (!WaitForFilesUnlocked(appDirectory, 10000)) // 10 second timeout
+                Log("Waiting for application files to be unlocked...", logFile);
+                if (!WaitForFilesUnlocked(appDirectory, 10000, logFile)) // 10 second timeout
                 {
-                    Console.WriteLine("[Updater] WARNING: Timeout waiting for files to unlock, attempting anyway...");
+                    Log("WARNING: Timeout waiting for files to unlock, attempting anyway...", logFile);
                 }
 
                 // Check if staging directory exists and has files
                 if (!Directory.Exists(stagingDirectory))
                 {
-                    Console.WriteLine("[Updater] ERROR: Staging directory not found!");
+                    Log($"ERROR: Staging directory not found: {stagingDirectory}", logFile);
                     Environment.Exit(1);
                 }
 
                 var stagingFiles = Directory.GetFiles(stagingDirectory, "*.*", SearchOption.AllDirectories);
+                Log($"Found {stagingFiles.Length} files in staging directory", logFile);
+                
                 if (stagingFiles.Length == 0)
                 {
-                    Console.WriteLine("[Updater] No files in staging directory, nothing to update.");
-                    Directory.Delete(stagingDirectory, recursive: true);
-                    LaunchApplication(exePath);
+                    Log("No files in staging directory, nothing to update.", logFile);
+                    try { Directory.Delete(stagingDirectory, recursive: true); } catch { }
+                    LaunchApplication(exePath, logFile);
                     return;
                 }
 
-                Console.WriteLine($"[Updater] Found {stagingFiles.Length} files to apply...");
+                Log($"Applying {stagingFiles.Length} files...", logFile);
 
                 // Copy all files from staging to app directory
                 int copiedCount = 0;
@@ -95,10 +123,10 @@ namespace WeatherImageGenerator.Updater
                             {
                                 File.Delete(targetPath);
                             }
-                            catch (IOException)
+                            catch (IOException ex)
                             {
                                 // File still locked, skip it
-                                Console.WriteLine($"[Updater] WARN: Could not delete {relativePath}, file may be in use");
+                                Log($"WARN: Could not delete {relativePath}, file may be in use: {ex.Message}", logFile);
                                 failedCount++;
                                 continue;
                             }
@@ -107,11 +135,11 @@ namespace WeatherImageGenerator.Updater
                         // Copy the new file
                         File.Copy(file, targetPath, overwrite: true);
                         copiedCount++;
-                        Console.WriteLine($"[Updater] Updated: {relativePath}");
+                        Log($"Updated: {relativePath}", logFile);
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[Updater] ERROR copying {relativePath}: {ex.Message}");
+                        Log($"ERROR copying {relativePath}: {ex.Message}", logFile);
                         failedCount++;
                     }
                 }
@@ -120,30 +148,46 @@ namespace WeatherImageGenerator.Updater
                 try
                 {
                     Directory.Delete(stagingDirectory, recursive: true);
-                    Console.WriteLine("[Updater] Cleaned up staging directory");
+                    Log("Cleaned up staging directory", logFile);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Updater] WARNING: Could not clean staging directory: {ex.Message}");
+                    Log($"WARNING: Could not clean staging directory: {ex.Message}", logFile);
                 }
 
-                Console.WriteLine($"[Updater] Update complete: {copiedCount} files applied, {failedCount} failed");
+                Log($"Update complete: {copiedCount} files applied, {failedCount} failed", logFile);
 
                 // Launch the application
-                LaunchApplication(exePath);
+                LaunchApplication(exePath, logFile);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Updater] FATAL ERROR: {ex.Message}");
-                Console.WriteLine($"[Updater] Stack trace: {ex.StackTrace}");
+                Log($"FATAL ERROR: {ex.Message}", logFile);
+                Log($"Stack trace: {ex.StackTrace}", logFile);
                 Environment.Exit(1);
             }
+        }
+
+        private static void Log(string message, string logFile)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            Console.WriteLine($"[{timestamp}] {message}");
+            
+            try
+            {
+                using (var writer = new StreamWriter(logFile, append: true))
+                {
+                    writer.WriteLine($"[{timestamp}] {message}");
+                    writer.Flush();
+                }
+            }
+            catch { }
         }
 
         /// <summary>
         /// Waits for all critical application files to be unlocked
         /// </summary>
-        private static bool WaitForFilesUnlocked(string appDirectory, int timeoutMs)
+        private static bool WaitForFilesUnlocked(string appDirectory, int timeoutMs, string logFile)
         {
             var sw = Stopwatch.StartNew();
             var criticalFiles = new[] { "WSG.exe", "WeatherImageGenerator.dll", "ECCC.dll", "OpenMeteo.dll" };
@@ -164,12 +208,14 @@ namespace WeatherImageGenerator.Updater
 
                 if (allUnlocked)
                 {
+                    Log("All files unlocked", logFile);
                     return true;
                 }
 
                 Thread.Sleep(200);
             }
 
+            Log("Timeout waiting for files to unlock", logFile);
             return false;
         }
 
@@ -194,23 +240,23 @@ namespace WeatherImageGenerator.Updater
         /// <summary>
         /// Launches the main application
         /// </summary>
-        private static void LaunchApplication(string exePath)
+        private static void LaunchApplication(string exePath, string logFile)
         {
             try
             {
                 if (!File.Exists(exePath))
                 {
-                    Console.WriteLine($"[Updater] ERROR: Application executable not found: {exePath}");
+                    Log($"ERROR: Application executable not found: {exePath}", logFile);
                     Environment.Exit(1);
                 }
 
-                Console.WriteLine($"[Updater] Launching application: {exePath}");
+                Log($"Launching application: {exePath}", logFile);
                 Process.Start(new ProcessStartInfo(exePath) { UseShellExecute = true });
-                Console.WriteLine("[Updater] Application launched successfully");
+                Log("Application launched successfully", logFile);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Updater] ERROR launching application: {ex.Message}");
+                Log($"ERROR launching application: {ex.Message}", logFile);
                 Environment.Exit(1);
             }
         }

@@ -211,12 +211,12 @@ namespace WeatherImageGenerator.Services
                 // Find the actual content directory (might be nested)
                 var sourceDir = extractPath;
                 var subdirs = Directory.GetDirectories(extractPath);
-                if (subdirs.Length == 1 && !File.Exists(Path.Combine(extractPath, "WeatherImageGenerator.exe")))
+                if (subdirs.Length == 1 && !File.Exists(Path.Combine(extractPath, "WSG.exe")))
                 {
                     sourceDir = subdirs[0];
                     // Check one more level deep
                     var nestedSubdirs = Directory.GetDirectories(sourceDir);
-                    if (nestedSubdirs.Length == 1 && !File.Exists(Path.Combine(sourceDir, "WeatherImageGenerator.exe")))
+                    if (nestedSubdirs.Length == 1 && !File.Exists(Path.Combine(sourceDir, "WSG.exe")))
                     {
                         sourceDir = nestedSubdirs[0];
                     }
@@ -247,6 +247,14 @@ namespace WeatherImageGenerator.Services
                 // Step 4: Copy new files to staging directory
                 progress?.Report((75, "Staging files..."));
                 Logger.Log("Staging files for installation...", Logger.LogLevel.Info);
+                Logger.Log($"Source directory: {sourceDir}", Logger.LogLevel.Debug);
+                Logger.Log($"Source directory exists: {Directory.Exists(sourceDir)}", Logger.LogLevel.Debug);
+                
+                if (!Directory.Exists(sourceDir))
+                {
+                    Logger.Log($"ERROR: Source directory does not exist: {sourceDir}", Logger.LogLevel.Error);
+                    return (false, $"Extracted files directory not found: {sourceDir}");
+                }
                 
                 // Clean up old staging directory if it exists
                 try
@@ -259,9 +267,11 @@ namespace WeatherImageGenerator.Services
                 catch { }
                 
                 Directory.CreateDirectory(UpdateStagingDirectory);
+                Logger.Log($"Created staging directory: {UpdateStagingDirectory}", Logger.LogLevel.Debug);
                 
                 var newFiles = Directory.GetFiles(sourceDir, "*.*", SearchOption.AllDirectories);
                 var totalFiles = newFiles.Length;
+                Logger.Log($"Found {totalFiles} files to stage from {sourceDir}", Logger.LogLevel.Info);
                 var processed = 0;
                 
                 foreach (var file in newFiles)
