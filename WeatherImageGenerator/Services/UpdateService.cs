@@ -28,6 +28,7 @@ namespace WeatherImageGenerator.Services
         private const int MOVEFILE_REPLACE_EXISTING = 1;
         private const string GitHubApiUrl = "https://api.github.com/repos/NoID1290/WSG-Weather-Still-Generator/releases/latest";
         private const string GitHubReleasesUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator/releases";
+        private static readonly string PendingUpdatesManifest = Path.Combine(AppContext.BaseDirectory, ".update_pending");
         
         private static readonly HttpClient _httpClient = new HttpClient();
         
@@ -249,6 +250,7 @@ namespace WeatherImageGenerator.Services
                 var totalFiles = newFiles.Length;
                 var processed = 0;
                 var deferredFiles = new List<string>();
+                var pendingUpdatesList = new List<string>(); // Track files for startup fallback
                 
                 foreach (var file in newFiles)
                 {
@@ -278,7 +280,7 @@ namespace WeatherImageGenerator.Services
                         }
                         catch (IOException ex) when (ex.Message.Contains("being used") || ex.Message.Contains("access"))
                         {
-                            // File is locked - defer replacement until next restart
+                            // File is locked - use fallback mechanism
                             Logger.Log($"File locked, scheduling for deferred update: {relativePath}", Logger.LogLevel.Warning);
                             
                             // Copy to temporary location with .new extension
@@ -287,18 +289,33 @@ namespace WeatherImageGenerator.Services
                             {
                                 File.Copy(file, tempNewPath, overwrite: true);
                                 
-                                // Schedule the replacement on next reboot using Windows API
-                                if (MoveFileEx(tempNewPath, targetPath, MOVEFILE_DELAY_UNTIL_REBOOT | MOVEFILE_REPLACE_EXISTING))
+                                // First try: Schedule the replacement on next reboot using Windows API
+                                bool scheduledWithMoveFileEx = false;
+                                try
                                 {
-                                    deferredFiles.Add(relativePath);
-                                    Logger.Log($"Scheduled for deferred replacement on next reboot: {relativePath}", Logger.LogLevel.Info);
+                                    if (MoveFileEx(tempNewPath, targetPath, MOVEFILE_DELAY_UNTIL_REBOOT | MOVEFILE_REPLACE_EXISTING))
+                                    {
+                                        deferredFiles.Add(relativePath);
+                                        Logger.Log($"Scheduled for deferred replacement on next reboot: {relativePath}", Logger.LogLevel.Info);
+                                        scheduledWithMoveFileEx = true;
+                                    }
+                                    else
+                                    {
+                                        int error = Marshal.GetLastWin32Error();
+                                        Logger.Log($"MoveFileEx failed (error {error}), using fallback startup mechanism", Logger.LogLevel.Warning);
+                                    }
                                 }
-                                else
+                                catch (Exception moveEx)
                                 {
-                                    // If MoveFileEx fails, try to at least keep the .new file for manual intervention
-                                    int error = Marshal.GetLastWin32Error();
-                                    Logger.Log($"MoveFileEx failed (error {error}), keeping .new file for {relativePath}", Logger.LogLevel.Warning);
+                                    Logger.Log($"MoveFileEx exception: {moveEx.Message}, using fallback", Logger.LogLevel.Warning);
+                                }
+                                
+                                // Fallback: Store in manifest for startup application
+                                if (!scheduledWithMoveFileEx)
+                                {
+                                    pendingUpdatesList.Add($"{tempNewPath}|{targetPath}");
                                     deferredFiles.Add(relativePath);
+                                    Logger.Log($"Stored for startup application: {relativePath}", Logger.LogLevel.Info);
                                 }
                             }
                             catch (Exception tempEx)
@@ -315,6 +332,20 @@ namespace WeatherImageGenerator.Services
                     processed++;
                     var percent = 75 + (int)((processed * 20) / totalFiles); // 75-95%
                     progress?.Report((percent, $"Installing... {processed}/{totalFiles} files"));
+                }
+                
+                // Write pending updates manifest if there are any fallback files
+                if (pendingUpdatesList.Count > 0)
+                {
+                    try
+                    {
+                        File.WriteAllLines(PendingUpdatesManifest, pendingUpdatesList);
+                        Logger.Log($"Wrote {pendingUpdatesList.Count} pending updates to manifest for startup application", Logger.LogLevel.Info);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"Failed to write pending updates manifest: {ex.Message}", Logger.LogLevel.Error);
+                    }
                 }
                 
                 progress?.Report((95, "Cleaning up..."));
@@ -386,6 +417,121 @@ namespace WeatherImageGenerator.Services
             catch (Exception ex)
             {
                 Logger.Log($"Failed to open releases page: {ex.Message}", Logger.LogLevel.Error);
+            }
+        }
+        
+        /// <summary>
+        /// Applies any pending updates left over from previous installation attempts
+        /// Call this at application startup
+        /// </summary>
+        public static void ApplyPendingUpdates()
+        {
+            try
+            {
+                // Check if manifest exists
+                if (!File.Exists(PendingUpdatesManifest))
+                {
+                    return; // No pending updates
+                }
+                
+                Logger.Log("Found pending updates from previous installation. Attempting to apply...", Logger.LogLevel.Info);
+                
+                var pendingFiles = File.ReadAllLines(PendingUpdatesManifest)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .ToList();
+                
+                if (pendingFiles.Count == 0)
+                {
+                    File.Delete(PendingUpdatesManifest);
+                    return;
+                }
+                
+                int appliedCount = 0;
+                int failedCount = 0;
+                var stillLockedFiles = new List<string>();
+                
+                foreach (var entry in pendingFiles)
+                {
+                    var parts = entry.Split('|');
+                    if (parts.Length != 2)
+                        continue;
+                    
+                    var tempNewPath = parts[0];
+                    var targetPath = parts[1];
+                    
+                    if (!File.Exists(tempNewPath))
+                    {
+                        Logger.Log($"Pending file not found: {tempNewPath}", Logger.LogLevel.Warning);
+                        failedCount++;
+                        continue;
+                    }
+                    
+                    try
+                    {
+                        // Try to replace the target file with timeout
+                        var sw = Stopwatch.StartNew();
+                        var maxWaitTime = TimeSpan.FromSeconds(5);
+                        bool replaced = false;
+                        
+                        while (sw.Elapsed < maxWaitTime && !replaced)
+                        {
+                            try
+                            {
+                                if (File.Exists(targetPath))
+                                {
+                                    File.Delete(targetPath);
+                                }
+                                File.Move(tempNewPath, targetPath, overwrite: true);
+                                replaced = true;
+                                appliedCount++;
+                                Logger.Log($"Applied pending update: {Path.GetFileName(targetPath)}", Logger.LogLevel.Info);
+                            }
+                            catch (IOException)
+                            {
+                                if (sw.Elapsed < maxWaitTime)
+                                {
+                                    System.Threading.Thread.Sleep(200);
+                                }
+                            }
+                        }
+                        
+                        if (!replaced)
+                        {
+                            Logger.Log($"File still locked after timeout: {targetPath}", Logger.LogLevel.Warning);
+                            stillLockedFiles.Add(targetPath);
+                            failedCount++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"Failed to apply pending update {targetPath}: {ex.Message}", Logger.LogLevel.Error);
+                        failedCount++;
+                    }
+                }
+                
+                // Clean up manifest
+                try
+                {
+                    File.Delete(PendingUpdatesManifest);
+                }
+                catch { }
+                
+                if (failedCount == 0)
+                {
+                    Logger.Log($"Successfully applied {appliedCount} pending updates.", Logger.LogLevel.Info);
+                }
+                else
+                {
+                    Logger.Log($"Applied {appliedCount} updates with {failedCount} failures.", Logger.LogLevel.Warning);
+                    if (stillLockedFiles.Count > 0)
+                    {
+                        Logger.Log($"Files still in use: {string.Join(", ", stillLockedFiles.Select(Path.GetFileName))}", Logger.LogLevel.Warning);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error applying pending updates: {ex.Message}", Logger.LogLevel.Error);
             }
         }
         
