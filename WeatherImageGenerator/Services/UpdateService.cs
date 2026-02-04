@@ -1,12 +1,14 @@
 #nullable enable
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using WeatherImageGenerator.Utilities;
@@ -18,6 +20,12 @@ namespace WeatherImageGenerator.Services
     /// </summary>
     public static class UpdateService
     {
+        // Windows API for deferred file operations
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, int dwFlags);
+        
+        private const int MOVEFILE_DELAY_UNTIL_REBOOT = 4;
+        private const int MOVEFILE_REPLACE_EXISTING = 1;
         private const string GitHubApiUrl = "https://api.github.com/repos/NoID1290/WSG-Weather-Still-Generator/releases/latest";
         private const string GitHubReleasesUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator/releases";
         
@@ -233,13 +241,14 @@ namespace WeatherImageGenerator.Services
                     }
                 }
                 
-                // Step 4: Copy new files
+                // Step 4: Copy new files with deferred update on locked files
                 progress?.Report((75, "Installing update..."));
                 Logger.Log("Installing update...", Logger.LogLevel.Info);
                 
                 var newFiles = Directory.GetFiles(sourceDir, "*.*", SearchOption.AllDirectories);
                 var totalFiles = newFiles.Length;
                 var processed = 0;
+                var deferredFiles = new List<string>();
                 
                 foreach (var file in newFiles)
                 {
@@ -261,21 +270,62 @@ namespace WeatherImageGenerator.Services
                             Directory.CreateDirectory(targetDir);
                         }
                         
-                        File.Copy(file, targetPath, overwrite: true);
+                        // Try direct replacement first
+                        try
+                        {
+                            File.Copy(file, targetPath, overwrite: true);
+                            Logger.Log($"Updated file: {relativePath}", Logger.LogLevel.Debug);
+                        }
+                        catch (IOException ex) when (ex.Message.Contains("being used") || ex.Message.Contains("access"))
+                        {
+                            // File is locked - defer replacement until next restart
+                            Logger.Log($"File locked, scheduling for deferred update: {relativePath}", Logger.LogLevel.Warning);
+                            
+                            // Copy to temporary location with .new extension
+                            var tempNewPath = targetPath + ".new";
+                            try
+                            {
+                                File.Copy(file, tempNewPath, overwrite: true);
+                                
+                                // Schedule the replacement on next reboot using Windows API
+                                if (MoveFileEx(tempNewPath, targetPath, MOVEFILE_DELAY_UNTIL_REBOOT | MOVEFILE_REPLACE_EXISTING))
+                                {
+                                    deferredFiles.Add(relativePath);
+                                    Logger.Log($"Scheduled for deferred replacement on next reboot: {relativePath}", Logger.LogLevel.Info);
+                                }
+                                else
+                                {
+                                    // If MoveFileEx fails, try to at least keep the .new file for manual intervention
+                                    int error = Marshal.GetLastWin32Error();
+                                    Logger.Log($"MoveFileEx failed (error {error}), keeping .new file for {relativePath}", Logger.LogLevel.Warning);
+                                    deferredFiles.Add(relativePath);
+                                }
+                            }
+                            catch (Exception tempEx)
+                            {
+                                Logger.Log($"Failed to prepare deferred update for {relativePath}: {tempEx.Message}", Logger.LogLevel.Error);
+                            }
+                        }
                     }
-                    catch (IOException ex) when (ex.Message.Contains("being used"))
+                    catch (Exception ex)
                     {
-                        // File is in use - will need restart
-                        Logger.Log($"File in use, will update on restart: {relativePath}", Logger.LogLevel.Warning);
-                        
-                        // Schedule for update after restart
-                        var pendingPath = targetPath + ".pending";
-                        File.Copy(file, pendingPath, overwrite: true);
+                        Logger.Log($"Error installing file {relativePath}: {ex.Message}", Logger.LogLevel.Error);
                     }
                     
                     processed++;
                     var percent = 75 + (int)((processed * 20) / totalFiles); // 75-95%
                     progress?.Report((percent, $"Installing... {processed}/{totalFiles} files"));
+                }
+                
+                progress?.Report((95, "Cleaning up..."));
+                
+                // Report deferred files status
+                string deferMessage = "";
+                if (deferredFiles.Count > 0)
+                {
+                    deferMessage = $"\n\n⚠️  {deferredFiles.Count} file(s) are in use and will be updated on the next restart:\n" + 
+                                   string.Join("\n", deferredFiles.Select(f => $"  • {f}"));
+                    Logger.Log($"{deferredFiles.Count} files scheduled for deferred update on next reboot", Logger.LogLevel.Warning);
                 }
                 
                 progress?.Report((95, "Cleaning up..."));
@@ -290,7 +340,8 @@ namespace WeatherImageGenerator.Services
                 progress?.Report((100, "Update complete!"));
                 Logger.Log("Update installed successfully!", Logger.LogLevel.Info);
                 
-                return (true, "Update installed successfully! Please restart the application to apply changes.");
+                string successMessage = "Update installed successfully! Please restart the application to apply changes." + deferMessage;
+                return (true, successMessage);
             }
             catch (Exception ex)
             {
@@ -363,6 +414,7 @@ namespace WeatherImageGenerator.Services
             
             return 0;
         }
+        
         
         /// <summary>
         /// Restarts the application
