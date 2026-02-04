@@ -22,6 +22,8 @@
     <ProjectReference Include="..\ECCC\ECCC.csproj" />
     <ProjectReference Include="..\EAS\EAS.csproj" />
     <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
+    <!-- Include the updater helper executable -->
+    <ProjectReference Include="..\WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="appsettings.json">
@@ -44,4 +46,12 @@
   <ItemGroup>
     <PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
   </ItemGroup>
+
+  <!-- Copy the updater executable to the output directory -->
+  <Target Name="CopyUpdater" AfterTargets="Build">
+    <Copy SourceFiles="..\WeatherImageGenerator.Updater\bin\$(Configuration)\net10.0\WSG.Updater.exe" 
+          DestinationFolder="$(OutDir)" 
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

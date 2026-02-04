@@ -41,9 +41,6 @@ namespace WeatherImageGenerator
         [STAThread]
         static void Main(string[] args)
         {
-            // Apply any pending updates from previous installation attempt (fallback mechanism)
-            UpdateService.ApplyPendingUpdates();
-            
             // Initialize FFmpeg settings from configuration early
             FFmpegLocator.ConfigureFromSettings();
 
