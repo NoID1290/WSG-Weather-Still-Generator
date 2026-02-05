@@ -329,11 +329,14 @@ namespace WeatherImageGenerator.Services
                 
                 Logger.Log($"Launching updater: {updaterPath}", Logger.LogLevel.Info);
                 Logger.Log($"Staging directory: {UpdateStagingDirectory}", Logger.LogLevel.Info);
+                Logger.Log($"Current process ID: {currentProcess.Id}", Logger.LogLevel.Info);
                 
                 try
                 {
-                    // Launch updater with app directory and current process ID
-                    var updaterArgs = $"\"{appDir}\" {currentProcess.Id}";
+                    // Launch updater with ONLY the current process ID - updater determines app directory from its own location
+                    var updaterArgs = $"{currentProcess.Id}";
+                    Logger.Log($"Updater arguments: {updaterArgs}", Logger.LogLevel.Info);
+                    
                     Process.Start(new ProcessStartInfo(updaterPath, updaterArgs)
                     {
                         UseShellExecute = true,
@@ -344,11 +347,14 @@ namespace WeatherImageGenerator.Services
                     Logger.Log("Update staged successfully. Closing application for updater to apply changes...", Logger.LogLevel.Info);
                     progress?.Report((100, "Update ready! Restarting application..."));
                     
-                    // Give updater time to start
-                    System.Threading.Thread.Sleep(1000);
+                    // Give updater a moment to start, then force exit
+                    System.Threading.Thread.Sleep(500);
                     
-                    // Exit gracefully
-                    Application.Exit();
+                    // Force exit the entire application - Environment.Exit is more reliable than Application.Exit
+                    // for ensuring all threads and resources are released
+                    Logger.Log("Forcing application exit...", Logger.LogLevel.Info);
+                    Environment.Exit(0);
+                    
                     return (true, "Update staged and updater launched. Application will restart automatically.");
                 }
                 catch (Exception ex)

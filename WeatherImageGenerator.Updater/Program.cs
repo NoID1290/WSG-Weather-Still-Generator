@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -9,6 +10,8 @@ namespace WeatherImageGenerator.Updater
     /// <summary>
     /// Helper utility that applies pending updates after the main application has closed.
     /// Launched by WeatherImageGenerator during update installation.
+    /// Usage: WSG.Updater.exe [pid]
+    ///   pid - Optional process ID of the main application to wait for
     /// </summary>
     class Program
     {
@@ -20,6 +23,7 @@ namespace WeatherImageGenerator.Updater
             {
                 using (var writer = new StreamWriter(logFile, append: true))
                 {
+                    writer.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ========================================");
                     writer.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Updater started");
                     writer.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Arguments: {string.Join(" | ", args)}");
                     writer.Flush();
@@ -38,21 +42,9 @@ namespace WeatherImageGenerator.Updater
                 var exePath = Path.Combine(appDirectory, "WSG.exe");
 
                 Log($"Updater Location: {Environment.ProcessPath}", logFile);
-                Log($"App Directory (determined from updater location): {appDirectory}", logFile);
+                Log($"App Directory: {appDirectory}", logFile);
                 Log($"Staging Directory: {stagingDirectory}", logFile);
                 Log($"Exe Path: {exePath}", logFile);
-
-                // Optional: If an app directory was passed as argument, use it as override (for backward compatibility)
-                if (args.Length > 0 && !string.IsNullOrEmpty(args[0]))
-                {
-                    var passedDir = args[0];
-                    if (Directory.Exists(passedDir))
-                    {
-                        Log($"App directory override provided: {passedDir}", logFile);
-                        appDirectory = passedDir;
-                        Log($"Using provided app directory: {appDirectory}", logFile);
-                    }
-                }
 
                 // Verify app directory exists
                 if (!Directory.Exists(appDirectory))
@@ -61,43 +53,45 @@ namespace WeatherImageGenerator.Updater
                     Environment.Exit(1);
                 }
 
-                // If a PID was provided, wait for that process to exit
-                // PID can be in args[0] if no app directory was passed, or args[1] if it was
-                int pidArgIndex = 0;
-                if (args.Length > 0 && Directory.Exists(args[0]))
+                // Parse PID from arguments (first argument that's a valid integer)
+                int? mainProcessPid = null;
+                foreach (var arg in args)
                 {
-                    pidArgIndex = 1; // PID is second argument if first was a directory
-                }
-                else if (args.Length > 0 && int.TryParse(args[0], out _))
-                {
-                    pidArgIndex = 0; // PID is first argument if no directory was passed
+                    if (int.TryParse(arg.Trim(), out int parsedPid) && parsedPid > 0)
+                    {
+                        mainProcessPid = parsedPid;
+                        break;
+                    }
                 }
 
-                if (args.Length > pidArgIndex && int.TryParse(args[pidArgIndex], out int pid))
+                // If a PID was provided, wait for that process to exit (and kill it if necessary)
+                if (mainProcessPid.HasValue)
                 {
-                    Log($"Waiting for process {pid} to exit...", logFile);
-                    try
-                    {
-                        var process = Process.GetProcessById(pid);
-                        if (!process.HasExited)
-                        {
-                            Log($"Process {pid} is running, waiting...", logFile);
-                            process.WaitForExit(30000); // Wait up to 30 seconds
-                            Log($"Process {pid} exited", logFile);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"Process check error: {ex.Message}", logFile);
-                    }
-                    Log("Proceeding with update...", logFile);
+                    Log($"Main application PID: {mainProcessPid.Value}", logFile);
+                    WaitForProcessToExit(mainProcessPid.Value, logFile);
                 }
+                else
+                {
+                    Log("No PID provided, waiting 3 seconds for main app to close...", logFile);
+                    Thread.Sleep(3000);
+                }
+                
+                // Kill any lingering WSG processes
+                KillAllWSGProcesses(logFile);
 
                 // Wait for the main EXE to be released
                 Log("Waiting for application files to be unlocked...", logFile);
-                if (!WaitForFilesUnlocked(appDirectory, 10000, logFile)) // 10 second timeout
+                if (!WaitForFilesUnlocked(appDirectory, 30000, logFile)) // 30 second timeout
                 {
-                    Log("WARNING: Timeout waiting for files to unlock, attempting anyway...", logFile);
+                    Log("WARNING: Timeout waiting for files to unlock, trying to kill processes...", logFile);
+                    KillAllWSGProcesses(logFile);
+                    Thread.Sleep(2000);
+                    
+                    // Try one more time
+                    if (!WaitForFilesUnlocked(appDirectory, 10000, logFile))
+                    {
+                        Log("WARNING: Files still locked, attempting update anyway...", logFile);
+                    }
                 }
 
                 // Check if staging directory exists and has files
@@ -120,49 +114,46 @@ namespace WeatherImageGenerator.Updater
 
                 Log($"Applying {stagingFiles.Length} files...", logFile);
 
-                // Copy all files from staging to app directory
+                // Copy all files from staging to app directory with retry logic
                 int copiedCount = 0;
                 int failedCount = 0;
+                var failedFiles = new System.Collections.Generic.List<(string source, string target, string relative)>();
 
                 foreach (var file in stagingFiles)
                 {
                     var relativePath = Path.GetRelativePath(stagingDirectory, file);
                     var targetPath = Path.Combine(appDirectory, relativePath);
 
-                    try
+                    if (!TryCopyFile(file, targetPath, relativePath, logFile))
                     {
-                        var targetDir = Path.GetDirectoryName(targetPath);
-                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-                        {
-                            Directory.CreateDirectory(targetDir);
-                        }
-
-                        // Delete target if it exists
-                        if (File.Exists(targetPath))
-                        {
-                            try
-                            {
-                                File.Delete(targetPath);
-                            }
-                            catch (IOException ex)
-                            {
-                                // File still locked, skip it
-                                Log($"WARN: Could not delete {relativePath}, file may be in use: {ex.Message}", logFile);
-                                failedCount++;
-                                continue;
-                            }
-                        }
-
-                        // Copy the new file
-                        File.Copy(file, targetPath, overwrite: true);
+                        failedFiles.Add((file, targetPath, relativePath));
+                    }
+                    else
+                    {
                         copiedCount++;
-                        Log($"Updated: {relativePath}", logFile);
                     }
-                    catch (Exception ex)
+                }
+
+                // Retry failed files after a short wait
+                if (failedFiles.Count > 0)
+                {
+                    Log($"Retrying {failedFiles.Count} failed files after 2 second wait...", logFile);
+                    Thread.Sleep(2000);
+                    
+                    // Try to kill any remaining processes that might be locking files
+                    KillAllWSGProcesses(logFile);
+                    Thread.Sleep(1000);
+                    
+                    foreach (var (source, target, relative) in failedFiles.ToArray())
                     {
-                        Log($"ERROR copying {relativePath}: {ex.Message}", logFile);
-                        failedCount++;
+                        if (TryCopyFile(source, target, relative, logFile))
+                        {
+                            copiedCount++;
+                            failedFiles.Remove((source, target, relative));
+                        }
                     }
+                    
+                    failedCount = failedFiles.Count;
                 }
 
                 // Clean up staging directory
@@ -177,6 +168,11 @@ namespace WeatherImageGenerator.Updater
                 }
 
                 Log($"Update complete: {copiedCount} files applied, {failedCount} failed", logFile);
+                
+                if (failedCount > 0)
+                {
+                    Log("WARNING: Some files could not be updated. The application may need manual update.", logFile);
+                }
 
                 // Launch the application
                 LaunchApplication(exePath, logFile);
@@ -186,6 +182,55 @@ namespace WeatherImageGenerator.Updater
                 Log($"FATAL ERROR: {ex.Message}", logFile);
                 Log($"Stack trace: {ex.StackTrace}", logFile);
                 Environment.Exit(1);
+            }
+        }
+
+        /// <summary>
+        /// Tries to copy a single file, returns true on success
+        /// </summary>
+        private static bool TryCopyFile(string sourceFile, string targetPath, string relativePath, string logFile)
+        {
+            try
+            {
+                var targetDir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                {
+                    Directory.CreateDirectory(targetDir);
+                }
+
+                // Delete target if it exists
+                if (File.Exists(targetPath))
+                {
+                    try
+                    {
+                        File.Delete(targetPath);
+                    }
+                    catch (IOException)
+                    {
+                        // Try to rename the file instead of deleting
+                        try
+                        {
+                            var bakPath = targetPath + ".bak";
+                            if (File.Exists(bakPath)) File.Delete(bakPath);
+                            File.Move(targetPath, bakPath);
+                        }
+                        catch
+                        {
+                            Log($"WARN: Could not delete or rename {relativePath}, file may be in use", logFile);
+                            return false;
+                        }
+                    }
+                }
+
+                // Copy the new file
+                File.Copy(sourceFile, targetPath, overwrite: true);
+                Log($"Updated: {relativePath}", logFile);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log($"ERROR copying {relativePath}: {ex.Message}", logFile);
+                return false;
             }
         }
 
@@ -206,16 +251,137 @@ namespace WeatherImageGenerator.Updater
         }
 
         /// <summary>
+        /// Waits for a specific process to exit, killing it if necessary
+        /// </summary>
+        private static void WaitForProcessToExit(int pid, string logFile)
+        {
+            try
+            {
+                var process = Process.GetProcessById(pid);
+                Log($"Found process {pid} ({process.ProcessName}), waiting for it to exit...", logFile);
+                
+                // Wait up to 10 seconds for graceful exit
+                if (!process.WaitForExit(10000))
+                {
+                    Log($"Process {pid} did not exit gracefully, attempting to kill...", logFile);
+                    try
+                    {
+                        process.Kill(entireProcessTree: true);
+                        process.WaitForExit(5000);
+                        Log($"Process {pid} killed", logFile);
+                    }
+                    catch (Exception killEx)
+                    {
+                        Log($"Failed to kill process {pid}: {killEx.Message}", logFile);
+                    }
+                }
+                else
+                {
+                    Log($"Process {pid} exited gracefully", logFile);
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Process doesn't exist - that's fine, it means it already exited
+                Log($"Process {pid} not found (already exited)", logFile);
+            }
+            catch (Exception ex)
+            {
+                Log($"Error waiting for process {pid}: {ex.Message}", logFile);
+            }
+            
+            // Extra wait to ensure file handles are released
+            Thread.Sleep(1000);
+        }
+
+        /// <summary>
+        /// Kills all WSG-related processes except the updater
+        /// </summary>
+        private static void KillAllWSGProcesses(string logFile)
+        {
+            var myPid = Environment.ProcessId;
+            var processNamesToKill = new[] { "WSG", "dotnet" };
+            
+            foreach (var processName in processNamesToKill)
+            {
+                try
+                {
+                    var processes = Process.GetProcessesByName(processName);
+                    foreach (var proc in processes)
+                    {
+                        try
+                        {
+                            // Skip self
+                            if (proc.Id == myPid)
+                                continue;
+                            
+                            // For dotnet processes, check if it's related to WSG
+                            if (processName == "dotnet")
+                            {
+                                var cmdLine = GetCommandLine(proc);
+                                if (cmdLine == null || !cmdLine.Contains("WSG", StringComparison.OrdinalIgnoreCase))
+                                    continue;
+                            }
+                            
+                            Log($"Killing process: {proc.ProcessName} (PID: {proc.Id})", logFile);
+                            proc.Kill(entireProcessTree: true);
+                            proc.WaitForExit(3000);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"Failed to kill {proc.ProcessName} ({proc.Id}): {ex.Message}", logFile);
+                        }
+                        finally
+                        {
+                            proc.Dispose();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"Error enumerating {processName} processes: {ex.Message}", logFile);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the command line of a process (returns null if unable to access)
+        /// </summary>
+        private static string? GetCommandLine(Process process)
+        {
+            try
+            {
+                return process.MainModule?.FileName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Waits for all critical application files to be unlocked
         /// </summary>
         private static bool WaitForFilesUnlocked(string appDirectory, int timeoutMs, string logFile)
         {
             var sw = Stopwatch.StartNew();
-            var criticalFiles = new[] { "WSG.exe", "WeatherImageGenerator.dll", "ECCC.dll", "OpenMeteo.dll" };
+            // Include all DLLs that were failing based on the logs
+            var criticalFiles = new[] { 
+                "WSG.exe", 
+                "WSG.dll", 
+                "WSG.Updater.exe",
+                "WSG.Updater.dll",
+                "ECCC.dll", 
+                "OpenMeteo.dll",
+                "EAS.dll",
+                "WeatherShared.dll",
+                "OpenMap.dll"
+            };
 
             while (sw.ElapsedMilliseconds < timeoutMs)
             {
                 bool allUnlocked = true;
+                string? lockedFile = null;
 
                 foreach (var fileName in criticalFiles)
                 {
@@ -223,14 +389,20 @@ namespace WeatherImageGenerator.Updater
                     if (File.Exists(filePath) && IsFileLocked(filePath))
                     {
                         allUnlocked = false;
+                        lockedFile = fileName;
                         break;
                     }
                 }
 
                 if (allUnlocked)
                 {
-                    Log("All files unlocked", logFile);
+                    Log("All critical files unlocked", logFile);
                     return true;
+                }
+
+                if (sw.ElapsedMilliseconds % 5000 < 200) // Log every 5 seconds
+                {
+                    Log($"Still waiting for files to unlock (locked: {lockedFile})...", logFile);
                 }
 
                 Thread.Sleep(200);
