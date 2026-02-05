@@ -9,9 +9,9 @@
     <Company>NoID Softwork</Company>
     <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
     <Description>Library for accessing Environment and Climate Change Canada (ECCC) weather data with improved city support.</Description>
-    <Version>2.7.12.0204</Version>
-    <AssemblyVersion>2.7.12.0204</AssemblyVersion>
-    <FileVersion>2.7.12.0204</FileVersion>
+    <Version>2.7.13.0204</Version>
+    <AssemblyVersion>2.7.13.0204</AssemblyVersion>
+    <FileVersion>2.7.13.0204</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
