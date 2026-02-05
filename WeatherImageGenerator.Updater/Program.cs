@@ -112,14 +112,28 @@ namespace WeatherImageGenerator.Updater
                     return;
                 }
 
-                Log($"Applying {stagingFiles.Length} files...", logFile);
+                // Files that the updater cannot update (itself)
+                var updaterFiles = new[] { "WSG.Updater.exe", "WSG.Updater.dll", "WSG.Updater.deps.json", "WSG.Updater.runtimeconfig.json" };
+                
+                // Filter out updater's own files - we can't update ourselves
+                var filesToUpdate = stagingFiles
+                    .Where(f => !updaterFiles.Contains(Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
+                    .ToArray();
+                
+                var skippedUpdaterFiles = stagingFiles.Length - filesToUpdate.Length;
+                if (skippedUpdaterFiles > 0)
+                {
+                    Log($"Skipping {skippedUpdaterFiles} updater files (cannot self-update)", logFile);
+                }
+                
+                Log($"Applying {filesToUpdate.Length} files...", logFile);
 
                 // Copy all files from staging to app directory with retry logic
                 int copiedCount = 0;
                 int failedCount = 0;
                 var failedFiles = new System.Collections.Generic.List<(string source, string target, string relative)>();
 
-                foreach (var file in stagingFiles)
+                foreach (var file in filesToUpdate)
                 {
                     var relativePath = Path.GetRelativePath(stagingDirectory, file);
                     var targetPath = Path.Combine(appDirectory, relativePath);
@@ -365,12 +379,12 @@ namespace WeatherImageGenerator.Updater
         private static bool WaitForFilesUnlocked(string appDirectory, int timeoutMs, string logFile)
         {
             var sw = Stopwatch.StartNew();
-            // Include all DLLs that were failing based on the logs
+            // Include all DLLs that need to be unlocked
+            // Note: We do NOT include WSG.Updater files here because the updater itself locks them
+            // and we skip updating them anyway (updater cannot self-update)
             var criticalFiles = new[] { 
                 "WSG.exe", 
                 "WSG.dll", 
-                "WSG.Updater.exe",
-                "WSG.Updater.dll",
                 "ECCC.dll", 
                 "OpenMeteo.dll",
                 "EAS.dll",
