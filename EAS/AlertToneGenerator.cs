@@ -347,28 +347,68 @@ namespace EAS
         }
 
         /// <summary>
-        /// Concatenates multiple audio files using FFmpeg.
+        /// Concatenates multiple audio files using FFmpeg filter_complex concat filter.
+        /// This properly handles mixing different audio formats (WAV, MP3, etc.) by decoding each
+        /// input independently before concatenation, unlike the concat demuxer which can fail
+        /// silently when formats differ.
         /// </summary>
         public static bool ConcatenateAudioFiles(string[] inputPaths, string outputPath)
         {
             try
             {
-                // Create file list for FFmpeg concat
-                string tempListFile = Path.GetTempFileName();
-                var lines = new System.Text.StringBuilder();
+                // Filter to only existing files
+                var validPaths = new System.Collections.Generic.List<string>();
                 foreach (string path in inputPaths)
                 {
-                    if (File.Exists(path))
+                    if (File.Exists(path) && new FileInfo(path).Length > 100)
                     {
-                        lines.AppendLine($"file '{path.Replace("\\", "/").Replace("'", "'\\''")}'");
+                        validPaths.Add(path);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[AlertToneGenerator] Skipping missing/empty audio file: {path}");
                     }
                 }
-                File.WriteAllText(tempListFile, lines.ToString());
+
+                if (validPaths.Count == 0)
+                {
+                    Console.WriteLine("[AlertToneGenerator] No valid audio files to concatenate.");
+                    return false;
+                }
+
+                if (validPaths.Count == 1)
+                {
+                    // Single file - just copy it
+                    File.Copy(validPaths[0], outputPath, true);
+                    return File.Exists(outputPath);
+                }
+
+                // Build FFmpeg command using filter_complex concat filter
+                // This properly decodes each input (regardless of format) and concatenates the decoded audio
+                var args = new System.Text.StringBuilder();
+                args.Append("-y ");
+
+                // Add input files
+                foreach (string path in validPaths)
+                {
+                    args.Append($"-i \"{path}\" ");
+                }
+
+                // Build filter_complex: [0:a][1:a][2:a]...concat=n=N:v=0:a=1[out]
+                args.Append("-filter_complex \"");
+                for (int i = 0; i < validPaths.Count; i++)
+                {
+                    args.Append($"[{i}:a]");
+                }
+                args.Append($"concat=n={validPaths.Count}:v=0:a=1[out]\" ");
+                args.Append($"-map \"[out]\" -c:a pcm_s16le -ar 44100 \"{outputPath}\"");
+
+                Console.WriteLine($"[AlertToneGenerator] Concatenating {validPaths.Count} audio files with filter_complex...");
 
                 var startInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "ffmpeg",
-                    Arguments = $"-y -f concat -safe 0 -i \"{tempListFile}\" -c:a pcm_s16le -ar 44100 \"{outputPath}\"",
+                    Arguments = args.ToString(),
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardError = true,
@@ -383,7 +423,6 @@ namespace EAS
                 }
 
                 // Read output streams asynchronously to prevent deadlock
-                // The process can hang if the output buffers fill up and aren't read
                 string? errorOutput = null;
                 var errorTask = System.Threading.Tasks.Task.Run(() => errorOutput = process.StandardError.ReadToEnd());
                 var outputTask = System.Threading.Tasks.Task.Run(() => process.StandardOutput.ReadToEnd());
@@ -394,26 +433,79 @@ namespace EAS
                 {
                     Console.WriteLine("[AlertToneGenerator] FFmpeg timed out, killing process.");
                     try { process.Kill(); } catch { }
-                    try { File.Delete(tempListFile); } catch { }
                     return false;
                 }
 
                 // Wait for stream reading to complete
                 System.Threading.Tasks.Task.WaitAll(new[] { errorTask, outputTask }, 5000);
 
-                try { File.Delete(tempListFile); } catch { }
-
                 if (process.ExitCode != 0)
                 {
-                    Console.WriteLine($"[AlertToneGenerator] FFmpeg failed with exit code {process.ExitCode}: {errorOutput}");
-                    return false;
+                    Console.WriteLine($"[AlertToneGenerator] FFmpeg filter_complex concat failed (exit code {process.ExitCode}): {errorOutput?.Substring(0, Math.Min(500, errorOutput?.Length ?? 0))}");
+                    
+                    // Fallback: try concat demuxer as backup (works when formats are the same)
+                    Console.WriteLine("[AlertToneGenerator] Falling back to concat demuxer...");
+                    return TryConcatenateDemuxer(validPaths.ToArray(), outputPath);
                 }
 
-                return File.Exists(outputPath);
+                if (File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000)
+                {
+                    Console.WriteLine($"[AlertToneGenerator] Successfully concatenated {validPaths.Count} audio files ({new FileInfo(outputPath).Length / 1024}KB).");
+                    return true;
+                }
+
+                Console.WriteLine("[AlertToneGenerator] Output file missing or too small after concat.");
+                return false;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[AlertToneGenerator] FFmpeg concatenation error: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Fallback concatenation using the concat demuxer (works best when all files have the same format).
+        /// </summary>
+        private static bool TryConcatenateDemuxer(string[] inputPaths, string outputPath)
+        {
+            try
+            {
+                string tempListFile = Path.GetTempFileName();
+                var lines = new System.Text.StringBuilder();
+                foreach (string path in inputPaths)
+                {
+                    lines.AppendLine($"file '{path.Replace("\\", "/").Replace("'", "'\\''")}'");
+                }
+                File.WriteAllText(tempListFile, lines.ToString());
+
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = $"-y -f concat -safe 0 -i \"{tempListFile}\" -c:a pcm_s16le -ar 44100 \"{outputPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                };
+
+                using var process = System.Diagnostics.Process.Start(startInfo);
+                if (process == null) return false;
+
+                var errorTask = System.Threading.Tasks.Task.Run(() => process.StandardError.ReadToEnd());
+                var outputTask = System.Threading.Tasks.Task.Run(() => process.StandardOutput.ReadToEnd());
+                
+                bool exited = process.WaitForExit(60000);
+                System.Threading.Tasks.Task.WaitAll(new[] { errorTask, outputTask }, 5000);
+                
+                try { File.Delete(tempListFile); } catch { }
+
+                if (!exited) { try { process.Kill(); } catch { } return false; }
+                
+                return process.ExitCode == 0 && File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
+            }
+            catch
+            {
                 return false;
             }
         }

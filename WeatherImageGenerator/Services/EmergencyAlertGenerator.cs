@@ -83,6 +83,8 @@ namespace WeatherImageGenerator.Services
         /// <returns>Path to the generated video, or null if generation failed</returns>
         public static string? GenerateAlertVideo(string alertImagePath, string alertAudioPath, string outputDir)
         {
+            const double MIN_VIDEO_DURATION = 30.0; // Minimum 30 seconds for emergency alert videos
+
             try
             {
                 if (!File.Exists(alertImagePath))
@@ -113,8 +115,7 @@ namespace WeatherImageGenerator.Services
                 double? audioDuration = GetAudioDuration(alertAudioPath);
                 if (!audioDuration.HasValue || audioDuration.Value <= 0)
                 {
-                    // Default to 30 seconds if we can't determine audio duration
-                    audioDuration = 30.0;
+                    audioDuration = MIN_VIDEO_DURATION;
                     Logger.Log($"[EmergencyAlertGenerator] Could not determine audio duration, using default: {audioDuration}s", Logger.LogLevel.Warning);
                 }
                 else
@@ -122,18 +123,24 @@ namespace WeatherImageGenerator.Services
                     Logger.Log($"[EmergencyAlertGenerator] Audio duration: {audioDuration:F2}s", Logger.LogLevel.Debug);
                 }
 
+                // Enforce minimum video duration of 30 seconds
+                // The image will display for the full duration; audio plays then silence follows
+                double videoDuration = Math.Max(audioDuration.Value, MIN_VIDEO_DURATION);
+                Logger.Log($"[EmergencyAlertGenerator] Video duration: {videoDuration:F2}s (min {MIN_VIDEO_DURATION}s)", Logger.LogLevel.Info);
+
                 // Build FFmpeg command to create video from single image + audio
                 // -loop 1: loop the image indefinitely
-                // -t: set duration to match audio
-                // -shortest: finish when the shortest stream ends
+                // -t: set total video duration (at least 30s)
+                // Use apad filter to pad audio with silence to match video duration
                 var codecArgs = BuildVideoCodecArgs(videoConfig);
                 
                 string ffmpegArgs = $"-y -loop 1 -i \"{alertImagePath}\" -i \"{alertAudioPath}\" " +
                                    $"-c:v {videoConfig.VideoCodec ?? "libx264"} {codecArgs} " +
+                                   $"-af \"apad=whole_dur={videoDuration:F2}\" " +
                                    $"-c:a aac -b:a 192k " +
-                                   $"-t {audioDuration:F2} " +
+                                   $"-t {videoDuration:F2} " +
                                    $"-pix_fmt yuv420p " +
-                                   $"-shortest \"{outputPath}\"";
+                                   $"\"{outputPath}\"";
 
                 var startInfo = new ProcessStartInfo
                 {
@@ -156,6 +163,7 @@ namespace WeatherImageGenerator.Services
 
                 // Read stderr asynchronously to avoid deadlocks
                 var stderrTask = process.StandardError.ReadToEndAsync();
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
                 bool exited = process.WaitForExit(300000); // 5 minute timeout
                 
                 string stderr = "";
@@ -173,7 +181,8 @@ namespace WeatherImageGenerator.Services
 
                 if (process.ExitCode == 0 && File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000)
                 {
-                    Logger.Log($"[EmergencyAlertGenerator] ✓ Alert video generated successfully: {outputPath}", Logger.LogLevel.Info);
+                    var outSize = new FileInfo(outputPath).Length;
+                    Logger.Log($"[EmergencyAlertGenerator] ✓ Alert video generated: {outputPath} ({outSize / 1024}KB, {videoDuration:F0}s)", Logger.LogLevel.Info);
                     return outputPath;
                 }
                 else
@@ -338,6 +347,7 @@ namespace WeatherImageGenerator.Services
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
                 // Background color based on severity
                 Color bgColor = GetSeverityBackgroundColor(alert.SeverityColor);
@@ -346,87 +356,124 @@ namespace WeatherImageGenerator.Services
                     g.FillRectangle(bgBrush, 0, 0, width, height);
                 }
 
-                // Draw border
+                // Draw outer border
+                float borderInset = 16;
                 using (var borderPen = new Pen(Color.White, 8))
                 {
-                    g.DrawRectangle(borderPen, 20, 20, width - 40, height - 40);
+                    g.DrawRectangle(borderPen, borderInset, borderInset, width - borderInset * 2, height - borderInset * 2);
                 }
 
-                // Alert Ready logo area (top)
-                float currentY = 60;
-                using (Font logoFont = new Font(imgConfig.FontFamily ?? "Arial", 48, FontStyle.Bold))
+                // Draw inner border for professional look
+                float innerInset = 28;
+                using (var innerPen = new Pen(Color.FromArgb(120, Color.White), 2))
+                {
+                    g.DrawRectangle(innerPen, innerInset, innerInset, width - innerInset * 2, height - innerInset * 2);
+                }
+
+                float contentLeft = margin * 2.5f;
+                float contentWidth = width - (contentLeft * 2);
+                var centerFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Near };
+
+                // === HEADER: Alert Ready logo text ===
+                float currentY = 50;
+                using (Font logoFont = new Font(imgConfig.FontFamily ?? "Arial", 42, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
                     string logoText = language == "en-CA" ? "ALERT READY" : "QUÉBEC EN ALERTE";
                     SizeF logoSize = g.MeasureString(logoText, logoFont);
                     float logoX = (width - logoSize.Width) / 2;
                     g.DrawString(logoText, logoFont, whiteBrush, logoX, currentY);
+                    currentY += logoSize.Height + 10;
                 }
 
-                currentY += 100;
+                // === WARNING TRIANGLE ICON (properly centered) ===
+                float triangleSize = 70;
+                float triangleCenterY = currentY + triangleSize + 5;
+                DrawAlertSymbol(g, width / 2f, triangleCenterY, triangleSize);
+                currentY = triangleCenterY + triangleSize * 0.6f + 25;
 
-                // Alert icon/symbol
-                DrawAlertSymbol(g, width / 2, currentY, 80);
-                currentY += 140;
-
-                // Title/Headline
-                using (Font titleFont = new Font(imgConfig.FontFamily ?? "Arial", 42, FontStyle.Bold))
+                // === TITLE / HEADLINE (larger, bold) ===
+                using (Font titleFont = new Font(imgConfig.FontFamily ?? "Arial", 38, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    string wrappedTitle = WrapText(alert.Title ?? "ALERTE D'URGENCE", titleFont, g, width - (margin * 4));
-                    SizeF titleSize = g.MeasureString(wrappedTitle, titleFont);
-                    float titleX = (width - titleSize.Width) / 2;
-                    g.DrawString(wrappedTitle, titleFont, whiteBrush, new RectangleF(margin * 2, currentY, width - (margin * 4), titleSize.Height),
-                        new StringFormat { Alignment = StringAlignment.Center });
-                    currentY += titleSize.Height + 40;
+                    string titleText = alert.Title ?? (language == "en-CA" ? "EMERGENCY ALERT" : "ALERTE D'URGENCE");
+                    string wrappedTitle = WrapText(titleText, titleFont, g, contentWidth);
+                    SizeF titleSize = g.MeasureString(wrappedTitle, titleFont, (int)contentWidth);
+                    g.DrawString(wrappedTitle, titleFont, whiteBrush,
+                        new RectangleF(contentLeft, currentY, contentWidth, titleSize.Height + 10), centerFormat);
+                    currentY += titleSize.Height + 20;
                 }
 
-                // Location/Area
+                // === LOCATION / AREA ===
                 if (!string.IsNullOrWhiteSpace(alert.City))
                 {
-                    using (Font areaFont = new Font(imgConfig.FontFamily ?? "Arial", 32, FontStyle.Bold))
+                    using (Font areaFont = new Font(imgConfig.FontFamily ?? "Arial", 30, FontStyle.Bold))
                     using (Brush whiteBrush = new SolidBrush(Color.White))
                     {
-                        string wrappedArea = WrapText(alert.City, areaFont, g, width - (margin * 4));
-                        SizeF areaSize = g.MeasureString(wrappedArea, areaFont);
-                        g.DrawString(wrappedArea, areaFont, whiteBrush, new RectangleF(margin * 2, currentY, width - (margin * 4), areaSize.Height),
-                            new StringFormat { Alignment = StringAlignment.Center });
-                        currentY += areaSize.Height + 30;
+                        string wrappedArea = WrapText(alert.City, areaFont, g, contentWidth);
+                        SizeF areaSize = g.MeasureString(wrappedArea, areaFont, (int)contentWidth);
+                        g.DrawString(wrappedArea, areaFont, whiteBrush,
+                            new RectangleF(contentLeft, currentY, contentWidth, areaSize.Height + 10), centerFormat);
+                        currentY += areaSize.Height + 20;
                     }
                 }
 
-                // Summary/Description
+                // === SUMMARY / DESCRIPTION (in a semi-transparent box) ===
                 if (!string.IsNullOrWhiteSpace(alert.Summary))
                 {
-                    using (Font summaryFont = new Font(imgConfig.FontFamily ?? "Arial", 24, FontStyle.Regular))
+                    float summaryBoxTop = currentY;
+                    float summaryBoxPadding = 20;
+                    float footerReserve = 120;
+                    float maxSummaryHeight = height - summaryBoxTop - footerReserve - summaryBoxPadding * 2;
+
+                    using (Font summaryFont = new Font(imgConfig.FontFamily ?? "Arial", 22, FontStyle.Regular))
                     using (Brush whiteBrush = new SolidBrush(Color.White))
                     {
-                        string wrappedSummary = WrapText(alert.Summary, summaryFont, g, width - (margin * 4));
-                        SizeF summarySize = g.MeasureString(wrappedSummary, summaryFont);
-                        float maxSummaryHeight = height - currentY - 150;
-                        
+                        // Build summary text including certainty/urgency if available
+                        string fullSummary = alert.Summary;
+                        var metaParts = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(alert.Confidence))
+                            metaParts.Add($"{(language == "en-CA" ? "Certainty" : "Certitude")}: {alert.Confidence}");
+                        if (!string.IsNullOrWhiteSpace(alert.Impact))
+                            metaParts.Add($"{(language == "en-CA" ? "Urgency" : "Urgence")}: {alert.Impact}");
+                        if (metaParts.Count > 0)
+                            fullSummary += "  " + string.Join("  ", metaParts);
+
+                        string wrappedSummary = WrapText(fullSummary, summaryFont, g, contentWidth - summaryBoxPadding * 2);
+                        SizeF summarySize = g.MeasureString(wrappedSummary, summaryFont, (int)(contentWidth - summaryBoxPadding * 2));
+
+                        float actualSummaryH = Math.Min(summarySize.Height, maxSummaryHeight);
                         if (summarySize.Height > maxSummaryHeight)
                         {
-                            // Truncate if too long
-                            wrappedSummary = TruncateText(wrappedSummary, summaryFont, g, width - (margin * 4), maxSummaryHeight);
+                            wrappedSummary = TruncateText(wrappedSummary, summaryFont, g, contentWidth - summaryBoxPadding * 2, maxSummaryHeight);
                         }
 
-                        g.DrawString(wrappedSummary, summaryFont, whiteBrush, new RectangleF(margin * 2, currentY, width - (margin * 4), maxSummaryHeight),
-                            new StringFormat { Alignment = StringAlignment.Center });
+                        // Draw semi-transparent background box for readability
+                        float boxHeight = actualSummaryH + summaryBoxPadding * 2;
+                        using (var boxBrush = new SolidBrush(Color.FromArgb(50, 0, 0, 0)))
+                        {
+                            float boxLeft = contentLeft - 5;
+                            g.FillRectangle(boxBrush, boxLeft, summaryBoxTop, contentWidth + 10, boxHeight);
+                        }
+
+                        g.DrawString(wrappedSummary, summaryFont, whiteBrush,
+                            new RectangleF(contentLeft + summaryBoxPadding, summaryBoxTop + summaryBoxPadding,
+                                contentWidth - summaryBoxPadding * 2, actualSummaryH),
+                            centerFormat);
                     }
                 }
 
-                // Footer instructions
-                currentY = height - 100;
-                using (Font footerFont = new Font(imgConfig.FontFamily ?? "Arial", 20, FontStyle.Bold))
+                // === FOOTER ===
+                using (Font footerFont = new Font(imgConfig.FontFamily ?? "Arial", 18, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    string footerText = language == "en-CA" 
-                        ? "Follow instructions from local authorities • Stay informed"
-                        : "Suivez les instructions des autorités locales • Restez informés";
+                    string footerText = language == "en-CA"
+                        ? "Follow instructions from local authorities \u2022 Stay informed"
+                        : "Suivez les instructions des autorités locales \u2022 Restez informés";
                     SizeF footerSize = g.MeasureString(footerText, footerFont);
                     float footerX = (width - footerSize.Width) / 2;
-                    g.DrawString(footerText, footerFont, whiteBrush, footerX, currentY);
+                    float footerY = height - 55 - footerSize.Height / 2;
+                    g.DrawString(footerText, footerFont, whiteBrush, footerX, footerY);
                 }
 
                 bmp.Save(fullPath, ImageFormat.Png);
@@ -438,29 +485,59 @@ namespace WeatherImageGenerator.Services
 
         private static void DrawAlertSymbol(Graphics g, float centerX, float centerY, float size)
         {
-            // Draw warning triangle symbol
+            // Draw warning triangle symbol with proper proportions
+            // Triangle: equilateral-ish, top vertex at center-size, base at center + size*0.55
+            float topY = centerY - size;
+            float baseY = centerY + size * 0.55f;
+            float halfBase = size * 0.95f;
+
             PointF[] triangle = new PointF[]
             {
-                new PointF(centerX, centerY - size),              // Top
-                new PointF(centerX - size, centerY + size * 0.6f), // Bottom left
-                new PointF(centerX + size, centerY + size * 0.6f)  // Bottom right
+                new PointF(centerX, topY),                   // Top vertex
+                new PointF(centerX - halfBase, baseY),       // Bottom left
+                new PointF(centerX + halfBase, baseY)        // Bottom right
             };
 
+            // Shadow for depth
+            PointF[] shadowTri = new PointF[]
+            {
+                new PointF(centerX + 3, topY + 3),
+                new PointF(centerX - halfBase + 3, baseY + 3),
+                new PointF(centerX + halfBase + 3, baseY + 3)
+            };
+            using (var shadowBrush = new SolidBrush(Color.FromArgb(60, 0, 0, 0)))
+            {
+                g.FillPolygon(shadowBrush, shadowTri);
+            }
+
+            // Fill triangle white
             using (var triangleBrush = new SolidBrush(Color.White))
-            using (var borderPen = new Pen(Color.Black, 4))
             {
                 g.FillPolygon(triangleBrush, triangle);
+            }
+
+            // Triangle border
+            using (var borderPen = new Pen(Color.FromArgb(60, 60, 60), 3))
+            {
+                borderPen.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
                 g.DrawPolygon(borderPen, triangle);
             }
 
-            // Draw exclamation mark
-            using (var exclamationBrush = new SolidBrush(Color.Black))
-            using (Font exclamationFont = new Font("Arial", size * 1.2f, FontStyle.Bold))
+            // Exclamation mark - position at centroid of triangle for perfect centering
+            // Centroid Y = (topY + baseY + baseY) / 3
+            float centroidY = (topY + baseY + baseY) / 3f;
+            float exclamFontSize = size * 1.0f;
+
+            using (var exclamationBrush = new SolidBrush(Color.FromArgb(40, 40, 40)))
+            using (Font exclamationFont = new Font("Arial", exclamFontSize, FontStyle.Bold))
             {
                 string exclamation = "!";
                 SizeF textSize = g.MeasureString(exclamation, exclamationFont);
-                g.DrawString(exclamation, exclamationFont, exclamationBrush, 
-                    centerX - textSize.Width / 2, centerY - size * 0.3f);
+                // Center horizontally on centerX, vertically on the centroid
+                // Shift up slightly since the "!" glyph has a dot at the bottom with visual weight
+                float textX = centerX - textSize.Width / 2f;
+                float textY = centroidY - textSize.Height / 2f - size * 0.03f;
+                g.DrawString(exclamation, exclamationFont, exclamationBrush, textX, textY);
             }
         }
 
