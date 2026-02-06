@@ -41,8 +41,9 @@ namespace WeatherImageGenerator
         [STAThread]
         static void Main(string[] args)
         {
-            // Initialize FFmpeg settings from configuration early
-            FFmpegLocator.ConfigureFromSettings();
+            // Initialize FFmpeg settings from configuration early (safe even if appsettings.json is missing)
+            try { FFmpegLocator.ConfigureFromSettings(); }
+            catch { /* Will be properly configured after boot screen validates settings */ }
 
             // Helper flags for testing
             if (args.Contains("--create-test-images"))
@@ -159,12 +160,49 @@ namespace WeatherImageGenerator
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // ── Boot Screen: run system checks before launching main UI ──
+            AppSettings? bootConfig = null;
+            using (var bootScreen = new BootScreen())
+            {
+                // Run boot checks when the form is shown
+                bootScreen.Shown += async (s, e) =>
+                {
+                    try
+                    {
+                        await bootScreen.RunBootSequenceAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[Boot] Critical error: {ex.Message}", ConsoleColor.Red);
+                        bootScreen.DialogResult = DialogResult.Abort;
+                        bootScreen.Close();
+                    }
+                };
+
+                var bootResult = bootScreen.ShowDialog();
+                bootConfig = bootScreen.LoadedSettings;
+
+                // If user closed the boot screen with X, exit
+                if (bootResult == DialogResult.Cancel || bootResult == DialogResult.None)
+                {
+                    return;
+                }
+            }
+
+            // Ensure config is loaded (boot screen already validated it)
+            if (bootConfig == null)
+            {
+                bootConfig = ConfigManager.LoadConfig();
+            }
+
+            // Re-configure FFmpeg now that settings are validated
+            FFmpegLocator.ConfigureFromSettings();
             
             // Initialize Web UI if enabled in settings
-            var initialConfig = ConfigManager.LoadConfig();
-            if (initialConfig.WebUI?.Enabled ?? false)
+            if (bootConfig.WebUI?.Enabled ?? false)
             {
-                _webUIService = new WebUIService(initialConfig.WebUI.Port);
+                _webUIService = new WebUIService(bootConfig.WebUI.Port);
                 _webUIService.Start();
             }
             

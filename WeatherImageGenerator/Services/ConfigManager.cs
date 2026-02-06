@@ -22,6 +22,8 @@ namespace WeatherImageGenerator.Services
 
         /// <summary>
         /// Loads configuration from appsettings.json. Caches the result after first load.
+        /// If the file is missing or corrupt, generates default settings automatically so the
+        /// app can always start — the boot screen will report the repair.
         /// </summary>
         public static AppSettings LoadConfig()
         {
@@ -32,7 +34,11 @@ namespace WeatherImageGenerator.Services
 
             if (!File.Exists(ConfigFilePath))
             {
-                throw new FileNotFoundException($"Configuration file not found: {ConfigFilePath}");
+                // Auto-generate defaults instead of crashing
+                Logger.Log($"⚠ Configuration file not found — generating defaults: {ConfigFilePath}", ConsoleColor.Yellow);
+                var (settings, _) = DefaultSettingsGenerator.EnsureValidSettings();
+                _settings = settings;
+                return _settings;
             }
 
             try
@@ -50,13 +56,13 @@ namespace WeatherImageGenerator.Services
                 Logger.Log($"✓ Configuration loaded from: {ConfigFilePath}");
                 return _settings;
             }
-            catch (JsonException ex)
-            {
-                throw new InvalidOperationException($"Invalid JSON in configuration file: {ex.Message}", ex);
-            }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"Error loading configuration: {ex.Message}", ex);
+                // If the file is corrupt, fall back to defaults rather than crashing
+                Logger.Log($"⚠ Error loading configuration ({ex.Message}) — using defaults", ConsoleColor.Yellow);
+                var (settings, _) = DefaultSettingsGenerator.EnsureValidSettings();
+                _settings = settings;
+                return _settings;
             }
         }
 
