@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using WeatherImageGenerator.Utilities;
@@ -524,6 +526,325 @@ namespace WeatherImageGenerator.Services.BootChecks
                     Name = Name,
                     Status = BootCheckStatus.Passed,
                     StatusMessage = $"Environment info unavailable: {ex.Message}"
+                });
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  10. App update check (GitHub releases)
+    // ═══════════════════════════════════════════════════════════════════
+    public class AppUpdateCheck : BootCheck
+    {
+        public override string Name => "App Update";
+        public override string Description => "Check for newer application versions on GitHub";
+
+        /// <summary>Update info if a newer version is available.</summary>
+        public UpdateService.UpdateInfo? UpdateInfo { get; private set; }
+
+        public override async Task<BootCheckResult> RunAsync(CancellationToken ct)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                if (!config.CheckForUpdatesOnStartup)
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Skipped,
+                        StatusMessage = "Update check disabled in settings"
+                    };
+                }
+
+                // Use a short timeout so the boot doesn't hang on slow networks
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(8));
+
+                var info = await UpdateService.CheckForUpdatesAsync();
+                UpdateInfo = info;
+
+                if (!string.IsNullOrEmpty(info.Error))
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Warning,
+                        StatusMessage = $"Could not check: {info.Error}"
+                    };
+                }
+
+                var currentVersion = UpdateService.GetCurrentVersion();
+
+                if (info.IsUpdateAvailable)
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Warning,
+                        StatusMessage = $"Update available: v{info.LatestVersion} (current: v{currentVersion})",
+                        Detail = info.ReleaseName ?? info.ReleaseNotes
+                    };
+                }
+
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Passed,
+                    StatusMessage = $"Up to date (v{currentVersion})"
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = "Update check timed out"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"Update check failed: {ex.Message}"
+                };
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  11. NAAD TCP stream connectivity
+    // ═══════════════════════════════════════════════════════════════════
+    public class NaadConnectionCheck : BootCheck
+    {
+        public override string Name => "NAAD Connection";
+        public override string Description => "Verify TCP connectivity to NAAD alert streaming servers";
+
+        public override async Task<BootCheckResult> RunAsync(CancellationToken ct)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var ar = config.AlertReady;
+
+                if (ar == null || !ar.Enabled)
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Skipped,
+                        StatusMessage = "Alert Ready is disabled"
+                    };
+                }
+
+                var feedUrls = ar.FeedUrls;
+                if (feedUrls == null || feedUrls.Count == 0)
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Warning,
+                        StatusMessage = "No NAAD feed URLs configured"
+                    };
+                }
+
+                // Try to connect to at least one NAAD TCP server
+                var reachable = new List<string>();
+                var unreachable = new List<string>();
+
+                foreach (var url in feedUrls)
+                {
+                    if (string.IsNullOrWhiteSpace(url)) continue;
+
+                    try
+                    {
+                        var uri = new Uri(url);
+                        var host = uri.Host;
+                        var port = uri.Port > 0 ? uri.Port : 8080;
+
+                        using var tcp = new TcpClient();
+                        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        connectCts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                        await tcp.ConnectAsync(host, port, connectCts.Token);
+                        tcp.Close();
+                        reachable.Add($"{host}:{port}");
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            var uri = new Uri(url);
+                            unreachable.Add($"{uri.Host}:{uri.Port}");
+                        }
+                        catch
+                        {
+                            unreachable.Add(url);
+                        }
+                    }
+                }
+
+                if (reachable.Count > 0)
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Passed,
+                        StatusMessage = $"{reachable.Count}/{reachable.Count + unreachable.Count} NAAD server(s) reachable",
+                        Detail = string.Join(", ", reachable)
+                    };
+                }
+
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"No NAAD servers reachable ({unreachable.Count} tried)",
+                    Detail = string.Join(", ", unreachable)
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"NAAD check error: {ex.Message}",
+                    Error = ex
+                };
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  12. DLL dependency verification
+    // ═══════════════════════════════════════════════════════════════════
+    public class DependencyCheck : BootCheck
+    {
+        public override string Name => "Dependencies";
+        public override string Description => "Verify all required DLL files are present";
+
+        /// <summary>
+        /// Project DLLs that must always be present (built as part of the solution).
+        /// </summary>
+        private static readonly string[] RequiredProjectDlls = new[]
+        {
+            "EAS.dll",
+            "ECCC.dll",
+            "OpenMap.dll",
+            "OpenMeteo.dll",
+            "WeatherShared.dll",
+            "WSG.dll"
+        };
+
+        /// <summary>
+        /// Third-party / NuGet DLLs that must be present at runtime.
+        /// </summary>
+        private static readonly string[] RequiredNuGetDlls = new[]
+        {
+            "SkiaSharp.dll",
+            "Xabe.FFmpeg.dll",
+            "Xabe.FFmpeg.Downloader.dll"
+        };
+
+        /// <summary>
+        /// Native DLLs that must exist somewhere under runtimes/ for the current platform.
+        /// </summary>
+        private static readonly string[] RequiredNativeDlls = new[]
+        {
+            "libSkiaSharp.dll"
+        };
+
+        public override Task<BootCheckResult> RunAsync(CancellationToken ct)
+        {
+            try
+            {
+                var baseDir = AppContext.BaseDirectory;
+                var missing = new List<string>();
+                var found = 0;
+
+                // Check project DLLs
+                foreach (var dll in RequiredProjectDlls)
+                {
+                    if (File.Exists(Path.Combine(baseDir, dll)))
+                        found++;
+                    else
+                        missing.Add(dll);
+                }
+
+                // Check NuGet DLLs
+                foreach (var dll in RequiredNuGetDlls)
+                {
+                    if (File.Exists(Path.Combine(baseDir, dll)))
+                        found++;
+                    else
+                        missing.Add(dll);
+                }
+
+                // Check native DLLs (search under runtimes/ for any matching file)
+                var runtimesDir = Path.Combine(baseDir, "runtimes");
+                foreach (var dll in RequiredNativeDlls)
+                {
+                    bool nativeFound = false;
+                    if (Directory.Exists(runtimesDir))
+                    {
+                        var matches = Directory.GetFiles(runtimesDir, dll, SearchOption.AllDirectories);
+                        if (matches.Length > 0)
+                            nativeFound = true;
+                    }
+                    // Also check base directory as fallback
+                    if (!nativeFound && File.Exists(Path.Combine(baseDir, dll)))
+                        nativeFound = true;
+
+                    if (nativeFound)
+                        found++;
+                    else
+                        missing.Add($"{dll} (native)");
+                }
+
+                int total = RequiredProjectDlls.Length + RequiredNuGetDlls.Length + RequiredNativeDlls.Length;
+
+                if (missing.Count == 0)
+                {
+                    return Task.FromResult(new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Passed,
+                        StatusMessage = $"All {total} required libraries present",
+                        Detail = baseDir
+                    });
+                }
+
+                // Determine severity — project DLLs missing is critical, NuGet/native is a warning
+                bool hasCritical = false;
+                foreach (var m in missing)
+                {
+                    foreach (var pdll in RequiredProjectDlls)
+                    {
+                        if (m == pdll) { hasCritical = true; break; }
+                    }
+                    if (hasCritical) break;
+                }
+
+                return Task.FromResult(new BootCheckResult
+                {
+                    Name = Name,
+                    Status = hasCritical ? BootCheckStatus.Failed : BootCheckStatus.Warning,
+                    StatusMessage = $"{missing.Count} missing: {string.Join(", ", missing)}",
+                    Detail = $"Found {found}/{total} — base: {baseDir}"
+                });
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"DLL check error: {ex.Message}",
+                    Error = ex
                 });
             }
         }

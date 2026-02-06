@@ -60,7 +60,7 @@ namespace WeatherImageGenerator.Forms
             Text = "WSG — Starting Up";
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
-            Size = new Size(520, 520);
+            Size = new Size(520, 620);
             BackColor = BgDark;
             DoubleBuffered = true;
             ShowInTaskbar = true;
@@ -117,7 +117,7 @@ namespace WeatherImageGenerator.Forms
             _checkListPanel = new Panel
             {
                 Location = new Point(15, 125),
-                Size = new Size(490, 320),
+                Size = new Size(490, 415),
                 AutoScroll = true,
                 BackColor = BgDark
             };
@@ -131,7 +131,7 @@ namespace WeatherImageGenerator.Forms
                 BackColor = AccentBlue,
                 FlatStyle = FlatStyle.Flat,
                 Size = new Size(140, 36),
-                Location = new Point(190, 460),
+                Location = new Point(190, 560),
                 Visible = false,
                 Cursor = Cursors.Hand
             };
@@ -196,13 +196,16 @@ namespace WeatherImageGenerator.Forms
             // Register all checks in order
             var settingsCheck = new AppSettingsCheck();
             _runner.Add(new EnvironmentCheck());
+            _runner.Add(new AppUpdateCheck());
             _runner.Add(settingsCheck);
+            _runner.Add(new DependencyCheck());
             _runner.Add(new FFmpegCheck());
             _runner.Add(new OutputDirectoriesCheck());
             _runner.Add(new MapTileCacheCheck());
             _runner.Add(new OpenMeteoCheck());
             _runner.Add(new ECCCCheck());
             _runner.Add(new AlertReadyCheck());
+            _runner.Add(new NaadConnectionCheck());
             _runner.Add(new WebUICheck());
 
             // Create UI rows for each check
@@ -211,9 +214,10 @@ namespace WeatherImageGenerator.Forms
             int y = 0;
             var checks = new string[]
             {
-                "Environment", "Configuration", "FFmpeg", "Output Directories",
-                "Map Tile Cache", "Open Meteo API", "ECCC Weather",
-                "Alert Ready (NAAD)", "Web UI"
+                "Environment", "App Update", "Configuration", "Dependencies",
+                "FFmpeg", "Output Directories", "Map Tile Cache",
+                "Open Meteo API", "ECCC Weather", "Alert Ready (NAAD)",
+                "NAAD Connection", "Web UI"
             };
             foreach (var name in checks)
             {
