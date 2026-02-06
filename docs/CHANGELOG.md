@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.15.0206] - 2026-02-06
+
+- Update project files and add AssemblyInfo for WSG.Updater: set version to 1.8.14.0206, include copyright, and adjust appsettings.json handling in publish
+- Enhance boot checks: add AppUpdateCheck and NaadConnectionCheck, update UI layout for boot screen
+- Add boot check system for application initialization
+- Enhance audio file concatenation with FFmpeg: implement filter_complex for format handling, add fallback to concat demuxer, and improve logging for empty or invalid files.
+
 ## [1.8.14.0204] - 2026-02-04
 
 - Fixing Auto-Update failing when file is lock

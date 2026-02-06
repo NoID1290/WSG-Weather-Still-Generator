@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -14,6 +14,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: AssemblyVersion("1.8.14.0206")]
-[assembly: AssemblyFileVersion("1.8.14.0206")]
-[assembly: AssemblyInformationalVersion("1.8.14.0206")]
+[assembly: AssemblyVersion("1.8.15.0206")]
+[assembly: AssemblyFileVersion("1.8.15.0206")]
+[assembly: AssemblyInformationalVersion("1.8.15.0206")]
+
