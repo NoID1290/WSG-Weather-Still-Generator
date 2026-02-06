@@ -1,9 +1,22 @@
-# Auto-push to GitHub with automatic version increment
-# Version format: a.b.c.MMDD where:
-#   a = frontend update (GUI)
-#   b = backend update
-#   c = little fix
-#   MMDD = month and day of push
+# ============================================================================
+# push.ps1 - Auto-push to GitHub with automatic version increment
+# Copyright (c) NoID Softwork 2020-2026. All rights reserved.
+# ============================================================================
+#
+# Versioning Algorithm:
+#   Format: a.b.c.MMDD
+#     a    = Frontend update (GUI) - resets b and c to 0
+#     b    = Backend update        - resets c to 0
+#     c    = Little fix / patch
+#     MMDD = Month and day of push (auto-generated)
+#
+#   On "frontend": a++, b=0, c=0
+#   On "backend":  b++, c=0
+#   On "fix":      c++
+#
+#   Library projects (ECCC, EAS, WeatherShared, OpenMap) skip frontend-only bumps.
+#   Copyright year in AssemblyInfo.cs is updated automatically.
+# ============================================================================
 
 param(
     [Parameter(Mandatory=$false)]
@@ -29,6 +42,7 @@ $ecccProjectFilePath = "ECCC\ECCC.csproj"
 $easProjectFilePath = "EAS\EAS.csproj"
 $weatherSharedProjectFilePath = "WeatherShared\WeatherShared.csproj"
 $openMapProjectFilePath = "OpenMap\OpenMap.csproj"
+$updaterProjectFilePath = "WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj"
 $solutionPath = "WSG.sln"
 
 #$repoRoot = git rev-parse --show-toplevel
@@ -65,8 +79,8 @@ function Update-ProjectVersion {
     if (-not $ver) { $ver = "1.0.0.0101" } # Default if missing
     
     # Check if this update type applies to this project
-    # ECCC, EAS, OpenMap, and WeatherShared (Libs) shouldn't update on Frontend changes
-    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "WeatherShared" -or $Name -eq "OpenMap") -and $UpdateType -eq "frontend") {
+    # ECCC, EAS, OpenMap, WeatherShared, and WSG.Updater (Libs/Tools) shouldn't update on Frontend changes
+    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "WeatherShared" -or $Name -eq "OpenMap" -or $Name -eq "WSG.Updater") -and $UpdateType -eq "frontend") {
         Write-Host "[INFO] Skipping $Name version update (Frontend change only)" -ForegroundColor Gray
         return $ver
     }
@@ -127,6 +141,7 @@ if (-not $SkipVersion) {
     $null = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
     $null = Update-ProjectVersion -Path $weatherSharedProjectFilePath -Name "WeatherShared" -UpdateType $Type
     $null = Update-ProjectVersion -Path $openMapProjectFilePath -Name "OpenMap" -UpdateType $Type
+    $null = Update-ProjectVersion -Path $updaterProjectFilePath -Name "WSG.Updater" -UpdateType $Type
     
     # Use WSG version for global tagging/changelog as it's the main app
     $newVersion = $newWsgVersion
@@ -147,6 +162,10 @@ if (Test-Path $assemblyInfoPath) {
     $assemblyInfoContent = $assemblyInfoContent -replace '\[assembly: AssemblyFileVersion\("[^"]*"\)\]', "[assembly: AssemblyFileVersion(""$newVersion"")]"
     $assemblyInfoContent = $assemblyInfoContent -replace '\[assembly: AssemblyInformationalVersion\("[^"]*"\)\]', "[assembly: AssemblyInformationalVersion(""$newVersion"")]"
 
+    # Update copyright year dynamically (keep start year, update end year to current)
+    $currentYear = (Get-Date).Year
+    $assemblyInfoContent = $assemblyInfoContent -replace '\[assembly: AssemblyCopyright\("Copyright \(c\) NoID Softwork \d{4}-\d{4}"\)\]', "[assembly: AssemblyCopyright(""Copyright (c) NoID Softwork 2020-$currentYear"")]" 
+
     # If any of the attributes are missing, append them so the file stays explicit
     if ($assemblyInfoContent -notmatch 'AssemblyVersion') {
         $assemblyInfoContent += "`r`n[assembly: AssemblyVersion(""$newVersion"")]"
@@ -163,6 +182,27 @@ if (Test-Path $assemblyInfoPath) {
         Write-Host "[SUCCESS] AssemblyInfo.cs updated with version: $newVersion" -ForegroundColor Green
     } else {
         Write-Host "[INFO] Skipping AssemblyInfo update due to SkipVersion" -ForegroundColor Yellow
+    }
+}
+
+# Also update WSG.Updater AssemblyInfo.cs to keep it in sync
+$updaterAssemblyInfoPath = "WeatherImageGenerator.Updater\AssemblyInfo.cs"
+if (Test-Path $updaterAssemblyInfoPath) {
+    $updaterAsmContent = Get-Content $updaterAssemblyInfoPath -Raw
+
+    $updaterAsmContent = $updaterAsmContent -replace '\[assembly: AssemblyVersion\("[^"]*"\)\]', "[assembly: AssemblyVersion(""$newVersion"")]"
+    $updaterAsmContent = $updaterAsmContent -replace '\[assembly: AssemblyFileVersion\("[^"]*"\)\]', "[assembly: AssemblyFileVersion(""$newVersion"")]"
+    $updaterAsmContent = $updaterAsmContent -replace '\[assembly: AssemblyInformationalVersion\("[^"]*"\)\]', "[assembly: AssemblyInformationalVersion(""$newVersion"")]"
+
+    # Update copyright year dynamically
+    $currentYear = (Get-Date).Year
+    $updaterAsmContent = $updaterAsmContent -replace '\[assembly: AssemblyCopyright\("Copyright \(c\) NoID Softwork \d{4}-\d{4}"\)\]', "[assembly: AssemblyCopyright(""Copyright (c) NoID Softwork 2020-$currentYear"")]"
+
+    if (-not $SkipVersion) {
+        Set-Content -Path $updaterAssemblyInfoPath -Value $updaterAsmContent -Encoding UTF8
+        Write-Host "[SUCCESS] WSG.Updater AssemblyInfo.cs updated with version: $newVersion" -ForegroundColor Green
+    } else {
+        Write-Host "[INFO] Skipping WSG.Updater AssemblyInfo update due to SkipVersion" -ForegroundColor Yellow
     }
 }
 
@@ -277,10 +317,12 @@ git add $ecccProjectFilePath
 git add $easProjectFilePath
 git add $weatherSharedProjectFilePath
 git add $openMapProjectFilePath
+git add $updaterProjectFilePath
 git add $solutionPath
 if (-not $SkipVersion) {
     git add $changelogPath
     git add $assemblyInfoPath
+    git add $updaterAssemblyInfoPath
 }
 
 # Create commit message with version info
@@ -438,6 +480,13 @@ if ($AttachAssets) {
         # Cleanup any dev files that might have been copied (PDBs from dependencies, XML docs)
         Write-Host "[CLEANUP] Ensuring no dev files (*.pdb, *.xml) in release" -ForegroundColor Cyan
         Get-ChildItem -Path $publishDir -Include *.pdb,*.xml -Recurse | Remove-Item -Force -ErrorAction SilentlyContinue
+
+        # Remove appsettings.json from release - the app generates it at first run
+        $appSettingsInPublish = Join-Path $publishDir "appsettings.json"
+        if (Test-Path $appSettingsInPublish) {
+            Remove-Item $appSettingsInPublish -Force
+            Write-Host "[CLEANUP] Removed appsettings.json from release (app generates it at runtime)" -ForegroundColor Green
+        }
 
         # Create zip
         $zipName = "WSG-Weather-Still-Generator-$newVersion.zip"

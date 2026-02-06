@@ -26,9 +26,8 @@
     <ProjectReference Include="..\WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="appsettings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <!-- appsettings.json is NOT included in publish/release; the app generates it at runtime -->
+    <None Include="appsettings.json" />
     <!-- Copy wwwroot files for Web UI -->
     <Content Include="wwwroot\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

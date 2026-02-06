@@ -10,8 +10,11 @@
     <AssemblyName>WSG.Updater</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
     <AssemblyProduct>Weather Still Generator - Updater</AssemblyProduct>
-    <Version>1.0.0</Version>
-    <FileVersion>1.0.0</FileVersion>
+    <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
+    <Version>1.8.14.0206</Version>
+    <AssemblyVersion>1.8.14.0206</AssemblyVersion>
+    <FileVersion>1.8.14.0206</FileVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <ItemGroup>
