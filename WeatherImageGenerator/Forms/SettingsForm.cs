@@ -2235,6 +2235,7 @@ namespace WeatherImageGenerator.Forms
                 var webUI = cfg.WebUI ?? new WebUISettings();
                 bool wasEnabled = webUI.Enabled;
                 int oldPort = webUI.Port;
+                bool wasRemoteAccessEnabled = webUI.AllowRemoteAccess;
 
                 webUI.Enabled = chkWebUIEnabled.Checked;
                 webUI.Port = (int)numWebUIPort.Value;
@@ -2246,6 +2247,16 @@ namespace WeatherImageGenerator.Forms
                     StopWebUIService();
                     Program.SetWebUIService(null);
                     StartWebUIService();
+                }
+
+                // Warn user that a restart is needed when Remote Access is newly enabled
+                if (chkWebUIAllowRemote.Checked && !wasRemoteAccessEnabled)
+                {
+                    MessageBox.Show(this,
+                        "Remote Access has been enabled. Please restart the application so the boot check service can activate the firewall rule and URL ACL (UAC elevation will be required).",
+                        "Restart Required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                 }
 
                 var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();
