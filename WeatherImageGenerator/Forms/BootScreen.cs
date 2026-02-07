@@ -207,6 +207,7 @@ namespace WeatherImageGenerator.Forms
             _runner.Add(new AlertReadyCheck());
             _runner.Add(new NaadConnectionCheck());
             _runner.Add(new WebUICheck());
+            _runner.Add(new WebUINetworkAccessCheck());
 
             // Create UI rows for each check
             _checkRows.Clear();
@@ -217,7 +218,7 @@ namespace WeatherImageGenerator.Forms
                 "Environment", "App Update", "Configuration", "Dependencies",
                 "FFmpeg", "Output Directories", "Map Tile Cache",
                 "Open Meteo API", "ECCC Weather", "Alert Ready (NAAD)",
-                "NAAD Connection", "Web UI"
+                "NAAD Connection", "Web UI", "Web UI Network"
             };
             foreach (var name in checks)
             {

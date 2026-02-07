@@ -496,6 +496,247 @@ namespace WeatherImageGenerator.Services.BootChecks
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    //  8b. WebUI Network Access (URL ACL, Firewall, UAC)
+    // ═══════════════════════════════════════════════════════════════════
+    public class WebUINetworkAccessCheck : BootCheck
+    {
+        public override string Name => "Web UI Network";
+        public override string Description => "Verify URL ACL reservation, Windows Firewall rule, and elevation for remote Web UI access";
+
+        public override Task<BootCheckResult> RunAsync(CancellationToken ct)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var webui = config.WebUI;
+
+                // Skip entirely if Web UI is disabled
+                if (webui == null || !webui.Enabled)
+                {
+                    return Task.FromResult(new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Skipped,
+                        StatusMessage = "Web UI is disabled"
+                    });
+                }
+
+                // Skip if remote access is not enabled — no ACL/firewall needed for localhost
+                if (!webui.AllowRemoteAccess)
+                {
+                    return Task.FromResult(new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Skipped,
+                        StatusMessage = "Remote access is disabled — localhost only"
+                    });
+                }
+
+                int port = webui.Port > 0 ? webui.Port : 5000;
+                string prefix = $"http://*:{port}/";
+                string firewallRuleName = $"WeatherStillAPI_WebUI_{port}";
+
+                bool hasUrlAcl = CheckUrlAcl(prefix);
+                bool hasFirewall = CheckFirewallRule(firewallRuleName);
+                bool isElevated = IsRunningAsAdmin();
+
+                var issues = new List<string>();
+                if (!hasUrlAcl) issues.Add("URL ACL missing");
+                if (!hasFirewall) issues.Add("Firewall rule missing");
+
+                if (issues.Count == 0)
+                {
+                    return Task.FromResult(new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Passed,
+                        StatusMessage = $"Remote access ready (port {port})",
+                        Detail = $"URL ACL: ✓ | Firewall: ✓ | Elevated: {(isElevated ? "Yes" : "No")}"
+                    });
+                }
+
+                // Issues found — try auto-repair
+                string detail = $"URL ACL: {(hasUrlAcl ? "✓" : "✗")} | Firewall: {(hasFirewall ? "✓" : "✗")} | Elevated: {(isElevated ? "Yes" : "No")}";
+
+                if (isElevated)
+                {
+                    // We have admin rights — repair silently
+                    bool repaired = TryRepairRemoteAccess(prefix, port, firewallRuleName, !hasUrlAcl, !hasFirewall);
+                    if (repaired)
+                    {
+                        return Task.FromResult(new BootCheckResult
+                        {
+                            Name = Name,
+                            Status = BootCheckStatus.Repaired,
+                            StatusMessage = $"Configured remote access for port {port}",
+                            Detail = $"Fixed: {string.Join(", ", issues)}"
+                        });
+                    }
+                }
+
+                // Not elevated or repair failed — report as warning
+                return Task.FromResult(new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"{string.Join(" & ", issues)} — UAC prompt on first start",
+                    Detail = detail
+                });
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"Network check error: {ex.Message}",
+                    Error = ex
+                });
+            }
+        }
+
+        /// <summary>
+        /// Checks whether a URL ACL reservation exists for the given prefix.
+        /// </summary>
+        private static bool CheckUrlAcl(string prefix)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = "http show urlacl",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                var proc = System.Diagnostics.Process.Start(psi);
+                if (proc == null) return false;
+                string output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit(5000);
+                // netsh output includes lines like: "Reserved URL : http://*:5000/"
+                return output.Contains(prefix, StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Checks whether a Windows Firewall inbound rule exists with the given name.
+        /// </summary>
+        private static bool CheckFirewallRule(string ruleName)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall show rule name=\"{ruleName}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                var proc = System.Diagnostics.Process.Start(psi);
+                if (proc == null) return false;
+                string output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit(5000);
+                // If rule exists, output contains the rule name; if not, it says "No rules match"
+                return output.Contains(ruleName, StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Checks whether the current process is running with administrator privileges.
+        /// </summary>
+        private static bool IsRunningAsAdmin()
+        {
+            try
+            {
+                using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Attempts to repair missing URL ACL and/or firewall rule (requires elevation).
+        /// </summary>
+        private static bool TryRepairRemoteAccess(string prefix, int port, string firewallRuleName, bool fixAcl, bool fixFirewall)
+        {
+            try
+            {
+                bool success = true;
+
+                if (fixAcl)
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "netsh",
+                        Arguments = $"http add urlacl url={prefix} user=Everyone",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    if (proc != null)
+                    {
+                        proc.WaitForExit(10000);
+                        if (proc.ExitCode != 0) success = false;
+                    }
+                    else success = false;
+                }
+
+                if (fixFirewall)
+                {
+                    // Delete old rule first (ignore errors)
+                    try
+                    {
+                        var delPsi = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "netsh",
+                            Arguments = $"advfirewall firewall delete rule name=\"{firewallRuleName}\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true
+                        };
+                        var delProc = System.Diagnostics.Process.Start(delPsi);
+                        delProc?.WaitForExit(5000);
+                    }
+                    catch { }
+
+                    var addPsi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "netsh",
+                        Arguments = $"advfirewall firewall add rule name=\"{firewallRuleName}\" dir=in action=allow protocol=TCP localport={port}",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+                    var proc = System.Diagnostics.Process.Start(addPsi);
+                    if (proc != null)
+                    {
+                        proc.WaitForExit(10000);
+                        if (proc.ExitCode != 0) success = false;
+                    }
+                    else success = false;
+                }
+
+                return success;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     //  9. .NET runtime & environment check
     // ═══════════════════════════════════════════════════════════════════
     public class EnvironmentCheck : BootCheck

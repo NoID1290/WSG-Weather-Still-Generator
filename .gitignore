@@ -387,3 +387,9 @@ WeatherImageGenerator/build_full.txt
 # Local logs
 logs/
 WeatherImageGenerator/logs/
+
+#appsetings.json
+appsettings.Development.json
+appsettings.json
+
+WeatherImageGenerator/appsettings.json

@@ -56,17 +56,28 @@ namespace WeatherImageGenerator.Services
         }
 
         /// <summary>
-        /// Attempts to register a URL ACL reservation so HttpListener can bind to all interfaces without admin rights.
-        /// Returns true if the reservation was added (or already existed).
+        /// Attempts to register a URL ACL reservation AND add a Windows Firewall inbound rule
+        /// so HttpListener can bind to all interfaces and other devices on the network can connect.
+        /// Both operations run in a single elevated process (one UAC prompt).
+        /// Returns true if both succeeded (or already existed).
         /// </summary>
-        private bool TryRegisterUrlAcl(string prefix)
+        private bool TryRegisterRemoteAccess(string prefix, int port)
         {
             try
             {
+                string firewallRuleName = $"WeatherStillAPI_WebUI_{port}";
+
+                // Combine URL ACL + Firewall rule in one elevated cmd session
+                string commands = string.Join(" & ",
+                    $"netsh http add urlacl url={prefix} user=Everyone",
+                    $"netsh advfirewall firewall delete rule name=\"{firewallRuleName}\" >nul 2>&1",
+                    $"netsh advfirewall firewall add rule name=\"{firewallRuleName}\" dir=in action=allow protocol=TCP localport={port}"
+                );
+
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "netsh",
-                    Arguments = $"http add urlacl url={prefix} user=Everyone",
+                    FileName = "cmd.exe",
+                    Arguments = $"/c {commands}",
                     Verb = "runas",              // triggers UAC elevation
                     UseShellExecute = true,
                     WindowStyle = ProcessWindowStyle.Hidden,
@@ -76,19 +87,132 @@ namespace WeatherImageGenerator.Services
                 var process = Process.Start(psi);
                 if (process != null)
                 {
-                    process.WaitForExit(10000);
-                    if (process.ExitCode == 0)
+                    process.WaitForExit(15000);
+                    Logger.Log($"Remote access setup completed (URL ACL + Firewall rule for port {port})", Logger.LogLevel.Info);
+                    return true;
+                }
+            }
+            catch (System.ComponentModel.Win32Exception w32ex) when (w32ex.NativeErrorCode == 1223)
+            {
+                // ERROR_CANCELLED — user declined the UAC prompt
+                Logger.Log("User cancelled the elevation prompt. Remote access not configured.", Logger.LogLevel.Warning);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Could not configure remote access: {ex.Message}", Logger.LogLevel.Warning);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Removes the Windows Firewall rule for this port (best-effort, non-elevated).
+        /// </summary>
+        private void TryRemoveFirewallRule(int port)
+        {
+            try
+            {
+                string firewallRuleName = $"WeatherStillAPI_WebUI_{port}";
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall delete rule name=\"{firewallRuleName}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                var process = Process.Start(psi);
+                process?.WaitForExit(5000);
+            }
+            catch { /* best-effort cleanup */ }
+        }
+
+        /// <summary>
+        /// Checks if a firewall rule already exists for this port. If not, tries to add it
+        /// first without elevation, then with a UAC prompt if needed.
+        /// </summary>
+        private void EnsureFirewallRule(int port)
+        {
+            try
+            {
+                string firewallRuleName = $"WeatherStillAPI_WebUI_{port}";
+                // Check if the rule already exists
+                var checkPsi = new ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall show rule name=\"{firewallRuleName}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                var checkProc = Process.Start(checkPsi);
+                if (checkProc != null)
+                {
+                    string output = checkProc.StandardOutput.ReadToEnd();
+                    checkProc.WaitForExit(5000);
+                    if (output.Contains("WeatherStillAPI_WebUI"))
                     {
-                        Logger.Log($"URL reservation added for {prefix}", Logger.LogLevel.Info);
-                        return true;
+                        Logger.Log($"Firewall rule '{firewallRuleName}' already exists.", Logger.LogLevel.Debug);
+                        return; // Already exists
                     }
+                }
+
+                // Rule doesn't exist — try non-elevated first
+                var addPsi = new ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"advfirewall firewall add rule name=\"{firewallRuleName}\" dir=in action=allow protocol=TCP localport={port}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                var addProc = Process.Start(addPsi);
+                if (addProc != null)
+                {
+                    addProc.WaitForExit(5000);
+                    if (addProc.ExitCode == 0)
+                    {
+                        Logger.Log($"Firewall rule '{firewallRuleName}' added for port {port}.", Logger.LogLevel.Info);
+                        return;
+                    }
+                }
+
+                // Non-elevated failed — escalate with UAC prompt
+                Logger.Log($"Requesting elevation to add firewall rule for port {port}...", Logger.LogLevel.Info);
+                try
+                {
+                    var elevatedPsi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c netsh advfirewall firewall add rule name=\"{firewallRuleName}\" dir=in action=allow protocol=TCP localport={port}",
+                        Verb = "runas",
+                        UseShellExecute = true,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        CreateNoWindow = true
+                    };
+                    var elevatedProc = Process.Start(elevatedPsi);
+                    if (elevatedProc != null)
+                    {
+                        elevatedProc.WaitForExit(15000);
+                        if (elevatedProc.ExitCode == 0)
+                        {
+                            Logger.Log($"Firewall rule '{firewallRuleName}' added for port {port} (elevated).", Logger.LogLevel.Info);
+                            return;
+                        }
+                    }
+                    Logger.Log($"Elevated firewall rule add failed. Phone/remote access may be blocked.", Logger.LogLevel.Warning);
+                }
+                catch (System.ComponentModel.Win32Exception w32ex) when (w32ex.NativeErrorCode == 1223)
+                {
+                    Logger.Log("User cancelled the UAC prompt. Firewall rule not added — remote devices may not be able to connect.", Logger.LogLevel.Warning);
                 }
             }
             catch (Exception ex)
             {
-                Logger.Log($"Could not register URL ACL ({prefix}): {ex.Message}", Logger.LogLevel.Warning);
+                Logger.Log($"Firewall rule check/add failed: {ex.Message}", Logger.LogLevel.Debug);
             }
-            return false;
         }
 
         /// <summary>
@@ -111,10 +235,10 @@ namespace WeatherImageGenerator.Services
                     }
                     catch (HttpListenerException hlEx) when (hlEx.ErrorCode == 5) // ERROR_ACCESS_DENIED
                     {
-                        Logger.Log($"Access denied binding to {prefix}. Attempting to register URL reservation...", Logger.LogLevel.Warning);
+                        Logger.Log($"Access denied binding to {prefix}. Attempting to configure remote access (URL ACL + Firewall)...", Logger.LogLevel.Warning);
 
-                        // Try to register the URL ACL (will prompt UAC)
-                        if (TryRegisterUrlAcl(prefix))
+                        // Try to register URL ACL + Firewall rule (single UAC prompt)
+                        if (TryRegisterRemoteAccess(prefix, Port))
                         {
                             // Retry with the same prefix
                             _httpListener = new HttpListener();
@@ -125,18 +249,21 @@ namespace WeatherImageGenerator.Services
                             }
                             catch (Exception retryEx)
                             {
-                                Logger.Log($"Retry after URL ACL still failed: {retryEx.Message}. Falling back to localhost.", Logger.LogLevel.Warning);
+                                Logger.Log($"Retry after remote access setup still failed: {retryEx.Message}. Falling back to localhost.", Logger.LogLevel.Warning);
                                 StartLocalhostFallback();
                                 return;
                             }
                         }
                         else
                         {
-                            Logger.Log("URL reservation failed or was cancelled. Falling back to localhost.", Logger.LogLevel.Warning);
+                            Logger.Log("Remote access setup failed or was cancelled. Falling back to localhost.", Logger.LogLevel.Warning);
                             StartLocalhostFallback();
                             return;
                         }
                     }
+
+                    // Ensure the firewall rule exists (best-effort, non-elevated — may already exist)
+                    EnsureFirewallRule(Port);
 
                     // Get network information
                     string localIP = Utilities.NetworkHelper.GetLocalIPAddress();
@@ -216,9 +343,9 @@ namespace WeatherImageGenerator.Services
                 }
                 catch (HttpListenerException hlEx) when (hlEx.ErrorCode == 5 && AllowRemoteAccess)
                 {
-                    Logger.Log($"Access denied binding to {prefix}. Attempting URL reservation...", Logger.LogLevel.Warning);
+                    Logger.Log($"Access denied binding to {prefix}. Attempting remote access setup (URL ACL + Firewall)...", Logger.LogLevel.Warning);
 
-                    if (TryRegisterUrlAcl(prefix))
+                    if (TryRegisterRemoteAccess(prefix, Port))
                     {
                         _httpListener = new HttpListener();
                         _httpListener.Prefixes.Add(prefix);
