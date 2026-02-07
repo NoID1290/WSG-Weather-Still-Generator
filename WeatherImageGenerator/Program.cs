@@ -198,14 +198,14 @@ namespace WeatherImageGenerator
 
             // Re-configure FFmpeg now that settings are validated
             FFmpegLocator.ConfigureFromSettings();
-            
+
             // Initialize Web UI if enabled in settings
             if (bootConfig.WebUI?.Enabled ?? false)
             {
-                _webUIService = new WebUIService(bootConfig.WebUI.Port);
+                _webUIService = new WebUIService(bootConfig.WebUI.Port, bootConfig.WebUI.AllowRemoteAccess);
                 _webUIService.Start();
             }
-            
+
             Application.Run(new MainForm());
             
             // Stop Web UI service when application closes

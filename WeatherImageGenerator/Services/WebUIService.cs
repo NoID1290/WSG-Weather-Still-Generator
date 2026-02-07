@@ -29,6 +29,7 @@ namespace WeatherImageGenerator.Services
         public event EventHandler? GenerateVideoRequested;
 
         public int Port { get; set; } = 5000;
+        public bool AllowRemoteAccess { get; set; } = false;
         public bool IsRunning { get; private set; } = false;
 
         // Cached weather data
@@ -47,9 +48,10 @@ namespace WeatherImageGenerator.Services
             Logger.Log($"WebUI: Weather data updated for {locationNames.Length} locations", Logger.LogLevel.Debug);
         }
 
-        public WebUIService(int port = 5000)
+        public WebUIService(int port = 5000, bool allowRemoteAccess = false)
         {
             Port = port;
+            AllowRemoteAccess = allowRemoteAccess;
         }
 
         /// <summary>
@@ -60,12 +62,23 @@ namespace WeatherImageGenerator.Services
             try
             {
                 _httpListener = new HttpListener();
-                // Use localhost (127.0.0.1) which doesn't require admin rights
-                _httpListener.Prefixes.Add($"http://localhost:{Port}/");
-                _httpListener.Prefixes.Add($"http://127.0.0.1:{Port}/");
+
+                if (AllowRemoteAccess)
+                {
+                    // Bind to all network interfaces (allows remote access)
+                    _httpListener.Prefixes.Add($"http://*:{Port}/");
+                    Logger.Log($"Web UI server started on http://0.0.0.0:{Port} (remote access enabled)", Logger.LogLevel.Info);
+                }
+                else
+                {
+                    // Use localhost only (doesn't require admin rights)
+                    _httpListener.Prefixes.Add($"http://localhost:{Port}/");
+                    _httpListener.Prefixes.Add($"http://127.0.0.1:{Port}/");
+                    Logger.Log($"Web UI server started on localhost:{Port} (local only)", Logger.LogLevel.Info);
+                }
+
                 _httpListener.Start();
                 IsRunning = true;
-                Logger.Log($"Web UI server started on localhost:{Port}", Logger.LogLevel.Info);
                 ServerStarted?.Invoke(this, EventArgs.Empty);
 
                 // Start listening for requests asynchronously
@@ -541,7 +554,7 @@ namespace WeatherImageGenerator.Services
             {
                 port = Port,
                 isRunning = IsRunning,
-                allowRemoteAccess = true
+                allowRemoteAccess = AllowRemoteAccess
             });
         }
 
