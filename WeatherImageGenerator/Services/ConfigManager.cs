@@ -179,6 +179,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("WindowHeight")]
         public int WindowHeight { get; set; } = 0;
+
+        [JsonPropertyName("LogsCollapsed")]
+        public bool LogsCollapsed { get; set; } = false;
     }
 
     /// <summary>

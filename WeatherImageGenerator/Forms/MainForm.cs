@@ -25,6 +25,7 @@ namespace WeatherImageGenerator.Forms
         private bool _isMinimizedToTray = false;
         // Store text together with the explicit LogLevel so rendering is deterministic
         private readonly System.Collections.Generic.List<(string Text, Logger.LogLevel Level)> _logBuffer = new System.Collections.Generic.List<(string Text, Logger.LogLevel Level)>();
+        private int _savedSplitterDistance = 0;  // Store splitter distance when logs are collapsed
         private ComboBox? _cmbFilter;
         private ComboBox? _cmbVerbosity;
         private TextBox? _txtSearch;
@@ -40,7 +41,7 @@ namespace WeatherImageGenerator.Forms
         private TabPage? _logTab;
         private Panel? _topPanel;
         private Panel? _logPanel;
-        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn, _toggleLogsBtn;
         private CancellationTokenSource? _operationCts;
         private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
@@ -143,6 +144,8 @@ namespace WeatherImageGenerator.Forms
             _musicBtn = CreateStyledButton("Music", g4Left + g4BtnWidth + btnSpacing, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
             _settingsBtn = CreateStyledButton("Settings", g4Left + (g4BtnWidth + btnSpacing) * 2, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
             _aboutBtn = CreateStyledButton("About", g4Left + (g4BtnWidth + btnSpacing) * 3, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _toggleLogsBtn = CreateStyledButton("▼ Logs", g4Left + (g4BtnWidth + btnSpacing) * 4 + 5, row1Top, 80, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
+            _toggleLogsBtn.Click += (s, e) => ToggleLogsVisibility();
 
 
             // Progress & Status Section (Below buttons - properly spaced below row2)
@@ -427,6 +430,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
             _topPanel.Controls.Add(_openWebUIBtn);
+            _topPanel.Controls.Add(_toggleLogsBtn);
             _topPanel.Controls.Add(_txtWebUIUrl);
             // Add progress and status
             _topPanel.Controls.Add(_progressLabel);
@@ -508,11 +512,13 @@ namespace WeatherImageGenerator.Forms
                 if (config.SplitterDistance > 0)
                 {
                     targetDistance = config.SplitterDistance;
+                    _savedSplitterDistance = targetDistance;  // Save for collapse/restore
                 }
                 else
                 {
-                    // Default: logs panel takes about 60% of the split container height
+                    // Default: logs panel takes about 35% of the split container height
                     targetDistance = (int)(_splitContainer.Height * 0.35);
+                    _savedSplitterDistance = targetDistance;
                 }
                 
                 if (targetDistance >= _splitContainer.Panel1MinSize && 
@@ -532,6 +538,12 @@ namespace WeatherImageGenerator.Forms
                 {
                     this.Width = config.WindowWidth;
                     this.Height = config.WindowHeight;
+                }
+                
+                // Restore logs collapsed state (do this last after splitter distance is set)
+                if (config.LogsCollapsed && _splitContainer != null)
+                {
+                    SetLogsCollapsed(true);
                 }
             };
             
@@ -1390,6 +1402,41 @@ namespace WeatherImageGenerator.Forms
             else
             {
                 RefreshLogView();
+            }
+        }
+
+        private void ToggleLogsVisibility()
+        {
+            if (_tabControl == null) return;
+            
+            bool areLogsVisible = _tabControl.Visible;
+            SetLogsCollapsed(areLogsVisible);
+            
+            // Save state to config
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                config.LogsCollapsed = areLogsVisible;
+                ConfigManager.SaveConfig(config, silent: true);
+            }
+            catch { /* Ignore save errors */ }
+        }
+
+        private void SetLogsCollapsed(bool collapsed)
+        {
+            if (_tabControl == null || _toggleLogsBtn == null) return;
+            
+            if (collapsed)
+            {
+                // Completely hide the tab control (logs panel)
+                _tabControl.Visible = false;
+                _toggleLogsBtn.Text = "▲ Logs";
+            }
+            else
+            {
+                // Show the tab control
+                _tabControl.Visible = true;
+                _toggleLogsBtn.Text = "▼ Logs";
             }
         }
 
