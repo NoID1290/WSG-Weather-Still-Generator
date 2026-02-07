@@ -134,6 +134,35 @@ function Update-ProjectVersion {
     return $newVer
 }
 
+function Update-ReadmeVersionBadge {
+    param (
+        [string]$Version
+    )
+    
+    # Extract the simplified version (a.b.c without the MMDD date part)
+    $versionParts = $Version -split '\.'
+    if ($versionParts.Count -ge 3) {
+        $simplifiedVersion = "$($versionParts[0]).$($versionParts[1]).$($versionParts[2])"
+    } else {
+        $simplifiedVersion = $Version
+    }
+    
+    $readmePath = "README.md"
+    if (Test-Path $readmePath) {
+        Write-Host "[README] Updating version badge to $simplifiedVersion" -ForegroundColor Cyan
+        
+        $readmeContent = Get-Content $readmePath -Raw
+        
+        # Update the version badge: look for badge with version-X.X.X-blue pattern
+        $readmeContent = $readmeContent -replace '(\[\!\[Version\]\(https://img\.shields\.io/badge/version-)\d+\.\d+\.\d+(-blue)', "`$1$simplifiedVersion`$2"
+        
+        Set-Content $readmePath $readmeContent -Encoding UTF8
+        Write-Host "[SUCCESS] README.md version badge updated to $simplifiedVersion" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] README.md not found" -ForegroundColor Yellow
+    }
+}
+
 # Update Versions
 if (-not $SkipVersion) {
     $newWsgVersion = Update-ProjectVersion -Path $projectFilePath -Name "WSG" -UpdateType $Type
@@ -145,6 +174,11 @@ if (-not $SkipVersion) {
     
     # Use WSG version for global tagging/changelog as it's the main app
     $newVersion = $newWsgVersion
+    
+    # Update README.md version badge when AttachAssets is requested
+    if ($AttachAssets) {
+        Update-ReadmeVersionBadge -Version $newVersion
+    }
 } else {
     Write-Host "[INFO] SkipVersion is set; not incrementing versions" -ForegroundColor Yellow
     [xml]$p = Get-Content $projectFilePath
@@ -323,6 +357,11 @@ if (-not $SkipVersion) {
     git add $changelogPath
     git add $assemblyInfoPath
     git add $updaterAssemblyInfoPath
+    
+    # Include README.md in staging if AttachAssets was requested
+    if ($AttachAssets) {
+        git add "README.md"
+    }
 }
 
 # Create commit message with version info
