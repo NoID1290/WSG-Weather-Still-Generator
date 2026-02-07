@@ -1424,18 +1424,32 @@ namespace WeatherImageGenerator.Forms
 
         private void SetLogsCollapsed(bool collapsed)
         {
-            if (_tabControl == null || _toggleLogsBtn == null) return;
+            if (_tabControl == null || _toggleLogsBtn == null || _splitContainer == null) return;
             
             if (collapsed)
             {
-                // Completely hide the tab control (logs panel)
-                _tabControl.Visible = false;
+                // Save current splitter distance before collapsing
+                _savedSplitterDistance = _splitContainer.SplitterDistance;
+                
+                // Use the built-in Panel2Collapsed property — the correct way to hide a SplitterPanel
+                _splitContainer.Panel2Collapsed = true;
                 _toggleLogsBtn.Text = "▲ Logs";
             }
             else
             {
-                // Show the tab control
-                _tabControl.Visible = true;
+                // Restore Panel2 using the built-in property
+                _splitContainer.Panel2Collapsed = false;
+                
+                // Restore previous splitter position
+                if (_savedSplitterDistance > 0)
+                {
+                    _splitContainer.SplitterDistance = _savedSplitterDistance;
+                }
+                else
+                {
+                    // Default if no saved distance (35% for logs)
+                    _splitContainer.SplitterDistance = (int)(_splitContainer.Height * 0.35);
+                }
                 _toggleLogsBtn.Text = "▼ Logs";
             }
         }
