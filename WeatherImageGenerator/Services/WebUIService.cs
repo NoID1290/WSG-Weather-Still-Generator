@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -55,6 +56,42 @@ namespace WeatherImageGenerator.Services
         }
 
         /// <summary>
+        /// Attempts to register a URL ACL reservation so HttpListener can bind to all interfaces without admin rights.
+        /// Returns true if the reservation was added (or already existed).
+        /// </summary>
+        private bool TryRegisterUrlAcl(string prefix)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = $"http add urlacl url={prefix} user=Everyone",
+                    Verb = "runas",              // triggers UAC elevation
+                    UseShellExecute = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true
+                };
+
+                var process = Process.Start(psi);
+                if (process != null)
+                {
+                    process.WaitForExit(10000);
+                    if (process.ExitCode == 0)
+                    {
+                        Logger.Log($"URL reservation added for {prefix}", Logger.LogLevel.Info);
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Could not register URL ACL ({prefix}): {ex.Message}", Logger.LogLevel.Warning);
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Starts the web server with the configured port
         /// </summary>
         public void Start()
@@ -65,19 +102,59 @@ namespace WeatherImageGenerator.Services
 
                 if (AllowRemoteAccess)
                 {
-                    // Bind to all network interfaces (allows remote access)
-                    _httpListener.Prefixes.Add($"http://*:{Port}/");
+                    string prefix = $"http://*:{Port}/";
+                    _httpListener.Prefixes.Add(prefix);
+
+                    try
+                    {
+                        _httpListener.Start();
+                    }
+                    catch (HttpListenerException hlEx) when (hlEx.ErrorCode == 5) // ERROR_ACCESS_DENIED
+                    {
+                        Logger.Log($"Access denied binding to {prefix}. Attempting to register URL reservation...", Logger.LogLevel.Warning);
+
+                        // Try to register the URL ACL (will prompt UAC)
+                        if (TryRegisterUrlAcl(prefix))
+                        {
+                            // Retry with the same prefix
+                            _httpListener = new HttpListener();
+                            _httpListener.Prefixes.Add(prefix);
+                            try
+                            {
+                                _httpListener.Start();
+                            }
+                            catch (Exception retryEx)
+                            {
+                                Logger.Log($"Retry after URL ACL still failed: {retryEx.Message}. Falling back to localhost.", Logger.LogLevel.Warning);
+                                StartLocalhostFallback();
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            Logger.Log("URL reservation failed or was cancelled. Falling back to localhost.", Logger.LogLevel.Warning);
+                            StartLocalhostFallback();
+                            return;
+                        }
+                    }
+
+                    // Get network information
+                    string localIP = Utilities.NetworkHelper.GetLocalIPAddress();
+                    string publicIP = Utilities.NetworkHelper.GetPublicIPAddress();
+
                     Logger.Log($"Web UI server started on http://0.0.0.0:{Port} (remote access enabled)", Logger.LogLevel.Info);
+                    Logger.Log($"  Local IP Address:  {localIP}:{Port}", Logger.LogLevel.Info);
+                    Logger.Log($"  Public IP Address: {publicIP}:{Port}", Logger.LogLevel.Info);
                 }
                 else
                 {
                     // Use localhost only (doesn't require admin rights)
                     _httpListener.Prefixes.Add($"http://localhost:{Port}/");
                     _httpListener.Prefixes.Add($"http://127.0.0.1:{Port}/");
+                    _httpListener.Start();
                     Logger.Log($"Web UI server started on localhost:{Port} (local only)", Logger.LogLevel.Info);
                 }
 
-                _httpListener.Start();
                 IsRunning = true;
                 ServerStarted?.Invoke(this, EventArgs.Empty);
 
@@ -88,6 +165,30 @@ namespace WeatherImageGenerator.Services
             {
                 IsRunning = false;
                 Logger.Log($"Failed to start Web UI server: {ex.Message}", Logger.LogLevel.Error);
+                ServerError?.Invoke(this, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Fallback: start on localhost only when remote binding fails
+        /// </summary>
+        private void StartLocalhostFallback()
+        {
+            try
+            {
+                _httpListener = new HttpListener();
+                _httpListener.Prefixes.Add($"http://localhost:{Port}/");
+                _httpListener.Prefixes.Add($"http://127.0.0.1:{Port}/");
+                _httpListener.Start();
+                IsRunning = true;
+                ServerStarted?.Invoke(this, EventArgs.Empty);
+                _ = ListenForRequests();
+                Logger.Log($"Web UI server started on localhost:{Port} (fallback — remote access unavailable without elevated permissions)", Logger.LogLevel.Warning);
+            }
+            catch (Exception ex)
+            {
+                IsRunning = false;
+                Logger.Log($"Failed to start Web UI server even on localhost: {ex.Message}", Logger.LogLevel.Error);
                 ServerError?.Invoke(this, ex.Message);
             }
         }
@@ -106,10 +207,35 @@ namespace WeatherImageGenerator.Services
             try
             {
                 _httpListener = new HttpListener();
-                _httpListener.Prefixes.Add($"http://+:{Port}/");
-                _httpListener.Start();
+                string prefix = AllowRemoteAccess ? $"http://+:{Port}/" : $"http://localhost:{Port}/";
+                _httpListener.Prefixes.Add(prefix);
+
+                try
+                {
+                    _httpListener.Start();
+                }
+                catch (HttpListenerException hlEx) when (hlEx.ErrorCode == 5 && AllowRemoteAccess)
+                {
+                    Logger.Log($"Access denied binding to {prefix}. Attempting URL reservation...", Logger.LogLevel.Warning);
+
+                    if (TryRegisterUrlAcl(prefix))
+                    {
+                        _httpListener = new HttpListener();
+                        _httpListener.Prefixes.Add(prefix);
+                        _httpListener.Start();
+                    }
+                    else
+                    {
+                        Logger.Log("Falling back to localhost for async start.", Logger.LogLevel.Warning);
+                        _httpListener = new HttpListener();
+                        _httpListener.Prefixes.Add($"http://localhost:{Port}/");
+                        _httpListener.Prefixes.Add($"http://127.0.0.1:{Port}/");
+                        _httpListener.Start();
+                    }
+                }
+
                 IsRunning = true;
-                Logger.Log($"Web UI server started on http://0.0.0.0:{Port}", Logger.LogLevel.Info);
+                Logger.Log($"Web UI server started on {_httpListener.Prefixes.FirstOrDefault() ?? "unknown"}", Logger.LogLevel.Info);
                 ServerStarted?.Invoke(this, EventArgs.Empty);
 
                 // Start listening for requests

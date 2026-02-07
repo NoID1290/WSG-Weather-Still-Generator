@@ -109,6 +109,8 @@ namespace WeatherImageGenerator.Forms
         Label lblWebUIStatus;
         Button btnTestWebUI;
         TextBox txtWebUIUrl;
+        Label lblLocalIP;
+        Label lblPublicIP;
         CheckBox chkMapUseDarkMode;
         CheckBox chkSkipDetailedWeatherOnAlert;
         NumericUpDown numPlayRadarAnimationCountOnAlert;
@@ -1320,7 +1322,36 @@ namespace WeatherImageGenerator.Forms
             txtWebUIUrl = CreateTextBox(fieldX, y - 2, 350);
             txtWebUIUrl.ReadOnly = true;
             txtWebUIUrl.BackColor = Color.FromArgb(248, 249, 250);
-            y += rowHeight + 5;
+            y += rowHeight;
+
+            // IP Address Information (shown when AllowRemoteAccess is checked)
+            lblLocalIP = new Label
+            {
+                Left = labelX,
+                Top = y,
+                Width = 520,
+                Height = 25,
+                Font = LabelFont,
+                ForeColor = AccentColor,
+                Text = "Local IP: Checking...",
+                AutoSize = false,
+                Visible = false
+            };
+            y += 28;
+
+            lblPublicIP = new Label
+            {
+                Left = labelX,
+                Top = y,
+                Width = 520,
+                Height = 25,
+                Font = LabelFont,
+                ForeColor = AccentColor,
+                Text = "Public IP: Checking...",
+                AutoSize = false,
+                Visible = false
+            };
+            y += rowHeight;
 
             lblWebUIStatus = new Label
             {
@@ -1367,13 +1398,28 @@ namespace WeatherImageGenerator.Forms
 
             // Event handlers
             chkWebUIEnabled.CheckedChanged += (s, e) => { if (!_isLoadingSettings) OnWebUIEnabledChanged(); };
-            numWebUIPort.ValueChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
-            chkWebUIAllowRemote.CheckedChanged += (s, e) => { if (!_isLoadingSettings) UpdateWebUIUrl(); };
+            numWebUIPort.ValueChanged += (s, e) => {
+                if (!_isLoadingSettings)
+                {
+                    UpdateWebUIUrl();
+                    if (chkWebUIAllowRemote.Checked)
+                    {
+                        UpdateIPAddressDisplay();
+                    }
+                }
+            };
+            chkWebUIAllowRemote.CheckedChanged += (s, e) => {
+                if (!_isLoadingSettings)
+                {
+                    UpdateWebUIUrl();
+                    UpdateIPAddressDisplay();
+                }
+            };
 
             tab.Controls.AddRange(new Control[] {
                 lblHeader, lblDesc, chkWebUIEnabled, divider1,
                 lblConfig, lblPort, numWebUIPort, lblPortHelp,
-                chkWebUIAllowRemote, lblUrl, txtWebUIUrl, lblWebUIStatus,
+                chkWebUIAllowRemote, lblUrl, txtWebUIUrl, lblLocalIP, lblPublicIP, lblWebUIStatus,
                 btnTestWebUI, btnOpenInBrowser, divider2,
                 lblSecurityHeader, lblSecurityNote
             });
@@ -1961,6 +2007,7 @@ namespace WeatherImageGenerator.Forms
                 chkWebUIAllowRemote.Checked = webUI.AllowRemoteAccess;
                 UpdateWebUIUrl();
                 UpdateWebUIStatus();
+                UpdateIPAddressDisplay();
 
                 // Async validations
                 Task.Run(() =>
@@ -2426,6 +2473,40 @@ namespace WeatherImageGenerator.Forms
             catch
             {
                 txtWebUIUrl.Text = "http://localhost:5000";
+            }
+        }
+
+        private void UpdateIPAddressDisplay()
+        {
+            if (chkWebUIAllowRemote.Checked)
+            {
+                lblLocalIP.Visible = true;
+                lblPublicIP.Visible = true;
+
+                // Update IP addresses asynchronously
+                Task.Run(async () =>
+                {
+                    string localIP = Utilities.NetworkHelper.GetLocalIPAddress();
+                    string publicIP = await Utilities.NetworkHelper.GetPublicIPAddressAsync();
+                    int port = 0;
+
+                    if (this.IsHandleCreated)
+                    {
+                        this.Invoke((Action)(() =>
+                        {
+                            port = (int)numWebUIPort.Value;
+                            lblLocalIP.Text = $"🌐 Local IP Address: {localIP}:{port}";
+                            lblPublicIP.Text = $"🌍 Public IP Address: {publicIP}:{port}";
+                            lblLocalIP.ForeColor = localIP == "Unable to determine" ? DangerColor : AccentColor;
+                            lblPublicIP.ForeColor = publicIP == "Unable to determine" ? DangerColor : AccentColor;
+                        }));
+                    }
+                });
+            }
+            else
+            {
+                lblLocalIP.Visible = false;
+                lblPublicIP.Visible = false;
             }
         }
 
