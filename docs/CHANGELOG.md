@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.16.0207] - 2026-02-07
+
+- Enhance WebUIService and BootChecks: implement WebUINetworkAccessCheck for remote access validation and streamline URL ACL and firewall rule registration
+- Enhance WebUIService and SettingsForm: add IP address display for remote access and implement URL ACL registration for HttpListener
+- Enhance WebUIService: add AllowRemoteAccess property and update Web UI initialization for remote access support
+
 ## [1.8.15.0206] - 2026-02-06
 
 - Update project files and add AssemblyInfo for WSG.Updater: set version to 1.8.14.0206, include copyright, and adjust appsettings.json handling in publish
