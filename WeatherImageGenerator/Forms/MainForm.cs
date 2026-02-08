@@ -16,6 +16,7 @@ using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Forms;
 
 using EAS;
+using EAS.AlertReady;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -2453,11 +2454,11 @@ namespace WeatherImageGenerator.Forms
                     string language = cfg.AlertReady?.PreferredLanguage ?? "fr-CA";
 
                     // Generate test alert XML
-                    string testAlertXml = EAS.TestAlertGenerator.GenerateAmberAlert(language);
+                    string testAlertXml = TestAlertGenerator.GenerateAmberAlert(language);
 
                     // Parse the alert - use 'using' to properly dispose HttpClient
                     using var httpClient = new System.Net.Http.HttpClient();
-                    var options = new EAS.AlertReadyOptions
+                    var options = new AlertReadyOptions
                     {
                         Enabled = true,
                         ExcludeWeatherAlerts = true,
@@ -2466,7 +2467,7 @@ namespace WeatherImageGenerator.Forms
                         HighRiskOnly = false
                     };
 
-                    var client = new EAS.AlertReadyClient(httpClient, options);
+                    var client = new AlertReadyClient(httpClient, options);
                     client.Log = (msg) => Logger.Log($"[AlertReady] {msg}", Logger.LogLevel.Debug);
 
                     // Use reflection to call the private ParseAlerts method

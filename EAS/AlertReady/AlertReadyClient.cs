@@ -13,134 +13,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using WeatherImageGenerator.Models;
+using EAS;
 
-namespace EAS
+namespace EAS.AlertReady
 {
-    /// <summary>
-    /// Connection status for NAAD TCP streams
-    /// </summary>
-    public enum NaadConnectionStatus
-    {
-        Disconnected,
-        Connecting,
-        Connected
-    }
-
-    /// <summary>
-    /// Event args for heartbeat received
-    /// </summary>
-    public class HeartbeatEventArgs : EventArgs
-    {
-        public DateTime Timestamp { get; set; }
-        public int ReferencedAlertCount { get; set; }
-    }
-
-    /// <summary>
-    /// Event args for connection status changes
-    /// </summary>
-    public class ConnectionStatusEventArgs : EventArgs
-    {
-        public NaadConnectionStatus Status { get; set; }
-        public string? Host { get; set; }
-        public int Port { get; set; }
-        public string? Message { get; set; }
-    }
-
-    /// <summary>
-    /// Event args for alert received from stream
-    /// </summary>
-    public class AlertReceivedEventArgs : EventArgs
-    {
-        public AlertEntry? Alert { get; set; }
-        public int TotalActiveAlerts { get; set; }
-    }
-
-    /// <summary>
-    /// Settings for the Alert Ready (NAAD) CAP-CP feeds.
-    /// </summary>
-    public class AlertReadyOptions
-    {
-        [JsonPropertyName("Enabled")]
-        public bool Enabled { get; set; } = true;
-
-        /// <summary>List of CAP-CP feed URLs (Atom or raw CAP documents)</summary>
-        [JsonPropertyName("FeedUrls")]
-        public List<string>? FeedUrls { get; set; }
-
-        [JsonPropertyName("IncludeTests")]
-        public bool IncludeTests { get; set; } = false;
-
-        /// <summary>Ignore alerts older than this many hours (0 disables filtering)</summary>
-        [JsonPropertyName("MaxAgeHours")]
-        public int MaxAgeHours { get; set; } = 24;
-
-        /// <summary>Preferred CAP language code (e.g., en-CA, fr-CA)</summary>
-        [JsonPropertyName("PreferredLanguage")]
-        public string PreferredLanguage { get; set; } = "en-CA";
-
-        /// <summary>Optional list of area names to keep (case-insensitive substring match)</summary>
-        [JsonPropertyName("AreaFilters")]
-        public List<string>? AreaFilters { get; set; }
-
-        /// <summary>Jurisdictions to include (e.g., ["QC", "CA"]). Matches areaDesc/geocode/sender.</summary>
-        [JsonPropertyName("Jurisdictions")]
-        public List<string>? Jurisdictions { get; set; } = new List<string> { "QC", "CA" };
-
-        /// <summary>If true, keep only high-risk alerts (Severe/Extreme).</summary>
-        [JsonPropertyName("HighRiskOnly")]
-        public bool HighRiskOnly { get; set; } = true;
-
-        /// <summary>If true, exclude weather/meteorological alerts (handled by ECCC).</summary>
-        [JsonPropertyName("ExcludeWeatherAlerts")]
-        public bool ExcludeWeatherAlerts { get; set; } = true;
-
-        /// <summary>TCP reconnection delay in seconds (default: 30)</summary>
-        [JsonPropertyName("ReconnectDelaySeconds")]
-        public int ReconnectDelaySeconds { get; set; } = 30;
-
-        /// <summary>HTTP request timeout in seconds (default: 30)</summary>
-        [JsonPropertyName("HttpTimeoutSeconds")]
-        public int HttpTimeoutSeconds { get; set; } = 30;
-
-        /// <summary>Maximum number of seen identifiers to cache (prevents memory bloat)</summary>
-        [JsonPropertyName("MaxCachedIdentifiers")]
-        public int MaxCachedIdentifiers { get; set; } = 10000;
-
-        /// <summary>Enable automatic generation of alert tone for broadcast-immediate alerts</summary>
-        [JsonPropertyName("GenerateAlertTone")]
-        public bool GenerateAlertTone { get; set; } = true;
-
-        /// <summary>
-        /// Gets the default NAAD TCP stream URLs for Alert Ready Canada.
-        /// Primary and backup servers for redundancy.
-        /// </summary>
-        public static List<string> GetDefaultNaadUrls()
-        {
-            return new List<string>
-            {
-                "tcp://streaming1.naad-adna.pelmorex.com:8080",
-                "tcp://streaming2.naad-adna.pelmorex.com:8080"
-            };
-        }
-
-        /// <summary>
-        /// Gets the default HTTP API URLs for Alert Ready Canada historical/current alerts.
-        /// </summary>
-        public static List<string> GetDefaultHttpUrls()
-        {
-            return new List<string>
-            {
-                "http://capcp1.naad-adna.pelmorex.com",
-                "http://capcp2.naad-adna.pelmorex.com"
-            };
-        }
-    }
-
     /// <summary>
     /// Lightweight CAP-CP client for Alert Ready / NAAD public feeds.
     /// Produces the shared AlertEntry model for reuse in the UI.
+    /// Implements <see cref="IAlertProvider"/> for provider-agnostic alert handling.
     /// </summary>
-    public class AlertReadyClient
+    public class AlertReadyClient : IAlertProvider
     {
         private readonly HttpClient _httpClient;
         private readonly AlertReadyOptions _options;
@@ -515,7 +397,7 @@ namespace EAS
                 return;
             }
             _streamsStarted = true;
-            
+
             if (!_options.Enabled)
             {
                 LogMessage("NAAD streaming disabled in options.");
@@ -592,7 +474,7 @@ namespace EAS
                             await Task.Delay(100, cancellationToken);
                         }
                     }
-                    
+
                     LogMessage($"Connection closed by {host}:{port}");
                     OnConnectionStatusChanged(NaadConnectionStatus.Disconnected, host, port, "Connection closed");
                 }
@@ -766,7 +648,7 @@ namespace EAS
             {
                 // Parse sent date to get folder path: 2026-01-15T23:43:26-00:00 -> 2026-01-15
                 var sentDate = sent.Split('T')[0];
-                var filename = $"{sent.Replace("-", "_").Replace("+", "p").Replace(":", "_")}I{identifier.Replace("-", "_").Replace("+", "p").Replace(":", "_")}.xml";
+                var filename = $"{sent.Replace("-", "_").Replace("+", "p").Replace(":" , "_")}I{identifier.Replace("-", "_").Replace("+", "p").Replace(":" , "_")}.xml";
 
                 var urls = new[]
                 {
@@ -797,9 +679,6 @@ namespace EAS
             }
         }
 
-        /// <summary>
-        /// Gets connection health statistics for monitoring.
-        /// </summary>
         public ConnectionHealthStats GetConnectionHealth()
         {
             var timeSinceLastHeartbeat = _lastHeartbeat != DateTimeOffset.MinValue
@@ -819,9 +698,6 @@ namespace EAS
             };
         }
 
-        /// <summary>
-        /// Clears the seen identifiers cache (useful if you want to reprocess alerts).
-        /// </summary>
         public void ClearSeenIdentifiers()
         {
             lock (_lockObj)
@@ -831,9 +707,6 @@ namespace EAS
             LogMessage("Cleared seen identifiers cache.");
         }
 
-        /// <summary>
-        /// Gets all queued alerts without clearing the queue.
-        /// </summary>
         public IReadOnlyList<AlertEntry> PeekAlerts()
         {
             return _streamAlerts.ToArray();
@@ -844,29 +717,6 @@ namespace EAS
             _streamCts.Cancel();
             Task.WaitAll(_streamTasks.ToArray(), TimeSpan.FromSeconds(5));
             _streamCts.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// Connection health statistics for monitoring the NAAD stream.
-    /// </summary>
-    public class ConnectionHealthStats
-    {
-        public NaadConnectionStatus Status { get; set; }
-        public DateTimeOffset? LastHeartbeat { get; set; }
-        public TimeSpan TimeSinceLastHeartbeat { get; set; }
-        public bool IsHealthy { get; set; }
-        public int ActiveAlertCount { get; set; }
-        public int CachedIdentifierCount { get; set; }
-        public int StreamTasksRunning { get; set; }
-
-        public override string ToString()
-        {
-            var heartbeatStr = LastHeartbeat.HasValue 
-                ? $"{TimeSinceLastHeartbeat.TotalSeconds:F1}s ago" 
-                : "Never";
-            return $"Status: {Status}, Healthy: {IsHealthy}, Heartbeat: {heartbeatStr}, " +
-                   $"Alerts: {ActiveAlertCount}, Cached IDs: {CachedIdentifierCount}, Streams: {StreamTasksRunning}";
         }
     }
 }

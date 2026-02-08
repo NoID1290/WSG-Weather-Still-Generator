@@ -1,8 +1,9 @@
 #nullable enable
 using System;
 using System.IO;
+using EAS;
 
-namespace EAS
+namespace EAS.AlertReady
 {
     /// <summary>
     /// Generates the official Canadian Alerting Attention Signal (Alert Ready tone).
@@ -32,7 +33,7 @@ namespace EAS
         private const int BITS_PER_SAMPLE = 16;      // 16-bit audio
         private const int NUM_CHANNELS = 1;          // Mono
         private const double TONE_DURATION = 0.5;    // 500ms per tone
-        private const int NUM_ALTERNATIONS = 16;     // 16 alternations × 0.5s = 8 seconds total
+        private const int NUM_ALTERNATIONS = 16;     // 16 alternations x 0.5s = 8 seconds total
         private const double AMPLITUDE = 0.7;        // 70% max amplitude to prevent clipping
 
         /// <summary>
@@ -293,11 +294,6 @@ namespace EAS
         /// <summary>
         /// Creates a complete emergency alert audio file with alert tone, TTS speech, and optional trailing tone.
         /// </summary>
-        /// <param name="text">Text to synthesize</param>
-        /// <param name="outputPath">Output file path</param>
-        /// <param name="language">Language code (en-CA or fr-CA)</param>
-        /// <param name="addTrailingTone">Whether to add a second alert tone at the end</param>
-        /// <returns>True if successful</returns>
         public static async System.Threading.Tasks.Task<bool> CreateCompleteAlertAudioAsync(
             string text, 
             string outputPath, 
@@ -384,7 +380,6 @@ namespace EAS
                 }
 
                 // Build FFmpeg command using filter_complex concat filter
-                // This properly decodes each input (regardless of format) and concatenates the decoded audio
                 var args = new System.Text.StringBuilder();
                 args.Append("-y ");
 
@@ -443,7 +438,7 @@ namespace EAS
                 {
                     Console.WriteLine($"[AlertToneGenerator] FFmpeg filter_complex concat failed (exit code {process.ExitCode}): {errorOutput?.Substring(0, Math.Min(500, errorOutput?.Length ?? 0))}");
                     
-                    // Fallback: try concat demuxer as backup (works when formats are the same)
+                    // Fallback: try concat demuxer as backup
                     Console.WriteLine("[AlertToneGenerator] Falling back to concat demuxer...");
                     return TryConcatenateDemuxer(validPaths.ToArray(), outputPath);
                 }

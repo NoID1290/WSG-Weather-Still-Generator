@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using OpenMeteo; // NuGet: OpenMeteo
 using EAS;
+using EAS.AlertReady;
 using WeatherImageGenerator.Utilities;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Forms;

@@ -7,6 +7,7 @@ using System.Text.Json;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Utilities;
 using EAS;
+using EAS.AlertReady;
 
 namespace WeatherImageGenerator.Services
 {

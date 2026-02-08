@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EAS;
+using EAS.AlertReady;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Services;
 

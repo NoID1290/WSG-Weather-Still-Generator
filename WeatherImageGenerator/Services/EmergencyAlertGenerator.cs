@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using EAS;
+using EAS.AlertReady;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Utilities;
 

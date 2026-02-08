@@ -4,6 +4,7 @@
 using System;
 using System.IO;
 using EAS;
+using EAS.AlertReady;
 
 namespace WeatherImageGenerator
 {

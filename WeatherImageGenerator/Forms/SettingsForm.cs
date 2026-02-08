@@ -1943,7 +1943,7 @@ namespace WeatherImageGenerator.Forms
                 btnBrowseFfmpegPath.Enabled = cmbFfmpegSource.SelectedIndex == 2;
 
                 // EAS Tab
-                var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
+                var alertReady = cfg.AlertReady ?? new EAS.AlertReady.AlertReadyOptions();
                 chkAlertReadyEnabled.Checked = alertReady.Enabled;
                 txtAlertReadyFeedUrls.Text = alertReady.FeedUrls != null ? string.Join(Environment.NewLine, alertReady.FeedUrls) : "";
                 chkAlertReadyIncludeTests.Checked = alertReady.IncludeTests;
@@ -2090,7 +2090,7 @@ namespace WeatherImageGenerator.Forms
                 eccc.EnableProvinceRadar = chkEnableProvinceRadar.Checked;
                 cfg.ECCC = eccc;
 
-                var alertReady = cfg.AlertReady ?? new EAS.AlertReadyOptions();
+                var alertReady = cfg.AlertReady ?? new EAS.AlertReady.AlertReadyOptions();
                 alertReady.Enabled = chkAlertReadyEnabled.Checked;
                 alertReady.FeedUrls = txtAlertReadyFeedUrls.Text
                     .Split(new[] { Environment.NewLine, "\n" }, StringSplitOptions.RemoveEmptyEntries)

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace EAS
+namespace EAS.AlertReady
 {
     /// <summary>
     /// Generates fake CAP-CP alerts for testing NAAD/Alert Ready integration
