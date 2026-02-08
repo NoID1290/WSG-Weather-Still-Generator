@@ -538,9 +538,11 @@ namespace ECCC.Services
                 "16" or "17" => 67,  // Freezing Rain
                 "18" or "19" => 71,  // Snow
                 "20" or "21" => 73,  // Light Snow / Flurries
-                "22" or "23" => 75,  // Heavy Snow
-                "24" or "25" => 79,  // Ice Pellets
-                "26" or "27" => 95,  // Thunderstorms
+                "22" or "23" => 75,  // Heavy Snow / Blizzard
+                "24" => 66,          // Freezing Rain & Ice Pellets
+                "25" => 77,          // Drifting Snow
+                "26" => 77,          // Ice Crystals
+                "27" => 96,          // Hail
                 "28" => 80,          // Showers
                 "30" or "31" or "32" or "33" => 0,  // Night clear variants
                 "34" or "35" or "36" or "37" or "38" => 2, // Night cloudy variants
@@ -904,9 +906,12 @@ namespace ECCC.Services
             if (lower.Contains("snow") || lower.Contains("neige")) return 71;
             if (lower.Contains("flurries") || lower.Contains("averses de neige")) return 73;
             if (lower.Contains("freezing rain") || lower.Contains("pluie verglaçante")) return 67;
-            if (lower.Contains("ice pellets") || lower.Contains("grésil")) return 79;
+            if (lower.Contains("ice pellets") || lower.Contains("grésil")) return 77;
             if (lower.Contains("heavy rain") || lower.Contains("forte pluie")) return 65;
             if (lower.Contains("rain") || lower.Contains("pluie")) return 61;
+            if (lower.Contains("drifting snow") || lower.Contains("poudrerie")) return 77;
+            if (lower.Contains("blowing snow") || lower.Contains("neige soufflée")) return 77;
+            if (lower.Contains("blizzard")) return 75;
             if (lower.Contains("drizzle") || lower.Contains("bruine")) return 51;
             if (lower.Contains("showers") || lower.Contains("averses")) return 80;
             if (lower.Contains("fog") || lower.Contains("brouillard")) return 45;

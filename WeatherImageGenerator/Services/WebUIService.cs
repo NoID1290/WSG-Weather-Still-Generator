@@ -797,7 +797,7 @@ namespace WeatherImageGenerator.Services
                 95 => "Thunderstorm",
                 96 => "Thunderstorm with light hail",
                 99 => "Thunderstorm with heavy hail",
-                _ => "Unknown"
+                _ => $"Weather code {weatherCode}"
             };
         }
 

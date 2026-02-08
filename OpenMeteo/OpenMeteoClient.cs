@@ -280,7 +280,7 @@ namespace OpenMeteo
                 case 99:
                     return "Thunderstorm with heavy hail";
                 default:
-                    return "Invalid weathercode";
+                    return $"Weather code {weathercode}";
             }
         }
 
