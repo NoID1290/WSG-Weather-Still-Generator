@@ -78,6 +78,7 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkAutoStartCycle;
         CheckBox chkStartWithWindows;
         CheckBox chkStartMinimizedToTray;
+        ComboBox cmbDefaultWeatherApi;
         Label lblHwStatus;
         Button btnCheckHw;
         CheckBox chkAlertReadyEnabled;
@@ -433,6 +434,13 @@ namespace WeatherImageGenerator.Forms
             cmbTheme.SelectedIndex = 0;
             y += rowHeight;
 
+            var lblDefaultApi = CreateLabel("Weather API:", labelX, y);
+            cmbDefaultWeatherApi = CreateComboBox(fieldX, y - 2, 180);
+            cmbDefaultWeatherApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC", "Hybrid" });
+            cmbDefaultWeatherApi.SelectedIndex = 0;
+            var lblDefaultApiHelp = CreateHelpLabel("Default API for all locations", fieldX + 190, y + 2, 220);
+            y += rowHeight;
+
             // Divider
             var divider1 = CreateDivider(labelX, y + 5, 700);
             y += 25;
@@ -484,7 +492,9 @@ namespace WeatherImageGenerator.Forms
 
             tab.Controls.AddRange(new Control[] {
                 lblAppSettings, lblRefresh, numRefresh, lblRefreshUnit,
-                lblTheme, cmbTheme, divider1,
+                lblTheme, cmbTheme,
+                lblDefaultApi, cmbDefaultWeatherApi, lblDefaultApiHelp,
+                divider1,
                 lblOutputDirs, lblOutImg, txtImageOutputDir, btnBrowseImg,
                 lblOutVid, txtVideoOutputDir, btnBrowseVid, divider2,
                 lblTraySettings, chkMinimizeToTray, chkMinimizeToTrayOnClose,
@@ -1786,6 +1796,14 @@ namespace WeatherImageGenerator.Forms
                 if (cmbTheme.Items.Contains(theme)) cmbTheme.SelectedItem = theme;
                 else cmbTheme.SelectedItem = "Blue";
 
+                // Default Weather API
+                cmbDefaultWeatherApi.SelectedIndex = cfg.DefaultWeatherApi switch
+                {
+                    Models.WeatherApiType.ECCC => 1,
+                    Models.WeatherApiType.Hybrid => 2,
+                    _ => 0  // OpenMeteo
+                };
+
                 chkMinimizeToTray.Checked = cfg.MinimizeToTray;
                 chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose;
                 chkAutoStartCycle.Checked = cfg.AutoStartCycle;
@@ -2194,6 +2212,12 @@ namespace WeatherImageGenerator.Forms
 
                 cfg.Video = v;
                 cfg.Theme = cmbTheme.SelectedItem?.ToString() ?? "Blue";
+                cfg.DefaultWeatherApi = cmbDefaultWeatherApi.SelectedIndex switch
+                {
+                    1 => Models.WeatherApiType.ECCC,
+                    2 => Models.WeatherApiType.Hybrid,
+                    _ => Models.WeatherApiType.OpenMeteo
+                };
                 cfg.MinimizeToTray = chkMinimizeToTray.Checked;
                 cfg.MinimizeToTrayOnClose = chkMinimizeToTrayOnClose.Checked;
                 cfg.AutoStartCycle = chkAutoStartCycle.Checked;

@@ -108,6 +108,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("Locations")]
         public LocationSettings? Locations { get; set; }
 
+        [JsonPropertyName("DefaultWeatherApi")]
+        public Models.WeatherApiType DefaultWeatherApi { get; set; } = Models.WeatherApiType.OpenMeteo;
+
         [JsonPropertyName("RefreshTimeMinutes")]
         public int RefreshTimeMinutes { get; set; } = 10;
 

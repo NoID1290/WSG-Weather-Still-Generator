@@ -134,7 +134,7 @@ namespace WeatherImageGenerator.Forms
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9F)
             };
-            cmbWeatherApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC" });
+            cmbWeatherApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC", "Hybrid" });
             cmbWeatherApi.SelectedIndex = 0; // Default to OpenMeteo
 
             // Search button
@@ -310,7 +310,12 @@ namespace WeatherImageGenerator.Forms
             for (int i = 0; i < _locations.Count; i++)
             {
                 var entry = _locations[i];
-                string apiLabel = entry.Api == WeatherApiType.ECCC ? "[ECCC]" : "[OpenMeteo]";
+                string apiLabel = entry.Api switch
+                {
+                    WeatherApiType.ECCC => "[ECCC]",
+                    WeatherApiType.Hybrid => "[Hybrid]",
+                    _ => "[OpenMeteo]"
+                };
                 lstLocations.Items.Add($"{i + 1}. {entry.Name} {apiLabel}");
             }
             
@@ -426,9 +431,12 @@ namespace WeatherImageGenerator.Forms
             }
 
             // Get selected API from combo box
-            WeatherApiType selectedApi = cmbWeatherApi.SelectedIndex == 1 
-                ? WeatherApiType.ECCC 
-                : WeatherApiType.OpenMeteo;
+            WeatherApiType selectedApi = cmbWeatherApi.SelectedIndex switch
+            {
+                1 => WeatherApiType.ECCC,
+                2 => WeatherApiType.Hybrid,
+                _ => WeatherApiType.OpenMeteo
+            };
 
             _locations.Add(new LocationEntry(locationName, selectedApi));
             RefreshLocationList();
@@ -630,8 +638,13 @@ namespace WeatherImageGenerator.Forms
                     Width = 150,
                     DropDownStyle = ComboBoxStyle.DropDownList
                 };
-                cmbApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC" });
-                cmbApi.SelectedIndex = defaultApi == WeatherApiType.ECCC ? 1 : 0;
+                cmbApi.Items.AddRange(new object[] { "OpenMeteo", "ECCC", "Hybrid" });
+                cmbApi.SelectedIndex = defaultApi switch
+                {
+                    WeatherApiType.ECCC => 1,
+                    WeatherApiType.Hybrid => 2,
+                    _ => 0
+                };
 
                 var btnOk = new Button
                 {
@@ -657,9 +670,12 @@ namespace WeatherImageGenerator.Forms
 
                 if (promptForm.ShowDialog() == DialogResult.OK)
                 {
-                    WeatherApiType selectedApi = cmbApi.SelectedIndex == 1 
-                        ? WeatherApiType.ECCC 
-                        : WeatherApiType.OpenMeteo;
+                    WeatherApiType selectedApi = cmbApi.SelectedIndex switch
+                    {
+                        1 => WeatherApiType.ECCC,
+                        2 => WeatherApiType.Hybrid,
+                        _ => WeatherApiType.OpenMeteo
+                    };
                     return (txtInput.Text.Trim(), selectedApi);
                 }
                 return null;

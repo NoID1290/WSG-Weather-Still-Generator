@@ -15,6 +15,11 @@ namespace WeatherImageGenerator.Models
         /// <summary>
         /// Environment and Climate Change Canada (ECCC) weather service
         /// </summary>
-        ECCC = 1
+        ECCC = 1,
+
+        /// <summary>
+        /// Hybrid mode: fetches from both ECCC and OpenMeteo, merges the best data from each
+        /// </summary>
+        Hybrid = 2
     }
 }

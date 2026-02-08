@@ -238,7 +238,12 @@ namespace WeatherImageGenerator
             OpenMeteoClient openMeteoClient,
             HttpClient httpClient)
         {
-            string preferredApi = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+            string preferredApi = api switch
+            {
+                WeatherApiType.ECCC => "ECCC",
+                WeatherApiType.Hybrid => "Hybrid",
+                _ => "OpenMeteo"
+            };
             Logger.Log($"[{preferredApi}] Fetching weather for {locationName}...");
 
             switch (api)
@@ -303,6 +308,43 @@ namespace WeatherImageGenerator
                     }
                     
                     Logger.Log($"✗ Failed to fetch weather for {locationName} from any source");
+                    return (null, "None");
+
+                case WeatherApiType.Hybrid:
+                    // Hybrid mode: always fetch both ECCC and OpenMeteo, merge the best data
+                    ECCC.ECCCApi.Log = (msg) => Logger.Log(msg);
+                    
+                    var hybridEcccTask = ECCC.ECCCApi.GetWeatherAsync(httpClient, locationName);
+                    var hybridOmTask = openMeteoClient.QueryAsync(locationName);
+                    
+                    await Task.WhenAll(hybridEcccTask, hybridOmTask);
+                    
+                    var hybridEccc = hybridEcccTask.Result;
+                    var hybridOm = hybridOmTask.Result;
+                    
+                    // If both succeeded, merge them
+                    if (hybridEccc?.Current != null && hybridOm != null)
+                    {
+                        var merged = ECCC.Services.OpenMeteoConverter.MergeWithOpenMeteo(hybridEccc, hybridOm);
+                        Logger.Log($"✓ [Hybrid] Merged ECCC + OpenMeteo data for {locationName}");
+                        return (merged, "Hybrid (ECCC+OpenMeteo)");
+                    }
+                    
+                    // If only ECCC succeeded
+                    if (hybridEccc?.Current != null)
+                    {
+                        Logger.Log($"✓ [Hybrid] Using ECCC-only data for {locationName} (OpenMeteo unavailable)");
+                        return (hybridEccc, "ECCC (hybrid-fallback)");
+                    }
+                    
+                    // If only OpenMeteo succeeded
+                    if (hybridOm != null)
+                    {
+                        Logger.Log($"✓ [Hybrid] Using OpenMeteo-only data for {locationName} (ECCC unavailable)");
+                        return (hybridOm, "OpenMeteo (hybrid-fallback)");
+                    }
+                    
+                    Logger.Log($"✗ [Hybrid] Failed to fetch weather for {locationName} from any source");
                     return (null, "None");
 
                 case WeatherApiType.OpenMeteo:
@@ -567,7 +609,8 @@ namespace WeatherImageGenerator
             {
                 string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
-                Logger.Log($"Fetching weather data (Fetch Only)...");
+                var globalApi = config.DefaultWeatherApi;
+                Logger.Log($"Fetching weather data (Fetch Only) using {globalApi} API...");
                 ProgressUpdated?.Invoke(0, "Starting fetch only...");
 
                 WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
@@ -579,8 +622,8 @@ namespace WeatherImageGenerator
                     string? loc = locations[i];
                     if (string.IsNullOrWhiteSpace(loc)) continue;
 
-                    var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
-                    string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+                    var api = globalApi;
+                    string apiName = api switch { WeatherApiType.ECCC => "ECCC", WeatherApiType.Hybrid => "Hybrid", _ => "OpenMeteo" };
 
                     try 
                     {
@@ -634,7 +677,8 @@ namespace WeatherImageGenerator
             {
                 string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
-                Logger.Log($"Fetching weather data (Stills Only)...");
+                var globalApi = config.DefaultWeatherApi;
+                Logger.Log($"Fetching weather data (Stills Only) using {globalApi} API...");
                 ProgressUpdated?.Invoke(0, "Starting stills generation...");
 
                 WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
@@ -647,8 +691,8 @@ namespace WeatherImageGenerator
                     string? loc = locations[i];
                     if (string.IsNullOrWhiteSpace(loc)) continue;
 
-                    var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
-                    string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+                    var api = globalApi;
+                    string apiName = api switch { WeatherApiType.ECCC => "ECCC", WeatherApiType.Hybrid => "Hybrid", _ => "OpenMeteo" };
 
                     try 
                     {
@@ -807,6 +851,7 @@ namespace WeatherImageGenerator
                 // Load locations into an array for easier handling
                 string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
+                var globalApi = config.DefaultWeatherApi;
 
                 // Infinite loop to keep the program running
                 while (!cancellationToken.IsCancellationRequested)
@@ -816,7 +861,7 @@ namespace WeatherImageGenerator
                         Logger.Log($"\n--- Starting Update Cycle: {DateTime.Now} ---");
                         // Notify GUI we are at the beginning of the cycle
                         ProgressUpdated?.Invoke(0, "Starting update cycle");
-                        Logger.Log($"Fetching weather data...");
+                        Logger.Log($"Fetching weather data using {globalApi} API...");
                         
                         // Array to store results for all locations
                         WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
@@ -827,8 +872,8 @@ namespace WeatherImageGenerator
                             string? loc = locations[i];
                             if (string.IsNullOrWhiteSpace(loc)) continue;
 
-                            var api = i < apiPreferences.Length ? apiPreferences[i] : WeatherApiType.OpenMeteo;
-                            string apiName = api == WeatherApiType.ECCC ? "ECCC" : "OpenMeteo";
+                            var api = globalApi;
+                            string apiName = api switch { WeatherApiType.ECCC => "ECCC", WeatherApiType.Hybrid => "Hybrid", _ => "OpenMeteo" };
 
                             try 
                             {
