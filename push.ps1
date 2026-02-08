@@ -138,7 +138,7 @@ function Update-ReadmeVersionBadge {
     param (
         [string]$Version
     )
-    
+
     # Extract the simplified version (a.b.c without the MMDD date part)
     $versionParts = $Version -split '\.'
     if ($versionParts.Count -ge 3) {
@@ -146,18 +146,23 @@ function Update-ReadmeVersionBadge {
     } else {
         $simplifiedVersion = $Version
     }
-    
+
     $readmePath = "README.md"
     if (Test-Path $readmePath) {
         Write-Host "[README] Updating version badge to $simplifiedVersion" -ForegroundColor Cyan
-        
-        $readmeContent = Get-Content $readmePath -Raw
-        
-        # Update the version badge: look for badge with version-X.X.X-blue pattern
-        $readmeContent = $readmeContent -replace '(\[\!\[Version\]\(https://img\.shields\.io/badge/version-)\d+\.\d+\.\d+(-blue)', "`$1$simplifiedVersion`$2"
-        
-        Set-Content $readmePath $readmeContent -Encoding UTF8
-        Write-Host "[SUCCESS] README.md version badge updated to $simplifiedVersion" -ForegroundColor Green
+
+        # Read the README using explicit UTF8 encoding to avoid mojibake issues
+        $readmeContent = Get-Content $readmePath -Raw -Encoding UTF8
+
+        # Replace only the numeric version part after 'version-' and before '-blue'
+        $pattern = '(?<=version-)\d+\.\d+\.\d+(?=-blue)'
+        if ($readmeContent -match $pattern) {
+            $readmeContent = $readmeContent -replace $pattern, $simplifiedVersion
+            Set-Content $readmePath $readmeContent -Encoding UTF8
+            Write-Host "[SUCCESS] README.md version badge updated to $simplifiedVersion" -ForegroundColor Green
+        } else {
+            Write-Host "[WARNING] Version badge pattern not found in README.md; no changes made" -ForegroundColor Yellow
+        }
     } else {
         Write-Host "[WARNING] README.md not found" -ForegroundColor Yellow
     }
