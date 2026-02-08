@@ -1,81 +1,81 @@
-# 🌦️ WSG — Weather Still Generator
+﻿# ðŸŒ¦ï¸ WSG â€” Weather Still Generator
 
 <div align="center">
 
 **Automated weather image and video generation for digital signage, streaming overlays, and weather displays**
 
-[![Version](https://img.shields.io/badge/version-1.8.16-blue?style=for-the-badge)](docs/CHANGELOG.md)
+$11.9.0-blue?style=for-the-badge)](docs/CHANGELOG.md)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple?style=for-the-badge&logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
 
 ---
 
-[📖 Documentation](#-documentation) • [🚀 Quick Start](#-quick-start) • [⚙️ Configuration](#️-configuration) • [📦 Downloads](#-downloads)
+[ðŸ“– Documentation](#-documentation) â€¢ [ðŸš€ Quick Start](#-quick-start) â€¢ [âš™ï¸ Configuration](#ï¸-configuration) â€¢ [ðŸ“¦ Downloads](#-downloads)
 
 </div>
 
 ---
 
-## 📋 Overview
+## ðŸ“‹ Overview
 
 **WSG (Weather Still Generator)** is a powerful Windows application that automatically generates beautiful weather images and MP4 slideshow videos. It fetches real-time weather data, processes it into high-quality visuals, and can compile them into videos with transitions and background music.
 
-### ✨ Perfect For
+### âœ¨ Perfect For
 
-- 📺 **Digital Signage** — Lobby displays, waiting rooms, public screens
-- 🎬 **Streaming Overlays** — Twitch, YouTube, OBS integrations
-- 📡 **Weather Stations** — Local TV, community channels
-- 🖥️ **Information Displays** — Offices, schools, retail locations
+- ðŸ“º **Digital Signage** â€” Lobby displays, waiting rooms, public screens
+- ðŸŽ¬ **Streaming Overlays** â€” Twitch, YouTube, OBS integrations
+- ðŸ“¡ **Weather Stations** â€” Local TV, community channels
+- ðŸ–¥ï¸ **Information Displays** â€” Offices, schools, retail locations
 
 ---
 
-## 🎯 Features
+## ðŸŽ¯ Features
 
 <table>
 <tr>
 <td width="50%">
 
-### 🖼️ Image Generation
+### ðŸ–¼ï¸ Image Generation
 
-- **Current Weather** — Temperature, humidity, wind speed, conditions
-- **Daily Forecasts** — High/low temps, weather predictions
-- **Detailed Analysis** — Pressure, wind direction, UV index
-- **Weather Maps** — Radar overlays with city markers
-- **Alert Graphics** — Color-coded emergency alerts
+- **Current Weather** â€” Temperature, humidity, wind speed, conditions
+- **Daily Forecasts** â€” High/low temps, weather predictions
+- **Detailed Analysis** â€” Pressure, wind direction, UV index
+- **Weather Maps** â€” Radar overlays with city markers
+- **Alert Graphics** â€” Color-coded emergency alerts
 
 </td>
 <td width="50%">
 
-### 🎬 Video Generation
+### ðŸŽ¬ Video Generation
 
-- **MP4 Slideshows** — Automated FFmpeg encoding
-- **Fade Transitions** — Smooth, configurable effects
-- **Multiple Resolutions** — 1080p, 4K, Vertical modes
-- **Background Music** — Custom audio tracks
-- **Hardware Encoding** — NVIDIA GPU acceleration
+- **MP4 Slideshows** â€” Automated FFmpeg encoding
+- **Fade Transitions** â€” Smooth, configurable effects
+- **Multiple Resolutions** â€” 1080p, 4K, Vertical modes
+- **Background Music** â€” Custom audio tracks
+- **Hardware Encoding** â€” NVIDIA GPU acceleration
 
 </td>
 </tr>
 <tr>
 <td>
 
-### ⚠️ Alert Systems
+### âš ï¸ Alert Systems
 
-- **Environment Canada (ECCC)** — Official weather alerts
-- **NAAD/Alert Ready** — Emergency broadcast alerts (TCP stream)
-- **Severity Levels** — Red (Warning), Yellow (Watch), Gray (Statement)
-- **Multi-City** — Aggregate alerts from multiple locations
+- **Environment Canada (ECCC)** â€” Official weather alerts
+- **NAAD/Alert Ready** â€” Emergency broadcast alerts (TCP stream)
+- **Severity Levels** â€” Red (Warning), Yellow (Watch), Gray (Statement)
+- **Multi-City** â€” Aggregate alerts from multiple locations
 
 </td>
 <td>
 
-### 🌐 Data Sources
+### ðŸŒ Data Sources
 
-- **OpenMeteo API** — Global weather data, free & open
-- **ECCC Official API** — Canadian forecasts & conditions
-- **GeoMet WMS** — Weather radar imagery
-- **Geocoding** — Automatic city coordinate lookup
+- **OpenMeteo API** â€” Global weather data, free & open
+- **ECCC Official API** â€” Canadian forecasts & conditions
+- **GeoMet WMS** â€” Weather radar imagery
+- **Geocoding** â€” Automatic city coordinate lookup
 
 </td>
 </tr>
@@ -83,7 +83,7 @@
 
 ---
 
-## 🚀 Quick Start
+## ðŸš€ Quick Start
 
 ### Prerequisites
 
@@ -126,9 +126,9 @@ WSG.exe --test-emergency-alerts
 
 ---
 
-## ⚙️ Configuration
+## âš™ï¸ Configuration
 
-All settings are in `WeatherImageGenerator/appsettings.json` — **no recompile needed!**
+All settings are in `WeatherImageGenerator/appsettings.json` â€” **no recompile needed!**
 
 ### Key Settings
 
@@ -156,11 +156,11 @@ All settings are in `WeatherImageGenerator/appsettings.json` — **no recompile 
 
 > **API Options:** `0` = OpenMeteo (Global), `1` = ECCC (Canada)
 
-📚 **Full guide:** [docs/CONFIG_README.md](docs/CONFIG_README.md)
+ðŸ“š **Full guide:** [docs/CONFIG_README.md](docs/CONFIG_README.md)
 
 ---
 
-## 📦 Downloads
+## ðŸ“¦ Downloads
 
 Download the latest release from [GitHub Releases](../../releases/latest).
 
@@ -170,23 +170,23 @@ Download the latest release from [GitHub Releases](../../releases/latest).
 
 ---
 
-## 🛠️ Development
+## ðŸ› ï¸ Development
 
 ### Project Structure
 
 ```
 WSG/
-├── 📁 WeatherImageGenerator/    # Main application
-│   ├── Forms/                   # GUI windows (MainForm, SettingsForm, etc.)
-│   ├── Services/                # Core logic (ImageGenerator, VideoGenerator)
-│   ├── Utilities/               # Helpers (Logger, ConfigManager)
-│   └── appsettings.json         # Configuration
-├── 📁 OpenMeteo/                # Weather API library
-├── 📁 ECCC/                     # Environment Canada API library
-├── 📁 EAS/                      # Emergency Alert System library
-├── 📁 WeatherShared/            # Shared models
-├── 📁 OpenMeteoTests/           # Unit tests
-└── 📁 docs/                     # Documentation
+â”œâ”€â”€ ðŸ“ WeatherImageGenerator/    # Main application
+â”‚   â”œâ”€â”€ Forms/                   # GUI windows (MainForm, SettingsForm, etc.)
+â”‚   â”œâ”€â”€ Services/                # Core logic (ImageGenerator, VideoGenerator)
+â”‚   â”œâ”€â”€ Utilities/               # Helpers (Logger, ConfigManager)
+â”‚   â””â”€â”€ appsettings.json         # Configuration
+â”œâ”€â”€ ðŸ“ OpenMeteo/                # Weather API library
+â”œâ”€â”€ ðŸ“ ECCC/                     # Environment Canada API library
+â”œâ”€â”€ ðŸ“ EAS/                      # Emergency Alert System library
+â”œâ”€â”€ ðŸ“ WeatherShared/            # Shared models
+â”œâ”€â”€ ðŸ“ OpenMeteoTests/           # Unit tests
+â””â”€â”€ ðŸ“ docs/                     # Documentation
 ```
 
 ### Build Scripts
@@ -200,7 +200,7 @@ WSG/
 
 ---
 
-## 📤 Push Script — Automated Releases
+## ðŸ“¤ Push Script â€” Automated Releases
 
 The `push.ps1` script automates versioning, commits, and GitHub releases.
 
@@ -224,9 +224,9 @@ The `push.ps1` script automates versioning, commits, and GitHub releases.
 | `-Type` | `fix` | Update type: `frontend`, `backend`, or `fix` |
 | `-CommitMessage` | Auto-generated | Custom commit message |
 | `-Branch` | `main` | Target branch |
-| `-AttachAssets` | — | Build & attach zip to GitHub release |
-| `-NoRelease` | — | Skip GitHub release creation |
-| `-SkipVersion` | — | Skip version bump (docs-only commits) |
+| `-AttachAssets` | â€” | Build & attach zip to GitHub release |
+| `-NoRelease` | â€” | Skip GitHub release creation |
+| `-SkipVersion` | â€” | Skip version bump (docs-only commits) |
 
 ### Examples
 
@@ -257,21 +257,21 @@ The `push.ps1` script automates versioning, commits, and GitHub releases.
 
 ---
 
-## 📖 Documentation
+## ðŸ“– Documentation
 
 | Document | Description |
 |----------|-------------|
-| [📋 Changelog](docs/CHANGELOG.md) | Version history and release notes |
-| [⚙️ Configuration Guide](docs/CONFIG_README.md) | Complete appsettings.json reference |
-| [🌧️ Radar & Weather Map Integration](docs/RADAR_WEATHER_MAP_INTEGRATION.md) | 🆕 Animated radar with OpenMap overlays |
-| [🗺️ OpenMap Usage](docs/OPENMAP_USAGE.md) | OpenStreetMap integration guide |
-| [🌐 ECCC API Upgrade](docs/ECCC_API_UPGRADE.md) | Environment Canada integration notes |
-| [📡 Radar Feature](docs/RADAR_FEATURE.md) | Radar image integration details |
-| [📤 Push Script Guide](docs/PUSH_SCRIPT_GUIDE.md) | Automated deployment workflow |
+| [ðŸ“‹ Changelog](docs/CHANGELOG.md) | Version history and release notes |
+| [âš™ï¸ Configuration Guide](docs/CONFIG_README.md) | Complete appsettings.json reference |
+| [ðŸŒ§ï¸ Radar & Weather Map Integration](docs/RADAR_WEATHER_MAP_INTEGRATION.md) | ðŸ†• Animated radar with OpenMap overlays |
+| [ðŸ—ºï¸ OpenMap Usage](docs/OPENMAP_USAGE.md) | OpenStreetMap integration guide |
+| [ðŸŒ ECCC API Upgrade](docs/ECCC_API_UPGRADE.md) | Environment Canada integration notes |
+| [ðŸ“¡ Radar Feature](docs/RADAR_FEATURE.md) | Radar image integration details |
+| [ðŸ“¤ Push Script Guide](docs/PUSH_SCRIPT_GUIDE.md) | Automated deployment workflow |
 
 ---
 
-## 🤝 Contributing
+## ðŸ¤ Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.
 
@@ -283,16 +283,17 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 
 ---
 
-## 📄 License
+## ðŸ“„ License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License** â€” see the [LICENSE](LICENSE) file for details.
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by [NoID Softwork](https://github.com/noidsoftwork)**
+**Made with â¤ï¸ by [NoID Softwork](https://github.com/noidsoftwork)**
 
-© 2020-2026
+Â© 2020-2026
 
 </div>
+

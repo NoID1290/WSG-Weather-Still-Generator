@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0.0208] - 2026-02-08
+
+- feat: Implement EAS-NWS provider and refactor Alert Ready
+- Refactor code structure for improved readability and maintainability for logger console
+- Add Hybrid weather API option and update related configurations
+- Refactor weather code handling: improve error messages for unknown weather codes
+- Enhance log visibility toggle: improve handling of splitter distance and use built-in properties for collapsing
+- Add toggle functionality for logs visibility and persist state in configuration
+- Enhance push.ps1: add function to update README.md version badge and include it in staging when AttachAssets is requested
+- Update version badge in README.md to 1.8.16
+- Enhance SettingsForm: add warning for application restart when enabling Remote Access
+
 ## [1.8.16.0207] - 2026-02-07
 
 - Enhance WebUIService and BootChecks: implement WebUINetworkAccessCheck for remote access validation and streamline URL ACL and firewall rule registration
