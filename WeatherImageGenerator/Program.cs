@@ -610,7 +610,7 @@ namespace WeatherImageGenerator
                 string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 var globalApi = config.DefaultWeatherApi;
-                Logger.Log($"Fetching weather data (Fetch Only) using {globalApi} API...");
+                Logger.Section($"Fetch Only  ·  {globalApi} API");
                 ProgressUpdated?.Invoke(0, "Starting fetch only...");
 
                 WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
@@ -651,7 +651,8 @@ namespace WeatherImageGenerator
 
                 if (cancellationToken.IsCancellationRequested) return;
 
-                Logger.Log("[Alerts] Fetching weather alerts...");
+                Logger.EndSection();
+                Logger.Section("Alerts");
                 try
                 {
                     var alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
@@ -678,7 +679,7 @@ namespace WeatherImageGenerator
                 string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 var globalApi = config.DefaultWeatherApi;
-                Logger.Log($"Fetching weather data (Stills Only) using {globalApi} API...");
+                Logger.Section($"Stills Only  ·  {globalApi} API");
                 ProgressUpdated?.Invoke(0, "Starting stills generation...");
 
                 WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
@@ -721,7 +722,8 @@ namespace WeatherImageGenerator
                 if (cancellationToken.IsCancellationRequested) return;
 
                 // Fetch weather alerts from ECCC and Alert Ready
-                Logger.Log("[Alerts] Fetching weather alerts...");
+                Logger.EndSection();
+                Logger.Section("Alerts");
                 List<AlertEntry> alerts = new List<AlertEntry>();
                 try
                 {
@@ -750,7 +752,8 @@ namespace WeatherImageGenerator
                 // Clear existing images before generating new ones
                 ClearOutputImages(outputDir);
 
-                Logger.Log("Generating still images...");
+                Logger.EndSection();
+                Logger.Section("Still Images");
                 ProgressUpdated?.Invoke(15, "Generating still images");
 
                 int detailedPerImage = 3;
@@ -829,8 +832,9 @@ namespace WeatherImageGenerator
                     Logger.Log("No active alerts - skipping alerts image generation");
                 }
                 imageStepsCompleted++;
+                Logger.EndSection();
                 ProgressUpdated?.Invoke(100, "Stills generation complete");
-                Logger.Log($"✓ Stills Generation Complete. Images saved to: {outputDir}");
+                Logger.Success($"Stills Generation Complete — images saved to: {outputDir}");
             }
         }
 
@@ -858,10 +862,10 @@ namespace WeatherImageGenerator
                 {
                     try
                     {
-                        Logger.Log($"\n--- Starting Update Cycle: {DateTime.Now} ---");
+                        Logger.Banner($"Update Cycle", $"{DateTime.Now:yyyy-MM-dd h:mm:ss tt}");
                         // Notify GUI we are at the beginning of the cycle
                         ProgressUpdated?.Invoke(0, "Starting update cycle");
-                        Logger.Log($"Fetching weather data using {globalApi} API...");
+                        Logger.Section($"Weather Data  ·  {globalApi} API");
                         
                         // Array to store results for all locations
                         WeatherForecast?[] allForecasts = new WeatherForecast?[locations.Length];
@@ -902,8 +906,9 @@ namespace WeatherImageGenerator
                         _webUIService?.UpdateWeatherData(allForecasts, webUILocationNames);
 
                         // Fetch weather alerts from ECCC and Alert Ready
+                        Logger.EndSection();
+                        Logger.Section("Alerts");
                         var alerts = new List<AlertEntry>();
-                        Logger.Log("[Alerts] Fetching weather alerts...");
                         try
                         {
                             alerts = await FetchCombinedAlertsAsync(httpClient, locations, config);
@@ -937,7 +942,8 @@ namespace WeatherImageGenerator
                         // Clear existing images before generating new ones
                         ClearOutputImages(outputDir);
 
-                        Logger.Log("Generating still images...");
+                        Logger.EndSection();
+                        Logger.Section("Image Generation");
                         // Image generation comprises the bulk of the cycle (about 65%)
                         ProgressUpdated?.Invoke(15, "Generating still images");
 
@@ -1138,6 +1144,7 @@ namespace WeatherImageGenerator
                         ProgressUpdated?.Invoke(15.0 + (imageStepsCompleted / (double)imageSteps) * 65.0, $"Generating images ({imageStepsCompleted}/{imageSteps})");
 
                         // 5. Video Generation (Optional)
+                        Logger.EndSection();
                         ProgressUpdated?.Invoke(80.0, "Starting video generation");
 
                         // If video settings are configured, create a video from the generated images
@@ -1150,7 +1157,7 @@ namespace WeatherImageGenerator
                             Logger.Log("[INFO] Video settings not configured; skipping video generation.");
                         }
 
-                        Logger.Log($"✓ Cycle Complete. Images saved to: {outputDir}");
+                        Logger.Success($"Cycle Complete — images saved to: {outputDir}");
 
                         // Ensure GUI reaches 100% at completion
                         ProgressUpdated?.Invoke(100.0, "Cycle complete");
@@ -1165,7 +1172,8 @@ namespace WeatherImageGenerator
                         // Wait Logic
                         if (config.RefreshTimeMinutes > 0)
                         {
-                            Logger.Log($"Sleeping for {config.RefreshTimeMinutes} minutes...");
+                            Logger.LogPlain();
+                            Logger.Log($"💤 Next cycle in {config.RefreshTimeMinutes} min — sleeping until {DateTime.Now.AddMinutes(config.RefreshTimeMinutes):HH:mm:ss}");
 
                             var totalMs = Math.Max(1, config.RefreshTimeMinutes * 60000);
                             var end = DateTime.UtcNow.AddMilliseconds(totalMs);

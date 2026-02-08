@@ -9,6 +9,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.Reflection;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 using WeatherImageGenerator.Models;
@@ -20,6 +21,90 @@ namespace WeatherImageGenerator.Forms
 {
     public class MainForm : Form
     {
+        // P/Invoke for RichTextBox paragraph spacing
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref PARAFORMAT2 lParam);
+        private const int EM_SETPARAFORMAT = 0x0447;
+        private const int EM_GETPARAFORMAT = 0x043D;
+        private const uint PFM_SPACEAFTER  = 0x00000080;
+        private const uint PFM_SPACEBEFORE = 0x00000040;
+        private const uint PFM_LINESPACING = 0x00000100;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private struct PARAFORMAT2
+        {
+            public int cbSize;
+            public uint dwMask;
+            public short wNumbering;
+            public short wReserved;
+            public int dxStartIndent;
+            public int dxRightIndent;
+            public int dxOffset;
+            public short wAlignment;
+            public short cTabCount;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+            public int[] rgxTabs;
+            public int dySpaceBefore;
+            public int dySpaceAfter;
+            public int dyLineSpacing;
+            public short sStyle;
+            public byte bLineSpacingRule;
+            public byte bOutlineLevel;
+            public short wShadingWeight;
+            public short wShadingStyle;
+            public short wNumberingStart;
+            public short wNumberingStyle;
+            public short wNumberingTab;
+            public short wBorderSpace;
+            public short wBorderWidth;
+            public short wBorders;
+        }
+
+        /// <summary>Set tight paragraph spacing (0 before/after, tight line height) on a RichTextBox.</summary>
+        private static void SetTightLineSpacing(RichTextBox rtb)
+        {
+            rtb.SelectAll();
+            var pf = new PARAFORMAT2();
+            pf.cbSize = Marshal.SizeOf(pf);
+            pf.rgxTabs = new int[32];
+            pf.dwMask = PFM_SPACEAFTER | PFM_SPACEBEFORE | PFM_LINESPACING;
+            pf.dySpaceBefore = 0;
+            pf.dySpaceAfter = 0;
+            pf.dyLineSpacing = 20;  // 1.0x line height (20 = 1x multiple)
+            pf.bLineSpacingRule = 3;  // 3 = multiple of line height
+            SendMessage(rtb.Handle, EM_SETPARAFORMAT, IntPtr.Zero, ref pf);
+            rtb.SelectionStart = rtb.TextLength;
+            rtb.SelectionLength = 0;
+        }
+
+        /// <summary>Apply tight spacing to the current paragraph (call after appending a line).</summary>
+        private static void ApplyTightSpacingToCurrentParagraph(RichTextBox rtb)
+        {
+            // Find the start of the current line/paragraph
+            int currentPos = rtb.SelectionStart;
+            int lineIndex = rtb.GetLineFromCharIndex(currentPos);
+            int lineStart = rtb.GetFirstCharIndexFromLine(lineIndex);
+            int lineLength = (lineIndex < rtb.Lines.Length - 1) 
+                ? rtb.GetFirstCharIndexFromLine(lineIndex + 1) - lineStart
+                : rtb.TextLength - lineStart;
+            
+            // Select the entire paragraph to apply format
+            rtb.Select(lineStart, lineLength);
+            
+            var pf = new PARAFORMAT2();
+            pf.cbSize = Marshal.SizeOf(pf);
+            pf.rgxTabs = new int[32];
+            pf.dwMask = PFM_SPACEAFTER | PFM_SPACEBEFORE | PFM_LINESPACING;
+            pf.dySpaceBefore = 0;
+            pf.dySpaceAfter = 0;
+            pf.dyLineSpacing = 20;  // 1.0x line height
+            pf.bLineSpacingRule = 3;  // multiple
+            SendMessage(rtb.Handle, EM_SETPARAFORMAT, IntPtr.Zero, ref pf);
+            
+            // Restore position
+            rtb.SelectionStart = rtb.TextLength;
+            rtb.SelectionLength = 0;
+        }
         private CancellationTokenSource? _cts;
         private NotifyIcon? _notifyIcon;
         private bool _isMinimizedToTray = false;
@@ -91,8 +176,10 @@ namespace WeatherImageGenerator.Forms
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
 
-            _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9.5F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
+            _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
             // Note: RichTextBox with Dock=Fill doesn't support Region properly, so we skip rounding for it
+            // Force tight paragraph spacing so log lines aren't spread apart
+            _logBox.HandleCreated += (s, e) => SetTightLineSpacing(_logBox);
 
             // Start a background timer that will periodically archive older logs to disk to avoid UI growth/crashes
             _logArchiveTimer = new System.Threading.Timer(_ => {
@@ -1334,7 +1421,8 @@ namespace WeatherImageGenerator.Forms
 
         private void OnMessageLogged(string text, Logger.LogLevel level)
         {
-            // Keep a copy of everything with explicit level, then reapply filters for the view
+            // Keep a copy of everything with explicit level, then reapply filters for the view.
+            // Buffer add happens ONCE here, regardless of which thread we're on.
             lock (_logBuffer)
             {
                 _logBuffer.Add((text, level));
@@ -1342,13 +1430,19 @@ namespace WeatherImageGenerator.Forms
                 if (_logBuffer.Count > 5000) _logBuffer.RemoveRange(0, _logBuffer.Count - 5000);
             }
 
-            // UI updates must be on UI thread
+            // UI updates must be on UI thread — call the UI-only helper, not ourselves (avoids double buffer add)
             if (this.InvokeRequired)
             {
-                this.BeginInvoke(new Action(() => OnMessageLogged(text, level)));
+                this.BeginInvoke(new Action(() => UpdateLogUI(text, level)));
                 return;
             }
 
+            UpdateLogUI(text, level);
+        }
+
+        /// <summary>UI-thread-only helper: updates status indicators and appends/refreshes the log view.</summary>
+        private void UpdateLogUI(string text, Logger.LogLevel level)
+        {
             var trimmed = text.Trim();
 
             // If messages indicate ffmpeg running/done, update status/progress (content-based features remain)
@@ -1470,6 +1564,7 @@ namespace WeatherImageGenerator.Forms
             string verbosity = _cmbVerbosity?.SelectedItem as string ?? "Normal";
 
             rtb.Clear();
+            SetTightLineSpacing(rtb); // Reapply tight spacing after clear resets RTF formatting
             lock (_logBuffer)
             {
                 if (verbosity == "Minimal")
@@ -1581,7 +1676,7 @@ namespace WeatherImageGenerator.Forms
 
             var lower = line.ToLowerInvariant();
 
-            // Verbosity controls overall noise
+            // ── Step 1: Verbosity controls overall noise level ──────────
             if (verbosity == "Minimal")
             {
                 // Minimal: only errors, warnings, and important status lines
@@ -1595,155 +1690,268 @@ namespace WeatherImageGenerator.Forms
                 // Normal: hide Debug-level messages
                 if (level == Logger.LogLevel.Debug) return false;
             }
+            // Verbose: show everything (no filtering by verbosity)
 
-            // Apply filter on the remaining messages
+            // ── Step 2: Apply category filter on the remaining messages ─
             return filter switch
             {
                 "All" => true,
-                "Errors" => level == Logger.LogLevel.Error || lower.Contains("[error]") || lower.Contains("failed") || lower.Contains("✗") || lower.Contains(" x "),
-                "Warnings" => level == Logger.LogLevel.Warning || lower.Contains("[warn]") || lower.Contains("warning"),
-                "Info" => level == Logger.LogLevel.Info || level == Logger.LogLevel.Debug || (!lower.Contains("[error]") && !lower.Contains("✗") && !lower.Contains(" x ")),
+                "Errors" => level == Logger.LogLevel.Error,
+                "Warnings" => level == Logger.LogLevel.Warning || level == Logger.LogLevel.Error,
+                "Info" => level == Logger.LogLevel.Info,
                 _ => true
             };
         }
 
         // Format log line with appropriate category icon for better visual scanning
-        private string FormatLogLineWithIcon(string line, Logger.LogLevel level)
+        // ── UI Log Rendering ─────────────────────────────────────────────────
+        // Category → (icon, color) mapping for the RichTextBox UI log
+        private static readonly Dictionary<string, (string Icon, Color Color)> _uiCategories = new(StringComparer.OrdinalIgnoreCase)
         {
-            var lower = line.ToLowerInvariant().TrimStart();
-            
-            // Don't add icons if line already starts with an emoji or category marker
-            if (line.TrimStart().StartsWith("[") || 
-                line.TrimStart().StartsWith("✓") || 
-                line.TrimStart().StartsWith("✗") ||
-                line.TrimStart().StartsWith("⚠") ||
-                line.TrimStart().StartsWith("�") ||
-                line.TrimStart().StartsWith("🎵") ||
-                line.TrimStart().StartsWith("🔄") ||
-                line.TrimStart().StartsWith("💾"))
-            {
-                return line;
-            }
+            { "OpenMeteo",       ("🌡", Color.FromArgb(77, 208, 225)) },
+            { "ECCC",            ("🍁", Color.FromArgb(77, 208, 225)) },
+            { "ECCC API",        ("🍁", Color.FromArgb(77, 208, 225)) },
+            { "ECCC Fallback",   ("🍁", Color.FromArgb(255, 183, 77)) },
+            { "ECCC+OpenMeteo",  ("🔗", Color.FromArgb(77, 208, 225)) },
+            { "Hybrid",          ("🔗", Color.FromArgb(77, 208, 225)) },
+            { "OpenMeteo Retry", ("🔄", Color.FromArgb(255, 183, 77)) },
+            { "ECCC CAP",        ("📋", Color.FromArgb(255, 183, 77)) },
+            { "Alerts",          ("🔔", Color.FromArgb(255, 183, 77)) },
+            { "AlertReady",      ("🚨", Color.FromArgb(255, 82, 82)) },
+            { "NAAD",            ("📡", Color.FromArgb(255, 183, 77)) },
+            { "RadarAnimation",  ("📡", Color.FromArgb(186, 104, 200)) },
+            { "Radar",           ("📡", Color.FromArgb(186, 104, 200)) },
+            { "Radar Animation", ("📡", Color.FromArgb(186, 104, 200)) },
+            { "MapCache",        ("🗺", Color.FromArgb(77, 182, 172)) },
+            { "GlobalWeatherMap",("🌍", Color.FromArgb(77, 182, 172)) },
+            { "OpenMap",         ("🗺", Color.FromArgb(77, 182, 172)) },
+            { "Weather Map",     ("🗺", Color.FromArgb(77, 182, 172)) },
+            { "FFmpeg",          ("🎬", Color.FromArgb(100, 181, 246)) },
+            { "MUSIC",           ("🎵", Color.FromArgb(186, 104, 200)) },
+            { "OVERLAY",         ("🎞", Color.FromArgb(100, 181, 246)) },
+            { "AUDIO",           ("🔊", Color.FromArgb(100, 181, 246)) },
+            { "RUNNING",         ("▶", Color.FromArgb(100, 181, 246)) },
+            { "DONE",            ("■", Color.FromArgb(129, 199, 132)) },
+            { "FAIL",            ("✖", Color.FromArgb(255, 82, 82)) },
+            { "CLEANUP",         ("🧹", Color.FromArgb(120, 120, 120)) },
+            { "MEMORY",          ("💾", Color.FromArgb(120, 120, 120)) },
+            { "PiperTTS",        ("🗣", Color.FromArgb(186, 104, 200)) },
+            { "EdgeTTS",         ("🗣", Color.FromArgb(186, 104, 200)) },
+            { "SAPI",            ("🗣", Color.FromArgb(186, 104, 200)) },
+            { "WebUI",           ("🌐", Color.FromArgb(129, 199, 132)) },
+            { "Boot",            ("⚡", Color.FromArgb(224, 224, 224)) },
+            { "INFO",            ("ℹ", Color.FromArgb(144, 202, 249)) },
+        };
 
-            // Add subtle prefix icon based on level for uncategorized messages
-            string prefix = level switch
-            {
-                Logger.LogLevel.Error => "✗ ",
-                Logger.LogLevel.Warning => "⚠ ",
-                Logger.LogLevel.Debug => "· ",
-                _ => "› "
-            };
+        private static readonly System.Text.RegularExpressions.Regex _uiTagRegex = 
+            new(@"^\[([^\]]+)\]", System.Text.RegularExpressions.RegexOptions.Compiled);
 
-            // Only add prefix if line doesn't already have structured formatting
-            if (!line.TrimStart().StartsWith(prefix.TrimEnd()))
-            {
-                return prefix + line.TrimStart();
-            }
-            return line;
+        /// <summary>
+        /// Returns true if the line is a section/banner header (── or ═══).
+        /// </summary>
+        private static bool IsUiSectionLine(string trimmed)
+        {
+            return trimmed.StartsWith("──") || trimmed.StartsWith("═══");
         }
 
-        // Append a single line to the RichTextBox with color, optional bolding for level tokens, and search highlighting
+        /// <summary>
+        /// Extract [Tag] from a log line, returning (tag, bodyAfterTag).
+        /// Returns (null, original) if no tag found.
+        /// </summary>
+        private static (string? Tag, string Body) UiExtractTag(string text)
+        {
+            // Strip timestamp prefix like "[14:37:08] " first
+            var work = text;
+            if (work.Length > 10 && work[0] == '[' && work[9] == ']' && work[3] == ':' && work[6] == ':')
+                work = work.Substring(11).TrimStart();
+
+            var m = _uiTagRegex.Match(work);
+            if (m.Success)
+            {
+                var tag = m.Groups[1].Value;
+                var body = work.Substring(m.Length).TrimStart();
+                return (tag, body);
+            }
+            return (null, work);
+        }
+
+        // Append a single line to the RichTextBox with professional formatting
         private void AppendColoredLine(RichTextBox rtb, string line, string search, Logger.LogLevel level)
         {
-            if (rtb == null) return;
+            if (rtb == null || string.IsNullOrEmpty(line)) return;
 
-            // Format the line with category icon prefix for better visual scanning
-            string formattedLine = FormatLogLineWithIcon(line, level);
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                rtb.AppendText(Environment.NewLine);
+                ApplyTightSpacingToCurrentParagraph(rtb);
+                rtb.SelectionStart = rtb.TextLength;
+                rtb.ScrollToCaret();
+                return;
+            }
 
-            int start = rtb.TextLength;
-            rtb.AppendText(formattedLine);
-            int length = formattedLine.Length;
+            var baseFont = rtb.Font; // Consolas 9.5
+            var boldFont = new Font(baseFont, FontStyle.Bold);
+            var italicFont = new Font(baseFont, FontStyle.Italic);
 
-            var lower = line.ToLowerInvariant();
-            Color color;
-            FontStyle style = FontStyle.Regular;
+            // ── Section / Banner headers ────────────────────────────────────
+            if (IsUiSectionLine(trimmed))
+            {
+                // Add a blank line before section for spacing
+                rtb.AppendText(Environment.NewLine);
 
-            // Enhanced color scheme with better visual hierarchy
-            // Category-based coloring takes priority for better scanability
-            if (lower.Contains("[alertready]") || lower.Contains("[alerts]") || lower.Contains("[naad]"))
-            {
-                color = Color.FromArgb(255, 183, 77); // Orange-amber for alerts
-                style = FontStyle.Bold;
+                // Section title — extract text between ── markers
+                var title = trimmed.Trim('─', '═', ' ', '—');
+
+                // Build: "  ▸ SECTION TITLE" with accent color and bold
+                var sectionLine = $"  ▸ {title.ToUpperInvariant()}" + Environment.NewLine;
+                int start = rtb.TextLength;
+                rtb.AppendText(sectionLine);
+                rtb.Select(start, sectionLine.Length);
+                rtb.SelectionColor = Color.FromArgb(100, 181, 246); // Accent blue
+                rtb.SelectionFont = boldFont;
+
+                // Thin separator line under it
+                var sepLine = "  " + new string('─', Math.Min(70, Math.Max(30, title.Length + 8))) + Environment.NewLine;
+                int sepStart = rtb.TextLength;
+                rtb.AppendText(sepLine);
+                rtb.Select(sepStart, sepLine.Length);
+                rtb.SelectionColor = Color.FromArgb(60, 70, 80);
+                rtb.SelectionFont = baseFont;
+
+                rtb.SelectionStart = rtb.TextLength;
+                rtb.ScrollToCaret();
+                return;
             }
-            else if (lower.Contains("[ffmpeg]") || lower.Contains("[video]") || lower.Contains("[encoding]"))
+
+            // ── Extract parts from the line ─────────────────────────────────
+            var (tag, body) = UiExtractTag(line);
+
+            // Extract timestamp
+            string timestamp = "";
+            var rawLine = line.TrimStart();
+            if (rawLine.Length > 10 && rawLine[0] == '[' && rawLine[9] == ']' && rawLine[3] == ':' && rawLine[6] == ':')
             {
-                color = Color.FromArgb(100, 181, 246); // Light blue for video/encoding
+                timestamp = rawLine.Substring(0, 10); // "[HH:mm:ss]"
+                // body is already stripped of timestamp by UiExtractTag
             }
-            else if (lower.Contains("[music]"))
+
+            // Detect status
+            bool isSuccess = body.StartsWith("✓") || body.StartsWith("✔") || trimmed.Contains("[DONE]");
+            bool isError = body.StartsWith("✗") || body.StartsWith("✖") || level == Logger.LogLevel.Error || trimmed.Contains("[FAIL]");
+            bool isWarning = body.StartsWith("⚠") || level == Logger.LogLevel.Warning;
+            bool isDebug = level == Logger.LogLevel.Debug;
+
+            // Clean body of redundant status symbols (we show them as colored indicators)
+            var displayBody = body;
+            if (displayBody.StartsWith("✓ ") || displayBody.StartsWith("✔ ")) displayBody = displayBody.Substring(2);
+            if (displayBody.StartsWith("✗ ") || displayBody.StartsWith("✖ ")) displayBody = displayBody.Substring(2);
+            if (displayBody.StartsWith("⚠ ")) displayBody = displayBody.Substring(2);
+            // Also strip duplicate [Tag] from body
+            if (tag != null && displayBody.StartsWith($"[{tag}]", StringComparison.OrdinalIgnoreCase))
+                displayBody = displayBody.Substring(tag.Length + 2).TrimStart();
+
+            // ── Build the formatted line ────────────────────────────────────
+            int lineStart = rtb.TextLength;
+
+            // 1) Timestamp (dimmed)
+            if (!string.IsNullOrEmpty(timestamp))
             {
-                color = Color.FromArgb(186, 104, 200); // Purple for music
+                int tsStart = rtb.TextLength;
+                rtb.AppendText(timestamp + " ");
+                rtb.Select(tsStart, timestamp.Length + 1);
+                rtb.SelectionColor = Color.FromArgb(90, 100, 110);
+                rtb.SelectionFont = baseFont;
             }
-            else if (lower.Contains("[radar]") || lower.Contains("[eccc]") || lower.Contains("[openmap]"))
+
+            // 2) Status indicator dot/icon
+            string statusIcon;
+            Color statusColor;
+            if (isError) { statusIcon = "● "; statusColor = Color.FromArgb(255, 82, 82); }
+            else if (isWarning) { statusIcon = "● "; statusColor = Color.FromArgb(255, 213, 79); }
+            else if (isSuccess) { statusIcon = "● "; statusColor = Color.FromArgb(129, 199, 132); }
+            else if (isDebug) { statusIcon = "· "; statusColor = Color.FromArgb(90, 100, 110); }
+            else { statusIcon = "  "; statusColor = Color.FromArgb(60, 70, 80); }
+
+            int dotStart = rtb.TextLength;
+            rtb.AppendText(statusIcon);
+            rtb.Select(dotStart, statusIcon.Length);
+            rtb.SelectionColor = statusColor;
+            rtb.SelectionFont = baseFont;
+
+            // 3) Category tag (colored badge)
+            if (tag != null)
             {
-                color = Color.FromArgb(77, 208, 225); // Cyan for map/radar
-            }
-            else if (lower.Contains("[webui]"))
-            {
-                color = Color.FromArgb(129, 199, 132); // Green for WebUI
-            }
-            else if (lower.Contains("[weather]") || lower.Contains("[fetch]"))
-            {
-                color = Color.FromArgb(144, 202, 249); // Sky blue for weather data
-            }
-            else
-            {
-                // Fall back to level-based coloring
-                switch (level)
+                Color tagColor;
+                string tagIcon;
+                if (_uiCategories.TryGetValue(tag, out var catInfo))
                 {
-                    case Logger.LogLevel.Error: color = Color.FromArgb(255, 82, 82); style = FontStyle.Bold; break; // Bright red
-                    case Logger.LogLevel.Warning: color = Color.FromArgb(255, 213, 79); break; // Warm yellow
-                    case Logger.LogLevel.Debug: color = Color.FromArgb(158, 158, 158); break; // Muted gray
-                    default: color = Color.FromArgb(224, 224, 224); break; // Light gray for info
+                    tagIcon = catInfo.Icon;
+                    tagColor = catInfo.Color;
                 }
-            }
-
-            // Success states get special treatment
-            if (lower.Contains("saved") || lower.Contains("completed") || lower.Contains("success") || lower.Contains("✓"))
-            {
-                color = Color.FromArgb(129, 199, 132); // Success green
-                style = FontStyle.Bold;
-            }
-            else if (lower.Contains("[running]") || lower.Contains("[done]"))
-            {
-                color = Color.FromArgb(100, 181, 246); // Progress blue
-            }
-
-            // Apply color and font
-            rtb.Select(start, length);
-            rtb.SelectionColor = color;
-            rtb.SelectionFont = new Font(rtb.Font, style);
-
-            // Bold level token when present
-            var levelTokens = new string[] { "[error]", "[warn]", "[running]", "[done]", "[fail]" };
-            foreach (var token in levelTokens)
-            {
-                int idx = lower.IndexOf(token);
-                if (idx >= 0)
+                else
                 {
-                    rtb.Select(start + idx, token.Length);
-                    rtb.SelectionFont = new Font(rtb.Font, FontStyle.Bold);
+                    tagIcon = "›";
+                    tagColor = Color.FromArgb(158, 158, 158);
                 }
+
+                var tagText = $"{tagIcon} {tag}  ";
+                int tagStart = rtb.TextLength;
+                rtb.AppendText(tagText);
+                rtb.Select(tagStart, tagText.Length);
+                rtb.SelectionColor = tagColor;
+                rtb.SelectionFont = boldFont;
             }
 
-            // Highlight search matches
+            // 4) Message body
+            Color bodyColor;
+            FontStyle bodyStyle = FontStyle.Regular;
+            if (isSuccess) { bodyColor = Color.FromArgb(129, 199, 132); }
+            else if (isError) { bodyColor = Color.FromArgb(255, 82, 82); bodyStyle = FontStyle.Bold; }
+            else if (isWarning) { bodyColor = Color.FromArgb(255, 213, 79); }
+            else if (isDebug) { bodyColor = Color.FromArgb(120, 130, 140); }
+            else if (tag != null && _uiCategories.TryGetValue(tag, out var bodyTagInfo))
+            {
+                // Slightly desaturated version of category color for body text
+                bodyColor = Color.FromArgb(
+                    Math.Min(255, bodyTagInfo.Color.R + 40),
+                    Math.Min(255, bodyTagInfo.Color.G + 40),
+                    Math.Min(255, bodyTagInfo.Color.B + 40));
+            }
+            else { bodyColor = Color.FromArgb(200, 210, 220); }
+
+            int bodyStart = rtb.TextLength;
+            rtb.AppendText(displayBody + Environment.NewLine);
+            rtb.Select(bodyStart, displayBody.Length);
+            rtb.SelectionColor = bodyColor;
+            rtb.SelectionFont = new Font(baseFont, bodyStyle);
+
+            // ── Highlight search matches ────────────────────────────────────
             if (!string.IsNullOrEmpty(search))
             {
                 int offset = 0;
-                var comparison = StringComparison.OrdinalIgnoreCase;
+                var fullText = line;
                 while (true)
                 {
-                    int pos = line.IndexOf(search, offset, comparison);
+                    int pos = fullText.IndexOf(search, offset, StringComparison.OrdinalIgnoreCase);
                     if (pos < 0) break;
-                    rtb.Select(start + pos, search.Length);
-                    rtb.SelectionBackColor = Color.Yellow;
-                    rtb.SelectionColor = Color.Black;
+                    // Map position relative to what we appended
+                    int absPos = lineStart + pos;
+                    if (absPos >= 0 && absPos + search.Length <= rtb.TextLength)
+                    {
+                        rtb.Select(absPos, search.Length);
+                        rtb.SelectionBackColor = Color.FromArgb(255, 235, 59);
+                        rtb.SelectionColor = Color.Black;
+                    }
                     offset = pos + search.Length;
                 }
             }
 
-            // Reset selection and scroll
+            // Reset
+            ApplyTightSpacingToCurrentParagraph(rtb);
             rtb.SelectionStart = rtb.TextLength;
             rtb.SelectionLength = 0;
+            rtb.SelectionBackColor = rtb.BackColor;
             rtb.ScrollToCaret();
         }
 
