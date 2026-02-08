@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1.0208] - 2026-02-08
+
+- Fix push script corrupting README.md
+- fix(push): restore README.md and make Update-ReadmeVersionBadge safe (avoid literal , use lookaround)
+
 ## [1.9.0.0208] - 2026-02-08
 
 - feat: Implement EAS-NWS provider and refactor Alert Ready
