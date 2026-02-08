@@ -186,6 +186,10 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("LogsCollapsed")]
         public bool LogsCollapsed { get; set; } = false;
+
+        // Line spacing for in-app logs (twips, used with PARAFORMAT2 rule 4: 200=Tight, 240=Normal, 340=Relaxed, 460=Spacious)
+        [JsonPropertyName("LogLineSpacing")]
+        public int LogLineSpacing { get; set; } = 220;
     }
 
     /// <summary>

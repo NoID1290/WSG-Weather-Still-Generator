@@ -205,7 +205,9 @@ namespace WeatherImageGenerator.Services
                     AllowRemoteAccess = false,
                     EnableCORS = true,
                     CORSOrigins = new List<string> { "*" }
-                }
+                },
+                // Default log line spacing in twips (PARAFORMAT2 rule 4). 240 = Normal single-line for 9pt Consolas.
+                LogLineSpacing = 220
             };
         }
 

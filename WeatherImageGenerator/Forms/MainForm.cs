@@ -61,8 +61,8 @@ namespace WeatherImageGenerator.Forms
             public short wBorders;
         }
 
-        /// <summary>Set tight paragraph spacing (0 before/after, tight line height) on a RichTextBox.</summary>
-        private static void SetTightLineSpacing(RichTextBox rtb)
+        /// <summary>Set exact line spacing on all text in a RichTextBox using PARAFORMAT2 rule 4 (exact twips).</summary>
+        private static void SetTightLineSpacing(RichTextBox rtb, int spacingTwips)
         {
             rtb.SelectAll();
             var pf = new PARAFORMAT2();
@@ -71,15 +71,15 @@ namespace WeatherImageGenerator.Forms
             pf.dwMask = PFM_SPACEAFTER | PFM_SPACEBEFORE | PFM_LINESPACING;
             pf.dySpaceBefore = 0;
             pf.dySpaceAfter = 0;
-            pf.dyLineSpacing = 20;  // 1.0x line height (20 = 1x multiple)
-            pf.bLineSpacingRule = 3;  // 3 = multiple of line height
+            pf.dyLineSpacing = spacingTwips;   // exact line height in twips
+            pf.bLineSpacingRule = 4;            // 4 = exact spacing in twips
             SendMessage(rtb.Handle, EM_SETPARAFORMAT, IntPtr.Zero, ref pf);
             rtb.SelectionStart = rtb.TextLength;
             rtb.SelectionLength = 0;
         }
 
-        /// <summary>Apply tight spacing to the current paragraph (call after appending a line).</summary>
-        private static void ApplyTightSpacingToCurrentParagraph(RichTextBox rtb)
+        /// <summary>Apply exact spacing to the current paragraph (call after appending a line).</summary>
+        private static void ApplyTightSpacingToCurrentParagraph(RichTextBox rtb, int spacingTwips)
         {
             // Find the start of the current line/paragraph
             int currentPos = rtb.SelectionStart;
@@ -98,8 +98,8 @@ namespace WeatherImageGenerator.Forms
             pf.dwMask = PFM_SPACEAFTER | PFM_SPACEBEFORE | PFM_LINESPACING;
             pf.dySpaceBefore = 0;
             pf.dySpaceAfter = 0;
-            pf.dyLineSpacing = 20;  // 1.0x line height
-            pf.bLineSpacingRule = 3;  // multiple
+            pf.dyLineSpacing = spacingTwips;   // exact line height in twips
+            pf.bLineSpacingRule = 4;            // 4 = exact spacing in twips
             SendMessage(rtb.Handle, EM_SETPARAFORMAT, IntPtr.Zero, ref pf);
             
             // Restore position
@@ -128,6 +128,11 @@ namespace WeatherImageGenerator.Forms
         private Panel? _topPanel;
         private Panel? _logPanel;
         private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn, _toggleLogsBtn;
+        
+        // UI controls for log line spacing (user adjustable)
+        private ComboBox? _cmbLineSpacing;
+        private Label? _lblLineSpacing;
+        private int _logLineSpacingDy = 220; // line height in twips (rule 4). 220 = Relaxed for 9pt Consolas
         private CancellationTokenSource? _operationCts;
         private Services.VideoGenerator? _runningVideoGenerator; 
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
@@ -177,10 +182,10 @@ namespace WeatherImageGenerator.Forms
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
 
-            _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(8) };
+            _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(4) };
             // Note: RichTextBox with Dock=Fill doesn't support Region properly, so we skip rounding for it
             // Force tight paragraph spacing so log lines aren't spread apart
-            _logBox.HandleCreated += (s, e) => SetTightLineSpacing(_logBox);
+            _logBox.HandleCreated += (s, e) => SetTightLineSpacing(_logBox, _logLineSpacingDy);
 
             // Start a background timer that will periodically archive older logs to disk to avoid UI growth/crashes
             _logArchiveTimer = new System.Threading.Timer(_ => {
@@ -394,6 +399,33 @@ namespace WeatherImageGenerator.Forms
             _cmbVerbosity.SelectedIndex = 1; // Normal
             _cmbVerbosity.SelectedIndexChanged += (s, e) => RefreshLogView();
 
+            // Initialize line spacing from config
+            try
+            {
+                var cfgLine = ConfigManager.LoadConfig();
+                var rawSpacing = cfgLine.LogLineSpacing;
+                // Migrate old small values (14/16/20/24) to new twip values
+                _logLineSpacingDy = rawSpacing switch
+                {
+                    <= 0 => 180,
+                    14 => 140,
+                    16 => 180,
+                    20 => 180,
+                    24 => 220,
+                    < 100 => 180,   // any other legacy small value → Normal
+                    _ => rawSpacing // already in twips
+                };
+
+                // Map to combo index (only if combo exists)
+                if (_cmbLineSpacing != null)
+                {
+                    _cmbLineSpacing.SelectedIndex = _logLineSpacingDy switch { 140 => 0, 180 => 1, 220 => 2, 300 => 3, _ => 1 };
+                }
+                // Apply initial spacing immediately if handle exists
+                try { if (_logBox != null) SetTightLineSpacing(_logBox, _logLineSpacingDy); } catch { }
+            }
+            catch { if (_cmbLineSpacing != null) _cmbLineSpacing.SelectedIndex = 1; }
+
             _chkCompact = new CheckBox { Left = 280, Top = 11, Width = 78, Text = "Compact", Font = new Font("Segoe UI", 9F, FontStyle.Regular), FlatStyle = FlatStyle.Flat };
             _chkCompact.CheckedChanged += (s, e) => RefreshLogView();
 
@@ -411,12 +443,63 @@ namespace WeatherImageGenerator.Forms
                 RefreshLogView();
             };
 
+            // --- Line spacing control for logs ---
+            // Compute position dynamically so it stays visible next to the Clear button even on narrow windows
+            int lblSpacingTop = 12;
+            int comboTop = 9;
+            int lblWidth = 90;
+            int comboWidth = 150;
+            int spacingLeft = 700;
+            if (_clearLogBtn != null) spacingLeft = _clearLogBtn.Left + _clearLogBtn.Width + 8;
+
+            _lblLineSpacing = new Label { Left = spacingLeft, Top = lblSpacingTop, Width = lblWidth, AutoSize = false, Text = "Line spacing", Font = new Font("Segoe UI", 9F), TextAlign = ContentAlignment.MiddleLeft };
+            _cmbLineSpacing = new ComboBox { Left = spacingLeft + lblWidth + 8, Top = comboTop, Width = comboWidth, Height = 26, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9F) };
+            _cmbLineSpacing.Items.AddRange(new object[] { "Tight", "Normal", "Relaxed", "Spacious" });
+            _cmbLineSpacing.SelectedIndexChanged += (s, e) => 
+            {
+                if (_cmbLineSpacing?.SelectedItem != null)
+                {
+                    var sel = _cmbLineSpacing.SelectedItem.ToString() ?? "";
+                    _logLineSpacingDy = sel switch
+                    {
+                        "Tight" => 140,
+                        "Normal" => 180,
+                        "Relaxed" => 220,
+                        "Spacious" => 300,
+                        _ => 180
+                    };
+
+                    try
+                    {
+                        var cfg = ConfigManager.LoadConfig();
+                        cfg.LogLineSpacing = _logLineSpacingDy;
+                        ConfigManager.SaveConfig(cfg, silent: true);
+                    }
+                    catch (Exception ex) { Logger.Log($"Failed to save LogLineSpacing: {ex.Message}", Logger.LogLevel.Warning); }
+
+                    // Apply immediately to existing control and refresh view. Force a second apply after refresh to ensure paragraphs get updated.
+                    try
+                    {
+                        if (_logBox != null)
+                        {
+                            SetTightLineSpacing(_logBox, _logLineSpacingDy);
+                            RefreshLogView();
+                            // Ensure formatting applied after refresh (some RTF updates require a second pass)
+                            SetTightLineSpacing(_logBox, _logLineSpacingDy);
+                            _logBox.Invalidate();
+                        }
+                    }
+                    catch (Exception ex) { Logger.Log($"Failed to apply log spacing: {ex.Message}", Logger.LogLevel.Warning); }
+                }
+            };
             _logPanel.Controls.Add(_lblLog);
             _logPanel.Controls.Add(_cmbFilter);
             _logPanel.Controls.Add(_cmbVerbosity);
             _logPanel.Controls.Add(_chkCompact);
             _logPanel.Controls.Add(_txtSearch);
             _logPanel.Controls.Add(_clearLogBtn);
+            _logPanel.Controls.Add(_lblLineSpacing);
+            _logPanel.Controls.Add(_cmbLineSpacing);
             _startBtn.Click += (s, e) => StartClicked(_startBtn, _stopBtn);
             _stopBtn.Click += (s, e) => StopClicked(_startBtn, _stopBtn);
             _openOutputBtn.Click += (s, e) => OpenOutputDirectory();
@@ -553,7 +636,7 @@ namespace WeatherImageGenerator.Forms
             _logTab = new TabPage("📋 Logs");
             _logTab.Controls.Add(_logPanel);
             _logTab.Controls.Add(_logBox);
-            _logBox.BringToFront(); 
+            _logBox!.BringToFront(); 
 
             _tabControl.TabPages.Add(_logTab);
 
@@ -847,10 +930,12 @@ namespace WeatherImageGenerator.Forms
             void SetCombo(ComboBox? c) { if (c != null) { c.BackColor = buttonColor; c.ForeColor = neutralBtnText; } }
             SetCombo(_cmbFilter);
             SetCombo(_cmbVerbosity);
+            SetCombo(_cmbLineSpacing);
             if (_chkCompact != null) _chkCompact.ForeColor = headerTextColor;
             if (_txtSearch != null) { _txtSearch.BackColor = buttonColor; _txtSearch.ForeColor = neutralBtnText; }
             if (_txtWebUIUrl != null) { _txtWebUIUrl.BackColor = buttonColor; _txtWebUIUrl.ForeColor = neutralBtnText; }
             if (_progress != null) _progress.ForeColor = headerTextColor;
+            if (_lblLineSpacing != null) _lblLineSpacing.ForeColor = headerTextColor;
 
             // NAAD Panel theme colors
             if (_naadTitleLabel != null) _naadTitleLabel.ForeColor = headerTextColor;
@@ -1565,7 +1650,7 @@ namespace WeatherImageGenerator.Forms
             string verbosity = _cmbVerbosity?.SelectedItem as string ?? "Normal";
 
             rtb.Clear();
-            SetTightLineSpacing(rtb); // Reapply tight spacing after clear resets RTF formatting
+            SetTightLineSpacing(rtb, _logLineSpacingDy); // Reapply tight spacing after clear resets RTF formatting
             lock (_logBuffer)
             {
                 if (verbosity == "Minimal")
@@ -1668,6 +1753,8 @@ namespace WeatherImageGenerator.Forms
                 }
             }
 
+            // Apply line spacing to ALL text AFTER everything has been appended
+            SetTightLineSpacing(rtb, _logLineSpacingDy);
             rtb.ScrollToCaret();
         }
 
@@ -1777,6 +1864,9 @@ namespace WeatherImageGenerator.Forms
         }
 
         // Append a single line to the RichTextBox with professional formatting
+
+        // (RTF fallback methods removed — EM_SETPARAFORMAT with rule 4 handles spacing reliably)
+
         private void AppendColoredLine(RichTextBox rtb, string line, string search, Logger.LogLevel level)
         {
             if (rtb == null || string.IsNullOrEmpty(line)) return;
@@ -1785,7 +1875,7 @@ namespace WeatherImageGenerator.Forms
             if (string.IsNullOrEmpty(trimmed))
             {
                 rtb.AppendText(Environment.NewLine);
-                ApplyTightSpacingToCurrentParagraph(rtb);
+                ApplyTightSpacingToCurrentParagraph(rtb, _logLineSpacingDy);
                 rtb.SelectionStart = rtb.TextLength;
                 rtb.ScrollToCaret();
                 return;
@@ -1949,7 +2039,7 @@ namespace WeatherImageGenerator.Forms
             }
 
             // Reset
-            ApplyTightSpacingToCurrentParagraph(rtb);
+            ApplyTightSpacingToCurrentParagraph(rtb, _logLineSpacingDy);
             rtb.SelectionStart = rtb.TextLength;
             rtb.SelectionLength = 0;
             rtb.SelectionBackColor = rtb.BackColor;
