@@ -343,49 +343,58 @@ namespace WeatherImageGenerator.Services
             string filename = $"EmergencyAlert_{index:D2}.png";
             string fullPath = Path.Combine(outputDir, filename);
 
-            using (Bitmap bmp = new Bitmap(width, height))
-            using (Graphics g = Graphics.FromImage(bmp))
+            try
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-
-                // Background color based on severity
-                Color bgColor = GetSeverityBackgroundColor(alert.SeverityColor);
-                using (var bgBrush = new SolidBrush(bgColor))
+                using (Bitmap bmp = new Bitmap(width, height))
+                using (Graphics g = Graphics.FromImage(bmp))
                 {
-                    g.FillRectangle(bgBrush, 0, 0, width, height);
-                }
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
-                // Draw outer border
-                float borderInset = 16;
-                using (var borderPen = new Pen(Color.White, 8))
-                {
-                    g.DrawRectangle(borderPen, borderInset, borderInset, width - borderInset * 2, height - borderInset * 2);
-                }
+                    // Background color based on severity
+                    Color bgColor = GetSeverityBackgroundColor(alert.SeverityColor);
+                    using (var bgBrush = new SolidBrush(bgColor))
+                    {
+                        g.FillRectangle(bgBrush, 0, 0, width, height);
+                    }
 
-                // Draw inner border for professional look
-                float innerInset = 28;
-                using (var innerPen = new Pen(Color.FromArgb(120, Color.White), 2))
-                {
-                    g.DrawRectangle(innerPen, innerInset, innerInset, width - innerInset * 2, height - innerInset * 2);
-                }
+                    // Draw outer border
+                    float borderInset = 16;
+                    using (var borderPen = new Pen(Color.White, 8))
+                    {
+                        g.DrawRectangle(borderPen, borderInset, borderInset, width - borderInset * 2, height - borderInset * 2);
+                    }
 
-                float contentLeft = margin * 2.5f;
-                float contentWidth = width - (contentLeft * 2);
-                var centerFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Near };
+                    // Draw inner border for professional look
+                    float innerInset = 28;
+                    using (var innerPen = new Pen(Color.FromArgb(120, Color.White), 2))
+                    {
+                        g.DrawRectangle(innerPen, innerInset, innerInset, width - innerInset * 2, height - innerInset * 2);
+                    }
 
-                // === HEADER: Alert Ready logo text ===
-                float currentY = 50;
-                using (Font logoFont = new Font(imgConfig.FontFamily ?? "Arial", 42, FontStyle.Bold))
-                using (Brush whiteBrush = new SolidBrush(Color.White))
-                {
-                    string logoText = language == "en-CA" ? "ALERT READY" : "QUÉBEC EN ALERTE";
-                    SizeF logoSize = g.MeasureString(logoText, logoFont);
-                    float logoX = (width - logoSize.Width) / 2;
-                    g.DrawString(logoText, logoFont, whiteBrush, logoX, currentY);
-                    currentY += logoSize.Height + 10;
-                }
+                    float contentLeft = margin * 2.5f;
+                    float contentWidth = width - (contentLeft * 2);
+                    var centerFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Near };
+
+                    // === HEADER: Alert Ready logo text ===
+                    float currentY = 50;
+                    using (Font logoFont = new Font(imgConfig.FontFamily ?? "Arial", 42, FontStyle.Bold))
+                    using (Brush whiteBrush = new SolidBrush(Color.White))
+                    {
+                        try
+                        {
+                            string logoText = language == "en-CA" ? "ALERT READY" : "QUÉBEC EN ALERTE";
+                            SizeF logoSize = g.MeasureString(logoText, logoFont);
+                            float logoX = (width - logoSize.Width) / 2;
+                            g.DrawString(logoText, logoFont, whiteBrush, logoX, currentY);
+                            currentY += logoSize.Height + 10;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"[GenerateAlertImage] Error drawing logo: {ex.Message}", Logger.LogLevel.Error);
+                        }
+                    }
 
                 // === WARNING TRIANGLE ICON (properly centered) ===
                 float triangleSize = 70;
@@ -397,12 +406,26 @@ namespace WeatherImageGenerator.Services
                 using (Font titleFont = new Font(imgConfig.FontFamily ?? "Arial", 38, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    string titleText = alert.Title ?? (language == "en-CA" ? "EMERGENCY ALERT" : "ALERTE D'URGENCE");
-                    string wrappedTitle = WrapText(titleText, titleFont, g, contentWidth);
-                    SizeF titleSize = g.MeasureString(wrappedTitle, titleFont, (int)contentWidth);
-                    g.DrawString(wrappedTitle, titleFont, whiteBrush,
-                        new RectangleF(contentLeft, currentY, contentWidth, titleSize.Height + 10), centerFormat);
-                    currentY += titleSize.Height + 20;
+                    try
+                    {
+                        string titleText = alert.Title ?? (language == "en-CA" ? "EMERGENCY ALERT" : "ALERTE D'URGENCE");
+                        if (string.IsNullOrWhiteSpace(titleText))
+                            titleText = language == "en-CA" ? "EMERGENCY ALERT" : "ALERTE D'URGENCE";
+                        
+                        string wrappedTitle = WrapText(titleText, titleFont, g, contentWidth);
+                        if (string.IsNullOrWhiteSpace(wrappedTitle))
+                            wrappedTitle = titleText;
+                            
+                        SizeF titleSize = g.MeasureString(wrappedTitle, titleFont, (int)contentWidth);
+                        g.DrawString(wrappedTitle, titleFont, whiteBrush,
+                            new RectangleF(contentLeft, currentY, contentWidth, titleSize.Height + 10), centerFormat);
+                        currentY += titleSize.Height + 20;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[GenerateAlertImage] Error drawing title: {ex.Message}", Logger.LogLevel.Error);
+                        Logger.Log($"  Title text: '{alert.Title}'", Logger.LogLevel.Debug);
+                    }
                 }
 
                 // === LOCATION / AREA ===
@@ -411,11 +434,22 @@ namespace WeatherImageGenerator.Services
                     using (Font areaFont = new Font(imgConfig.FontFamily ?? "Arial", 30, FontStyle.Bold))
                     using (Brush whiteBrush = new SolidBrush(Color.White))
                     {
-                        string wrappedArea = WrapText(alert.City, areaFont, g, contentWidth);
-                        SizeF areaSize = g.MeasureString(wrappedArea, areaFont, (int)contentWidth);
-                        g.DrawString(wrappedArea, areaFont, whiteBrush,
-                            new RectangleF(contentLeft, currentY, contentWidth, areaSize.Height + 10), centerFormat);
-                        currentY += areaSize.Height + 20;
+                        try
+                        {
+                            string wrappedArea = WrapText(alert.City, areaFont, g, contentWidth);
+                            if (string.IsNullOrWhiteSpace(wrappedArea))
+                                wrappedArea = alert.City;
+                                
+                            SizeF areaSize = g.MeasureString(wrappedArea, areaFont, (int)contentWidth);
+                            g.DrawString(wrappedArea, areaFont, whiteBrush,
+                                new RectangleF(contentLeft, currentY, contentWidth, areaSize.Height + 10), centerFormat);
+                            currentY += areaSize.Height + 20;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"[GenerateAlertImage] Error drawing area: {ex.Message}", Logger.LogLevel.Error);
+                            Logger.Log($"  Area text: '{alert.City}'", Logger.LogLevel.Debug);
+                        }
                     }
                 }
 
@@ -430,37 +464,54 @@ namespace WeatherImageGenerator.Services
                     using (Font summaryFont = new Font(imgConfig.FontFamily ?? "Arial", 22, FontStyle.Regular))
                     using (Brush whiteBrush = new SolidBrush(Color.White))
                     {
-                        // Build summary text including certainty/urgency if available
-                        string fullSummary = alert.Summary;
-                        var metaParts = new List<string>();
-                        if (!string.IsNullOrWhiteSpace(alert.Confidence))
-                            metaParts.Add($"{(language == "en-CA" ? "Certainty" : "Certitude")}: {alert.Confidence}");
-                        if (!string.IsNullOrWhiteSpace(alert.Impact))
-                            metaParts.Add($"{(language == "en-CA" ? "Urgency" : "Urgence")}: {alert.Impact}");
-                        if (metaParts.Count > 0)
-                            fullSummary += "  " + string.Join("  ", metaParts);
-
-                        string wrappedSummary = WrapText(fullSummary, summaryFont, g, contentWidth - summaryBoxPadding * 2);
-                        SizeF summarySize = g.MeasureString(wrappedSummary, summaryFont, (int)(contentWidth - summaryBoxPadding * 2));
-
-                        float actualSummaryH = Math.Min(summarySize.Height, maxSummaryHeight);
-                        if (summarySize.Height > maxSummaryHeight)
+                        try
                         {
-                            wrappedSummary = TruncateText(wrappedSummary, summaryFont, g, contentWidth - summaryBoxPadding * 2, maxSummaryHeight);
-                        }
+                            // Build summary text including certainty/urgency if available
+                            string fullSummary = alert.Summary ?? "";
+                            var metaParts = new List<string>();
+                            if (!string.IsNullOrWhiteSpace(alert.Confidence))
+                                metaParts.Add($"{(language == "en-CA" ? "Certainty" : "Certitude")}: {alert.Confidence}");
+                            if (!string.IsNullOrWhiteSpace(alert.Impact))
+                                metaParts.Add($"{(language == "en-CA" ? "Urgency" : "Urgence")}: {alert.Impact}");
+                            if (metaParts.Count > 0)
+                                fullSummary += "  " + string.Join("  ", metaParts);
 
-                        // Draw semi-transparent background box for readability
-                        float boxHeight = actualSummaryH + summaryBoxPadding * 2;
-                        using (var boxBrush = new SolidBrush(Color.FromArgb(50, 0, 0, 0)))
+                            Logger.Log($"[GenerateAlertImage] Summary before wrap: length={fullSummary?.Length ?? 0}", Logger.LogLevel.Debug);
+                            
+                            string wrappedSummary = WrapText(fullSummary, summaryFont, g, contentWidth - summaryBoxPadding * 2);
+                            Logger.Log($"[GenerateAlertImage] Summary after wrap: length={wrappedSummary?.Length ?? 0}, lines={wrappedSummary?.Split('\n').Length ?? 0}", Logger.LogLevel.Debug);
+                            
+                            if (string.IsNullOrWhiteSpace(wrappedSummary))
+                                wrappedSummary = fullSummary ?? "Alert issued for your area.";
+
+                            SizeF summarySize = g.MeasureString(wrappedSummary, summaryFont, (int)(contentWidth - summaryBoxPadding * 2));
+                            Logger.Log($"[GenerateAlertImage] Summary size: width={summarySize.Width}, height={summarySize.Height}", Logger.LogLevel.Debug);
+
+                            float actualSummaryH = Math.Min(summarySize.Height, maxSummaryHeight);
+                            if (summarySize.Height > maxSummaryHeight)
+                            {
+                                wrappedSummary = TruncateText(wrappedSummary, summaryFont, g, contentWidth - summaryBoxPadding * 2, maxSummaryHeight);
+                            }
+
+                            // Draw semi-transparent background box for readability
+                            float boxHeight = actualSummaryH + summaryBoxPadding * 2;
+                            using (var boxBrush = new SolidBrush(Color.FromArgb(50, 0, 0, 0)))
+                            {
+                                float boxLeft = contentLeft - 5;
+                                g.FillRectangle(boxBrush, boxLeft, summaryBoxTop, contentWidth + 10, boxHeight);
+                            }
+
+                            g.DrawString(wrappedSummary, summaryFont, whiteBrush,
+                                new RectangleF(contentLeft + summaryBoxPadding, summaryBoxTop + summaryBoxPadding,
+                                    contentWidth - summaryBoxPadding * 2, actualSummaryH),
+                                centerFormat);
+                        }
+                        catch (Exception ex)
                         {
-                            float boxLeft = contentLeft - 5;
-                            g.FillRectangle(boxBrush, boxLeft, summaryBoxTop, contentWidth + 10, boxHeight);
+                            Logger.Log($"[GenerateAlertImage] Error drawing summary: {ex.Message}", Logger.LogLevel.Error);
+                            Logger.Log($"  Summary length: {alert.Summary?.Length ?? 0}", Logger.LogLevel.Debug);
+                            Logger.Log($"  Stack: {ex.StackTrace}", Logger.LogLevel.Debug);
                         }
-
-                        g.DrawString(wrappedSummary, summaryFont, whiteBrush,
-                            new RectangleF(contentLeft + summaryBoxPadding, summaryBoxTop + summaryBoxPadding,
-                                contentWidth - summaryBoxPadding * 2, actualSummaryH),
-                            centerFormat);
                     }
                 }
 
@@ -468,16 +519,31 @@ namespace WeatherImageGenerator.Services
                 using (Font footerFont = new Font(imgConfig.FontFamily ?? "Arial", 18, FontStyle.Bold))
                 using (Brush whiteBrush = new SolidBrush(Color.White))
                 {
-                    string footerText = language == "en-CA"
-                        ? "Follow instructions from local authorities \u2022 Stay informed"
-                        : "Suivez les instructions des autorités locales \u2022 Restez informés";
-                    SizeF footerSize = g.MeasureString(footerText, footerFont);
-                    float footerX = (width - footerSize.Width) / 2;
-                    float footerY = height - 55 - footerSize.Height / 2;
-                    g.DrawString(footerText, footerFont, whiteBrush, footerX, footerY);
+                    try
+                    {
+                        string footerText = language == "en-CA"
+                            ? "Follow instructions from local authorities \u2022 Stay informed"
+                            : "Suivez les instructions des autorités locales \u2022 Restez informés";
+                        SizeF footerSize = g.MeasureString(footerText, footerFont);
+                        float footerX = (width - footerSize.Width) / 2;
+                        float footerY = height - 55 - footerSize.Height / 2;
+                        g.DrawString(footerText, footerFont, whiteBrush, footerX, footerY);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[GenerateAlertImage] Error drawing footer: {ex.Message}", Logger.LogLevel.Error);
+                    }
                 }
 
                 bmp.Save(fullPath, ImageFormat.Png);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[EmergencyAlertGenerator] Error generating image: {ex.Message}", Logger.LogLevel.Error);
+                Logger.Log($"  Alert: Title='{alert?.Title}', City='{alert?.City}'", Logger.LogLevel.Debug);
+                Logger.Log($"  Stack: {ex.StackTrace}", Logger.LogLevel.Debug);
+                throw;
             }
 
             Logger.Log($"[EmergencyAlertGenerator] Generated image: {filename}", Logger.LogLevel.Info);

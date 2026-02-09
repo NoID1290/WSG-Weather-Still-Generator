@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -12,11 +13,14 @@ namespace EAS.NWS
     /// <summary>
     /// NWS (United States / National Weather Service) CAP feed provider.
     /// Implements the <see cref="IAlertProvider"/> interface so it can be swapped with AlertReady.
+    /// Supports parsing CAP alerts with SAME (Specific Area Message Encoding) headers.
     /// </summary>
     public class NwsClient : IAlertProvider
     {
         private readonly HttpClient _httpClient;
         private readonly NwsOptions _options;
+        private readonly HashSet<string> _seenIdentifiers = new();
+        private readonly object _lockObj = new();
 
         public Action<string>? Log { get; set; }
 
@@ -34,14 +38,14 @@ namespace EAS.NWS
 
             if (!_options.Enabled)
             {
-                Log?.Invoke("EAS-NWS provider disabled; skipping.");
+                LogMessage("NWS provider disabled; skipping.");
                 return results;
             }
 
             var feeds = _options.FeedUrls?.Where(u => !string.IsNullOrWhiteSpace(u)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (feeds == null || feeds.Count == 0)
             {
-                Log?.Invoke("No NWS feed URLs configured for EasnwsClient.");
+                LogMessage("No NWS feed URLs configured for NwsClient.");
                 return results;
             }
 
@@ -49,12 +53,29 @@ namespace EAS.NWS
             {
                 try
                 {
-                    var xml = await _httpClient.GetStringAsync(feed);
-                    results.AddRange(ParseAlerts(xml, filterAreas));
+                    using (var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(_options.HttpTimeoutSeconds)))
+                    {
+                        var xml = await _httpClient.GetStringAsync(feed, cts.Token);
+                        var alerts = ParseAlerts(xml, filterAreas);
+                        results.AddRange(alerts);
+
+                        if (alerts.Count > 0)
+                        {
+                            LogMessage($"NWS feed {feed}: fetched {alerts.Count} alerts");
+                        }
+                    }
+                }
+                catch (System.Threading.Tasks.TaskCanceledException)
+                {
+                    LogMessage($"NWS feed {feed}: request timed out after {_options.HttpTimeoutSeconds}s");
+                }
+                catch (HttpRequestException ex)
+                {
+                    LogMessage($"NWS feed {feed}: HTTP error: {ex.Message}");
                 }
                 catch (Exception ex)
                 {
-                    Log?.Invoke($"Failed to fetch NWS feed {feed}: {ex.Message}");
+                    LogMessage($"NWS feed {feed}: failed to parse: {ex.Message}");
                 }
             }
 
@@ -95,12 +116,23 @@ namespace EAS.NWS
             var status = GetValue(alertElement, "status");
             if (!string.Equals(status, "Actual", StringComparison.OrdinalIgnoreCase))
             {
-                // NWS uses Test/Exercise as well
+                // Skip Test/Exercise alerts
                 return null;
             }
 
             var scope = GetValue(alertElement, "scope");
             if (!string.Equals(scope, "Public", StringComparison.OrdinalIgnoreCase)) return null;
+
+            var identifier = GetValue(alertElement, "identifier");
+            
+            // Check if we've already seen this alert to avoid duplicates
+            lock (_lockObj)
+            {
+                if (!string.IsNullOrWhiteSpace(identifier) && !_seenIdentifiers.Add(identifier))
+                {
+                    return null; // Already processed
+                }
+            }
 
             var info = alertElement.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("info", StringComparison.OrdinalIgnoreCase));
             if (info == null) return null;
@@ -113,6 +145,9 @@ namespace EAS.NWS
             var urgency = GetValue(info, "urgency");
             var certainty = GetValue(info, "certainty");
 
+            // Extract SAME header if present
+            var sameHeader = ExtractSameHeader(info, eventName);
+
             var areaElement = info.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("area", StringComparison.OrdinalIgnoreCase));
             var areaDesc = GetValue(areaElement, "areaDesc");
             if (string.IsNullOrWhiteSpace(areaDesc)) areaDesc = "NWS Alert";
@@ -121,10 +156,11 @@ namespace EAS.NWS
 
             var summaryParts = new List<string>();
             if (!string.IsNullOrWhiteSpace(description)) summaryParts.Add(description.Trim());
+            if (!string.IsNullOrWhiteSpace(sameHeader)) summaryParts.Add($"[SAME: {sameHeader}]");
             if (!string.IsNullOrWhiteSpace(instruction)) summaryParts.Add(instruction.Trim());
             var summary = summaryParts.Count > 0 ? string.Join("  ", summaryParts) : headline ?? eventName ?? "NWS Alert";
 
-            return new AlertEntry
+            var alert = new AlertEntry
             {
                 City = areaDesc,
                 Type = eventName ?? "Alert",
@@ -132,6 +168,47 @@ namespace EAS.NWS
                 Summary = summary,
                 SeverityColor = MapSeverity(severity)
             };
+
+            // Fire the AlertReceived event
+            AlertReceived?.Invoke(this, new EAS.AlertReceivedEventArgs { Alert = alert });
+
+            return alert;
+        }
+
+        /// <summary>
+        /// Extracts the SAME (Specific Area Message Encoding) header from the alert if present.
+        /// SAME headers contain coded information about the alert target area and event type.
+        /// </summary>
+        private string? ExtractSameHeader(XElement info, string? eventName)
+        {
+            try
+            {
+                // Look for parameter element with valueName='SAME'
+                var sameParam = info.Elements()
+                    .FirstOrDefault(e => e.Name.LocalName.Equals("parameter", StringComparison.OrdinalIgnoreCase))?
+                    .Elements()
+                    .FirstOrDefault(e => e.Name.LocalName.Equals("valueName", StringComparison.OrdinalIgnoreCase))?
+                    .Value;
+
+                if (string.Equals(sameParam, "SAME", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parentParam = info.Elements()
+                        .FirstOrDefault(e => e.Name.LocalName.Equals("parameter", StringComparison.OrdinalIgnoreCase) &&
+                                            e.Elements().Any(c => c.Name.LocalName.Equals("valueName", StringComparison.OrdinalIgnoreCase) && 
+                                                                   string.Equals(c.Value, "SAME", StringComparison.OrdinalIgnoreCase)));
+
+                    var valueElement = parentParam?.Elements()
+                        .FirstOrDefault(e => e.Name.LocalName.Equals("value", StringComparison.OrdinalIgnoreCase));
+
+                    return valueElement?.Value?.Trim();
+                }
+            }
+            catch
+            {
+                // Silently ignore parse errors
+            }
+
+            return null;
         }
 
         private static string GetValue(XElement? parent, string localName)
@@ -173,6 +250,11 @@ namespace EAS.NWS
             }
 
             return deduped;
+        }
+
+        private void LogMessage(string message)
+        {
+            Log?.Invoke($"[NwsClient] {message}");
         }
     }
 }

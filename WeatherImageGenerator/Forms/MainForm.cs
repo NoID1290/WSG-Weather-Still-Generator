@@ -10,6 +10,7 @@ using System.Windows.Forms;
 using System.Reflection;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Xml.Linq;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 using WeatherImageGenerator.Models;
@@ -17,6 +18,7 @@ using WeatherImageGenerator.Forms;
 
 using EAS;
 using EAS.AlertReady;
+using EAS.NWS;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -2524,13 +2526,26 @@ namespace WeatherImageGenerator.Forms
         private async Task GenerateTestAlertAsync()
         {
             SetButtonEnabled(_testAlertBtn!, false);
-            _testAlertBtn!.Text = "⏳ Generating...";
+            _testAlertBtn!.Text = "⏳ Selecting alert type...";
 
             try
             {
+                // Show selection dialog
+                using var selectionForm = new TestAlertSelectionForm();
+                if (selectionForm.ShowDialog(this) != DialogResult.OK)
+                {
+                    Logger.Log("Test alert generation cancelled.", Logger.LogLevel.Info);
+                    return;
+                }
+
+                _testAlertBtn!.Text = "⏳ Generating...";
+
+                string selectedCountry = selectionForm.SelectedCountry;
+                string selectedAlertType = selectionForm.SelectedAlertType;
+
                 await Task.Run(() =>
                 {
-                    Logger.Log("Generating test emergency alert...", Logger.LogLevel.Info);
+                    Logger.Log($"Generating test alert: {selectedAlertType} ({selectedCountry})...", Logger.LogLevel.Info);
 
                     // Create output directory
                     string outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestAlerts");
@@ -2543,69 +2558,67 @@ namespace WeatherImageGenerator.Forms
                     var cfg = ConfigManager.LoadConfig();
                     string language = cfg.AlertReady?.PreferredLanguage ?? "fr-CA";
 
-                    // Generate test alert XML
-                    string testAlertXml = TestAlertGenerator.GenerateAmberAlert(language);
+                    string testAlertXml;
+                    List<AlertEntry> alerts = new();
 
-                    // Parse the alert - use 'using' to properly dispose HttpClient
-                    using var httpClient = new System.Net.Http.HttpClient();
-                    var options = new AlertReadyOptions
+                    // Generate appropriate alert based on selection
+                    if (selectedCountry.StartsWith("Canada"))
                     {
-                        Enabled = true,
-                        ExcludeWeatherAlerts = true,
-                        PreferredLanguage = language,
-                        Jurisdictions = new List<string> { "QC", "ON", "CA" },
-                        HighRiskOnly = false
-                    };
-
-                    var client = new AlertReadyClient(httpClient, options);
-                    client.Log = (msg) => Logger.Log($"[AlertReady] {msg}", Logger.LogLevel.Debug);
-
-                    // Use reflection to call the private ParseAlerts method
-                    var parseMethod = client.GetType().GetMethod("ParseAlerts", 
-                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    
-                    List<AlertEntry>? alerts;
-                    try
-                    {
-                        alerts = parseMethod?.Invoke(client, new object[] { testAlertXml, new List<string>() }) 
-                            as List<AlertEntry>;
+                        testAlertXml = GenerateAlertReadyTestAlert(selectedAlertType, language);
+                        alerts = ParseCapAlert(testAlertXml);
                     }
-                    finally
+                    else
                     {
-                        // Manually dispose AlertReadyClient (has Dispose method but doesn't implement IDisposable)
-                        client.Dispose();
+                        testAlertXml = GenerateNwsTestAlert(selectedAlertType);
+                        alerts = ParseCapAlert(testAlertXml);
                     }
 
-                    if (alerts != null && alerts.Count > 0)
+                    if (alerts.Count > 0)
                     {
                         Logger.Log($"Parsed {alerts.Count} test alert(s). Generating media and video...", Logger.LogLevel.Info);
-
-                        // Use the new method that generates both media AND video automatically
-                        var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
-                            alerts,
-                            outputDir,
-                            language
-                        );
-
-                        Logger.Log($"Generated {generatedFiles.Count} file(s) in TestAlerts folder.", Logger.LogLevel.Info);
                         
-                        if (!string.IsNullOrEmpty(videoPath))
+                        // Log alert details for debugging
+                        for (int i = 0; i < alerts.Count; i++)
                         {
-                            Logger.Log($"✓ Alert video generated: {videoPath}", Logger.LogLevel.Info);
+                            var alert = alerts[i];
+                            Logger.Log($"  Alert {i + 1}: Title='{alert.Title}', City='{alert.City}', Type='{alert.Type}', Summary length={alert.Summary?.Length ?? 0}", Logger.LogLevel.Debug);
                         }
 
-                        // Open the output folder
-                        if (generatedFiles.Count > 0)
+                        try
                         {
-                            try
+                            // Use the new method that generates both media AND video automatically
+                            var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
+                                alerts,
+                                outputDir,
+                                language
+                            );
+
+                            Logger.Log($"Generated {generatedFiles.Count} file(s) in TestAlerts folder.", Logger.LogLevel.Info);
+
+                            if (!string.IsNullOrEmpty(videoPath))
                             {
-                                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                                {
-                                    FileName = outputDir,
-                                    UseShellExecute = true
-                                });
+                                Logger.Log($"✓ Alert video generated: {videoPath}", Logger.LogLevel.Info);
                             }
-                            catch { /* best-effort */ }
+
+                            // Open the output folder
+                            if (generatedFiles.Count > 0)
+                            {
+                                try
+                                {
+                                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                    {
+                                        FileName = outputDir,
+                                        UseShellExecute = true
+                                    });
+                                }
+                                catch { /* best-effort */ }
+                            }
+                        }
+                        catch (Exception genEx)
+                        {
+                            Logger.Log($"Error during media generation: {genEx.Message}", Logger.LogLevel.Error);
+                            Logger.Log($"Stack trace: {genEx.StackTrace}", Logger.LogLevel.Debug);
+                            throw; // Re-throw to be caught by outer handler
                         }
                     }
                     else
@@ -2613,7 +2626,7 @@ namespace WeatherImageGenerator.Forms
                         Logger.Log("Failed to parse test alert.", Logger.LogLevel.Warning);
                     }
                 }).ConfigureAwait(true);  // Ensure we return to UI thread
-                
+
                 Logger.Log("Test alert generation completed.", Logger.LogLevel.Info);
             }
             catch (Exception ex)
@@ -2647,6 +2660,156 @@ namespace WeatherImageGenerator.Forms
                 }
             }
         }
+
+        /// <summary>
+        /// Generates AlertReady test alert XML based on alert type
+        /// </summary>
+        private string GenerateAlertReadyTestAlert(string alertType, string language)
+        {
+            return alertType switch
+            {
+                "AMBER Alert - Missing Child" => TestAlertGenerator.GenerateAmberAlert(language),
+                "Civil Emergency - Public Safety" => TestAlertGenerator.GenerateCivilEmergencyAlert(language),
+                "Public Safety Advisory" => TestAlertGenerator.GeneratePublicSafetyAlert(language),
+                _ => TestAlertGenerator.GenerateAmberAlert(language)
+            };
+        }
+
+        /// <summary>
+        /// Generates NWS test alert XML based on alert type
+        /// </summary>
+        private string GenerateNwsTestAlert(string alertType)
+        {
+            return alertType switch
+            {
+                "Tornado Warning" => EAS.NWS.TestNwsAlerts.GenerateTornadoWarning(),
+                "Severe Thunderstorm Warning" => EAS.NWS.TestNwsAlerts.GenerateSevereThunderstormWarning(),
+                "Winter Weather Advisory" => EAS.NWS.TestNwsAlerts.GenerateWinterWeatherAdvisory(),
+                "Flash Flood Warning" => EAS.NWS.TestNwsAlerts.GenerateFloodWarning(),
+                "Heat Advisory" => EAS.NWS.TestNwsAlerts.GenerateHeatAdvisory(),
+                _ => EAS.NWS.TestNwsAlerts.GenerateTornadoWarning()
+            };
+        }
+
+        /// <summary>
+        /// Parses CAP (Common Alerting Protocol) XML into AlertEntry objects
+        /// </summary>
+        private List<AlertEntry> ParseCapAlert(string xml)
+        {
+            var results = new List<AlertEntry>();
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(xml)) return results;
+
+                var doc = XDocument.Parse(xml);
+                var root = doc.Root;
+
+                if (root?.Name.LocalName != "alert") return results;
+
+                // Extract basic alert information
+                var identifier = GetCapValue(root, "identifier");
+                var status = GetCapValue(root, "status");
+                var scope = GetCapValue(root, "scope");
+
+                // Only process Actual and Public alerts
+                if (!string.Equals(status, "Actual", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(status, "Test", StringComparison.OrdinalIgnoreCase))
+                {
+                    return results;
+                }
+
+                if (!string.Equals(scope, "Public", StringComparison.OrdinalIgnoreCase))
+                {
+                    return results;
+                }
+
+                // Get info element (can have multiple for different languages)
+                var infoElement = root.Elements()
+                    .FirstOrDefault(e => e.Name.LocalName.Equals("info", StringComparison.OrdinalIgnoreCase));
+
+                if (infoElement == null) return results;
+
+                var eventName = GetCapValue(infoElement, "event") ?? "Emergency Alert";
+                var headline = GetCapValue(infoElement, "headline") ?? eventName;
+                var description = GetCapValue(infoElement, "description") ?? "An emergency alert has been issued for your area.";
+                var instruction = GetCapValue(infoElement, "instruction") ?? "";
+                var severity = GetCapValue(infoElement, "severity") ?? "Unknown";
+                var urgency = GetCapValue(infoElement, "urgency") ?? "Unknown";
+                var category = GetCapValue(infoElement, "category") ?? "Safety";
+
+                // Get area information
+                var areaElement = infoElement.Elements()
+                    .FirstOrDefault(e => e.Name.LocalName.Equals("area", StringComparison.OrdinalIgnoreCase));
+
+                var areaDesc = GetCapValue(areaElement, "areaDesc") ?? "Alert Area";
+
+                // Build summary - ensure we have content
+                var summaryParts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(description))
+                    summaryParts.Add(description.Trim());
+                if (!string.IsNullOrWhiteSpace(instruction))
+                    summaryParts.Add(instruction.Trim());
+
+                var summary = summaryParts.Count > 0
+                    ? string.Join("  ", summaryParts)
+                    : "An emergency alert has been issued for your area. Please remain alert and follow instructions from local authorities.";
+
+                // Determine color based on severity
+                var color = MapSeverityToColor(severity);
+
+                var alert = new AlertEntry
+                {
+                    City = !string.IsNullOrWhiteSpace(areaDesc) ? areaDesc : "Alert Area",
+                    Type = !string.IsNullOrWhiteSpace(eventName) ? eventName : "Emergency Alert",
+                    Title = !string.IsNullOrWhiteSpace(headline) ? headline : "Emergency Alert",
+                    Summary = !string.IsNullOrWhiteSpace(summary) ? summary : "An emergency alert has been issued.",
+                    SeverityColor = !string.IsNullOrWhiteSpace(color) ? color : "Red",
+                    Confidence = urgency,
+                    Impact = urgency
+                };
+
+                results.Add(alert);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error parsing CAP alert: {ex.Message}", Logger.LogLevel.Warning);
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Gets value from CAP XML element by local name
+        /// </summary>
+        private static string? GetCapValue(XElement? parent, string localName)
+        {
+            if (parent == null) return null;
+
+            var child = parent.Elements()
+                .FirstOrDefault(e => e.Name.LocalName.Equals(localName, StringComparison.OrdinalIgnoreCase));
+
+            return child?.Value?.Trim();
+        }
+
+        /// <summary>
+        /// Maps CAP alert severity to display color
+        /// </summary>
+        private static string MapSeverityToColor(string? severity)
+        {
+            if (string.IsNullOrWhiteSpace(severity)) return "Gray";
+
+            var sev = severity.Trim().ToLowerInvariant();
+            return sev switch
+            {
+                "extreme" or "severe" => "Red",
+                "moderate" or "minor" => "Yellow",
+                _ => "Gray"
+            };
+        }
+
+
+
 
         private void StartNaadListener(AppSettings cfg)
         {
