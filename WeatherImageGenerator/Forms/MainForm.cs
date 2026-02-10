@@ -2566,11 +2566,24 @@ namespace WeatherImageGenerator.Forms
                     {
                         testAlertXml = GenerateAlertReadyTestAlert(selectedAlertType, language);
                         alerts = ParseCapAlert(testAlertXml);
+                        // Set provider for all alerts
+                        foreach (var a in alerts)
+                        {
+                            a.Provider = "Canada_AlertReady";
+                        }
                     }
                     else
                     {
                         testAlertXml = GenerateNwsTestAlert(selectedAlertType);
                         alerts = ParseCapAlert(testAlertXml);
+                        // Set provider for all alerts
+                        foreach (var a in alerts)
+                        {
+                            a.Provider = "USA_NWS";
+                            // For NWS, set issued/expires times
+                            a.IssuedAt = DateTimeOffset.Now;
+                            a.ExpiresAt = DateTimeOffset.Now.AddHours(1);
+                        }
                     }
 
                     if (alerts.Count > 0)

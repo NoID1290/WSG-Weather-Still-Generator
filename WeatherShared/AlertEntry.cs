@@ -9,6 +9,8 @@ namespace WeatherImageGenerator.Models
         public string Title { get; set; } = "";
         public string Summary { get; set; } = "";
         public string SeverityColor { get; set; } = "Gray"; // Red, Yellow, Gray
+        /// <summary>Alert provider: USA_NWS or Canada_AlertReady</summary>
+        public string? Provider { get; set; }
         
         // Extended fields from ECCC API
         /// <summary>Impact level: modéré, élevé, etc.</summary>

@@ -56,10 +56,13 @@ namespace WeatherImageGenerator.Services
                 var alert = alerts[i];
                 try
                 {
-                    string imageFile = GenerateAlertImage(alert, outputDir, i + 1, width, height, margin, imgConfig, language);
+                    // Determine provider
+                    string provider = alert.Provider ?? "Canada_AlertReady";
+                    
+                    string imageFile = GenerateAlertImage(alert, outputDir, i + 1, width, height, margin, imgConfig, language, provider);
                     generatedFiles.Add(imageFile);
 
-                    string audioFile = GenerateAlertAudio(alert, outputDir, i + 1, language);
+                    string audioFile = GenerateAlertAudio(alert, outputDir, i + 1, language, provider);
                     if (!string.IsNullOrEmpty(audioFile))
                     {
                         generatedFiles.Add(audioFile);
@@ -338,7 +341,7 @@ namespace WeatherImageGenerator.Services
         }
 
         private static string GenerateAlertImage(AlertEntry alert, string outputDir, int index, 
-            int width, int height, float margin, ImageGenerationSettings imgConfig, string language)
+            int width, int height, float margin, ImageGenerationSettings imgConfig, string language, string provider)
         {
             string filename = $"EmergencyAlert_{index:D2}.png";
             string fullPath = Path.Combine(outputDir, filename);
@@ -352,8 +355,97 @@ namespace WeatherImageGenerator.Services
                     g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
                     g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
-                    // Background color based on severity
-                    Color bgColor = GetSeverityBackgroundColor(alert.SeverityColor);
+                    // Check provider for different layouts
+                    if (provider == "USA_NWS")
+                    {
+                        DrawNwsAlert(g, alert, width, height, imgConfig, index);
+                    }
+                    else
+                    {
+                        DrawAlertReadyAlert(g, alert, width, height, margin, imgConfig, language);
+                    }
+
+                    bmp.Save(fullPath, ImageFormat.Png);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[EmergencyAlertGenerator] Error generating image: {ex.Message}", Logger.LogLevel.Error);
+                Logger.Log($"  Alert: Title='{alert?.Title}', City='{alert?.City}'", Logger.LogLevel.Debug);
+                Logger.Log($"  Stack: {ex.StackTrace}", Logger.LogLevel.Debug);
+                throw;
+            }
+
+            Logger.Log($"[EmergencyAlertGenerator] Generated image: {filename}", Logger.LogLevel.Info);
+            return fullPath;
+        }
+
+        private static void DrawNwsAlert(Graphics g, AlertEntry alert, int width, int height, ImageGenerationSettings imgConfig, int pageNum)
+        {
+            // USA NWS style: Blue background, simple text layout
+            using (var bgBrush = new SolidBrush(Color.FromArgb(0, 51, 153)))  // NWS Blue
+            {
+                g.FillRectangle(bgBrush, 0, 0, width, height);
+            }
+
+            float margin = 60;
+            float currentY = margin;
+            using (Brush whiteBrush = new SolidBrush(Color.White))
+            using (Font headerFont = new Font(imgConfig.FontFamily ?? "Arial", 36, FontStyle.Bold))
+            using (Font bodyFont = new Font(imgConfig.FontFamily ?? "Arial", 28, FontStyle.Regular))
+            using (Font smallFont = new Font(imgConfig.FontFamily ?? "Arial", 24, FontStyle.Regular))
+            {
+                // Title: "The National Weather Service has issued A [TYPE] for the following counties or areas:"
+                string headerText = $"The National Weather Service has issued A {alert.Type.ToUpperInvariant()} for the following counties or areas:";
+                var headerRect = new RectangleF(margin, currentY, width - margin * 2, height);
+                SizeF headerSize = g.MeasureString(headerText, headerFont, (int)(width - margin * 2));
+                g.DrawString(headerText, headerFont, whiteBrush, headerRect);
+                currentY += headerSize.Height + 40;
+
+                // Counties/Areas
+                if (!string.IsNullOrWhiteSpace(alert.City))
+                {
+                    var areaRect = new RectangleF(margin, currentY, width - margin * 2, height);
+                    SizeF areaSize = g.MeasureString(alert.City, bodyFont, (int)(width - margin * 2));
+                    g.DrawString(alert.City, bodyFont, whiteBrush, areaRect);
+                    currentY += areaSize.Height + 40;
+                }
+
+                // Time information
+                if (alert.IssuedAt.HasValue)
+                {
+                    string timeText = $"at {alert.IssuedAt.Value.ToLocalTime():h:mm tt} on {alert.IssuedAt.Value.ToLocalTime():MMM d, yyyy}";
+                    g.DrawString(timeText, smallFont, whiteBrush, margin, currentY);
+                    currentY += 35;
+                }
+
+                if (alert.ExpiresAt.HasValue)
+                {
+                    string expiresText = $"Effective until {alert.ExpiresAt.Value.ToLocalTime():h:mm tt}.";
+                    g.DrawString(expiresText, smallFont, whiteBrush, margin, currentY);
+                    currentY += 50;
+                }
+
+                // Message from station
+                string station = "NWS";
+                if (!string.IsNullOrWhiteSpace(alert.Region))
+                {
+                    station = alert.Region;
+                }
+                g.DrawString($"Message from {station}.", smallFont, whiteBrush, margin, currentY);
+
+                // Page number at bottom
+                string pageInfo = $"{pageNum}/1";
+                SizeF pageSize = g.MeasureString(pageInfo, smallFont);
+                g.DrawString(pageInfo, smallFont, whiteBrush, (width - pageSize.Width)  / 2, height - margin);
+            }
+        }
+
+        private static void DrawAlertReadyAlert(Graphics g, AlertEntry alert, int width, int height, float margin, ImageGenerationSettings imgConfig, string language)
+        {
+            // Canada Alert Ready style: Colored background, warning symbol, bilingual
+            // Background color based on severity
+            Color bgColor = GetSeverityBackgroundColor(alert.SeverityColor);
                     using (var bgBrush = new SolidBrush(bgColor))
                     {
                         g.FillRectangle(bgBrush, 0, 0, width, height);
@@ -535,19 +627,25 @@ namespace WeatherImageGenerator.Services
                     }
                 }
 
-                bmp.Save(fullPath, ImageFormat.Png);
+            // Footer
+            using (Font footerFont = new Font(imgConfig.FontFamily ?? "Arial", 18, FontStyle.Bold))
+            using (Brush whiteBrush = new SolidBrush(Color.White))
+            {
+                try
+                {
+                    string footerText = language == "en-CA"
+                        ? "Follow instructions from local authorities • Stay informed"
+                        : "Suivez les instructions des autorités locales • Restez informés";
+                    SizeF footerSize = g.MeasureString(footerText, footerFont);
+                    float footerX = (width - footerSize.Width) / 2;
+                    float footerY = height - 55 - footerSize.Height / 2;
+                    g.DrawString(footerText, footerFont, whiteBrush, footerX, footerY);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[GenerateAlertImage] Error drawing footer: {ex.Message}", Logger.LogLevel.Error);
                 }
             }
-            catch (Exception ex)
-            {
-                Logger.Log($"[EmergencyAlertGenerator] Error generating image: {ex.Message}", Logger.LogLevel.Error);
-                Logger.Log($"  Alert: Title='{alert?.Title}', City='{alert?.City}'", Logger.LogLevel.Debug);
-                Logger.Log($"  Stack: {ex.StackTrace}", Logger.LogLevel.Debug);
-                throw;
-            }
-
-            Logger.Log($"[EmergencyAlertGenerator] Generated image: {filename}", Logger.LogLevel.Info);
-            return fullPath;
         }
 
         private static void DrawAlertSymbol(Graphics g, float centerX, float centerY, float size)
@@ -608,7 +706,7 @@ namespace WeatherImageGenerator.Services
             }
         }
 
-        private static string GenerateAlertAudio(AlertEntry alert, string outputDir, int index, string language)
+        private static string GenerateAlertAudio(AlertEntry alert, string outputDir, int index, string language, string provider)
         {
             try
             {
@@ -617,24 +715,52 @@ namespace WeatherImageGenerator.Services
                 string filename = $"EmergencyAlert_{index:D2}.wav";
                 string fullPath = Path.Combine(outputDir, filename);
                 
-                // First, ensure the Alert Ready attention signal is generated
-                Logger.Log("[EmergencyAlertGenerator] Generating Alert Ready attention signal...", Logger.LogLevel.Debug);
-                string? alertTonePath = AlertToneGenerator.GenerateToDirectory(outputDir);
-                if (alertTonePath != null)
+                // Generate appropriate attention signal based on provider
+                string? alertTonePath = null;
+                if (provider == "USA_NWS")
                 {
-                    Logger.Log($"[EmergencyAlertGenerator] Alert Ready tone available: {Path.GetFileName(alertTonePath)}", Logger.LogLevel.Debug);
+                    Logger.Log("[EmergencyAlertGenerator] Generating complete NWS SAME alert (SAME header + attention signal)...", Logger.LogLevel.Debug);
+                    alertTonePath = EAS.NWS.NwsSameToneGenerator.GetOrGenerateCompleteSameAlert();
+                    if (alertTonePath != null)
+                    {
+                        Logger.Log($"[EmergencyAlertGenerator] USA NWS SAME alert (with header + 853+960 Hz attention): {alertTonePath}", Logger.LogLevel.Info);
+                        Logger.Log($"[EmergencyAlertGenerator] Alert file size: {new FileInfo(alertTonePath).Length} bytes", Logger.LogLevel.Debug);
+                    }
                 }
                 else
                 {
-                    Logger.Log("[EmergencyAlertGenerator] Warning: Could not generate Alert Ready tone", Logger.LogLevel.Warning);
+                    Logger.Log("[EmergencyAlertGenerator] Generating Alert Ready attention signal (Canadian 3-tone)...", Logger.LogLevel.Debug);
+                    alertTonePath = AlertToneGenerator.GetOrGenerateAlertTone();
+                    if (alertTonePath != null)
+                    {
+                        Logger.Log($"[EmergencyAlertGenerator] Canada Alert Ready tone: {alertTonePath}", Logger.LogLevel.Info);
+                        Logger.Log($"[EmergencyAlertGenerator] Tone file size: {new FileInfo(alertTonePath).Length} bytes", Logger.LogLevel.Debug);
+                    }
+                }
+                if (alertTonePath == null)
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Warning: Could not generate alert tone", Logger.LogLevel.Warning);
                 }
 
                 // Build alert text for TTS
                 Logger.Log("[EmergencyAlertGenerator] Building TTS text...", Logger.LogLevel.Debug);
                 StringBuilder audioText = new StringBuilder();
                 
-                if (language == "fr-CA")
+                if (provider == "USA_NWS")
                 {
+                    // USA Emergency Alert System (EAS) format
+                    audioText.AppendLine("The Emergency Alert System has been activated.");
+                    audioText.AppendLine(alert.Title ?? "Emergency Alert");
+                    if (!string.IsNullOrWhiteSpace(alert.City))
+                        audioText.AppendLine($"Affected area: {alert.City}");
+                    if (!string.IsNullOrWhiteSpace(alert.Summary))
+                        audioText.AppendLine(CleanTextForTTS(alert.Summary));
+                    audioText.AppendLine("Follow instructions from local authorities.");
+                    audioText.AppendLine("This concludes this Emergency Alert System message.");
+                }
+                else if (language == "fr-CA")
+                {
+                    // Canadian Alert Ready (French)
                     audioText.AppendLine("Alerte d'urgence. Québec en alerte.");
                     audioText.AppendLine(alert.Title ?? "Alerte d'urgence");
                     if (!string.IsNullOrWhiteSpace(alert.City))
@@ -645,6 +771,7 @@ namespace WeatherImageGenerator.Services
                 }
                 else
                 {
+                    // Canadian Alert Ready (English)
                     audioText.AppendLine("Emergency alert. Alert Ready.");
                     audioText.AppendLine(alert.Title ?? "Emergency Alert");
                     if (!string.IsNullOrWhiteSpace(alert.City))
@@ -666,7 +793,7 @@ namespace WeatherImageGenerator.Services
                 if (preferredEngine != "edge")
                 {
                     Logger.Log("[EmergencyAlertGenerator] Trying Piper TTS (open-source, offline)...", Logger.LogLevel.Info);
-                    if (TryGenerateWithPiperTts(text, fullPath, language))
+                    if (TryGenerateWithPiperTts(text, fullPath, language, alertTonePath))
                     {
                         Logger.Log($"[EmergencyAlertGenerator] Generated audio with Piper TTS: {filename}", Logger.LogLevel.Info);
                         return fullPath;
@@ -676,7 +803,7 @@ namespace WeatherImageGenerator.Services
 
                 // Try EdgeTtsClient (high quality neural voices, requires internet)
                 Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS Client...", Logger.LogLevel.Info);
-                if (TryGenerateWithEdgeTtsClient(text, fullPath, language))
+                if (TryGenerateWithEdgeTtsClient(text, fullPath, language, alertTonePath))
                 {
                     Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS: {filename}", Logger.LogLevel.Info);
                     return fullPath;
@@ -685,28 +812,28 @@ namespace WeatherImageGenerator.Services
 
                 // Try edge-tts CLI as backup (if Python installed)
                 Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS CLI...", Logger.LogLevel.Info);
-                if (TryGenerateWithEdgeTTS(text, fullPath, language))
+                if (TryGenerateWithEdgeTTS(text, fullPath, language, alertTonePath))
                 {
                     Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS CLI: {filename}", Logger.LogLevel.Info);
                     return fullPath;
                 }
 
                 // Try Windows.Media.SpeechSynthesis (more voices than SAPI)
-                if (TryGenerateWithWindowsMediaTTS(text, fullPath, language))
+                if (TryGenerateWithWindowsMediaTTS(text, fullPath, language, alertTonePath))
                 {
                     Logger.Log($"[EmergencyAlertGenerator] Generated audio with Windows Media TTS: {filename}", Logger.LogLevel.Info);
                     return fullPath;
                 }
 
                 // Try espeak-ng (if available)
-                if (TryGenerateWithEspeak(text, fullPath, language))
+                if (TryGenerateWithEspeak(text, fullPath, language, alertTonePath))
                 {
                     Logger.Log($"[EmergencyAlertGenerator] Generated audio with espeak: {filename}", Logger.LogLevel.Info);
                     return fullPath;
                 }
 
                 // Try PowerShell SAPI as fallback
-                if (TryGenerateWithSAPI(text, fullPath, language))
+                if (TryGenerateWithSAPI(text, fullPath, language, alertTonePath))
                 {
                     Logger.Log($"[EmergencyAlertGenerator] Generated audio with SAPI: {filename}", Logger.LogLevel.Info);
                     return fullPath;
@@ -725,7 +852,7 @@ namespace WeatherImageGenerator.Services
         /// <summary>
         /// Try to generate TTS audio using Piper (open-source, offline, high-quality neural TTS).
         /// </summary>
-        private static bool TryGenerateWithPiperTts(string text, string outputPath, string language)
+        private static bool TryGenerateWithPiperTts(string text, string outputPath, string language, string? alertTonePath)
         {
             try
             {
@@ -801,27 +928,29 @@ namespace WeatherImageGenerator.Services
                         Logger.Log($"[PiperTTS] WAV to MP3 conversion error: {convEx.Message}, using WAV file.", Logger.LogLevel.Debug);
                     }
 
-                    // Try to prepend the Alert Ready attention signal
-                    Logger.Log("[PiperTTS] Attempting to prepend Alert Ready tone...", Logger.LogLevel.Debug);
-                    string? alertTonePath = null;
-                    try
-                    {
-                        alertTonePath = AlertToneGenerator.GetOrGenerateAlertTone();
-                    }
-                    catch (Exception toneEx)
-                    {
-                        Logger.Log($"[PiperTTS] Alert tone generation error: {toneEx.Message}", Logger.LogLevel.Warning);
-                    }
+                    // Try to prepend the alert attention signal (NWS SAME or Alert Ready)
+                    // Per SAME standard: [1s silence] + [Alert Tone] + [1s silence] + [Message]
+                    Logger.Log("[PiperTTS] Attempting to prepend alert tone with SAME standard spacing...", Logger.LogLevel.Debug);
 
                     if (alertTonePath != null && File.Exists(alertTonePath))
                     {
-                        Logger.Log($"[PiperTTS] Concatenating alert tone with TTS audio...", Logger.LogLevel.Debug);
-                        // Concatenate: AlertTone + TTS audio
+                        Logger.Log($"[PiperTTS] Building SAME-compliant audio structure...", Logger.LogLevel.Debug);
+                        // Generate 1-second silences per SAME protocol
+                        string? silence1 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                        string? silence2 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                        
                         try
                         {
-                            if (AlertToneGenerator.ConcatenateAudioFiles(new[] { alertTonePath, ttsAudioPath }, outputPath))
+                            // Concatenate: [1s silence] + [AlertTone] + [1s silence] + [TTS audio]
+                            var audioFiles = new System.Collections.Generic.List<string>();
+                            if (silence1 != null) audioFiles.Add(silence1);
+                            audioFiles.Add(alertTonePath);
+                            if (silence2 != null) audioFiles.Add(silence2);
+                            audioFiles.Add(ttsAudioPath);
+                            
+                            if (AlertToneGenerator.ConcatenateAudioFiles(audioFiles.ToArray(), outputPath))
                             {
-                                Logger.Log("[EmergencyAlertGenerator] Successfully prepended Alert Ready tone to Piper TTS audio.", Logger.LogLevel.Debug);
+                                Logger.Log("[EmergencyAlertGenerator] Successfully created SAME-compliant alert audio.", Logger.LogLevel.Debug);
                                 try { File.Delete(ttsAudioPath); } catch { }
                                 return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
                             }
@@ -833,7 +962,7 @@ namespace WeatherImageGenerator.Services
                     }
 
                     // Fallback: use TTS audio without alert tone
-                    Logger.Log("[EmergencyAlertGenerator] Using Piper TTS audio without Alert Ready tone prefix.", Logger.LogLevel.Debug);
+                    Logger.Log("[EmergencyAlertGenerator] Using Piper TTS audio without alert tone prefix.", Logger.LogLevel.Debug);
                     if (outputPath != ttsAudioPath)
                     {
                         if (File.Exists(outputPath)) File.Delete(outputPath);
@@ -852,7 +981,7 @@ namespace WeatherImageGenerator.Services
             }
         }
 
-        private static bool TryGenerateWithEdgeTtsClient(string text, string outputPath, string language)
+        private static bool TryGenerateWithEdgeTtsClient(string text, string outputPath, string language, string? alertTonePath)
         {
             try
             {
@@ -912,22 +1041,28 @@ namespace WeatherImageGenerator.Services
                 
                 if (ttsResult && File.Exists(tempTtsPath))
                 {
-                    // Try to prepend the Alert Ready attention signal
-                    string? alertTonePath = AlertToneGenerator.GetOrGenerateAlertTone();
-                    
+                    // Build SAME-compliant structure: [1s silence] + [Alert Tone] + [1s silence] + [TTS]
                     if (alertTonePath != null && File.Exists(alertTonePath))
                     {
-                        // Concatenate: AlertTone + TTS audio
-                        if (AlertToneGenerator.ConcatenateAudioFiles(new[] { alertTonePath, tempTtsPath }, outputPath))
+                        string? silence1 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                        string? silence2 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                        
+                        var audioFiles = new System.Collections.Generic.List<string>();
+                        if (silence1 != null) audioFiles.Add(silence1);
+                        audioFiles.Add(alertTonePath);
+                        if (silence2 != null) audioFiles.Add(silence2);
+                        audioFiles.Add(tempTtsPath);
+                        
+                        if (AlertToneGenerator.ConcatenateAudioFiles(audioFiles.ToArray(), outputPath))
                         {
-                            Logger.Log("[EmergencyAlertGenerator] Successfully prepended Alert Ready tone to TTS audio.", Logger.LogLevel.Debug);
+                            Logger.Log("[EmergencyAlertGenerator] Successfully created SAME-compliant alert audio.", Logger.LogLevel.Debug);
                             try { File.Delete(tempTtsPath); } catch { }
                             return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
                         }
                     }
                     
                     // Fallback: use TTS audio without alert tone
-                    Logger.Log("[EmergencyAlertGenerator] Using TTS audio without Alert Ready tone prefix.", Logger.LogLevel.Debug);
+                    Logger.Log("[EmergencyAlertGenerator] Using TTS audio without alert tone prefix.", Logger.LogLevel.Debug);
                     if (outputPath != tempTtsPath)
                     {
                         if (File.Exists(outputPath)) File.Delete(outputPath);
@@ -946,15 +1081,17 @@ namespace WeatherImageGenerator.Services
             }
         }
 
-        private static bool TryGenerateWithEspeak(string text, string outputPath, string language)
+        private static bool TryGenerateWithEspeak(string text, string outputPath, string language, string? alertTonePath)
         {
             try
             {
                 string voice = language == "fr-CA" ? "fr-ca" : "en-us";
+                string tempTtsPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_tts_{Guid.NewGuid()}.wav");
+                
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "espeak-ng",
-                    Arguments = $"-v {voice} -w \"{outputPath}\" \"{text.Replace("\"", "\\\"")}\"",
+                    Arguments = $"-v {voice} -w \"{tempTtsPath}\" \"{text.Replace("\"", "\\\"")}\"",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardError = true
@@ -963,8 +1100,37 @@ namespace WeatherImageGenerator.Services
                 using (var process = Process.Start(startInfo))
                 {
                     process?.WaitForExit(30000);
-                    return process?.ExitCode == 0 && File.Exists(outputPath);
+                    if (process?.ExitCode == 0 && File.Exists(tempTtsPath))
+                    {
+                        // Build SAME-compliant structure with silences
+                        if (alertTonePath != null && File.Exists(alertTonePath))
+                        {
+                            string? silence1 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            string? silence2 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            
+                            var audioFiles = new System.Collections.Generic.List<string>();
+                            if (silence1 != null) audioFiles.Add(silence1);
+                            audioFiles.Add(alertTonePath);
+                            if (silence2 != null) audioFiles.Add(silence2);
+                            audioFiles.Add(tempTtsPath);
+                            
+                            if (AlertToneGenerator.ConcatenateAudioFiles(audioFiles.ToArray(), outputPath))
+                            {
+                                try { File.Delete(tempTtsPath); } catch { }
+                                return File.Exists(outputPath);
+                            }
+                        }
+                        
+                        // Fallback: use TTS audio without alert tone
+                        if (outputPath != tempTtsPath)
+                        {
+                            if (File.Exists(outputPath)) File.Delete(outputPath);
+                            File.Move(tempTtsPath, outputPath);
+                        }
+                        return File.Exists(outputPath);
+                    }
                 }
+                return false;
             }
             catch
             {
@@ -972,13 +1138,14 @@ namespace WeatherImageGenerator.Services
             }
         }
 
-        private static bool TryGenerateWithEdgeTTS(string text, string outputPath, string language)
+        private static bool TryGenerateWithEdgeTTS(string text, string outputPath, string language, string? alertTonePath)
         {
             try
             {
                 // Use edge-tts via PowerShell/Python (if available)
                 string voice = language == "fr-CA" ? "fr-CA-SylvieNeural" : "en-CA-LiamNeural";
-                string mp3Path = Path.ChangeExtension(outputPath, ".mp3");
+                string tempTtsPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_tts_{Guid.NewGuid()}.wav");
+                string mp3Path = Path.ChangeExtension(tempTtsPath, ".mp3");
                 
                 var startInfo = new ProcessStartInfo
                 {
@@ -995,20 +1162,43 @@ namespace WeatherImageGenerator.Services
                     process?.WaitForExit(60000);
                     if (process?.ExitCode == 0 && File.Exists(mp3Path))
                     {
-                        // Convert MP3 to WAV using ffmpeg if available, otherwise keep MP3
-                        if (TryConvertMp3ToWav(mp3Path, outputPath))
+                        // Convert MP3 to WAV using ffmpeg if available
+                        if (!TryConvertMp3ToWav(mp3Path, tempTtsPath))
+                        {
+                            // If conversion fails, use MP3 directly
+                            tempTtsPath = mp3Path;
+                        }
+                        else
                         {
                             try { File.Delete(mp3Path); } catch { }
-                            return true;
                         }
-                        // If conversion fails, rename mp3 to target (caller expects wav but mp3 works too)
-                        try 
-                        { 
+                        
+                        // Build SAME-compliant structure with silences
+                        if (alertTonePath != null && File.Exists(alertTonePath))
+                        {
+                            string? silence1 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            string? silence2 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            
+                            var audioFiles = new System.Collections.Generic.List<string>();
+                            if (silence1 != null) audioFiles.Add(silence1);
+                            audioFiles.Add(alertTonePath);
+                            if (silence2 != null) audioFiles.Add(silence2);
+                            audioFiles.Add(tempTtsPath);
+                            
+                            if (AlertToneGenerator.ConcatenateAudioFiles(audioFiles.ToArray(), outputPath))
+                            {
+                                try { File.Delete(tempTtsPath); } catch { }
+                                return File.Exists(outputPath);
+                            }
+                        }
+                        
+                        // Fallback: use TTS audio without alert tone
+                        if (outputPath != tempTtsPath)
+                        {
                             if (File.Exists(outputPath)) File.Delete(outputPath);
-                            File.Move(mp3Path, outputPath); 
-                            return true;
-                        } 
-                        catch { return File.Exists(mp3Path); }
+                            File.Move(tempTtsPath, outputPath);
+                        }
+                        return File.Exists(outputPath);
                     }
                 }
                 return false;
@@ -1019,12 +1209,13 @@ namespace WeatherImageGenerator.Services
             }
         }
 
-        private static bool TryGenerateWithWindowsMediaTTS(string text, string outputPath, string language)
+        private static bool TryGenerateWithWindowsMediaTTS(string text, string outputPath, string language, string? alertTonePath)
         {
             try
             {
                 // Use Windows.Media.SpeechSynthesis via PowerShell - supports more voices
                 string voiceLang = language == "fr-CA" ? "fr-CA" : (language == "fr-FR" ? "fr-FR" : "en-CA");
+                string tempTtsPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_tts_{Guid.NewGuid()}.wav");
                 
                 // PowerShell script using Windows Runtime speech synthesis
                 string psScript = $@"
@@ -1035,7 +1226,7 @@ if ($voices) {{ $synth.Voice = $voices[0] }}
 $stream = $synth.SynthesizeTextToStreamAsync('{text.Replace("'", "''")}').GetAwaiter().GetResult()
 $reader = New-Object System.IO.BinaryReader($stream.AsStreamForRead())
 $bytes = $reader.ReadBytes($stream.Size)
-[System.IO.File]::WriteAllBytes('{outputPath.Replace("'", "''")}', $bytes)
+[System.IO.File]::WriteAllBytes('{tempTtsPath.Replace("'", "''")}', $bytes)
 $reader.Dispose()
 $stream.Dispose()
 $synth.Dispose()
@@ -1052,8 +1243,37 @@ $synth.Dispose()
                 using (var process = Process.Start(startInfo))
                 {
                     process?.WaitForExit(30000);
-                    return process?.ExitCode == 0 && File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
+                    if (process?.ExitCode == 0 && File.Exists(tempTtsPath) && new FileInfo(tempTtsPath).Length > 1000)
+                    {
+                        // Build SAME-compliant structure with silences
+                        if (alertTonePath != null && File.Exists(alertTonePath))
+                        {
+                            string? silence1 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            string? silence2 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            
+                            var audioFiles = new System.Collections.Generic.List<string>();
+                            if (silence1 != null) audioFiles.Add(silence1);
+                            audioFiles.Add(alertTonePath);
+                            if (silence2 != null) audioFiles.Add(silence2);
+                            audioFiles.Add(tempTtsPath);
+                            
+                            if (AlertToneGenerator.ConcatenateAudioFiles(audioFiles.ToArray(), outputPath))
+                            {
+                                try { File.Delete(tempTtsPath); } catch { }
+                                return File.Exists(outputPath);
+                            }
+                        }
+                        
+                        // Fallback: use TTS audio without alert tone
+                        if (outputPath != tempTtsPath)
+                        {
+                            if (File.Exists(outputPath)) File.Delete(outputPath);
+                            File.Move(tempTtsPath, outputPath);
+                        }
+                        return File.Exists(outputPath) && new FileInfo(outputPath).Length > 1000;
+                    }
                 }
+                return false;
             }
             catch
             {
@@ -1086,10 +1306,12 @@ $synth.Dispose()
             }
         }
 
-        private static bool TryGenerateWithSAPI(string text, string outputPath, string language)
+        private static bool TryGenerateWithSAPI(string text, string outputPath, string language, string? alertTonePath)
         {
             try
             {
+                string tempTtsPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? ".", $"temp_tts_{Guid.NewGuid()}.wav");
+                
                 // First, list all available voices for debugging
                 string listVoicesScript = @"
 Add-Type -AssemblyName System.Speech;
@@ -1165,7 +1387,7 @@ if ($voices) {
 Add-Type -AssemblyName System.Speech;
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer;
 {voiceSelection}
-$synth.SetOutputToWaveFile('{outputPath.Replace("'", "''")}');
+$synth.SetOutputToWaveFile('{tempTtsPath.Replace("'", "''")}');
 $synth.Speak('{text.Replace("'", "''")}');
 $synth.Dispose();
 ";
@@ -1181,8 +1403,37 @@ $synth.Dispose();
                 using (var process = Process.Start(startInfo))
                 {
                     process?.WaitForExit(30000);
-                    return process?.ExitCode == 0 && File.Exists(outputPath);
+                    if (process?.ExitCode == 0 && File.Exists(tempTtsPath))
+                    {
+                        // Build SAME-compliant structure with silences
+                        if (alertTonePath != null && File.Exists(alertTonePath))
+                        {
+                            string? silence1 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            string? silence2 = GenerateSilence(Path.GetDirectoryName(outputPath) ?? ".");
+                            
+                            var audioFiles = new System.Collections.Generic.List<string>();
+                            if (silence1 != null) audioFiles.Add(silence1);
+                            audioFiles.Add(alertTonePath);
+                            if (silence2 != null) audioFiles.Add(silence2);
+                            audioFiles.Add(tempTtsPath);
+                            
+                            if (AlertToneGenerator.ConcatenateAudioFiles(audioFiles.ToArray(), outputPath))
+                            {
+                                try { File.Delete(tempTtsPath); } catch { }
+                                return File.Exists(outputPath);
+                            }
+                        }
+                        
+                        // Fallback: use TTS audio without alert tone
+                        if (outputPath != tempTtsPath)
+                        {
+                            if (File.Exists(outputPath)) File.Delete(outputPath);
+                            File.Move(tempTtsPath, outputPath);
+                        }
+                        return File.Exists(outputPath);
+                    }
                 }
+                return false;
             }
             catch
             {
@@ -1267,6 +1518,48 @@ $synth.Dispose();
             }
 
             return result.ToString().TrimEnd();
+        }
+
+        /// <summary>
+        /// Generates a 1-second silence audio file (per SAME standard requirement).
+        /// SAME protocol requires 1 second of silence between each section.
+        /// </summary>
+        private static string? GenerateSilence(string outputDir, double durationSeconds = 1.0)
+        {
+            try
+            {
+                string silencePath = Path.Combine(outputDir, $"silence_{durationSeconds}s.wav");
+                
+                // Check if already exists
+                if (File.Exists(silencePath))
+                {
+                    return silencePath;
+                }
+
+                // Generate silence using ffmpeg
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = $"-y -f lavfi -i anullsrc=r=44100:cl=mono -t {durationSeconds:F1} -acodec pcm_s16le \"{silencePath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    process?.WaitForExit(5000);
+                    if (process?.ExitCode == 0 && File.Exists(silencePath))
+                    {
+                        return silencePath;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EmergencyAlertGenerator] Error generating silence: {ex.Message}");
+            }
+            return null;
         }
     }
 }
