@@ -52,20 +52,19 @@ namespace WeatherImageGenerator.Forms
 
         private void InitializeComponent()
         {
-            this.Text = "Select Test Alert Type";
-            this.Width = 450;
-            this.Height = 300;
+            this.Text = "Generate Test Alert";
+            this.ClientSize = new Size(520, 380);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.BackColor = Color.FromArgb(240, 240, 240);
+            this.BackColor = Color.FromArgb(245, 245, 245);
 
             // Main container
             var mainPanel = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                Padding = new Padding(16),
+                Padding = new Padding(24, 20, 24, 20),
                 AutoSize = false,
                 RowCount = 7,
                 ColumnCount = 1
@@ -75,29 +74,30 @@ namespace WeatherImageGenerator.Forms
             var titleLabel = new Label
             {
                 Text = "Generate Emergency Test Alert",
-                Font = new Font("Segoe UI", 12F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 13F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(52, 73, 94),
                 AutoSize = true,
-                Margin = new Padding(0, 0, 0, 8)
+                Margin = new Padding(0, 0, 0, 12)
             };
 
             // Description label
             _descriptionLabel = new Label
             {
                 Text = "Select the alert provider country and the type of alert to generate for testing.",
-                Font = new Font("Segoe UI", 10F),
+                Font = new Font("Segoe UI", 9.5F),
                 ForeColor = Color.FromArgb(127, 140, 141),
                 AutoSize = true,
-                Margin = new Padding(0, 0, 0, 12)
+                MaximumSize = new Size(470, 0),
+                Margin = new Padding(0, 0, 0, 20)
             };
 
             // Country label and combo
             var countryLabel = new Label
             {
                 Text = "Alert Provider:",
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 AutoSize = true,
-                Margin = new Padding(0, 0, 0, 4)
+                Margin = new Padding(0, 0, 0, 6)
             };
 
             _countryCombo = new ComboBox
@@ -105,9 +105,10 @@ namespace WeatherImageGenerator.Forms
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Items = { "Canada (Alert Ready)", "USA (NWS)" },
                 SelectedIndex = 0,
-                Width = 300,
-                Height = 30,
-                Margin = new Padding(0, 0, 0, 12)
+                Font = new Font("Segoe UI", 9.5F),
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Height = 32,
+                Margin = new Padding(0, 0, 0, 16)
             };
             _countryCombo.SelectedIndexChanged += CountryCombo_SelectedIndexChanged;
 
@@ -115,17 +116,18 @@ namespace WeatherImageGenerator.Forms
             var alertTypeLabel = new Label
             {
                 Text = "Alert Type:",
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 AutoSize = true,
-                Margin = new Padding(0, 0, 0, 4)
+                Margin = new Padding(0, 0, 0, 6)
             };
 
             _alertTypeCombo = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 300,
-                Height = 30,
-                Margin = new Padding(0, 0, 0, 16)
+                Font = new Font("Segoe UI", 9.5F),
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Height = 32,
+                Margin = new Padding(0, 0, 0, 20)
             };
 
             // Populate initial alert types
@@ -137,37 +139,43 @@ namespace WeatherImageGenerator.Forms
                 Dock = DockStyle.Bottom,
                 AutoSize = true,
                 FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(0, 12, 0, 0),
-                Margin = new Padding(0, 16, 0, 0)
+                Padding = new Padding(0, 20, 0, 0),
+                Margin = new Padding(0, 20, 0, 0)
             };
 
             _cancelBtn = new Button
             {
                 Text = "Cancel",
-                Width = 80,
-                Height = 36,
+                Width = 90,
+                Height = 38,
                 DialogResult = DialogResult.Cancel,
-                BackColor = Color.FromArgb(189, 195, 199),
+                BackColor = Color.FromArgb(149, 165, 166),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10F),
-                Margin = new Padding(4, 0, 0, 0)
+                Font = new Font("Segoe UI", 9.5F),
+                Margin = new Padding(8, 0, 0, 0),
+                Cursor = Cursors.Hand
             };
             _cancelBtn.FlatAppearance.BorderSize = 0;
+            _cancelBtn.MouseEnter += (s, e) => _cancelBtn.BackColor = Color.FromArgb(127, 140, 141);
+            _cancelBtn.MouseLeave += (s, e) => _cancelBtn.BackColor = Color.FromArgb(149, 165, 166);
 
             _okBtn = new Button
             {
                 Text = "Generate",
-                Width = 80,
-                Height = 36,
+                Width = 100,
+                Height = 38,
                 DialogResult = DialogResult.OK,
                 BackColor = Color.FromArgb(230, 126, 34),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                Margin = new Padding(4, 0, 0, 0)
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Margin = new Padding(0, 0, 0, 0),
+                Cursor = Cursors.Hand
             };
             _okBtn.FlatAppearance.BorderSize = 0;
+            _okBtn.MouseEnter += (s, e) => _okBtn.BackColor = Color.FromArgb(211, 84, 0);
+            _okBtn.MouseLeave += (s, e) => _okBtn.BackColor = Color.FromArgb(230, 126, 34);
             _okBtn.Click += OkBtn_Click;
 
             buttonPanel.Controls.Add(_cancelBtn);
