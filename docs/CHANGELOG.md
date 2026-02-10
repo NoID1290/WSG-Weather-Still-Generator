@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2.0210] - 2026-02-10
+
+- Update Test Alert Selection Form UI for improved usability and aesthetics
+- SAME Header TONE implemented
+- Add NWS SAME tone generator and test alert generation
+- feat: Add configurable log line spacing and update related methods for RichTextBox
+- Update version badge to 1.9.0
+
 ## [1.9.1.0208] - 2026-02-08
 
 - Fix push script corrupting README.md
