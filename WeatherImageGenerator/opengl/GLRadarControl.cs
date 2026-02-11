@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Net.Http;
+using System.Linq;
 using OpenTK.WinForms;
 using OpenTK.Graphics.OpenGL4;
 
@@ -27,10 +28,16 @@ namespace WeatherImageGenerator.OpenGL
         private TileProvider? _tileProvider;
         private string? _localTileFolder = null;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), int> _tileTextures = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), int>();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), long> _tileLastUsed = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), long>();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime> _blockedTiles = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime>();
         private HttpClient _tileHttpClient = new HttpClient();
         private int _mapZoom = 4; // tile zoom (default to show Canada)
         private double _centerLat = 56.1304; // Canada centroid latitude
         private double _centerLon = -106.3468; // Canada centroid longitude
+        private int _fallbackTexture = 0;
+
+        private const int MAX_TILE_TEXTURES = 300;
+        private const int PREFETCH_RADIUS = 1;
 
         // Radar frame buffer for ghosting/animation
         private readonly System.Collections.Generic.List<int> _radarFrames = new System.Collections.Generic.List<int>();
@@ -126,6 +133,9 @@ void main() {
             _shader.SetInt("uTexture", 0);
             _shader.SetFloat("uOpacity", 1.0f);
 
+            // create fallback tile texture (neutral background) used when tiles are missing/blocked
+            _fallbackTexture = CreateFallbackTexture(256, 256);
+
             // Tile shader (simple texture copy) - load from disk if present
             var tileVPath = Path.Combine(baseDir, "opengl", "shaders", "tile.vert.glsl");
             var tileFPath = Path.Combine(baseDir, "opengl", "shaders", "tile.frag.glsl");
@@ -154,8 +164,8 @@ void main() {
             if (!string.IsNullOrEmpty(_localTileFolder)) _tileProvider.LocalTilesRoot = _localTileFolder;
 
             // Ensure tile shader has texture unit set
-            _tileShader.Use();
-            _tileShader.SetInt("uTexture", 0);
+            _tileShader!.Use();
+            _tileShader!.SetInt("uTexture", 0);
 
             // Setup overlay buffers (we'll fill data on resize)
             _overlayVao = GL.GenVertexArray();
@@ -260,44 +270,52 @@ void main() {
                     if (tileY < 0 || tileY >= (1 << z)) continue; // out of lat range
 
                     var key = (z, wrappedX, tileY);
+                    int texToBind = _fallbackTexture;
                     if (_tileTextures.TryGetValue(key, out int texId))
                     {
-                        // compute tile's top-left pixel in global pixel space
-                        double tilePx = tileX * 256.0;
-                        double tilePy = tileY * 256.0;
-
-                        // screen position of tile center
-                        double screenCenterX = (tilePx - cx) + Width / 2.0 + 128.0;
-                        double screenCenterY = (tilePy - cy) + Height / 2.0 + 128.0;
-
-                        // tile size in NDC
-                        float tileW = (float)((256.0) / (Width / 2.0));
-                        float tileH = (float)((256.0) / (Height / 2.0));
-
-                        // center NDC coords
-                        float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0);
-                        float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0));
-
-                        // tile transform: scale then translate
-                        float tileSx = tileW / 2f;
-                        float tileSy = tileH / 2f;
-                        float txf = centerNdcX;
-                        float tyf = centerNdcY;
-
-                        float[] tmat = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, txf, tyf, 1f };
-
-                        _tileShader.SetMatrix3("uTransform", tmat);
-
-                        GL.BindTexture(TextureTarget.Texture2D, texId);
-                        GL.BindVertexArray(_vao);
-                        GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
-                        GL.BindVertexArray(0);
+                        texToBind = texId;
+                        _tileLastUsed[key] = DateTime.UtcNow.Ticks;
+                    }
+                    else if (_blockedTiles.ContainsKey(key))
+                    {
+                        // blocked tile known -> keep fallback and don't re-request frequently
                     }
                     else
                     {
                         // schedule download if not already queued
                         _ = EnsureTileLoadedAsync(z, wrappedX, tileY);
                     }
+
+                    // compute tile's top-left pixel in global pixel space
+                    double tilePx = tileX * 256.0;
+                    double tilePy = tileY * 256.0;
+
+                    // screen position of tile center
+                    double screenCenterX = (tilePx - cx) + Width / 2.0 + 128.0;
+                    double screenCenterY = (tilePy - cy) + Height / 2.0 + 128.0;
+
+                    // tile size in NDC
+                    float tileW = (float)((256.0) / (Width / 2.0));
+                    float tileH = (float)((256.0) / (Height / 2.0));
+
+                    // center NDC coords
+                    float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0);
+                    float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0));
+
+                    // tile transform: scale then translate
+                    float tileSx = tileW / 2f;
+                    float tileSy = tileH / 2f;
+                    float txf = centerNdcX;
+                    float tyf = centerNdcY;
+
+                    float[] tmat = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, txf, tyf, 1f };
+
+                    _tileShader.SetMatrix3("uTransform", tmat);
+
+                    GL.BindTexture(TextureTarget.Texture2D, texToBind);
+                    GL.BindVertexArray(_vao);
+                    GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                    GL.BindVertexArray(0);
                 }
             }
 
@@ -515,6 +533,7 @@ void main() {
             {
                 MakeCurrent();
                 if (_texture != 0) GL.DeleteTexture(_texture);
+                if (_fallbackTexture != 0) GL.DeleteTexture(_fallbackTexture);
                 if (_shader != null) _shader.Dispose();
                 if (_tileShader != null) _tileShader.Dispose();
                 if (_overlayShader != null) _overlayShader.Dispose();
@@ -551,6 +570,76 @@ void main() {
             public Vector2(float x, float y) { X = x; Y = y; }
         }
 
+        // Notify host UI about tile status changes
+        public event Action<string, System.Drawing.Color>? TileStatusChanged;
+        private void NotifyTileStatus(string text, System.Drawing.Color color)
+        {
+            try
+            {
+                if (this.IsHandleCreated && this.InvokeRequired)
+                {
+                    this.BeginInvoke(new Action(() => TileStatusChanged?.Invoke(text, color)));
+                }
+                else
+                {
+                    TileStatusChanged?.Invoke(text, color);
+                }
+            }
+            catch { }
+        }
+
+        private void EvictTilesIfNeeded()
+        {
+            try
+            {
+                while (_tileTextures.Count > MAX_TILE_TEXTURES)
+                {
+                    // find oldest used
+                    var oldest = _tileLastUsed.OrderBy(kv => kv.Value).FirstOrDefault();
+                    if (oldest.Key == default) break;
+                    if (_tileTextures.TryRemove(oldest.Key, out int tex))
+                    {
+                        try { GL.DeleteTexture(tex); } catch { }
+                    }
+                    _tileLastUsed.TryRemove(oldest.Key, out _);
+                }
+            }
+            catch { }
+        }
+
+        private int CreateFallbackTexture(int w, int h)
+        {
+            MakeCurrent();
+            using var bmp = new System.Drawing.Bitmap(w, h);
+            using var g = System.Drawing.Graphics.FromImage(bmp);
+            g.Clear(System.Drawing.Color.FromArgb(245, 245, 235));
+            using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(220, 220, 200));
+            for (int x = 0; x < w; x += 32) g.DrawLine(pen, x, 0, x, h);
+            for (int y = 0; y < h; y += 32) g.DrawLine(pen, 0, y, w, y);
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(200, 200, 200));
+            g.DrawString("No Tile", new System.Drawing.Font("Segoe UI", 12, System.Drawing.FontStyle.Bold), brush, 8, 8);
+
+            int tex = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, tex);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+
+            var rect = new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height);
+            var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            try
+            {
+                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+            }
+            finally
+            {
+                bmp.UnlockBits(data);
+            }
+
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            return tex;
+        }
         // Map projection helpers
         private static double LonToPixelX(double lon, int z)
         {
@@ -612,9 +701,23 @@ void main() {
             {
                 if (_tileProvider == null) _tileProvider = new TileProvider();
                 var key = (z, x, y);
-                if (_tileTextures.ContainsKey(key)) return;
-                var bytes = await _tileProvider.GetTileBytesAsync(z, x, y);
-                if (bytes == null) return;
+                if (_tileTextures.ContainsKey(key) || _blockedTiles.ContainsKey(key)) return;
+
+                var (bytes, status) = await _tileProvider.GetTileBytesAsync(z, x, y);
+                if (status == TileFetchStatus.Blocked)
+                {
+                    _blockedTiles[key] = DateTime.UtcNow;
+                    NotifyTileStatus("Tiles: Blocked", System.Drawing.Color.OrangeRed);
+                    return;
+                }
+                if (status == TileFetchStatus.NotFound || status == TileFetchStatus.Error || bytes == null)
+                {
+                    // mark as temporarily blocked to avoid spamming
+                    _blockedTiles[key] = DateTime.UtcNow;
+                    NotifyTileStatus("Tiles: Missing", System.Drawing.Color.Gray);
+                    return;
+                }
+
                 // upload texture on UI/GL thread
                 this.BeginInvoke(new Action(() =>
                 {
@@ -643,6 +746,9 @@ void main() {
 
                         GL.BindTexture(TextureTarget.Texture2D, 0);
                         _tileTextures.TryAdd(key, tex);
+                        _tileLastUsed[key] = DateTime.UtcNow.Ticks;
+                        NotifyTileStatus("Tiles: Remote", System.Drawing.Color.LightGreen);
+                        EvictTilesIfNeeded();
                         Invalidate();
                     }
                     catch { }

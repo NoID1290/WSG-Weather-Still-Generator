@@ -391,7 +391,7 @@ public class MapOverlayService
         return null;
     }
 
-    private void SaveTileToCache(string url, byte[] data)
+    private void SaveTileToCache(string url, byte[] bytes)
     {
         if (!_enableTileCache)
             return;
@@ -399,30 +399,65 @@ public class MapOverlayService
         try
         {
             var cachePath = GetCacheFilePath(url);
-            var cacheDir = Path.GetDirectoryName(cachePath);
-            
-            if (!string.IsNullOrEmpty(cacheDir) && !Directory.Exists(cacheDir))
-            {
-                Directory.CreateDirectory(cacheDir);
-            }
-            
-            File.WriteAllBytes(cachePath, data);
+            var dir = Path.GetDirectoryName(cachePath);
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir!);
+
+            File.WriteAllBytes(cachePath, bytes);
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore cache write failures
+            Log?.Invoke($"[MapCache] Cache write error: {ex.Message}");
         }
     }
 
-    private int LonToTileX(double lon, int zoom)
+    /// <summary>
+    /// Fetch raw tile bytes using the configured cache and network settings.
+    /// Returns a tuple (bytes, httpStatusCode) where httpStatusCode is 0 on success.
+    /// </summary>
+    public async Task<(byte[]? bytes, int httpStatusCode)> FetchTileBytesAsync(int x, int y, int zoom, MapStyle style)
     {
-        return (int)Math.Floor((lon + 180.0) / 360.0 * (1 << zoom));
-    }
+        var url = GetTileUrl(x, y, zoom, style);
 
-    private int LatToTileY(double lat, int zoom)
-    {
-        var latRad = lat * Math.PI / 180.0;
-        return (int)Math.Floor((1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * (1 << zoom));
+        // Check cache
+        var cachePath = GetCacheFilePath(url);
+        if (_enableTileCache && File.Exists(cachePath))
+        {
+            var fileInfo = new FileInfo(cachePath);
+            var age = DateTime.Now - fileInfo.LastWriteTime;
+            if (age.TotalHours <= _cacheDurationHours)
+            {
+                try
+                {
+                    var bytes = File.ReadAllBytes(cachePath);
+                    return (bytes, 0);
+                }
+                catch (Exception ex)
+                {
+                    Log?.Invoke($"[MapCache] Read error for {cachePath}: {ex.Message}");
+                    // fall through to fetch from network
+                }
+            }
+        }
+
+        try
+        {
+            var response = await _httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, (int)response.StatusCode);
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            // Save to cache
+            SaveTileToCache(url, bytes);
+            return (bytes, 0);
+        }
+        catch (Exception ex)
+        {
+            Log?.Invoke($"[MapCache] Download error: {ex.Message}");
+            return (null, -1);
+        }
     }
 
     private double LonToPixelX(double lon, int zoom)
@@ -434,6 +469,17 @@ public class MapOverlayService
     {
         var latRad = lat * Math.PI / 180.0;
         return (1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * (256.0 * (1 << zoom));
+    }
+
+    private double LonToTileX(double lon, int zoom)
+    {
+        return (lon + 180.0) / 360.0 * (1 << zoom);
+    }
+
+    private double LatToTileY(double lat, int zoom)
+    {
+        var latRad = lat * Math.PI / 180.0;
+        return (1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * (1 << zoom);
     }
 
     private int CalculateZoomLevelForBounds(double minLat, double minLon, double maxLat, double maxLon, int width, int height)

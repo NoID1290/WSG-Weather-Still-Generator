@@ -20,6 +20,7 @@ namespace WeatherImageGenerator.Forms
         private ComboBox _radarSiteCombo;
         private Label _statusLabel;
         private TrackBar _zoomTrackBar;
+        private Label _tileStatusLabel;
         
         private readonly RadarImageService _radarService;
         private readonly HttpClient _httpClient;
@@ -131,8 +132,17 @@ namespace WeatherImageGenerator.Forms
                 dlg.UseDescriptionForTitle = true;
                 if (dlg.ShowDialog() == DialogResult.OK)
                 {
-                    _glControl.SetLocalTilesFolder(dlg.SelectedPath);
+                    _glControl?.SetLocalTilesFolder(dlg.SelectedPath);
                 }
+            };
+
+            // Tile status badge
+            _tileStatusLabel = new Label
+            {
+                Text = "Tiles: Remote",
+                ForeColor = Color.LightGreen,
+                Location = new Point(710, 50),
+                AutoSize = true
             };
 
             var showTilesLabel = new Label
@@ -146,6 +156,7 @@ namespace WeatherImageGenerator.Forms
             _controlPanel.Controls.Add(mapZoomLabel);
             _controlPanel.Controls.Add(mapZoomNumeric);
             _controlPanel.Controls.Add(tilesBtn);
+            _controlPanel.Controls.Add(_tileStatusLabel);
 
             // Refresh button
             _refreshBtn = CreateStyledButton("🔄 Refresh", new Point(310, 10));
@@ -199,6 +210,13 @@ namespace WeatherImageGenerator.Forms
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(30, 30, 30),
+            };
+
+            // Subscribe to tile status updates (now that _glControl is initialized)
+            _glControl.TileStatusChanged += (text, color) =>
+            {
+                if (this.InvokeRequired) this.BeginInvoke(new Action(() => { _tileStatusLabel.Text = text; _tileStatusLabel.ForeColor = color; }));
+                else { _tileStatusLabel.Text = text; _tileStatusLabel.ForeColor = color; }
             };
 
             // Add controls to form (OpenGL control first so the toolbar stays on top)
