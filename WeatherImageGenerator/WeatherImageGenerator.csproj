@@ -32,6 +32,9 @@
     <Content Include="wwwroot\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="opengl\shaders\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <!-- Embed icons into the binary -->
     <EmbeddedResource Include="WeatherImages\Icons\*.png" />
     <Content Include="Music\**">

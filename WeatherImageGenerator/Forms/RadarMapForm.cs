@@ -5,12 +5,14 @@ using System.Threading.Tasks;
 using System.Net.Http;
 using ECCC.Services;
 using WeatherImageGenerator.Utilities;
+using OpenTK.WinForms;
+using WeatherImageGenerator.OpenGL;
 
 namespace WeatherImageGenerator.Forms
 {
     public partial class RadarMapForm : Form
     {
-        private PictureBox _radarPictureBox;
+        private GLRadarControl _glControl;
         private Panel _controlPanel;
         private Button _refreshBtn;
         private Button _zoomInBtn;
@@ -21,10 +23,6 @@ namespace WeatherImageGenerator.Forms
         
         private readonly RadarImageService _radarService;
         private readonly HttpClient _httpClient;
-        private float _zoomLevel = 1.0f;
-        private Point _panOffset = Point.Empty;
-        private Point _lastMousePos;
-        private bool _isDragging = false;
         private Image? _currentRadarImage;
 
         // Radar site coordinates (major Canadian cities)
@@ -95,6 +93,60 @@ namespace WeatherImageGenerator.Forms
             _radarSiteCombo.SelectedIndex = 0;
             _radarSiteCombo.SelectedIndexChanged += async (s, e) => await LoadRadarForSelectedSiteAsync();
 
+            // Map zoom numeric control
+            var mapZoomLabel = new Label
+            {
+                Text = "Map Zoom:",
+                ForeColor = Color.White,
+                Location = new Point(420, 50),
+                AutoSize = true
+            };
+
+            var mapZoomNumeric = new NumericUpDown
+            {
+                Location = new Point(490, 47),
+                Minimum = 0,
+                Maximum = 18,
+                Value = 6,
+                Width = 60
+            };
+            mapZoomNumeric.ValueChanged += (s,e) => { _glControl?.SetMapZoom((int)mapZoomNumeric.Value); };
+
+            // Local tiles folder selector
+            var tilesBtn = new Button
+            {
+                Text = "Select Tiles Folder",
+                Location = new Point(560, 47),
+                Width = 140,
+                Height = 24,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0,122,204),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand
+            };
+            tilesBtn.Click += (s, e) =>
+            {
+                using var dlg = new FolderBrowserDialog();
+                dlg.Description = "Select a local tile folder (z/x/y.png layout)";
+                dlg.UseDescriptionForTitle = true;
+                if (dlg.ShowDialog() == DialogResult.OK)
+                {
+                    _glControl.SetLocalTilesFolder(dlg.SelectedPath);
+                }
+            };
+
+            var showTilesLabel = new Label
+            {
+                Text = "Map Zoom:",
+                ForeColor = Color.White,
+                Location = new Point(420, 50),
+                AutoSize = true
+            };
+
+            _controlPanel.Controls.Add(mapZoomLabel);
+            _controlPanel.Controls.Add(mapZoomNumeric);
+            _controlPanel.Controls.Add(tilesBtn);
+
             // Refresh button
             _refreshBtn = CreateStyledButton("🔄 Refresh", new Point(310, 10));
             _refreshBtn.Click += async (s, e) => await LoadRadarForSelectedSiteAsync();
@@ -142,23 +194,15 @@ namespace WeatherImageGenerator.Forms
                 _statusLabel
             });
 
-            // Radar display
-            _radarPictureBox = new PictureBox
+            // Radar display (OpenGL)
+            _glControl = new GLRadarControl
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(30, 30, 30),
-                SizeMode = PictureBoxSizeMode.Zoom,
-                Cursor = Cursors.Hand
             };
 
-            // Mouse events for pan
-            _radarPictureBox.MouseDown += RadarPictureBox_MouseDown;
-            _radarPictureBox.MouseMove += RadarPictureBox_MouseMove;
-            _radarPictureBox.MouseUp += RadarPictureBox_MouseUp;
-            _radarPictureBox.Paint += RadarPictureBox_Paint;
-
-            // Add controls to form
-            this.Controls.Add(_radarPictureBox);
+            // Add controls to form (OpenGL control first so the toolbar stays on top)
+            this.Controls.Add(_glControl);
             this.Controls.Add(_controlPanel);
         }
 
@@ -180,7 +224,10 @@ namespace WeatherImageGenerator.Forms
 
         private async Task LoadDefaultRadarAsync()
         {
-            await LoadRadarForIndexAsync(0);
+            // Default view -> Canada
+            _glControl.SetCenterLatLon(56.1304, -106.3468);
+            _glControl.SetMapZoom(4);
+            await LoadRadarForIndexAsync(0, centerMap: false);
         }
 
         private async Task LoadRadarForSelectedSiteAsync()
@@ -188,7 +235,7 @@ namespace WeatherImageGenerator.Forms
             await LoadRadarForIndexAsync(_radarSiteCombo.SelectedIndex);
         }
 
-        private async Task LoadRadarForIndexAsync(int index)
+        private async Task LoadRadarForIndexAsync(int index, bool centerMap = true)
         {
             if (index < 0 || index >= _radarSites.Length) return;
 
@@ -200,13 +247,20 @@ namespace WeatherImageGenerator.Forms
                 var site = _radarSites[index];
                 var radarBytes = await _radarService.FetchRadarImageAsync(site.Lat, site.Lon, 800, 600, 250);
                 
+                // center map on the selected site optionally
+                if (centerMap) _glControl.SetCenterLatLon(site.Lat, site.Lon);
+                
                 if (radarBytes != null && radarBytes.Length > 0)
                 {
-                    using (var ms = new System.IO.MemoryStream(radarBytes))
+                    // Push bytes to OpenGL control to create/upload texture
+                    try
                     {
                         _currentRadarImage?.Dispose();
-                        _currentRadarImage = Image.FromStream(ms);
-                        _radarPictureBox.Image = _currentRadarImage;
+                        _glControl.SetImageBytes(radarBytes);
+                    }
+                    catch (Exception imgEx)
+                    {
+                        Logger.Log($"Failed to upload radar texture: {imgEx.Message}", Logger.LogLevel.Warning);
                     }
                     
                     _statusLabel.Text = $"Radar loaded: {site.Name} - {DateTime.Now:HH:mm:ss}";
@@ -244,67 +298,19 @@ namespace WeatherImageGenerator.Forms
 
         private void ZoomTrackBar_ValueChanged(object? sender, EventArgs e)
         {
-            _zoomLevel = _zoomTrackBar.Value / 100f;
-            _radarPictureBox.Invalidate();
-        }
-
-        private void RadarPictureBox_MouseDown(object? sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Left)
+            if (_glControl != null)
             {
-                _isDragging = true;
-                _lastMousePos = e.Location;
-                _radarPictureBox.Cursor = Cursors.SizeAll;
+                _glControl.Zoom = _zoomTrackBar.Value / 100f;
+                _glControl.Invalidate();
             }
         }
 
-        private void RadarPictureBox_MouseMove(object? sender, MouseEventArgs e)
-        {
-            if (_isDragging)
-            {
-                _panOffset.X += e.X - _lastMousePos.X;
-                _panOffset.Y += e.Y - _lastMousePos.Y;
-                _lastMousePos = e.Location;
-                _radarPictureBox.Invalidate();
-            }
-        }
 
-        private void RadarPictureBox_MouseUp(object? sender, MouseEventArgs e)
-        {
-            _isDragging = false;
-            _radarPictureBox.Cursor = Cursors.Hand;
-        }
-
-        private void RadarPictureBox_Paint(object? sender, PaintEventArgs e)
-        {
-            if (_currentRadarImage == null) return;
-
-            var g = e.Graphics;
-            g.Clear(_radarPictureBox.BackColor);
-
-            // Apply zoom and pan
-            var scaledWidth = (int)(_currentRadarImage.Width * _zoomLevel);
-            var scaledHeight = (int)(_currentRadarImage.Height * _zoomLevel);
-
-            var x = (_radarPictureBox.Width - scaledWidth) / 2 + _panOffset.X;
-            var y = (_radarPictureBox.Height - scaledHeight) / 2 + _panOffset.Y;
-
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            g.DrawImage(_currentRadarImage, x, y, scaledWidth, scaledHeight);
-
-            // Draw crosshair at center
-            var centerX = _radarPictureBox.Width / 2;
-            var centerY = _radarPictureBox.Height / 2;
-            using (var pen = new Pen(Color.FromArgb(150, 255, 255, 255), 1))
-            {
-                g.DrawLine(pen, centerX - 10, centerY, centerX + 10, centerY);
-                g.DrawLine(pen, centerX, centerY - 10, centerX, centerY + 10);
-            }
-        }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             _currentRadarImage?.Dispose();
+            try { _glControl?.Dispose(); } catch { }
             _httpClient?.Dispose();
             base.OnFormClosing(e);
         }
