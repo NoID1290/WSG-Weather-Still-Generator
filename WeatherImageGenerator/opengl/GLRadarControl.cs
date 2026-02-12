@@ -36,6 +36,13 @@ namespace WeatherImageGenerator.OpenGL
         private double _centerLon = -106.3468; // Canada centroid longitude
         private int _fallbackTexture = 0;
 
+        // Background composite metadata (used so composite pans/zooms with map)
+        private double _bgCenterLat = 0.0;
+        private double _bgCenterLon = 0.0;
+        private int _bgSourceZoom = 0;
+        private int _bgPixelWidth = 0;
+        private int _bgPixelHeight = 0;
+
         private const int MAX_TILE_TEXTURES = 300;
         private const int PREFETCH_RADIUS = 1;
 
@@ -242,24 +249,71 @@ void main() {
 
             _shader.SetMatrix3("uTransform", transform);
 
-            // Draw map tiles using tile shader
-            _tileShader.Use();
-            GL.ActiveTexture(TextureUnit.Texture0);
+            // Draw map tiles using tile shader.
+            // If a pre-composited background (`_texture`) is present, draw it full-screen instead
+            // of iterating map tiles — the background was produced by RadarImageService and
+            // should not be recoloured by the radar palette shader.
+            if (_texture != 0 && _hasBackgroundTexture && _bgSourceZoom != 0)
+            {
+                // Draw the composite background anchored to world coordinates so it will pan/zoom with tiles.
+                _tileShader.Use();
+                GL.ActiveTexture(TextureUnit.Texture0);
 
-            // Compute world/pixel metrics
-            int z = _mapZoom;
-            double n = Math.Pow(2.0, z);
-            double cx = LonToPixelX(_centerLon, z);
-            double cy = LatToPixelY(_centerLat, z);
+                // compute center pixel for composite at current map zoom (convert lon/lat -> pixel at _mapZoom)
+                int z = _mapZoom;
+                double cx = LonToPixelX(_centerLon, z);
+                double cy = LatToPixelY(_centerLat, z);
 
-            int tilesWide = (int)Math.Ceiling((double)Width / 256.0) + 2;
-            int tilesHigh = (int)Math.Ceiling((double)Height / 256.0) + 2;
+                // image center at requested background center, computed at current zoom (so it moves with map)
+                double imgCenterPx = LonToPixelX(_bgCenterLon, z);
+                double imgCenterPy = LatToPixelY(_bgCenterLat, z);
 
-            // tile coordinates for center
-            int centerTileX = (int)Math.Floor(cx / 256.0);
-            int centerTileY = (int)Math.Floor(cy / 256.0);
+                // account for difference between source zoom and current zoom when scaling image size
+                double scaleFactor = Math.Pow(2.0, z - _bgSourceZoom);
+                double imgWidthMapPx = _bgPixelWidth * scaleFactor;
+                double imgHeightMapPx = _bgPixelHeight * scaleFactor;
 
-            for (int dx = -tilesWide/2; dx <= tilesWide/2; dx++)
+                // screen position of image center in pixels
+                double screenCenterX = (imgCenterPx - cx) + Width / 2.0;
+                double screenCenterY = (imgCenterPy - cy) + Height / 2.0;
+
+                // image size in NDC
+                float imgWnd = (float)(imgWidthMapPx / (Width / 2.0));
+                float imgHnd = (float)(imgHeightMapPx / (Height / 2.0));
+
+                float tileSx = imgWnd / 2f;
+                float tileSy = imgHnd / 2f;
+                float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0);
+                float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0));
+
+                float[] tmat = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, centerNdcX, centerNdcY, 1f };
+                _tileShader.SetMatrix3("uTransform", tmat);
+
+                GL.BindTexture(TextureTarget.Texture2D, _texture);
+                GL.BindVertexArray(_vao);
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+                GL.BindTexture(TextureTarget.Texture2D, 0);
+            }
+            else
+            {
+                _tileShader.Use();
+                GL.ActiveTexture(TextureUnit.Texture0);
+
+                // Compute world/pixel metrics
+                int z = _mapZoom;
+                double n = Math.Pow(2.0, z);
+                double cx = LonToPixelX(_centerLon, z);
+                double cy = LatToPixelY(_centerLat, z);
+
+                int tilesWide = (int)Math.Ceiling((double)Width / 256.0) + 2;
+                int tilesHigh = (int)Math.Ceiling((double)Height / 256.0) + 2;
+
+                // tile coordinates for center
+                int centerTileX = (int)Math.Floor(cx / 256.0);
+                int centerTileY = (int)Math.Floor(cy / 256.0);
+
+                for (int dx = -tilesWide/2; dx <= tilesWide/2; dx++)
             {
                 for (int dy = -tilesHigh/2; dy <= tilesHigh/2; dy++)
                 {
@@ -318,7 +372,7 @@ void main() {
                     GL.BindVertexArray(0);
                 }
             }
-
+            }
 
             // Draw radar frames (oldest first) with fading alpha
             if (_radarFrames.Count > 0)
@@ -455,20 +509,100 @@ void main() {
             }
         }
 
+        // Backwards-compatible single-arg API - delegates to the metadata-aware variant with null metadata.
         public void SetImageBytes(byte[] data)
+        {
+            SetImageBytes(data, null, null, null);
+        }
+
+        // Metadata-aware overload — sourceCenter/zoom tell the control how to anchor the composite image
+        public void SetImageBytes(byte[] data, double? sourceCenterLat, double? sourceCenterLon, int? sourceZoom)
         {
             if (InvokeRequired)
             {
-                this.BeginInvoke(new Action(() => SetImageBytes(data)));
+                this.BeginInvoke(new Action(() => SetImageBytes(data, sourceCenterLat, sourceCenterLon, sourceZoom)));
                 return;
             }
 
             using var ms = new MemoryStream(data);
             using var bmp = new Bitmap(ms);
-            AddRadarFrameFromBitmap(bmp);
-            Invalidate();
+            ProcessIncomingBitmap(bmp, sourceCenterLat, sourceCenterLon, sourceZoom);
         }
 
+        // Extracted helper so both overloads use the same logic and we can pass metadata
+        private void ProcessIncomingBitmap(Bitmap bmp, double? sourceCenterLat, double? sourceCenterLon, int? sourceZoom)
+        {
+            // If incoming image is fully opaque (composited base map + radar),
+            // treat it as a pre-composited background and upload to the background
+            // texture so it won't be recoloured by the radar palette shader.
+            bool hasAlphaChannel = Image.IsAlphaPixelFormat(bmp.PixelFormat);
+            bool anyTransparent = false;
+            if (hasAlphaChannel)
+            {
+                // quick scan for any transparent pixel (sample every 8th pixel to be fast)
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var dataBmp = bmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    int stride = dataBmp.Stride;
+                    int bytes = Math.Abs(stride) * bmp.Height;
+                    var buf = new byte[bytes];
+                    System.Runtime.InteropServices.Marshal.Copy(dataBmp.Scan0, buf, 0, bytes);
+                    for (int y = 0; y < bmp.Height && !anyTransparent; y += 8)
+                    {
+                        for (int x = 0; x < bmp.Width; x += 8)
+                        {
+                            int idx = y * stride + x * 4;
+                            if (idx + 3 >= buf.Length) break;
+                            byte a = buf[idx + 3];
+                            if (a != 255) { anyTransparent = true; break; }
+                        }
+                    }
+                }
+                finally { bmp.UnlockBits(dataBmp); }
+            }
+
+            if (!hasAlphaChannel || !anyTransparent)
+            {
+                Console.WriteLine("[GLRadarControl] Incoming image classified: BACKGROUND (pre-composited)");
+                // opaque/composited image -> upload as background (replace any radar frames)
+                _radarFrames.ForEach(t => { try { GL.DeleteTexture(t); } catch { } });
+                _radarFrames.Clear();
+
+                // delete previous background texture if any (we will replace it)
+                if (_texture != 0) { try { GL.DeleteTexture(_texture); } catch { } _texture = 0; }
+
+                // store metadata if provided so the background image will pan/zoom with the map
+                if (sourceCenterLat.HasValue && sourceCenterLon.HasValue && sourceZoom.HasValue)
+                {
+                    _bgCenterLat = sourceCenterLat.Value;
+                    _bgCenterLon = sourceCenterLon.Value;
+                    _bgSourceZoom = sourceZoom.Value;
+                    _bgPixelWidth = bmp.Width;
+                    _bgPixelHeight = bmp.Height;
+                }
+
+                UploadBitmapToTexture(bmp);
+                _hasBackgroundTexture = true;
+                BackgroundTextureChanged?.Invoke(true);
+            }
+            else
+            {
+                Console.WriteLine("[GLRadarControl] Incoming image classified: OVERLAY (transparent) -> radar frame");
+                // if we previously had a background texture, clear it so overlays composite over tiles
+                if (_hasBackgroundTexture)
+                {
+                    if (_texture != 0) { try { GL.DeleteTexture(_texture); } catch { } _texture = 0; }
+                    _hasBackgroundTexture = false;
+                    BackgroundTextureChanged?.Invoke(false);
+                }
+
+                // transparent image -> normal radar overlay processing
+                AddRadarFrameFromBitmap(bmp);
+            }
+
+            Invalidate();
+        }
         private void AddRadarFrameFromBitmap(Bitmap bmp)
         {
             MakeCurrent();
@@ -532,7 +666,12 @@ void main() {
             if (disposing)
             {
                 MakeCurrent();
-                if (_texture != 0) GL.DeleteTexture(_texture);
+                if (_texture != 0)
+                {
+                    GL.DeleteTexture(_texture);
+                    _texture = 0;
+                    if (_hasBackgroundTexture) { _hasBackgroundTexture = false; BackgroundTextureChanged?.Invoke(false); }
+                }
                 if (_fallbackTexture != 0) GL.DeleteTexture(_fallbackTexture);
                 if (_shader != null) _shader.Dispose();
                 if (_tileShader != null) _tileShader.Dispose();
@@ -572,6 +711,10 @@ void main() {
 
         // Notify host UI about tile status changes
         public event Action<string, System.Drawing.Color>? TileStatusChanged;
+        // Fired when a pre-composited full-screen background texture is set or cleared
+        public event Action<bool>? BackgroundTextureChanged;
+        private bool _hasBackgroundTexture = false;
+
         private void NotifyTileStatus(string text, System.Drawing.Color color)
         {
             try

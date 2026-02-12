@@ -21,6 +21,8 @@ namespace WeatherImageGenerator.Forms
         private Label _statusLabel;
         private TrackBar _zoomTrackBar;
         private Label _tileStatusLabel;
+        private Label _bgModeLabel;
+        private NumericUpDown _mapZoomNumeric;
         
         private readonly RadarImageService _radarService;
         private readonly HttpClient _httpClient;
@@ -103,7 +105,7 @@ namespace WeatherImageGenerator.Forms
                 AutoSize = true
             };
 
-            var mapZoomNumeric = new NumericUpDown
+            _mapZoomNumeric = new NumericUpDown
             {
                 Location = new Point(490, 47),
                 Minimum = 0,
@@ -111,7 +113,7 @@ namespace WeatherImageGenerator.Forms
                 Value = 6,
                 Width = 60
             };
-            mapZoomNumeric.ValueChanged += (s,e) => { _glControl?.SetMapZoom((int)mapZoomNumeric.Value); };
+            _mapZoomNumeric.ValueChanged += (s,e) => { _glControl?.SetMapZoom((int)_mapZoomNumeric.Value); };
 
             // Local tiles folder selector
             var tilesBtn = new Button
@@ -145,6 +147,14 @@ namespace WeatherImageGenerator.Forms
                 AutoSize = true
             };
 
+            _bgModeLabel = new Label
+            {
+                Text = "BG: Tiles",
+                ForeColor = Color.LightGray,
+                Location = new Point(790, 50),
+                AutoSize = true
+            };
+
             var showTilesLabel = new Label
             {
                 Text = "Map Zoom:",
@@ -154,9 +164,10 @@ namespace WeatherImageGenerator.Forms
             };
 
             _controlPanel.Controls.Add(mapZoomLabel);
-            _controlPanel.Controls.Add(mapZoomNumeric);
+            _controlPanel.Controls.Add(_mapZoomNumeric);
             _controlPanel.Controls.Add(tilesBtn);
             _controlPanel.Controls.Add(_tileStatusLabel);
+            _controlPanel.Controls.Add(_bgModeLabel);
 
             // Refresh button
             _refreshBtn = CreateStyledButton("🔄 Refresh", new Point(310, 10));
@@ -219,6 +230,17 @@ namespace WeatherImageGenerator.Forms
                 else { _tileStatusLabel.Text = text; _tileStatusLabel.ForeColor = color; }
             };
 
+            _glControl.BackgroundTextureChanged += (hasBg) =>
+            {
+                if (this.InvokeRequired)
+                {
+                    this.BeginInvoke(new Action(() => { _bgModeLabel.Text = hasBg ? "BG: Composite" : "BG: Tiles"; _bgModeLabel.ForeColor = hasBg ? Color.LightGreen : Color.LightGray; }));
+                    return;
+                }
+                _bgModeLabel.Text = hasBg ? "BG: Composite" : "BG: Tiles";
+                _bgModeLabel.ForeColor = hasBg ? Color.LightGreen : Color.LightGray;
+            };
+
             // Add controls to form (OpenGL control first so the toolbar stays on top)
             this.Controls.Add(_glControl);
             this.Controls.Add(_controlPanel);
@@ -263,18 +285,18 @@ namespace WeatherImageGenerator.Forms
                 _statusLabel.ForeColor = Color.Yellow;
 
                 var site = _radarSites[index];
-                var radarBytes = await _radarService.FetchRadarImageAsync(site.Lat, site.Lon, 800, 600, 250);
+                var radarBytes = await _radarService.FetchRadarImageAsync(site.Lat, site.Lon, 800, 600, 250, (int)_mapZoomNumeric.Value);
                 
                 // center map on the selected site optionally
                 if (centerMap) _glControl.SetCenterLatLon(site.Lat, site.Lon);
                 
                 if (radarBytes != null && radarBytes.Length > 0)
                 {
-                    // Push bytes to OpenGL control to create/upload texture
+                    // Push bytes to OpenGL control to create/upload texture (pass source metadata so composite anchors correctly)
                     try
                     {
                         _currentRadarImage?.Dispose();
-                        _glControl.SetImageBytes(radarBytes);
+                        _glControl.SetImageBytes(radarBytes, site.Lat, site.Lon, (int)_mapZoomNumeric.Value);
                     }
                     catch (Exception imgEx)
                     {

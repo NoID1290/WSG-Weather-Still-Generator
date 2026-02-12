@@ -42,7 +42,8 @@ namespace ECCC.Services
             double lon, 
             int width = 600, 
             int height = 600,
-            double radiusKm = DEFAULT_RADIUS_KM)
+            double radiusKm = DEFAULT_RADIUS_KM,
+            int? mapZoom = null)
         {
             try
             {
@@ -53,7 +54,7 @@ namespace ECCC.Services
                 Console.WriteLine($"[RadarImageService] Bounding box: {bbox}");
 
                 // Fetch base map and radar overlay in parallel
-                var baseMapTask = FetchBaseMapAsync(bbox, width, height);
+                var baseMapTask = FetchBaseMapAsync(bbox, width, height, mapZoom);
                 var radarTask = FetchRadarOverlayAsync(bbox, width, height);
 
                 await Task.WhenAll(baseMapTask, radarTask);
@@ -91,7 +92,8 @@ namespace ECCC.Services
         private async Task<byte[]?> FetchBaseMapAsync(
             (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
             int width,
-            int height)
+            int height,
+            int? forcedZoom = null)
         {
             // Try OpenMap service first if available
             if (_mapService != null)
@@ -104,9 +106,9 @@ namespace ECCC.Services
                     double centerLat = (bbox.MinLat + bbox.MaxLat) / 2;
                     double centerLon = (bbox.MinLon + bbox.MaxLon) / 2;
                     
-                    // Calculate appropriate zoom level based on bbox size
+                    // Calculate appropriate zoom level based on bbox size (or use forced value)
                     double latSpan = bbox.MaxLat - bbox.MinLat;
-                    int zoomLevel = CalculateZoomLevel(latSpan);
+                    int zoomLevel = forcedZoom ?? CalculateZoomLevel(latSpan);
                     
                     Console.WriteLine($"[RadarImageService] Generating map: center=({centerLat:F4}, {centerLon:F4}), zoom={zoomLevel}");
                     
