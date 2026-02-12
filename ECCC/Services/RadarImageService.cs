@@ -67,6 +67,12 @@ namespace ECCC.Services
                     Console.WriteLine("[RadarImageService] Failed to fetch radar data");
                     return null;
                 }
+                // If OpenMap service is not available we prefer returning the radar overlay only (GL control renders tiles itself).
+                if (_mapService == null)
+                {
+                    Console.WriteLine("[RadarImageService] OpenMap not configured — returning radar overlay only (tiles are rendered client-side)");
+                    return radarData;
+                }
 
                 // If we have a base map, composite them together
                 if (baseMapData != null && baseMapData.Length > 0)

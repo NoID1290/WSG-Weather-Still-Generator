@@ -548,6 +548,9 @@ void main() {
                     int bytes = Math.Abs(stride) * bmp.Height;
                     var buf = new byte[bytes];
                     System.Runtime.InteropServices.Marshal.Copy(dataBmp.Scan0, buf, 0, bytes);
+                    // consider only *fully* transparent pixels (or nearly fully transparent) as "transparent".
+                    // Ignore semi-transparent pixels (alpha > 0) since composites often contain semi-opaque overlay pixels.
+                    const int TRANSPARENT_THRESHOLD = 8; // alpha < 8 treated as transparent
                     for (int y = 0; y < bmp.Height && !anyTransparent; y += 8)
                     {
                         for (int x = 0; x < bmp.Width; x += 8)
@@ -555,7 +558,7 @@ void main() {
                             int idx = y * stride + x * 4;
                             if (idx + 3 >= buf.Length) break;
                             byte a = buf[idx + 3];
-                            if (a != 255) { anyTransparent = true; break; }
+                            if (a < TRANSPARENT_THRESHOLD) { anyTransparent = true; break; }
                         }
                     }
                 }
@@ -819,11 +822,16 @@ void main() {
             Invalidate();
         }
 
+        // Raised whenever the map/tile zoom changes (UI and mouse-wheel shifts)
+        public event Action<int>? MapZoomChanged;
+
         public void SetMapZoom(int z)
         {
+            if (z == _mapZoom) return;
             _mapZoom = z;
             UpdateTiles();
             Invalidate();
+            try { MapZoomChanged?.Invoke(_mapZoom); } catch { }
         }
 
         /// <summary>

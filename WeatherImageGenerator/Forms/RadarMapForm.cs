@@ -23,6 +23,8 @@ namespace WeatherImageGenerator.Forms
         private Label _tileStatusLabel;
         private Label _bgModeLabel;
         private NumericUpDown _mapZoomNumeric;
+        // last composite zoom level (null when no composite present)
+        private int? _lastCompositeZoom;
         
         private readonly RadarImageService _radarService;
         private readonly HttpClient _httpClient;
@@ -113,7 +115,7 @@ namespace WeatherImageGenerator.Forms
                 Value = 6,
                 Width = 60
             };
-            _mapZoomNumeric.ValueChanged += (s,e) => { _glControl?.SetMapZoom((int)_mapZoomNumeric.Value); };
+            _mapZoomNumeric.ValueChanged += (s,e) => { _glControl?.SetMapZoom((int)_mapZoomNumeric.Value); HandleMapZoomChanged((int)_mapZoomNumeric.Value); };
 
             // Local tiles folder selector
             var tilesBtn = new Button
@@ -168,6 +170,9 @@ namespace WeatherImageGenerator.Forms
             _controlPanel.Controls.Add(tilesBtn);
             _controlPanel.Controls.Add(_tileStatusLabel);
             _controlPanel.Controls.Add(_bgModeLabel);
+
+            // Keep last composite zoom so we can auto-refresh when zoom changes by >= 1
+            _lastCompositeZoom = null;
 
             // Refresh button
             _refreshBtn = CreateStyledButton("🔄 Refresh", new Point(310, 10));
@@ -230,15 +235,33 @@ namespace WeatherImageGenerator.Forms
                 else { _tileStatusLabel.Text = text; _tileStatusLabel.ForeColor = color; }
             };
 
+            // Track whether a composite background is active and remember its zoom
             _glControl.BackgroundTextureChanged += (hasBg) =>
             {
                 if (this.InvokeRequired)
                 {
-                    this.BeginInvoke(new Action(() => { _bgModeLabel.Text = hasBg ? "BG: Composite" : "BG: Tiles"; _bgModeLabel.ForeColor = hasBg ? Color.LightGreen : Color.LightGray; }));
+                    this.BeginInvoke(new Action(() => {
+                        _bgModeLabel.Text = hasBg ? "BG: Composite" : "BG: Tiles";
+                        _bgModeLabel.ForeColor = hasBg ? Color.LightGreen : Color.LightGray;
+                        _lastCompositeZoom = hasBg ? (int?)_mapZoomNumeric.Value : null;
+                    }));
                     return;
                 }
+
                 _bgModeLabel.Text = hasBg ? "BG: Composite" : "BG: Tiles";
                 _bgModeLabel.ForeColor = hasBg ? Color.LightGreen : Color.LightGray;
+                _lastCompositeZoom = hasBg ? (int?)_mapZoomNumeric.Value : null;
+            };
+
+            // Sync when map zoom changes (handles Shift+wheel in GL control) and auto-refresh composite when zoom delta >= 1
+            _glControl.MapZoomChanged += (z) =>
+            {
+                if (this.InvokeRequired)
+                {
+                    this.BeginInvoke(new Action(() => HandleMapZoomChanged(z)));
+                    return;
+                }
+                HandleMapZoomChanged(z);
             };
 
             // Add controls to form (OpenGL control first so the toolbar stays on top)
@@ -297,6 +320,8 @@ namespace WeatherImageGenerator.Forms
                     {
                         _currentRadarImage?.Dispose();
                         _glControl.SetImageBytes(radarBytes, site.Lat, site.Lon, (int)_mapZoomNumeric.Value);
+                        // remember last composite zoom so auto-refresh can react to zoom changes
+                        _lastCompositeZoom = (int)_mapZoomNumeric.Value;
                     }
                     catch (Exception imgEx)
                     {
@@ -345,6 +370,20 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
+        // Called when map zoom changes (UI or GL control). Auto-refresh composite when zoom delta >= 1.
+        private void HandleMapZoomChanged(int newZoom)
+        {
+            // keep numeric control in sync if the event comes from GL control (Shift+wheel)
+            if ((int)_mapZoomNumeric.Value != newZoom) _mapZoomNumeric.Value = Math.Max(_mapZoomNumeric.Minimum, Math.Min(_mapZoomNumeric.Maximum, newZoom));
+
+            // If we currently have a composite and the zoom changed enough, auto-refresh it
+            if (_lastCompositeZoom.HasValue && Math.Abs(newZoom - _lastCompositeZoom.Value) >= 1)
+            {
+                Logger.Log($"[AUTO-REFRESH] Map zoom changed from {_lastCompositeZoom.Value} → {newZoom}; refreshing composite...", System.ConsoleColor.Cyan);
+                // reload radar/composite for the currently selected site (don't recenter)
+                _ = LoadRadarForIndexAsync(_radarSiteCombo.SelectedIndex, centerMap: false);
+            }
+        }
 
 
         protected override void OnFormClosing(FormClosingEventArgs e)

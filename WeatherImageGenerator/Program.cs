@@ -157,6 +157,16 @@ namespace WeatherImageGenerator
                 return;
             }
 
+            // Test the new Weather Interactive Map (with all new features)
+            if (args.Contains("--test-weather-map"))
+            {
+                Application.SetHighDpiMode(HighDpiMode.SystemAware);
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new WeatherMapForm());
+                return;
+            }
+
             // Launch WinForms GUI which hosts an embedded console
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();

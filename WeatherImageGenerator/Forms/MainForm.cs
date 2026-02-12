@@ -586,14 +586,14 @@ namespace WeatherImageGenerator.Forms
             {
                 try
                 {
-                    var radarForm = new RadarMapForm();
-                    radarForm.Show();
-                    Logger.Log("Opened interactive radar map.", Logger.LogLevel.Info);
+                    var weatherMapForm = new WeatherMapForm();
+                    weatherMapForm.Show();
+                    Logger.Log("Opened Weather Interactive Map with radar composite and temperature overlays.", Logger.LogLevel.Info);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log($"Failed to open radar map: {ex.Message}", Logger.LogLevel.Error);
-                    MessageBox.Show($"Failed to open radar map: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Logger.Log($"Failed to open weather map: {ex.Message}", Logger.LogLevel.Error);
+                    MessageBox.Show($"Failed to open weather map: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
 
