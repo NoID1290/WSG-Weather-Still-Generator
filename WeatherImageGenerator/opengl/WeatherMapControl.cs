@@ -398,7 +398,10 @@ namespace WeatherImageGenerator.OpenGL
                 _overlayManager.TemperatureEnabled = _chkTemperature.Checked;
 
                 if (!_overlayManager.RadarEnabled && !_overlayManager.TemperatureEnabled)
+                {
+                    _glControl.ClearOverlay();
                     return;
+                }
 
                 var overlayData = await _overlayManager.GetCompositedOverlaysAsync(
                     _currentLat,
@@ -409,7 +412,12 @@ namespace WeatherImageGenerator.OpenGL
 
                 if (overlayData != null)
                 {
-                    _glControl.SetImageBytes(overlayData);
+                    // Pass metadata so overlay can pan/zoom with the map
+                    _glControl.SetImageBytes(overlayData, _currentLat, _currentLon, _currentZoom);
+                }
+                else
+                {
+                    _glControl.ClearOverlay();
                 }
             }
             catch (Exception ex)

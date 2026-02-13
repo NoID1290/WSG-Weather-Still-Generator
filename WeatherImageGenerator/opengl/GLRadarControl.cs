@@ -378,12 +378,18 @@ void main() {
             if (_radarFrames.Count > 0)
             {
                 GL.Enable(EnableCap.Blend);
-                _shader.Use();
+                // Use tile shader to preserve overlay colors (not radar palette shader)
+                _tileShader.Use();
                 for (int i = 0; i < _radarFrames.Count; i++)
                 {
                     int tex = _radarFrames[i];
+                    // fading alpha for animation effect
                     float alpha = (float)(i + 1) / (_radarFrames.Count + 1);
-                    _shader.SetFloat("uOpacity", alpha);
+                    
+                    // Identity transform (fullscreen)
+                    float[] tmat = new float[] { 1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f };
+                    _tileShader.SetMatrix3("uTransform", tmat);
+                    
                     GL.BindTexture(TextureTarget.Texture2D, tex);
                     GL.BindVertexArray(_vao);
                     GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
@@ -492,7 +498,7 @@ void main() {
                 _centerLon = PixelXToLon(cx, _mapZoom);
                 _centerLat = PixelYToLat(cy, _mapZoom);
 
-                UpdateTiles();
+                // Only invalidate during drag - don't fetch tiles until drag ends
                 Invalidate();
             }
         }
@@ -504,8 +510,8 @@ void main() {
                 _dragging = false;
                 this.Cursor = Cursors.Hand;
 
-                // After dragging end, refresh tiles to ensure new tiles are requested
-                _ = System.Threading.Tasks.Task.Run(() => UpdateTiles());
+                // After dragging ends, refresh tiles for the new position
+                UpdateTiles();
             }
         }
 
@@ -528,6 +534,39 @@ void main() {
             using var bmp = new Bitmap(ms);
             ProcessIncomingBitmap(bmp, sourceCenterLat, sourceCenterLon, sourceZoom);
         }
+
+        /// <summary>
+        /// Clears any overlay/background texture
+        /// </summary>
+        public void ClearOverlay()
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => ClearOverlay()));
+                return;
+            }
+
+            MakeCurrent();
+            
+            // Clear background texture
+            if (_texture != 0)
+            {
+                try { GL.DeleteTexture(_texture); } catch { }
+                _texture = 0;
+                _hasBackgroundTexture = false;
+                BackgroundTextureChanged?.Invoke(false);
+            }
+            
+            // Clear radar frames
+            foreach (var t in _radarFrames)
+            {
+                try { GL.DeleteTexture(t); } catch { }
+            }
+            _radarFrames.Clear();
+            
+            Invalidate();
+        }
+
 
         // Extracted helper so both overloads use the same logic and we can pass metadata
         private void ProcessIncomingBitmap(Bitmap bmp, double? sourceCenterLat, double? sourceCenterLon, int? sourceZoom)
