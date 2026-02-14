@@ -33,6 +33,7 @@ namespace WeatherImageGenerator.OpenGL
         private Button _btnRefresh;
         private Button _btnClearCache;
         private Button _btnPrefetchTiles;
+        private Button _btnPrefetchRadarTiles;
         private ComboBox _cmbMapStyle;
         
         private HttpClient _httpClient;
@@ -284,6 +285,11 @@ namespace WeatherImageGenerator.OpenGL
             _btnPrefetchTiles = CreateActionButton("📥 Prefetch Map Tiles (CAN+USA)", y);
             _btnPrefetchTiles.Click += async (s, e) => await PrefetchMapTiles();
             _controlPanel.Controls.Add(_btnPrefetchTiles);
+            y += buttonHeight + spacing;
+
+            _btnPrefetchRadarTiles = CreateActionButton("📥 Prefetch Radar Tiles", y);
+            _btnPrefetchRadarTiles.Click += async (s, e) => await PrefetchRadarTiles();
+            _controlPanel.Controls.Add(_btnPrefetchRadarTiles);
             y += buttonHeight + spacing;
 
             var btnGen = CreateActionButton("🖼️ Generate Precomposed Composites", y);
@@ -568,6 +574,66 @@ namespace WeatherImageGenerator.OpenGL
             finally
             {
                 _btnPrefetchTiles.Enabled = true;
+                _btnRefresh.Enabled = true;
+                UpdateCacheStats();
+            }
+        }
+
+        private async Task PrefetchRadarTiles()
+        {
+            var confirm = MessageBox.Show(
+                "This will download ECCC radar tiles (latest frame) for Canada/USA (zoom 3–7) into your local map cache.\n\nPlease ensure you comply with ECCC usage policies. Continue?",
+                "Prefetch Radar Tiles",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (confirm != DialogResult.Yes) return;
+
+            _btnPrefetchRadarTiles.Enabled = false;
+            _btnRefresh.Enabled = false;
+            _lblCacheStats.Text = "Radar cache: Prefetching tiles...";
+
+            try
+            {
+                double minLat = 10.0, minLon = -170.0, maxLat = 72.0, maxLon = -50.0;
+                int minZoom = 3, maxZoom = 7;
+
+                // Use 'latest' (no TIME parameter) for initial implementation; folder will be named 'latest'
+                var times = new[] { "latest" };
+
+                var mapCacheDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache");
+                System.IO.Directory.CreateDirectory(mapCacheDir);
+
+                var progress = new Progress<TilePyramidGenerator.ProgressState>(s =>
+                {
+                    _lblCacheStats.Text = $"Radar Prefetch: {s.Completed}/{s.Total} (fetched={s.Fetched})";
+                });
+
+                var state = await TilePyramidGenerator.GenerateRadarTilesAsync(
+                    httpClient: _httpClient,
+                    radarLayer: "RADAR_1KM_RRAI",
+                    times: times,
+                    minZoom: minZoom,
+                    maxZoom: maxZoom,
+                    minLat: minLat,
+                    minLon: minLon,
+                    maxLat: maxLat,
+                    maxLon: maxLon,
+                    outputBaseDir: mapCacheDir,
+                    parallelism: 4,
+                    delayBetweenRequestsMs: 200,
+                    progress: progress);
+
+                UpdateCacheStats();
+                MessageBox.Show($"Radar tile prefetch complete — fetched {state.Fetched} tiles (processed {state.Completed}).\nCache: {mapCacheDir}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Radar prefetch failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _btnPrefetchRadarTiles.Enabled = true;
                 _btnRefresh.Enabled = true;
                 UpdateCacheStats();
             }

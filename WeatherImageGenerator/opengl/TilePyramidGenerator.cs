@@ -168,6 +168,58 @@ namespace WeatherImageGenerator.OpenGL
             return state;
         }
 
+        /// <summary>
+        /// Wrapper to generate ECCC radar tiles (WMS -> 256×256 XYZ files).
+        /// Writes tiles to: %LOCALAPPDATA%/WSG/map_cache/radar/<timestamp>/z/x/y.png by default.
+        /// </summary>
+        public static async Task<ProgressState> GenerateRadarTilesAsync(
+            System.Net.Http.HttpClient httpClient,
+            string radarLayer,
+            IEnumerable<string> times,
+            int minZoom,
+            int maxZoom,
+            double minLat,
+            double minLon,
+            double maxLat,
+            double maxLon,
+            string? outputBaseDir = null,
+            int parallelism = 4,
+            int delayBetweenRequestsMs = 200,
+            IProgress<ProgressState>? progress = null,
+            CancellationToken cancellation = default)
+        {
+            // Adapt ECCC progress -> TilePyramid ProgressState
+            var adapter = new Progress<ECCC.Services.RadarTileGenerator.RadarProgress>(rp =>
+            {
+                var ps = new ProgressState
+                {
+                    Completed = rp.Completed,
+                    Total = rp.Total,
+                    Fetched = rp.Fetched,
+                    Message = rp.Message
+                };
+                progress?.Report(ps);
+            });
+
+            var result = await ECCC.Services.RadarTileGenerator.GenerateRadarTilesAsync(
+                httpClient,
+                radarLayer,
+                times,
+                minZoom,
+                maxZoom,
+                minLat,
+                minLon,
+                maxLat,
+                maxLon,
+                outputBaseDir,
+                parallelism,
+                delayBetweenRequestsMs,
+                adapter,
+                cancellation);
+
+            return new ProgressState { Completed = result.Completed, Total = result.Total, Fetched = result.Fetched, Message = result.Message };
+        }
+
         private static (int x0, int x1, int y0, int y1) TileBoundsForBBox(double minLat, double minLon, double maxLat, double maxLon, int zoom)
         {
             // Clamp latitudes to Mercator usable range
