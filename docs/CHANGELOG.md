@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.8.0214] - 2026-02-14
+
+- feat: Enhance map tile cache verification to include file-cache and binary-cache statistics
+- Ignore local appsettings files and untrack existing appsettings.json
+
 ## [1.9.7.0214] - 2026-02-14
 
 - feat: Remove radar map button from main form and add dev-only button in settings to open Weather Interactive Map
