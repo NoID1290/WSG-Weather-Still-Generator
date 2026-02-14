@@ -388,8 +388,5 @@ WeatherImageGenerator/build_full.txt
 logs/
 WeatherImageGenerator/logs/
 
-#appsetings.json
-appsettings.Development.json
-appsettings.json
-
-WeatherImageGenerator/appsettings.json
+# Local appsettings files — keep local config out of the repo
+appsettings*.json
