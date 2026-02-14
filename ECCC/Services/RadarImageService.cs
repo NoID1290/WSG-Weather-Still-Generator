@@ -28,30 +28,24 @@ namespace ECCC.Services
         }
 
         /// <summary>
-        /// Fetches a composite radar image for the specified location.
+        /// Fetches a composite radar image for the specified bounding box.
         /// Combines a base map with the ECCC radar overlay.
         /// </summary>
-        /// <param name="lat">Latitude of the center point</param>
-        /// <param name="lon">Longitude of the center point</param>
-        /// <param name="width">Image width in pixels (default: 600)</param>
-        /// <param name="height">Image height in pixels (default: 600)</param>
-        /// <param name="radiusKm">Radius around center point in km (default: 200)</param>
+        /// <param name="bbox">Geographic bounding box (MinLat, MinLon, MaxLat, MaxLon)</param>
+        /// <param name="width">Image width in pixels</param>
+        /// <param name="height">Image height in pixels</param>
+        /// <param name="mapZoom">Optional map zoom level</param>
         /// <returns>PNG image data as byte array, or null on failure</returns>
         public async Task<byte[]?> FetchRadarImageAsync(
-            double lat, 
-            double lon, 
-            int width = 600, 
-            int height = 600,
-            double radiusKm = DEFAULT_RADIUS_KM,
+            (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
+            int width,
+            int height,
             int? mapZoom = null)
         {
             try
             {
-                Console.WriteLine($"[RadarImageService] Fetching radar for location: {lat}, {lon}");
-                
-                // Calculate bounding box based on radius
-                var bbox = CalculateBoundingBox(lat, lon, radiusKm);
-                Console.WriteLine($"[RadarImageService] Bounding box: {bbox}");
+                Console.WriteLine($"[RadarImageService] Fetching radar for bbox: ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
+                Console.WriteLine($"[RadarImageService] Image size: {width}x{height}, zoom: {mapZoom}");
 
                 // Fetch base map and radar overlay in parallel
                 var baseMapTask = FetchBaseMapAsync(bbox, width, height, mapZoom);
@@ -90,6 +84,21 @@ namespace ECCC.Services
                 Console.WriteLine($"[RadarImageService] Error fetching radar image: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Fetches a composite radar image for the specified location (legacy radius-based method).
+        /// </summary>
+        public async Task<byte[]?> FetchRadarImageAsync(
+            double lat, 
+            double lon, 
+            int width = 600, 
+            int height = 600,
+            double radiusKm = DEFAULT_RADIUS_KM,
+            int? mapZoom = null)
+        {
+            var bbox = CalculateBoundingBox(lat, lon, radiusKm);
+            return await FetchRadarImageAsync(bbox, width, height, mapZoom);
         }
 
         /// <summary>

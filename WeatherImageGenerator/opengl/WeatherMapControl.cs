@@ -32,6 +32,7 @@ namespace WeatherImageGenerator.OpenGL
         private Label _lblCacheStats;
         private Button _btnRefresh;
         private Button _btnClearCache;
+        private Button _btnPrefetchTiles;
         private ComboBox _cmbMapStyle;
         
         private HttpClient _httpClient;
@@ -104,6 +105,16 @@ namespace WeatherImageGenerator.OpenGL
             {
                 _currentZoom = zoom;
                 UpdateStatusLabels();
+                _ = UpdateOverlays(); // Refresh overlays when zoom changes
+            };
+            
+            _glControl.MapPositionChanged += (lat, lon) =>
+            {
+                _currentLat = lat;
+                _currentLon = lon;
+                UpdateStatusLabels();
+                // Don't update overlays on pan - radar stays at original fetch location
+                // Only update on zoom changes, manual refresh, or checkbox toggles
             };
             
             _glControl.TileStatusChanged += (text, color) =>
@@ -207,7 +218,9 @@ namespace WeatherImageGenerator.OpenGL
             _trackRadarOpacity.ValueChanged += async (s, e) =>
             {
                 _overlayManager.RadarOpacity = _trackRadarOpacity.Value / 100f;
-                await UpdateOverlays();
+                // TODO: Implement opacity modulation in shader or compositing
+                // For now, don't refresh (causes flicker and doesn't apply opacity)
+                // await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackRadarOpacity);
             y += 50;
@@ -243,7 +256,8 @@ namespace WeatherImageGenerator.OpenGL
             _trackTempOpacity.ValueChanged += async (s, e) =>
             {
                 _overlayManager.TemperatureOpacity = _trackTempOpacity.Value / 100f;
-                await UpdateOverlays();
+                // TODO: Implement opacity modulation in shader or compositing
+                // await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackTempOpacity);
             y += 55;
@@ -266,6 +280,29 @@ namespace WeatherImageGenerator.OpenGL
             _btnClearCache.Click += async (s, e) => await ClearCache();
             _controlPanel.Controls.Add(_btnClearCache);
             y += buttonHeight + spacing;
+
+            _btnPrefetchTiles = CreateActionButton("📥 Prefetch Map Tiles (CAN+USA)", y);
+            _btnPrefetchTiles.Click += async (s, e) => await PrefetchMapTiles();
+            _controlPanel.Controls.Add(_btnPrefetchTiles);
+            y += buttonHeight + spacing;
+
+            var btnGen = CreateActionButton("🖼️ Generate Precomposed Composites", y);
+            btnGen.Click += async (s, e) => await GeneratePrecomposedComposites();
+            _controlPanel.Controls.Add(btnGen);
+            y += buttonHeight + spacing;
+
+            var chkPbo = new CheckBox
+            {
+                Text = "Use PBO uploads",
+                Location = new Point(10, y),
+                Size = new Size(controlWidth, 24),
+                Checked = true,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9F)
+            };
+            chkPbo.CheckedChanged += (s, e) => { _glControl.UsePboUploads = chkPbo.Checked; };
+            _controlPanel.Controls.Add(chkPbo);
+            y += 30;
 
             // Separator
             AddSeparator(y);
@@ -403,17 +440,28 @@ namespace WeatherImageGenerator.OpenGL
                     return;
                 }
 
-                var overlayData = await _overlayManager.GetCompositedOverlaysAsync(
+                Console.WriteLine($"[WeatherMap] UpdateOverlays: pos=({_currentLat:F2},{_currentLon:F2}), size={_glControl.Width}x{_glControl.Height}, zoom={_currentZoom}");
+                
+                // Get radar data with bounding box for geographic positioning
+                var overlayData = await _overlayManager.UpdateRadarOverlayAsync(
                     _currentLat,
                     _currentLon,
                     _glControl.Width,
                     _glControl.Height,
                     _currentZoom);
 
-                if (overlayData != null)
+                if (overlayData != null && overlayData.Length > 0)
                 {
-                    // Pass metadata so overlay can pan/zoom with the map
-                    _glControl.SetImageBytes(overlayData, _currentLat, _currentLon, _currentZoom);
+                    // Pass radar with bounding box for geographic positioning
+                    if (_overlayManager.LastRadarBBox.HasValue)
+                    {
+                        var bbox = _overlayManager.LastRadarBBox.Value;
+                        _glControl.SetImageBytes(overlayData, bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon, _currentZoom);
+                    }
+                    else
+                    {
+                        _glControl.SetImageBytes(overlayData);
+                    }
                 }
                 else
                 {
@@ -456,6 +504,133 @@ namespace WeatherImageGenerator.OpenGL
                 await _tileCache.ClearCacheAsync();
                 UpdateCacheStats();
                 MessageBox.Show("Cache cleared successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private async Task PrefetchMapTiles()
+        {
+            var confirm = MessageBox.Show(
+                "This will download map tiles for Canada/USA (zoom 3–7) into your local cache.\n\nPlease ensure you comply with tile provider usage policies. Continue?",
+                "Prefetch Map Tiles",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (confirm != DialogResult.Yes) return;
+
+            _btnPrefetchTiles.Enabled = false;
+            _btnRefresh.Enabled = false;
+            _lblCacheStats.Text = "Cache: Prefetching tiles...";
+
+            try
+            {
+                // Bounding box roughly covering continental Canada + USA (includes AK/HI margins)
+                double minLat = 10.0, minLon = -170.0, maxLat = 72.0, maxLon = -50.0;
+                int minZoom = 3, maxZoom = 7;
+
+                // Prepare caches: existing _tileCache (map_cache) + tileprovider binary cache folder
+                var tileProviderCacheDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "tilecache");
+                using var tileProviderCache = new BinaryTileCache(tileProviderCacheDir);
+
+                // Local tiles folder (z/x/y.png) so GL control can be pointed to it after generation
+                var localTilesRoot = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "local_tiles");
+                System.IO.Directory.CreateDirectory(localTilesRoot);
+
+                var mapService = new MapOverlayService();
+
+                var progress = new Progress<TilePyramidGenerator.ProgressState>(s =>
+                {
+                    _lblCacheStats.Text = $"Prefetch: {s.Completed}/{s.Total} (fetched={s.Fetched})";
+                });
+
+                var state = await TilePyramidGenerator.GenerateAsync(
+                    mapCache: _tileCache,
+                    mapService: mapService,
+                    minZoom: minZoom,
+                    maxZoom: maxZoom,
+                    minLat: minLat,
+                    minLon: minLon,
+                    maxLat: maxLat,
+                    maxLon: maxLon,
+                    tileProviderCache: tileProviderCache,
+                    localTilesRoot: localTilesRoot,
+                    progress: progress);
+
+                // Point GL control to local tiles (immediate benefit)
+                _glControl.SetLocalTilesFolder(localTilesRoot);
+                UpdateCacheStats();
+
+                MessageBox.Show($"Prefetch complete — fetched {state.Fetched} tiles (processed {state.Completed} total).\nLocal tiles: {localTilesRoot}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Prefetch failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _btnPrefetchTiles.Enabled = true;
+                _btnRefresh.Enabled = true;
+                UpdateCacheStats();
+            }
+        }
+
+        private async Task GeneratePrecomposedComposites()
+        {
+            var confirm = MessageBox.Show(
+                "Generate pre-composed radar+map images for Canada/USA (z=3..7). This will download tiles/radar and may use significant bandwidth. Continue?",
+                "Generate Precomposed Composites",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (confirm != DialogResult.Yes) return;
+
+            _btnPrefetchTiles.Enabled = false;
+            _btnRefresh.Enabled = false;
+            _lblCacheStats.Text = "Generating precomposed composites...";
+
+            try
+            {
+                // Country bounding box (same as tile prefetch)
+                double minLat = 10.0, minLon = -170.0, maxLat = 72.0, maxLon = -50.0;
+                int minZoom = 3, maxZoom = 7;
+                int width = 4096, height = 3072; // high-res composite size (GPU-friendly)
+                var outDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "precomposed");
+                System.IO.Directory.CreateDirectory(outDir);
+
+                var mapService = new MapOverlayService();
+                var radarSvc = new ECCC.Services.RadarImageService(_httpClient, mapService);
+
+                for (int z = minZoom; z <= maxZoom; z++)
+                {
+                    _lblCacheStats.Text = $"Generating composite z={z}...";
+                    var bytes = await radarSvc.FetchRadarImageAsync((MinLat: minLat, MinLon: minLon, MaxLat: maxLat, MaxLon: maxLon), width, height, z);
+                    if (bytes != null && bytes.Length > 0)
+                    {
+                        var path = System.IO.Path.Combine(outDir, $"composite_z{z}.png");
+                        System.IO.File.WriteAllBytes(path, bytes);
+                    }
+                }
+
+                // Auto-load the zoom-4 composite if present for immediate UX benefit
+                var centerLat = (minLat + maxLat) / 2.0;
+                var centerLon = (minLon + maxLon) / 2.0;
+                var primePath = System.IO.Path.Combine(outDir, "composite_z4.png");
+                if (System.IO.File.Exists(primePath))
+                {
+                    var data = System.IO.File.ReadAllBytes(primePath);
+                    _glControl.SetImageBytes(data, centerLat, centerLon, 4);
+                }
+
+                MessageBox.Show($"Precomposed composites created in: {outDir}", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to generate composites: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _btnPrefetchTiles.Enabled = true;
+                _btnRefresh.Enabled = true;
+                UpdateCacheStats();
             }
         }
 

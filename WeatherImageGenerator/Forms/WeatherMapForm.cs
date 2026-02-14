@@ -1,4 +1,7 @@
 using System;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using WeatherImageGenerator.OpenGL;
 
@@ -34,13 +37,65 @@ namespace WeatherImageGenerator.Forms
             
             this.Controls.Add(_weatherMap);
 
-            // Set initial location (you can customize this)
-            // Canada: 56.1304, -106.3468
-            // Toronto: 43.6532, -79.3832
-            // Vancouver: 49.2827, -123.1207
-            // Montreal: 45.5017, -73.5673
-            _weatherMap.SetLocation(56.1304, -106.3468);
-            _weatherMap.SetZoom(4);
+            // Try to get user's location, fallback to Canada if it fails
+            _ = InitializeLocationAsync();
+        }
+
+        private async Task InitializeLocationAsync()
+        {
+            try
+            {
+                Console.WriteLine("[WeatherMapForm] Attempting to fetch user location...");
+                var location = await GetUserLocationAsync();
+                
+                if (location.HasValue)
+                {
+                    Console.WriteLine($"[WeatherMapForm] User location detected: {location.Value.lat:F4}, {location.Value.lon:F4}");
+                    _weatherMap.SetLocation(location.Value.lat, location.Value.lon);
+                    _weatherMap.SetZoom(8); // Closer zoom for user's location
+                }
+                else
+                {
+                    Console.WriteLine("[WeatherMapForm] Using default location (Canada)");
+                    _weatherMap.SetLocation(56.1304, -106.3468); // Default: Canada
+                    _weatherMap.SetZoom(4);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherMapForm] Location fetch failed: {ex.Message}");
+                _weatherMap.SetLocation(56.1304, -106.3468); // Fallback: Canada
+                _weatherMap.SetZoom(4);
+            }
+        }
+
+        private async Task<(double lat, double lon)?> GetUserLocationAsync()
+        {
+            try
+            {
+                using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(5);
+                
+                // Use ip-api.com for free geolocation (no API key needed)
+                var response = await client.GetStringAsync("http://ip-api.com/json/?fields=lat,lon,status");
+                
+                using var doc = JsonDocument.Parse(response);
+                var root = doc.RootElement;
+                
+                if (root.TryGetProperty("status", out var status) && status.GetString() == "success")
+                {
+                    if (root.TryGetProperty("lat", out var lat) && root.TryGetProperty("lon", out var lon))
+                    {
+                        return (lat.GetDouble(), lon.GetDouble());
+                    }
+                }
+            }
+            catch
+            {
+                // Silently fail and use default
+            }
+            
+            return null;
         }
 
         protected override void OnLoad(EventArgs e)

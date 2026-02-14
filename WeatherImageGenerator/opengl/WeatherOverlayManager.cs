@@ -30,9 +30,18 @@ namespace WeatherImageGenerator.OpenGL
         private DateTime _lastRadarUpdate = DateTime.MinValue;
         private DateTime _lastTemperatureUpdate = DateTime.MinValue;
         
+        // Track last radar parameters to detect when refresh is needed
+        private double _lastRadarLat;
+        private double _lastRadarLon;
+        private int _lastRadarZoom;
+        
         // Configuration
         private readonly TimeSpan _radarUpdateInterval = TimeSpan.FromMinutes(5);
         private readonly TimeSpan _temperatureUpdateInterval = TimeSpan.FromMinutes(30);
+        
+        // Store last calculated bounding boxes
+        public (double MinLat, double MinLon, double MaxLat, double MaxLon)? LastRadarBBox { get; private set; }
+        public (double MinLat, double MinLon, double MaxLat, double MaxLon)? LastTemperatureBBox { get; private set; }
         
         public bool RadarEnabled { get; set; } = true;
         public bool TemperatureEnabled { get; set; } = false;
@@ -60,17 +69,36 @@ namespace WeatherImageGenerator.OpenGL
             if (!RadarEnabled)
                 return null;
 
-            // Check if we need to update (avoid unnecessary API calls)
-            if (DateTime.UtcNow - _lastRadarUpdate < _radarUpdateInterval && _radarOverlay != null)
+            // Use fixed radius like Weather Details (proven approach)
+            double radiusKm = mapZoom >= 10 ? 150 : 
+                              mapZoom >= 7  ? 200 : 
+                              mapZoom >= 5  ? 300 : 400;
+            
+            // ALWAYS calculate bounding box (cheap operation, depends on current zoom/position)
+            LastRadarBBox = CalculateBoundingBoxFromRadius(centerLat, centerLon, radiusKm);
+            var bbox = LastRadarBBox.Value;
+            
+            // Check if position/zoom changed significantly (requires new radar fetch)
+            bool positionChanged = Math.Abs(centerLat - _lastRadarLat) > 0.5 || Math.Abs(centerLon - _lastRadarLon) > 0.5;
+            bool zoomChanged = mapZoom != _lastRadarZoom;
+            bool cacheExpired = DateTime.UtcNow - _lastRadarUpdate >= _radarUpdateInterval;
+            
+            // Use cached data if available and parameters haven't changed significantly
+            if (_radarOverlay != null && !positionChanged && !zoomChanged && !cacheExpired)
+            {
+                Console.WriteLine($"[WeatherOverlay] Using cached radar data with updated bbox: ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
                 return _radarOverlay;
+            }
 
             try
             {
-                double radiusKm = CalculateRadiusFromZoom(mapZoom, width, height);
+                Console.WriteLine($"[WeatherOverlay] Fetching radar: center=({centerLat:F2},{centerLon:F2}), size={width}x{height}, zoom={mapZoom}, radiusKm={radiusKm}");
+                Console.WriteLine($"[WeatherOverlay] Radar bbox: ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
                 
+                // Use radius-based API (same as Weather Details)
                 var radarData = await _radarService.FetchRadarImageAsync(
-                    centerLat, 
-                    centerLon, 
+                    centerLat,
+                    centerLon,
                     width, 
                     height, 
                     radiusKm,
@@ -80,6 +108,9 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     _radarOverlay = radarData;
                     _lastRadarUpdate = DateTime.UtcNow;
+                    _lastRadarLat = centerLat;
+                    _lastRadarLon = centerLon;
+                    _lastRadarZoom = mapZoom;
                     
                     // Cache to disk
                     var cachePath = Path.Combine(_cacheDirectory, $"radar_{centerLat:F2}_{centerLon:F2}.png");
@@ -116,6 +147,7 @@ namespace WeatherImageGenerator.OpenGL
             {
                 // Calculate grid bounds
                 var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
+                LastTemperatureBBox = bbox; // Store for later retrieval
                 
                 // Generate temperature grid
                 var tempData = await GenerateTemperatureGridAsync(bbox, width, height, mapZoom);
@@ -181,6 +213,8 @@ namespace WeatherImageGenerator.OpenGL
         {
             try
             {
+                Console.WriteLine($"[WeatherOverlay] Generating temperature grid for bbox: {bbox.MinLat:F2},{bbox.MinLon:F2} to {bbox.MaxLat:F2},{bbox.MaxLon:F2}");
+                
                 // Sample temperature at grid points (reduce API calls)
                 int gridSize = 5; // 5x5 grid
                 var tempPoints = new List<(double lat, double lon, float temp, string location)>();
@@ -209,23 +243,27 @@ namespace WeatherImageGenerator.OpenGL
                             if (weatherData?.Current?.Temperature_2m != null)
                             {
                                 tempPoints.Add((lat, lon, weatherData.Current.Temperature_2m.Value, $"{lat:F2},{lon:F2}"));
+                                Console.WriteLine($"[WeatherOverlay] Temperature at {lat:F2},{lon:F2}: {weatherData.Current.Temperature_2m.Value:F1}°C");
                             }
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            // Skip failed points
+                            Console.WriteLine($"[WeatherOverlay] Failed to fetch temp at {lat:F2},{lon:F2}: {ex.Message}");
                         }
                     }
                 }
 
+                Console.WriteLine($"[WeatherOverlay] Collected {tempPoints.Count} temperature points");
+                
                 if (tempPoints.Count == 0)
                     return null;
 
                 // Render temperature overlay
                 return RenderTemperatureOverlay(tempPoints, bbox, width, height, mapZoom);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[WeatherOverlay] Temperature grid generation failed: {ex.Message}");
                 return null;
             }
         }
@@ -361,24 +399,71 @@ namespace WeatherImageGenerator.OpenGL
 
         private double CalculateRadiusFromZoom(int zoom, int width, int height)
         {
-            // Approximate kilometers per pixel at different zoom levels
-            double kmPerPixel = 40075.0 / (256.0 * Math.Pow(2, zoom)); // Earth circumference
+            // Calculate based on viewport bounds, not radius
+            // At zoom level, the world is 2^zoom * 256 pixels wide
+            // Viewportextends width/2 pixels from center
+            double worldPixels = 256.0 * Math.Pow(2, zoom);
+            double kmPerPixel = 40075.0 / worldPixels; // Earth circumference at equator
             double pixelRadius = Math.Max(width, height) / 2.0;
-            return pixelRadius * kmPerPixel;
+            
+            // Use reasonable radius based on viewport (not globe-spanning)
+            double radiusKm = pixelRadius * kmPerPixel;
+            
+            // Clamp to reasonable values (max ~1000km for most views)
+            return Math.Min(radiusKm, 1000.0);
         }
 
         private (double MinLat, double MinLon, double MaxLat, double MaxLon) CalculateBoundingBox(
             double centerLat, double centerLon, int zoom, int width, int height)
         {
-            double kmPerPixel = 40075.0 / (256.0 * Math.Pow(2, zoom));
-            double latDelta = (height / 2.0) * kmPerPixel / 111.0; // ~111 km per degree
-            double lonDelta = (width / 2.0) * kmPerPixel / (111.0 * Math.Cos(centerLat * Math.PI / 180.0));
+            // Web Mercator calculations for proper viewport bounds
+            // At this zoom level, world is 2^zoom * 256 pixels
+            double worldPixels = 256.0 * Math.Pow(2, zoom);
+            
+            // Convert center to pixel coordinates
+            double centerPixelX = (centerLon + 180.0) / 360.0 * worldPixels;
+            double latRad = centerLat * Math.PI / 180.0;
+            double centerPixelY = (1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * worldPixels;
+            
+            // Calculate viewport bounds in pixels
+            double minPixelX = centerPixelX - width / 2.0;
+            double maxPixelX = centerPixelX + width / 2.0;
+            double minPixelY = centerPixelY - height / 2.0;
+            double maxPixelY = centerPixelY + height / 2.0;
+            
+            // Convert back to lat/lon
+            double minLon = (minPixelX / worldPixels) * 360.0 - 180.0;
+            double maxLon = (maxPixelX / worldPixels) * 360.0 - 180.0;
+            
+            // Convert Y pixels back to latitude (inverse mercator)
+            double minLatRad = Math.Atan(Math.Sinh(Math.PI * (1.0 - 2.0 * maxPixelY / worldPixels)));
+            double maxLatRad = Math.Atan(Math.Sinh(Math.PI * (1.0 - 2.0 * minPixelY / worldPixels)));
+            double minLat = minLatRad * 180.0 / Math.PI;
+            double maxLat = maxLatRad * 180.0 / Math.PI;
+
+            return (minLat, minLon, maxLat, maxLon);
+        }
+        
+        /// <summary>
+        /// Calculate bounding box from center point and fixed radius (simple, proven approach)
+        /// </summary>
+        private (double MinLat, double MinLon, double MaxLat, double MaxLon) CalculateBoundingBoxFromRadius(
+            double centerLat, 
+            double centerLon, 
+            double radiusKm)
+        {
+            // Approximate conversion (1 degree ≈ 111 km at equator)
+            const double kmPerDegreeLat = 111.0;
+            double kmPerDegreeLon = 111.0 * Math.Cos(centerLat * Math.PI / 180.0);
+
+            double latOffset = radiusKm / kmPerDegreeLat;
+            double lonOffset = radiusKm / kmPerDegreeLon;
 
             return (
-                centerLat - latDelta,
-                centerLon - lonDelta,
-                centerLat + latDelta,
-                centerLon + lonDelta
+                MinLat: centerLat - latOffset,
+                MinLon: centerLon - lonOffset,
+                MaxLat: centerLat + latOffset,
+                MaxLon: centerLon + lonOffset
             );
         }
 
