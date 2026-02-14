@@ -1541,6 +1541,23 @@ namespace WeatherImageGenerator.Forms
                 lblBuffer, txtBufferSize, lblBufferHelp, lblTips
             });
 
+            // Dev-only: open Weather Interactive Map (moved from main toolbar)
+            var btnOpenWeatherMap = CreatePrimaryButton("Open Weather Map (DEV) — Ctrl+Shift+M", labelX, y + 100, 260, 34);
+            btnOpenWeatherMap.Click += (s, e) =>
+            {
+                try
+                {
+                    var f = new WeatherMapForm();
+                    f.Show();
+                    Logger.Log("Opened Weather Interactive Map (DEV) from Settings > Experimental.", Logger.LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to open weather map: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            tab.Controls.Add(btnOpenWeatherMap);
+
             return tab;
         }
 

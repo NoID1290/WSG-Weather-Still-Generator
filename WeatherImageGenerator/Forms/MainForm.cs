@@ -129,7 +129,7 @@ namespace WeatherImageGenerator.Forms
         private TabPage? _logTab;
         private Panel? _topPanel;
         private Panel? _logPanel;
-        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn, _toggleLogsBtn, _radarMapBtn;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn, _toggleLogsBtn;
         
         // UI controls for log line spacing (user adjustable)
         private ComboBox? _cmbLineSpacing;
@@ -230,7 +230,6 @@ namespace WeatherImageGenerator.Forms
             _clearDirBtn = CreateStyledButton("Clear", g3Left + g3BtnWidth + btnSpacing, row1Top, g3BtnWidth, btnHeight, Color.FromArgb(127, 140, 141), Color.White);
             _galleryBtn = CreateStyledButton("Gallery", g3Left, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
             _openWebUIBtn = CreateStyledButton("WebUI", g3Left + g3BtnWidth + btnSpacing, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
-            _radarMapBtn = CreateStyledButton("🌧 Radar", g3Left + (g3BtnWidth + btnSpacing) * 2, row1Top, g3BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
             
             // Group 4: Settings (Locations, Music, Settings, About)
             int g4Left = g3Left + (g3BtnWidth + btnSpacing) * 2 + groupSpacing;
@@ -582,20 +581,7 @@ namespace WeatherImageGenerator.Forms
                 await GenerateTestAlertAsync();
             };
             
-            _radarMapBtn.Click += (s, e) =>
-            {
-                try
-                {
-                    var weatherMapForm = new WeatherMapForm();
-                    weatherMapForm.Show();
-                    Logger.Log("Opened Weather Interactive Map with radar composite and temperature overlays.", Logger.LogLevel.Info);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log($"Failed to open weather map: {ex.Message}", Logger.LogLevel.Error);
-                    MessageBox.Show($"Failed to open weather map: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            };
+
 
             _topPanel = new Panel { Dock = DockStyle.Top, Height = 178, Padding = new Padding(8, 4, 8, 4) };
             // Add group labels
@@ -619,7 +605,6 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
             _topPanel.Controls.Add(_openWebUIBtn);
-            _topPanel.Controls.Add(_radarMapBtn);
             _topPanel.Controls.Add(_toggleLogsBtn);
             _topPanel.Controls.Add(_txtWebUIUrl);
             // Add progress and status
@@ -761,6 +746,26 @@ namespace WeatherImageGenerator.Forms
             
             // Setup NotifyIcon for minimize to tray
             InitializeNotifyIcon();
+
+            // Keyboard shortcut: Ctrl+Shift+M opens Weather Interactive Map (always available)
+            this.KeyPreview = true;
+            this.KeyDown += (s, e) =>
+            {
+                try
+                {
+                    if (e.Control && e.Shift && e.KeyCode == Keys.M)
+                    {
+                        var weatherMapForm = new WeatherMapForm();
+                        weatherMapForm.Show();
+                        Logger.Log("Opened Weather Interactive Map via Ctrl+Shift+M.", Logger.LogLevel.Info);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Failed to open weather map via shortcut: {ex.Message}", Logger.LogLevel.Error);
+                }
+            };
+
             this.Resize += MainForm_Resize;
             this.FormClosing += MainForm_FormClosing;
         }
