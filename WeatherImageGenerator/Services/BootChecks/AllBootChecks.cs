@@ -138,21 +138,79 @@ namespace WeatherImageGenerator.Services.BootChecks
                     });
                 }
 
-                // Count cached tiles for info
-                var files = Directory.GetFiles(cacheDir, "*", SearchOption.AllDirectories);
-                var sizeMb = 0L;
-                foreach (var f in files)
+                // Count cached tiles for the configured file-cache (resolved like MapOverlayService)
+                long fileCacheCount = 0;
+                long fileCacheBytes = 0;
+
+                // Resolve relative path the same way MapOverlayService does (AppContext.BaseDirectory)
+                var fileCacheDir = cacheDir;
+                if (!Path.IsPathRooted(fileCacheDir))
+                    fileCacheDir = Path.Combine(AppContext.BaseDirectory, fileCacheDir);
+
+                if (Directory.Exists(fileCacheDir))
                 {
-                    try { sizeMb += new FileInfo(f).Length; } catch { }
+                    try
+                    {
+                        var files = Directory.GetFiles(fileCacheDir, "*", SearchOption.AllDirectories);
+                        fileCacheCount = files.Length;
+                        foreach (var f in files)
+                        {
+                            try { fileCacheBytes += new FileInfo(f).Length; } catch { }
+                        }
+                    }
+                    catch { /* ignore */ }
                 }
-                var sizeMbStr = (sizeMb / 1024.0 / 1024.0).ToString("F1");
+
+                // Also check the BinaryTileCache used by WeatherMapControl (%LocalAppData%/WSG/map_cache)
+                long binaryCacheCount = 0;
+                long binaryCacheBytes = 0;
+                try
+                {
+                    var localBinaryCache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache");
+                    if (Directory.Exists(localBinaryCache))
+                    {
+                        // Use BinaryTileCache stats when available to get an accurate tile count/size
+                        try
+                        {
+                            var binCache = new OpenGL.BinaryTileCache(localBinaryCache);
+                            var stats = binCache.GetStats();
+                            binaryCacheCount = stats.TileCount;
+                            binaryCacheBytes = stats.TotalSizeBytes;
+                            binCache.Dispose();
+                        }
+                        catch
+                        {
+                            // Fallback: sum file sizes in the directory
+                            var files = Directory.GetFiles(localBinaryCache, "*", SearchOption.AllDirectories);
+                            foreach (var f in files)
+                            {
+                                try { binaryCacheBytes += new FileInfo(f).Length; } catch { }
+                            }
+                        }
+                    }
+                }
+                catch { /* ignore */ }
+
+                var totalTiles = (fileCacheCount + binaryCacheCount);
+                var totalBytes = (fileCacheBytes + binaryCacheBytes);
+                var sizeMbStr = (totalBytes / 1024.0 / 1024.0).ToString("F1");
+
+                var statusMsg = totalTiles > 0
+                    ? $"Cache OK ({totalTiles} tiles, {sizeMbStr} MB)"
+                    : "Cache OK (0 tiles, 0.0 MB)";
+
+                var detail = fileCacheCount > 0
+                    ? fileCacheDir
+                    : (Directory.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache"))
+                        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache")
+                        : cacheDir);
 
                 return Task.FromResult(new BootCheckResult
                 {
                     Name = Name,
                     Status = BootCheckStatus.Passed,
-                    StatusMessage = $"Cache OK ({files.Length} tiles, {sizeMbStr} MB)",
-                    Detail = cacheDir
+                    StatusMessage = statusMsg,
+                    Detail = detail
                 });
             }
             catch (Exception ex)
