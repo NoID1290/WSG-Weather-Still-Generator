@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -40,6 +41,7 @@ namespace WeatherImageGenerator.OpenGL
         private double _currentLat = 56.1304; // Canada centroid
         private double _currentLon = -106.3468;
         private int _currentZoom = 4;
+        private bool _suppressOverlayUpdates = false;
 
         public WeatherMapControl()
         {
@@ -53,6 +55,9 @@ namespace WeatherImageGenerator.OpenGL
             _updateTimer = new Timer { Interval = 60000 }; // Update every minute
             _updateTimer.Tick += UpdateTimer_Tick;
             _updateTimer.Start();
+
+            // Initial overlay is triggered by SetLocation/SetZoom from the host form,
+            // NOT here — avoids race with location detection.
         }
 
         private void InitializeComponents()
@@ -93,6 +98,11 @@ namespace WeatherImageGenerator.OpenGL
                 "WSG", "map_cache");
             
             _tileCache = new BinaryTileCache(cacheDir);
+
+            // Provide an OpenMap MapOverlayService to the overlay manager so
+            // RadarImageService can produce *composited* map+radar images when available.
+            // Use overlay-only mode: do NOT provide MapOverlayService here so
+            // RadarImageService returns transparent radar overlays (live fetching)
             _overlayManager = new WeatherOverlayManager(_httpClient);
         }
 
@@ -106,7 +116,8 @@ namespace WeatherImageGenerator.OpenGL
             {
                 _currentZoom = zoom;
                 UpdateStatusLabels();
-                _ = UpdateOverlays(); // Refresh overlays when zoom changes
+                if (!_suppressOverlayUpdates)
+                    _ = UpdateOverlays();
             };
             
             _glControl.MapPositionChanged += (lat, lon) =>
@@ -114,8 +125,8 @@ namespace WeatherImageGenerator.OpenGL
                 _currentLat = lat;
                 _currentLon = lon;
                 UpdateStatusLabels();
-                // Don't update overlays on pan - radar stays at original fetch location
-                // Only update on zoom changes, manual refresh, or checkbox toggles
+                if (!_suppressOverlayUpdates)
+                    _ = UpdateOverlays();
             };
             
             _glControl.TileStatusChanged += (text, color) =>
@@ -219,9 +230,8 @@ namespace WeatherImageGenerator.OpenGL
             _trackRadarOpacity.ValueChanged += async (s, e) =>
             {
                 _overlayManager.RadarOpacity = _trackRadarOpacity.Value / 100f;
-                // TODO: Implement opacity modulation in shader or compositing
-                // For now, don't refresh (causes flicker and doesn't apply opacity)
-                // await UpdateOverlays();
+                _glControl.OverlayOpacity = _trackRadarOpacity.Value / 100f;
+                await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackRadarOpacity);
             y += 50;
@@ -257,8 +267,7 @@ namespace WeatherImageGenerator.OpenGL
             _trackTempOpacity.ValueChanged += async (s, e) =>
             {
                 _overlayManager.TemperatureOpacity = _trackTempOpacity.Value / 100f;
-                // TODO: Implement opacity modulation in shader or compositing
-                // await UpdateOverlays();
+                await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackTempOpacity);
             y += 55;
@@ -400,12 +409,42 @@ namespace WeatherImageGenerator.OpenGL
         }
 
         // Public API
+        public int CurrentZoom => _currentZoom;
+
         public void SetLocation(double lat, double lon)
         {
             _currentLat = lat;
             _currentLon = lon;
             _glControl.SetCenterLatLon(lat, lon);
             UpdateStatusLabels();
+            // Don't call UpdateOverlays here — MapPositionChanged handler does it,
+            // and if SetZoom follows immediately, we'd fetch at the wrong zoom.
+        }
+
+        /// <summary>
+        /// Set location and zoom atomically, triggering a single overlay fetch at the correct viewport.
+        /// Use this on startup or when both values change together.
+        /// </summary>
+        public void SetLocationAndZoom(double lat, double lon, int zoom)
+        {
+            _currentLat = lat;
+            _currentLon = lon;
+            _currentZoom = Math.Max(1, Math.Min(20, zoom));
+
+            // Suppress event-driven overlay updates while we set both values
+            _suppressOverlayUpdates = true;
+            try
+            {
+                _glControl.SetCenterLatLon(lat, lon);
+                _glControl.SetMapZoom(_currentZoom);
+            }
+            finally
+            {
+                _suppressOverlayUpdates = false;
+            }
+
+            UpdateStatusLabels();
+            // Single overlay update with correct lat/lon AND zoom
             _ = UpdateOverlays();
         }
 
@@ -433,8 +472,14 @@ namespace WeatherImageGenerator.OpenGL
             SetLocation(56.1304, -106.3468); // Canada
         }
 
+        private bool _overlayUpdateInProgress = false;
+
         private async Task UpdateOverlays()
         {
+            // Prevent concurrent overlay updates (races cause GL errors)
+            if (_overlayUpdateInProgress) return;
+            _overlayUpdateInProgress = true;
+
             try
             {
                 _overlayManager.RadarEnabled = _chkRadar.Checked;
@@ -447,36 +492,95 @@ namespace WeatherImageGenerator.OpenGL
                 }
 
                 Console.WriteLine($"[WeatherMap] UpdateOverlays: pos=({_currentLat:F2},{_currentLon:F2}), size={_glControl.Width}x{_glControl.Height}, zoom={_currentZoom}");
-                
-                // Get radar data with bounding box for geographic positioning
-                var overlayData = await _overlayManager.UpdateRadarOverlayAsync(
-                    _currentLat,
-                    _currentLon,
-                    _glControl.Width,
-                    _glControl.Height,
-                    _currentZoom);
+
+                byte[]? overlayData = null;
+                bool bothEnabled = _overlayManager.RadarEnabled && _overlayManager.TemperatureEnabled;
+
+                if (bothEnabled)
+                {
+                    // Both layers enabled: composite them CPU-side (radar + temperature)
+                    overlayData = await _overlayManager.GetCompositedOverlaysAsync(
+                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
+                }
+                else if (_overlayManager.RadarEnabled)
+                {
+                    // Single layer: pass raw radar PNG directly to GL (avoids CompositeOverlays roundtrip)
+                    overlayData = await _overlayManager.UpdateRadarOverlayAsync(
+                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
+                }
+                else if (_overlayManager.TemperatureEnabled)
+                {
+                    overlayData = await _overlayManager.UpdateTemperatureOverlayAsync(
+                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
+                }
+
+                Console.WriteLine($"[WeatherMap] Overlay data received: {(overlayData != null ? $"{overlayData.Length} bytes" : "null")}");
+
+                // Set opacity on GL control (shader-based, no CPU compositing needed)
+                _glControl.OverlayOpacity = _overlayManager.RadarEnabled 
+                    ? _overlayManager.RadarOpacity 
+                    : _overlayManager.TemperatureOpacity;
 
                 if (overlayData != null && overlayData.Length > 0)
                 {
-                    // Pass radar with bounding box for geographic positioning
-                    if (_overlayManager.LastRadarBBox.HasValue)
+                    // Count non-transparent pixels for diagnostics
+                    int nonTransparentPixels = 0;
+                    int totalPixels = 0;
+                    try
                     {
-                        var bbox = _overlayManager.LastRadarBBox.Value;
-                        _glControl.SetImageBytes(overlayData, bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon, _currentZoom);
+                        using var diagMs = new System.IO.MemoryStream(overlayData);
+                        using var diagBmp = new Bitmap(diagMs);
+                        var rect = new Rectangle(0, 0, diagBmp.Width, diagBmp.Height);
+                        var dataBmp = diagBmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                        try
+                        {
+                            int stride = Math.Abs(dataBmp.Stride);
+                            int stepX = Math.Max(1, diagBmp.Width / 40);
+                            int stepY = Math.Max(1, diagBmp.Height / 40);
+                            byte[] row = new byte[stride];
+                            for (int y = 0; y < diagBmp.Height; y += stepY)
+                            {
+                                System.Runtime.InteropServices.Marshal.Copy(dataBmp.Scan0 + y * dataBmp.Stride, row, 0, stride);
+                                for (int x = 0; x < diagBmp.Width; x += stepX)
+                                {
+                                    int idx = x * 4;
+                                    if (idx + 3 >= row.Length) continue;
+                                    totalPixels++;
+                                    if (row[idx + 3] > 8) nonTransparentPixels++;
+                                }
+                            }
+                        }
+                        finally { diagBmp.UnlockBits(dataBmp); }
+                    }
+                    catch { }
+
+                    Console.WriteLine($"[WeatherMap] Overlay pixel scan: {nonTransparentPixels}/{totalPixels} sampled pixels are non-transparent");
+
+                    // Always use positioned overlay path (bbox-aware) for geographic anchoring
+                    var bbox = _overlayManager.LastOverlayBBox;
+                    if (bbox.HasValue)
+                    {
+                        Console.WriteLine($"[WeatherMap] Setting positioned overlay with bbox: ({bbox.Value.MinLat:F4},{bbox.Value.MinLon:F4}) to ({bbox.Value.MaxLat:F4},{bbox.Value.MaxLon:F4})");
+                        _glControl.SetImageBytes(overlayData, bbox.Value.MinLat, bbox.Value.MinLon, bbox.Value.MaxLat, bbox.Value.MaxLon, _currentZoom);
                     }
                     else
                     {
-                        _glControl.SetImageBytes(overlayData);
+                        Console.WriteLine("[WeatherMap] Setting overlay without bbox (fallback to center/zoom)");
+                        _glControl.SetImageBytes(overlayData, _currentLat, _currentLon, _currentZoom);
                     }
                 }
                 else
                 {
-                    _glControl.ClearOverlay();
+                    Console.WriteLine("[WeatherMap] No overlay data available");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[WeatherMap] Overlay update error: {ex.Message}");
+            }
+            finally
+            {
+                _overlayUpdateInProgress = false;
             }
         }
 
@@ -727,6 +831,31 @@ namespace WeatherImageGenerator.OpenGL
             {
                 await UpdateOverlays();
             }
+        }
+
+        /// <summary>Toggle radar checkbox from external code (keyboard shortcut)</summary>
+        public void ToggleRadar()
+        {
+            _chkRadar.Checked = !_chkRadar.Checked;
+        }
+
+        /// <summary>Toggle temperature checkbox from external code (keyboard shortcut)</summary>
+        public void ToggleTemperature()
+        {
+            _chkTemperature.Checked = !_chkTemperature.Checked;
+        }
+
+        /// <summary>Toggle debug overlay bounding box</summary>
+        public void ToggleDebugOverlay()
+        {
+            _glControl.DebugOverlayBounds = !_glControl.DebugOverlayBounds;
+            _glControl.Invalidate();
+        }
+
+        /// <summary>Force refresh all overlays</summary>
+        public void RefreshOverlays()
+        {
+            _ = UpdateOverlays();
         }
 
         protected override void Dispose(bool disposing)

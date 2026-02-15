@@ -55,11 +55,17 @@ namespace WeatherImageGenerator.OpenGL
         // Use Pixel Buffer Objects (PBO) for async texture uploads when available.
         // Enabled by default — can be toggled for diagnostics.
         private bool _usePboUploads = true;
+        // Debug: draw overlay bounding box to help diagnose positioned overlay rendering
+        private bool _debugOverlayBounds = false;
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool DebugOverlayBounds { get => _debugOverlayBounds; set => _debugOverlayBounds = value; }
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool UsePboUploads { get => _usePboUploads; set => _usePboUploads = value; }
 
         private const int MAX_TILE_TEXTURES = 300;
+
         private const int PREFETCH_RADIUS = 1;
 
         // Radar frame buffer for ghosting/animation
@@ -189,6 +195,7 @@ void main() {
             // Ensure tile shader has texture unit set
             _tileShader!.Use();
             _tileShader!.SetInt("uTexture", 0);
+            _tileShader!.SetFloat("uOpacity", 1.0f);
 
             // Setup overlay buffers (we'll fill data on resize)
             _overlayVao = GL.GenVertexArray();
@@ -240,30 +247,15 @@ void main() {
             MakeCurrent();
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            // All geometry is at z=0; disable depth testing so overlays draw on top of tiles
+            GL.Disable(EnableCap.DepthTest);
+
             if (_shader == null)
             {
                 SwapBuffers();
                 return;
             }
-
-            _shader.Use();
-
-            // Build transform matrix (mat3) to apply zoom and pan
-            // We keep it simple: scale then translate in NDC space
-            float sx = _zoom;
-            float sy = _zoom;
-            float tx = _pan.X;
-            float ty = _pan.Y;
-
-            // Column-major 3x3 matrix for 2D affine transform
-            float[] transform = new float[]
-            {
-                sx, 0f, 0f,
-                0f, sy, 0f,
-                tx, ty, 1f
-            };
-
-            _shader.SetMatrix3("uTransform", transform);
 
             // Draw map tiles using tile shader.
             // If a pre-composited background (`_texture`) is present, draw it full-screen instead
@@ -390,20 +382,104 @@ void main() {
             }
             }
 
+            // Draw positioned overlay (anchored to geographic bbox) if present
+            if (_hasPositionedOverlay && _overlayTexture != 0)
+            {
+                // Use tile shader so overlay colors & alpha are preserved
+                GL.Enable(EnableCap.Blend);
+                _tileShader.Use();
+                _tileShader.SetFloat("uOpacity", _overlayOpacity);
+                GL.ActiveTexture(TextureUnit.Texture0);
+
+                int z = _mapZoom;
+                double cx = LonToPixelX(_centerLon, z);
+                double cy = LatToPixelY(_centerLat, z);
+
+                // Compute overlay bounds in global pixel space at current zoom
+                double leftPx = LonToPixelX(_overlayMinLon, z);
+                double rightPx = LonToPixelX(_overlayMaxLon, z);
+                double topPy = LatToPixelY(_overlayMaxLat, z);
+                double bottomPy = LatToPixelY(_overlayMinLat, z);
+
+                double imgWidthMapPx = Math.Abs(rightPx - leftPx);
+                double imgHeightMapPx = Math.Abs(bottomPy - topPy);
+                double imgCenterPx = (leftPx + rightPx) / 2.0;
+                double imgCenterPy = (topPy + bottomPy) / 2.0;
+
+                // Screen-space center for the overlay
+                double screenCenterX = (imgCenterPx - cx) + Width / 2.0;
+                double screenCenterY = (imgCenterPy - cy) + Height / 2.0;
+
+                // Size in NDC (matching tile/background transform math)
+                float imgWnd = (float)(imgWidthMapPx / (Width / 2.0));
+                float imgHnd = (float)(imgHeightMapPx / (Height / 2.0));
+
+                float tileSx = imgWnd / 2f;
+                float tileSy = imgHnd / 2f;
+                float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0);
+                float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0));
+
+                float[] tmatOverlay = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, centerNdcX, centerNdcY, 1f };
+                _tileShader.SetMatrix3("uTransform", tmatOverlay);
+
+                GL.BindTexture(TextureTarget.Texture2D, _overlayTexture);
+                GL.BindVertexArray(_vao);
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+                GL.BindTexture(TextureTarget.Texture2D, 0);
+
+                // Reset opacity to 1.0 for subsequent draws
+                _tileShader.SetFloat("uOpacity", 1.0f);
+
+                // Debug: draw overlay bounding box so we can verify placement/size visually
+                if (_debugOverlayBounds && _overlayShader != null)
+                {
+                    // compute NDC corners from transform parameters used above
+                    float leftNdc = centerNdcX - tileSx;
+                    float rightNdc = centerNdcX + tileSx;
+                    float topNdc = centerNdcY + tileSy;
+                    float bottomNdc = centerNdcY - tileSy;
+
+                    float[] quad = new float[]
+                    {
+                        leftNdc, topNdc,
+                        rightNdc, topNdc,
+                        rightNdc, bottomNdc,
+                        leftNdc, bottomNdc
+                    };
+
+                    // Upload to overlay VBO (temporary) and draw a red outline
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, _overlayVbo);
+                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, quad.Length * sizeof(float), quad);
+
+                    _overlayShader.Use();
+                    _overlayShader.SetFloat("uAlpha", 0.9f);
+                    var colorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
+                    GL.Uniform3(colorLoc, 1.0f, 0.2f, 0.2f);
+
+                    GL.BindVertexArray(_overlayVao);
+                    GL.LineWidth(2f);
+                    GL.DrawArrays(PrimitiveType.LineLoop, 0, 4);
+                    GL.BindVertexArray(0);
+
+                    // restore crosshair vertices
+                    UpdateOverlayVertices();
+                }
+            } // positioned overlay
+
             // Draw radar frames (oldest first) with fading alpha
-            if (_radarFrames.Count > 0 && _tileShader != null)
+            if (_radarFrames.Count > 0)
             {
                 GL.Enable(EnableCap.Blend);
-                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
                 // Use tile shader to preserve overlay colors (not radar palette shader)
                 _tileShader.Use();
-                GL.ActiveTexture(TextureUnit.Texture0);
-                
                 for (int i = 0; i < _radarFrames.Count; i++)
                 {
                     int tex = _radarFrames[i];
+                    // fading alpha for animation effect
+                    float alpha = (float)(i + 1) / (_radarFrames.Count + 1);
                     
-                    // Identity transform (fullscreen quad)
+                    // Identity transform (fullscreen)
                     float[] tmat = new float[] { 1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f };
                     _tileShader.SetMatrix3("uTransform", tmat);
                     
@@ -412,90 +488,11 @@ void main() {
                     GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
                     GL.BindVertexArray(0);
                 }
-                GL.BindTexture(TextureTarget.Texture2D, 0);
-                GL.Disable(EnableCap.Blend);
-            }
-
-            // Draw positioned overlay (transparent radar/weather) on top of tiles
-            if (_overlayTexture != 0 && _hasPositionedOverlay && _overlayZoom != 0)
-            {
-                Console.WriteLine($"[GLRadarControl] Rendering positioned overlay: texture={_overlayTexture}, mapZoom={_mapZoom}, overlayZoom={_overlayZoom}");
-                GL.Enable(EnableCap.Blend);
-                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-                _tileShader.Use();
-                GL.ActiveTexture(TextureUnit.Texture0);
-
-                // Convert overlay bbox corners to pixel coordinates at current map zoom
-                int z = _mapZoom;
-                double cx = LonToPixelX(_centerLon, z);
-                double cy = LatToPixelY(_centerLat, z);
-
-                // Overlay corners in pixel coordinates at current zoom
-                double overlayMinX = LonToPixelX(_overlayMinLon, z);
-                double overlayMinY = LatToPixelY(_overlayMaxLat, z); // maxLat -> minY (Y increases downward)
-                double overlayMaxX = LonToPixelX(_overlayMaxLon, z);
-                double overlayMaxY = LatToPixelY(_overlayMinLat, z); // minLat -> maxY
-
-                // Screen position of overlay corners (pixels from center)
-                double screenMinX = (overlayMinX - cx) + Width / 2.0;
-                double screenMinY = (overlayMinY - cy) + Height / 2.0;
-                double screenMaxX = (overlayMaxX - cx) + Width / 2.0;
-                double screenMaxY = (overlayMaxY - cy) + Height / 2.0;
-
-                // Convert to NDC coordinates
-                double ndcMinX = (screenMinX / (Width / 2.0)) - 1.0;
-                double ndcMinY = 1.0 - (screenMaxY / (Height / 2.0)); // flip Y
-                double ndcMaxX = (screenMaxX / (Width / 2.0)) - 1.0;
-                double ndcMaxY = 1.0 - (screenMinY / (Height / 2.0)); // flip Y
-
-                // Calculate center and size in NDC
-                float centerNdcX = (float)((ndcMinX + ndcMaxX) / 2.0);
-                float centerNdcY = (float)((ndcMinY + ndcMaxY) / 2.0);
-                float tileSx = (float)((ndcMaxX - ndcMinX) / 2.0);
-                float tileSy = (float)((ndcMaxY - ndcMinY) / 2.0);
-
-                // Clamp scale to prevent clipping (max 0.95 to leave small margin)
-                float maxScale = 0.95f;
-                if (tileSx > maxScale || tileSy > maxScale)
-                {
-                    float scaleFactor = maxScale / Math.Max(tileSx, tileSy);
-                    tileSx *= scaleFactor;
-                    tileSy *= scaleFactor;
-                    Console.WriteLine($"[GLRadarControl] Clamped overlay scale by {scaleFactor:F3} to fit viewport");
-                }
-
-                // Check if overlay is visible in viewport
-                bool visible = (centerNdcX + tileSx >= -1.0 && centerNdcX - tileSx <= 1.0 &&
-                               centerNdcY + tileSy >= -1.0 && centerNdcY - tileSy <= 1.0);
-                
-                if (!visible)
-                {
-                    Console.WriteLine($"[GLRadarControl] WARNING: Overlay is outside viewport! NDC bounds: X=[{centerNdcX - tileSx:F2}, {centerNdcX + tileSx:F2}], Y=[{centerNdcY - tileSy:F2}, {centerNdcY + tileSy:F2}]");
-                }
-
-                float[] tmat = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, centerNdcX, centerNdcY, 1f };
-                _tileShader.SetMatrix3("uTransform", tmat);
-
-                Console.WriteLine($"[GLRadarControl] Overlay NDC: center=({centerNdcX:F4},{centerNdcY:F4}), scale=({tileSx:F4},{tileSy:F4}){(visible ? "" : " [OFF-SCREEN]")}");
-                
-                
-                GL.BindTexture(TextureTarget.Texture2D, _overlayTexture);
-                GL.BindVertexArray(_vao);
-                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
-                GL.BindVertexArray(0);
-                GL.BindTexture(TextureTarget.Texture2D, 0);
-                GL.Disable(EnableCap.Blend);
-                Console.WriteLine($"[GLRadarControl] Overlay draw complete");
-            }
-            else if (_overlayTexture != 0 || _hasPositionedOverlay || _overlayZoom != 0)
-            {
-                Console.WriteLine($"[GLRadarControl] WARNING: Overlay not rendered - texture={_overlayTexture}, hasPos={_hasPositionedOverlay}, zoom={_overlayZoom}");
             }
 
             // Draw overlay crosshair/marker in NDC with overlay shader
             if (_overlayShader != null)
             {
-                GL.Disable(EnableCap.DepthTest);
                 _overlayShader.Use();
                 _overlayShader.SetFloat("uAlpha", 1.0f);
                 // draw crosshair in green
@@ -511,7 +508,6 @@ void main() {
                 GL.BindVertexArray(_overlayVao);
                 GL.DrawArrays(PrimitiveType.Points, 0, 1);
                 GL.BindVertexArray(0);
-                GL.Enable(EnableCap.DepthTest);
             }
 
             SwapBuffers();
@@ -578,9 +574,6 @@ void main() {
                 double ndx = dx;
                 double ndy = dy;
 
-                // convert to world pixel space at current zoom
-                double worldPerPx = Math.Pow(2.0, _mapZoom) * 256.0 / (Math.Pow(2.0, _mapZoom) * 256.0); // 1.0 (kept for clarity)
-
                 // compute how many global pixels we moved
                 // Positive dx means move center to left (lon decreases)
                 double cx = LonToPixelX(_centerLon, _mapZoom);
@@ -604,12 +597,10 @@ void main() {
                 _dragging = false;
                 this.Cursor = Cursors.Hand;
 
-                // Don't clear overlay immediately - positioned overlay moves with map automatically
-
                 // After dragging ends, refresh tiles for the new position
                 UpdateTiles();
-                
-                // Notify that map position changed (for overlay refresh)
+
+                // Notify listeners that map center changed (triggers overlay refresh)
                 try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
             }
         }
@@ -648,6 +639,7 @@ void main() {
             ProcessIncomingBitmapWithBBox(bmp, minLat, minLon, maxLat, maxLon, sourceZoom);
         }
 
+
         /// <summary>
         /// Clears any overlay/background texture
         /// </summary>
@@ -670,31 +662,14 @@ void main() {
                 BackgroundTextureChanged?.Invoke(false);
             }
             
-            // Clear positioned overlay texture
-            if (_overlayTexture != 0)
-            {
-                try { GL.DeleteTexture(_overlayTexture); } catch { }
-                _overlayTexture = 0;
-                _hasPositionedOverlay = false;
-            }
-            
             // Clear radar frames
-            ClearRadarFrames();
-            
-            Invalidate();
-        }
-
-        /// <summary>
-        /// Clears radar overlay frames (call when map position/zoom changes)
-        /// </summary>
-        private void ClearRadarFrames()
-        {
-            MakeCurrent();
             foreach (var t in _radarFrames)
             {
                 try { GL.DeleteTexture(t); } catch { }
             }
             _radarFrames.Clear();
+            
+            Invalidate();
         }
 
 
@@ -738,7 +713,8 @@ void main() {
             {
                 Console.WriteLine("[GLRadarControl] Incoming image classified: BACKGROUND (pre-composited)");
                 // opaque/composited image -> upload as background (replace any radar frames)
-                ClearRadarFrames();
+                _radarFrames.ForEach(t => { try { GL.DeleteTexture(t); } catch { } });
+                _radarFrames.Clear();
 
                 // delete previous background texture if any (we will replace it)
                 if (_texture != 0) { try { GL.DeleteTexture(_texture); } catch { } _texture = 0; }
@@ -759,46 +735,142 @@ void main() {
             }
             else
             {
-                Console.WriteLine("[GLRadarControl] Incoming image classified: OVERLAY (transparent)");
-                // Transparent overlays get their own texture that draws ON TOP of tiles
-                
-                // Clear any existing radar frames (we only keep the latest positioned overlay)
-                ClearRadarFrames();
+                Console.WriteLine("[GLRadarControl] Incoming image classified: OVERLAY (transparent) -> radar frame");
+                // if we previously had a background texture, clear it so overlays composite over tiles
+                if (_hasBackgroundTexture)
+                {
+                    if (_texture != 0) { try { GL.DeleteTexture(_texture); } catch { } _texture = 0; }
+                    _hasBackgroundTexture = false;
+                    BackgroundTextureChanged?.Invoke(false);
+                }
 
-                // For overlays without bbox, use animation frame fallback
-                // (bbox-aware API should be used for positioned overlays)
-                Console.WriteLine("[GLRadarControl] Note: Using center-based API - consider using bbox-aware API for better positioning");
+                // transparent image -> normal radar overlay processing
                 AddRadarFrameFromBitmap(bmp);
             }
 
             Invalidate();
         }
-        
+
         /// <summary>
-        /// <summary>
-        /// Process an incoming bitmap with explicit bounding box (geographic extent)
+        /// Process incoming bitmap with geographic bounding box for positioned overlay
         /// </summary>
         private void ProcessIncomingBitmapWithBBox(Bitmap bmp, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom)
         {
-            Console.WriteLine($"[GLRadarControl] Processing overlay with bbox: ({minLat:F4},{minLon:F4}) to ({maxLat:F4},{maxLon:F4}) at zoom {sourceZoom}");
+            Console.WriteLine($"[GLRadarControl] Processing positioned overlay: bbox=({minLat:F4},{minLon:F4}) to ({maxLat:F4},{maxLon:F4}), zoom={sourceZoom}, size={bmp.Width}x{bmp.Height}");
             
-            // Store bbox for rendering
-            _overlayMinLat = minLat;
-            _overlayMinLon = minLon;
-            _overlayMaxLat = maxLat;
-            _overlayMaxLon = maxLon;
-            _overlayZoom = sourceZoom;
-            
-            // Upload to overlay texture
-            UploadBitmapToOverlayTexture(bmp);
-            _hasPositionedOverlay = true;
-            
-            Console.WriteLine($"[GLRadarControl] Overlay uploaded: texture={_overlayTexture}, hasPositioned={_hasPositionedOverlay}, overlayZoom={_overlayZoom}");
-            
+            // Validate bounding box
+            if (minLat >= maxLat || minLon >= maxLon)
+            {
+                Console.WriteLine($"[GLRadarControl] ERROR: Invalid bounding box - minLat={minLat} >= maxLat={maxLat} or minLon={minLon} >= maxLon={maxLon}");
+                return;
+            }
+
+            // Retry GL upload up to 2 times (first attempt sometimes fails with InvalidOperation due to context timing)
+            int maxAttempts = 2;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    MakeCurrent();
+                    
+                    // Clear any existing positioned overlay
+                    if (_overlayTexture != 0)
+                    {
+                        try { GL.DeleteTexture(_overlayTexture); } catch { }
+                        _overlayTexture = 0;
+                    }
+
+                    // Upload to overlay texture
+                    _overlayTexture = UploadBitmapToOverlayTexture(bmp);
+                    
+                    if (_overlayTexture != 0)
+                    {
+                        _overlayMinLat = minLat;
+                        _overlayMinLon = minLon;
+                        _overlayMaxLat = maxLat;
+                        _overlayMaxLon = maxLon;
+                        _overlayZoom = sourceZoom;
+                        _hasPositionedOverlay = true;
+                        
+                        Console.WriteLine($"[GLRadarControl] Positioned overlay uploaded successfully: texture={_overlayTexture} (attempt {attempt})");
+                        Invalidate();
+                        return;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[GLRadarControl] WARNING: Upload failed on attempt {attempt}/{maxAttempts}");
+                        if (attempt < maxAttempts)
+                            System.Threading.Thread.Sleep(50); // brief pause before retry
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GLRadarControl] Upload exception on attempt {attempt}: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine("[GLRadarControl] ERROR: Failed to upload overlay texture after all attempts");
+            _hasPositionedOverlay = false;
             Invalidate();
         }
-        
+
+        /// <summary>
+        /// Upload bitmap to a new OpenGL texture and return the texture ID
+        /// </summary>
+        private int UploadBitmapToOverlayTexture(Bitmap bmp)
+        {
+            try
+            {
+                int tex = GL.GenTexture();
+                if (tex == 0)
+                {
+                    Console.WriteLine("[GLRadarControl] ERROR: GL.GenTexture() returned 0");
+                    return 0;
+                }
+
+                GL.BindTexture(TextureTarget.Texture2D, tex);
+                
+                // Set texture parameters
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+                GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+
+                // Upload pixel data
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+                    
+                    // Check for GL errors
+                    ErrorCode err = GL.GetError();
+                    if (err != ErrorCode.NoError)
+                    {
+                        Console.WriteLine($"[GLRadarControl] GL Error after TexImage2D: {err}");
+                        GL.DeleteTexture(tex);
+                        return 0;
+                    }
+                }
+                finally
+                {
+                    bmp.UnlockBits(data);
+                }
+
+                GL.BindTexture(TextureTarget.Texture2D, 0);
+                
+                Console.WriteLine($"[GLRadarControl] Texture uploaded: ID={tex}, size={bmp.Width}x{bmp.Height}");
+                return tex;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Exception in UploadBitmapToOverlayTexture: {ex.Message}");
+                return 0;
+            }
+        }
+
         private void AddRadarFrameFromBitmap(Bitmap bmp)
+
         {
             MakeCurrent();
             int tex = GL.GenTexture();
@@ -812,24 +884,7 @@ void main() {
             var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             try
             {
-                if (_usePboUploads)
-                {
-                    int pbo = GL.GenBuffer();
-                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pbo);
-                    int size = Math.Abs(data.Stride) * bmp.Height;
-                    // Upload data into PBO from locked bitmap memory (driver may DMA from PBO asynchronously)
-                    GL.BufferData(BufferTarget.PixelUnpackBuffer, size, data.Scan0, BufferUsageHint.StreamDraw);
-                    // Source is PBO -> pass zero pointer to TexImage2D
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
-                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
-                    try { GL.DeleteBuffer(pbo); } catch { }
-                }
-                else
-                {
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
-                }
-
-                Console.WriteLine($"[GLRadarControl] Added radar frame texture {tex}, size {bmp.Width}x{bmp.Height}");
+                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
             }
             finally
             {
@@ -845,7 +900,6 @@ void main() {
                 _radarFrames.RemoveAt(0);
                 try { GL.DeleteTexture(del); } catch { }
             }
-            Console.WriteLine($"[GLRadarControl] Total radar frames: {_radarFrames.Count}");
         }
 
         private void UploadBitmapToTexture(Bitmap bmp)
@@ -864,99 +918,7 @@ void main() {
             var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             try
             {
-                if (_usePboUploads)
-                {
-                    int pbo = GL.GenBuffer();
-                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pbo);
-                    int size = Math.Abs(data.Stride) * bmp.Height;
-                    GL.BufferData(BufferTarget.PixelUnpackBuffer, size, data.Scan0, BufferUsageHint.StreamDraw);
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
-                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
-                    try { GL.DeleteBuffer(pbo); } catch { }
-                }
-                else
-                {
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
-                }
-            }
-            finally
-            {
-                bmp.UnlockBits(data);
-            }
-
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-        }
-
-        private void UploadBitmapToOverlayTexture(Bitmap bmp)
-        {
-            MakeCurrent();
-            if (_overlayTexture == 0)
-                _overlayTexture = GL.GenTexture();
-
-            // Check if bitmap has any visible content
-            int visiblePixels = 0;
-            int totalPixels = 0;
-            var testData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            try
-            {
-                byte[] buffer = new byte[Math.Abs(testData.Stride) * testData.Height];
-                System.Runtime.InteropServices.Marshal.Copy(testData.Scan0, buffer, 0, buffer.Length);
-                
-                for (int y = 0; y < bmp.Height; y += 10)
-                {
-                    for (int x = 0; x < bmp.Width; x += 10)
-                    {
-                        int idx = y * testData.Stride + x * 4;
-                        if (idx + 3 < buffer.Length)
-                        {
-                            byte a = buffer[idx + 3];
-                            totalPixels++;
-                            if (a > 20) visiblePixels++;
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                bmp.UnlockBits(testData);
-            }
-            
-            float visiblePercent = (totalPixels > 0) ? (visiblePixels * 100f / totalPixels) : 0f;
-            Console.WriteLine($"[GLRadarControl] Overlay texture analysis: {visiblePixels}/{totalPixels} visible pixels ({visiblePercent:F1}%)");
-
-            // Ignore incoming overlay images that contain no visible (non-transparent) pixels.
-            // Some WMS responses can return a fully-transparent image for the requested bbox —
-            // we should not replace the currently-displayed overlay with a blank image.
-            if (visiblePixels == 0)
-            {
-                Console.WriteLine("[GLRadarControl] Incoming overlay contains no visible pixels — ignoring update to avoid clearing existing overlay");
-                return;
-            }
-
-            GL.BindTexture(TextureTarget.Texture2D, _overlayTexture);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-
-            var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
-            var data = bmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            try
-            {
-                if (_usePboUploads)
-                {
-                    int pbo = GL.GenBuffer();
-                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pbo);
-                    int size = Math.Abs(data.Stride) * bmp.Height;
-                    GL.BufferData(BufferTarget.PixelUnpackBuffer, size, data.Scan0, BufferUsageHint.StreamDraw);
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
-                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
-                    try { GL.DeleteBuffer(pbo); } catch { }
-                }
-                else
-                {
-                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
-                }
+                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
             }
             finally
             {
@@ -976,12 +938,6 @@ void main() {
                     GL.DeleteTexture(_texture);
                     _texture = 0;
                     if (_hasBackgroundTexture) { _hasBackgroundTexture = false; BackgroundTextureChanged?.Invoke(false); }
-                }
-                if (_overlayTexture != 0)
-                {
-                    GL.DeleteTexture(_overlayTexture);
-                    _overlayTexture = 0;
-                    _hasPositionedOverlay = false;
                 }
                 if (_fallbackTexture != 0) GL.DeleteTexture(_fallbackTexture);
                 if (_shader != null) _shader.Dispose();
@@ -1025,6 +981,18 @@ void main() {
         // Fired when a pre-composited full-screen background texture is set or cleared
         public event Action<bool>? BackgroundTextureChanged;
         private bool _hasBackgroundTexture = false;
+
+        // Overlay opacity (0.0–1.0) set by host UI sliders
+        private float _overlayOpacity = 0.75f;
+
+        /// <summary>Opacity for the positioned weather overlay (0.0 = transparent, 1.0 = opaque)</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public float OverlayOpacity
+        {
+            get => _overlayOpacity;
+            set { _overlayOpacity = Math.Max(0f, Math.Min(1f, value)); Invalidate(); }
+        }
 
         private void NotifyTileStatus(string text, System.Drawing.Color color)
         {
@@ -1126,9 +1094,6 @@ void main() {
         {
             _centerLat = lat;
             _centerLon = lon;
-            
-            // Don't clear overlay immediately - let it move with the map until new data arrives
-            
             UpdateTiles();
             Invalidate();
             try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
@@ -1136,17 +1101,14 @@ void main() {
 
         // Raised whenever the map/tile zoom changes (UI and mouse-wheel shifts)
         public event Action<int>? MapZoomChanged;
-        
-        // Raised whenever the map center position changes (panning)
+        // Raised when map center position changes (for overlay refresh)
         public event Action<double, double>? MapPositionChanged;
 
         public void SetMapZoom(int z)
+
         {
             if (z == _mapZoom) return;
             _mapZoom = z;
-            
-            // Don't clear overlay immediately - let it move with the map until new data arrives
-            
             UpdateTiles();
             Invalidate();
             try { MapZoomChanged?.Invoke(_mapZoom); } catch { }
@@ -1206,20 +1168,7 @@ void main() {
                         var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
                         try
                         {
-                            if (_usePboUploads)
-                            {
-                                int pbo = GL.GenBuffer();
-                                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pbo);
-                                int size = Math.Abs(data.Stride) * bmp.Height;
-                                GL.BufferData(BufferTarget.PixelUnpackBuffer, size, data.Scan0, BufferUsageHint.StreamDraw);
-                                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
-                                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
-                                try { GL.DeleteBuffer(pbo); } catch { }
-                            }
-                            else
-                            {
-                                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
-                            }
+                            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
                         }
                         finally
                         {

@@ -69,40 +69,44 @@ namespace WeatherImageGenerator.OpenGL
             if (!RadarEnabled)
                 return null;
 
-            // Use fixed radius like Weather Details (proven approach)
-            double radiusKm = mapZoom >= 10 ? 150 : 
-                              mapZoom >= 7  ? 200 : 
-                              mapZoom >= 5  ? 300 : 400;
-            
-            // ALWAYS calculate bounding box (cheap operation, depends on current zoom/position)
-            LastRadarBBox = CalculateBoundingBoxFromRadius(centerLat, centerLon, radiusKm);
-            var bbox = LastRadarBBox.Value;
-            
+            // Calculate bounding box from the current viewport (matches RadarAnimationService / Generator)
+            var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
+
             // Check if position/zoom changed significantly (requires new radar fetch)
-            bool positionChanged = Math.Abs(centerLat - _lastRadarLat) > 0.5 || Math.Abs(centerLon - _lastRadarLon) > 0.5;
+            bool positionChanged = Math.Abs(centerLat - _lastRadarLat) > 0.1 || Math.Abs(centerLon - _lastRadarLon) > 0.1;
             bool zoomChanged = mapZoom != _lastRadarZoom;
             bool cacheExpired = DateTime.UtcNow - _lastRadarUpdate >= _radarUpdateInterval;
-            
+
             // Use cached data if available and parameters haven't changed significantly
             if (_radarOverlay != null && !positionChanged && !zoomChanged && !cacheExpired)
             {
-                Console.WriteLine($"[WeatherOverlay] Using cached radar data with updated bbox: ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
+                // Keep bbox consistent with the cached image (don't update to new viewport)
+                Console.WriteLine($"[WeatherOverlay] Using cached radar data (bbox unchanged from last fetch)");
                 return _radarOverlay;
             }
 
+            // Force invalidation: clear stale cached data so we don't return old image with new bbox
+            if (positionChanged || zoomChanged)
+            {
+                _radarOverlay = null;
+                Console.WriteLine($"[WeatherOverlay] Cache invalidated: posChanged={positionChanged}, zoomChanged={zoomChanged}");
+            }
+
+            // We're doing a real fetch — update the bbox to match the image we'll receive
+            LastRadarBBox = bbox;
+
             try
             {
-                Console.WriteLine($"[WeatherOverlay] Fetching radar: center=({centerLat:F2},{centerLon:F2}), size={width}x{height}, zoom={mapZoom}, radiusKm={radiusKm}");
-                Console.WriteLine($"[WeatherOverlay] Radar bbox: ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
-                
-                // Use radius-based API (same as Weather Details)
+                Console.WriteLine($"[WeatherOverlay] Fetching radar (composite WMS) for viewport: center=({centerLat:F2},{centerLon:F2}), size={width}x{height}, zoom={mapZoom}");
+                Console.WriteLine($"[WeatherOverlay] Radar bbox (viewport): ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
+
+                // Use the bbox-aware composite API so the Interactive Map and Video/Still generator use identical data
                 var radarData = await _radarService.FetchRadarImageAsync(
-                    centerLat,
-                    centerLon,
-                    width, 
-                    height, 
-                    radiusKm,
+                    (MinLat: bbox.MinLat, MinLon: bbox.MinLon, MaxLat: bbox.MaxLat, MaxLon: bbox.MaxLon),
+                    width,
+                    height,
                     mapZoom);
+
 
                 if (radarData != null)
                 {
@@ -165,6 +169,15 @@ namespace WeatherImageGenerator.OpenGL
                 Console.WriteLine($"[WeatherOverlay] Temperature update error: {ex.Message}");
                 return _temperatureOverlay;
             }
+        }
+
+        /// <summary>
+        /// Gets the combined bounding box from the last radar or temperature fetch.
+        /// Used by WeatherMapControl to position the overlay on the GL control.
+        /// </summary>
+        public (double MinLat, double MinLon, double MaxLat, double MaxLon)? LastOverlayBBox
+        {
+            get => LastRadarBBox ?? LastTemperatureBBox;
         }
 
         /// <summary>

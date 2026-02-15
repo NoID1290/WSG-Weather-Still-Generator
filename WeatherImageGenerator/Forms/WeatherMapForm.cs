@@ -22,7 +22,7 @@ namespace WeatherImageGenerator.Forms
 
         private void InitializeComponent()
         {
-            this.Text = "Weather Interactive Map_developement";
+            this.Text = "Weather Interactive Map";
             this.Size = new System.Drawing.Size(1400, 900);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
@@ -51,21 +51,18 @@ namespace WeatherImageGenerator.Forms
                 if (location.HasValue)
                 {
                     Console.WriteLine($"[WeatherMapForm] User location detected: {location.Value.lat:F4}, {location.Value.lon:F4}");
-                    _weatherMap.SetLocation(location.Value.lat, location.Value.lon);
-                    _weatherMap.SetZoom(8); // Closer zoom for user's location
+                    _weatherMap.SetLocationAndZoom(location.Value.lat, location.Value.lon, 8);
                 }
                 else
                 {
                     Console.WriteLine("[WeatherMapForm] Using default location (Canada)");
-                    _weatherMap.SetLocation(56.1304, -106.3468); // Default: Canada
-                    _weatherMap.SetZoom(4);
+                    _weatherMap.SetLocationAndZoom(56.1304, -106.3468, 4);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[WeatherMapForm] Location fetch failed: {ex.Message}");
-                _weatherMap.SetLocation(56.1304, -106.3468); // Fallback: Canada
-                _weatherMap.SetZoom(4);
+                _weatherMap.SetLocationAndZoom(56.1304, -106.3468, 4);
             }
         }
 
@@ -109,12 +106,39 @@ namespace WeatherImageGenerator.Forms
 
         private void WeatherMapForm_KeyDown(object? sender, KeyEventArgs e)
         {
-            // Add keyboard shortcuts for convenience
-            // + or = : Zoom in
-            // - : Zoom out
-            // C : Center
-            // R : Toggle radar
-            // T : Toggle temperature
+            switch (e.KeyCode)
+            {
+                case Keys.Oemplus:
+                case Keys.Add:
+                    _weatherMap.SetZoom(_weatherMap.CurrentZoom + 1);
+                    e.Handled = true;
+                    break;
+                case Keys.OemMinus:
+                case Keys.Subtract:
+                    _weatherMap.SetZoom(_weatherMap.CurrentZoom - 1);
+                    e.Handled = true;
+                    break;
+                case Keys.C:
+                    _weatherMap.SetLocation(56.1304, -106.3468); // Center on Canada
+                    e.Handled = true;
+                    break;
+                case Keys.R:
+                    _weatherMap.ToggleRadar();
+                    e.Handled = true;
+                    break;
+                case Keys.T:
+                    _weatherMap.ToggleTemperature();
+                    e.Handled = true;
+                    break;
+                case Keys.D:
+                    _weatherMap.ToggleDebugOverlay();
+                    e.Handled = true;
+                    break;
+                case Keys.F5:
+                    _weatherMap.RefreshOverlays();
+                    e.Handled = true;
+                    break;
+            }
         }
 
         protected override void Dispose(bool disposing)
