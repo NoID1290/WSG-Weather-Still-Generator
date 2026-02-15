@@ -127,6 +127,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("AlertReady")]
         public AlertReadyOptions? AlertReady { get; set; }
 
+        [JsonPropertyName("Nws")]
+        public EAS.NWS.NwsOptions? Nws { get; set; }
+
         [JsonPropertyName("WeatherImages")]
         public WeatherImagesSettings? WeatherImages { get; set; }
 

@@ -459,6 +459,27 @@ namespace WeatherImageGenerator
                 }
             }
 
+            // NWS (US National Weather Service) alerts
+            var nwsOptions = config.Nws ?? new EAS.NWS.NwsOptions { Enabled = false };
+            if (nwsOptions.Enabled)
+            {
+                var nwsClient = new EAS.NWS.NwsClient(httpClient, nwsOptions)
+                {
+                    Log = msg => Logger.Log($"[NWS] {msg}")
+                };
+
+                try
+                {
+                    var nwsAlerts = await nwsClient.FetchAlertsAsync(locations);
+                    Logger.Log($"✓ [NWS] Found {nwsAlerts.Count} active alert(s).");
+                    alerts.AddRange(nwsAlerts);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"✗ [NWS] Failed to fetch alerts: {ex.Message}");
+                }
+            }
+
             return DeduplicateAlerts(alerts);
         }
 

@@ -117,6 +117,17 @@ namespace WeatherImageGenerator.Services
                     HighRiskOnly = true,
                     ExcludeWeatherAlerts = true
                 },
+                Nws = new EAS.NWS.NwsOptions
+                {
+                    Enabled = false,
+                    ApiBaseUrl = "https://api.weather.gov",
+                    States = new List<string>(),
+                    Zones = new List<string>(),
+                    MaxAgeHours = 24,
+                    HighRiskOnly = false,
+                    HttpTimeoutSeconds = 30,
+                    UserAgent = "WSG-Weather-Still-Generator/1.0"
+                },
                 WeatherImages = new WeatherImagesSettings
                 {
                     CurrentWeatherFilename = "1_CurrentWeather.png",

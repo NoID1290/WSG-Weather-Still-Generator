@@ -1094,6 +1094,24 @@ namespace WeatherImageGenerator.Services
                 if (updates != null && updates.ContainsKey("maxAgeHours") && int.TryParse(updates["maxAgeHours"]?.ToString() ?? "", out int maxAge))
                     config.AlertReady.MaxAgeHours = maxAge;
 
+                // NWS settings
+                if (config.Nws == null) config.Nws = new EAS.NWS.NwsOptions();
+
+                if (updates != null && updates.ContainsKey("nwsEnabled") && bool.TryParse(updates["nwsEnabled"]?.ToString() ?? "", out bool nwsEnabled))
+                    config.Nws.Enabled = nwsEnabled;
+                if (updates != null && updates.ContainsKey("nwsHighRiskOnly") && bool.TryParse(updates["nwsHighRiskOnly"]?.ToString() ?? "", out bool nwsHighRisk))
+                    config.Nws.HighRiskOnly = nwsHighRisk;
+                if (updates != null && updates.ContainsKey("nwsMaxAgeHours") && int.TryParse(updates["nwsMaxAgeHours"]?.ToString() ?? "", out int nwsMaxAge))
+                    config.Nws.MaxAgeHours = nwsMaxAge;
+                if (updates != null && updates.ContainsKey("nwsStates"))
+                {
+                    var statesStr = updates["nwsStates"]?.ToString() ?? "";
+                    config.Nws.States = statesStr.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim().ToUpperInvariant()).Where(s => s.Length == 2).Distinct().ToList();
+                }
+                if (updates != null && updates.ContainsKey("nwsPoint"))
+                    config.Nws.Point = updates["nwsPoint"]?.ToString();
+
                 ConfigManager.SaveConfig(config);
                 RespondWithJson(context, new { status = "success", message = "Alert settings updated" });
             }
