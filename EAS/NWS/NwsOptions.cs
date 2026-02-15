@@ -71,6 +71,14 @@ namespace EAS.NWS
         public string UserAgent { get; set; } = "WSG-Weather-Still-Generator/1.0";
 
         /// <summary>
+        /// Background polling interval in minutes for real-time NWS alert monitoring.
+        /// Only used when NWS is enabled and background polling is active in MainForm.
+        /// Default: 3 minutes (NWS API rate limits are generous with proper User-Agent).
+        /// </summary>
+        [JsonPropertyName("PollingIntervalMinutes")]
+        public int PollingIntervalMinutes { get; set; } = 3;
+
+        /// <summary>
         /// Gets the default NWS CAP feed URLs (legacy fallback).
         /// </summary>
         public static List<string> GetDefaultFeedUrls()

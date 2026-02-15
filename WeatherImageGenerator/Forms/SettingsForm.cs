@@ -90,6 +90,15 @@ namespace WeatherImageGenerator.Forms
         TextBox txtAlertReadyJurisdictions;
         CheckBox chkAlertReadyHighRiskOnly;
         CheckBox chkAlertReadyExcludeWeather;
+        CheckBox chkNwsEnabled;
+        TextBox txtNwsStates;
+        TextBox txtNwsZones;
+        TextBox txtNwsPoint;
+        NumericUpDown numNwsMaxAgeHours;
+        CheckBox chkNwsHighRiskOnly;
+        TextBox txtNwsSeverityFilter;
+        TextBox txtNwsUserAgent;
+        NumericUpDown numNwsPollingInterval;
         ComboBox cmbTtsVoice;
         TextBox txtTtsRate;
         TextBox txtTtsPitch;
@@ -1178,6 +1187,53 @@ namespace WeatherImageGenerator.Forms
             chkAlertReadyExcludeWeather = CreateCheckBox("Exclude Weather Alerts (use ECCC instead)", labelX, y, 350);
             y += 40;
 
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // NWS (USA) Section
+            var lblNws = CreateSectionHeader("NWS (USA) — National Weather Service", labelX, y, "🇺🇸");
+            y += 35;
+
+            chkNwsEnabled = CreateCheckBox("Enable NWS Alerts", labelX, y, 250);
+            y += rowHeight;
+
+            var lblNwsStates = CreateLabel("State Codes:", labelX, y);
+            txtNwsStates = CreateTextBox(fieldX, y - 2, 270);
+            var lblNwsStatesHelp = CreateHelpLabel("comma-separated, e.g. IL, CA, NY", fieldX + 280, y + 2);
+            y += rowHeight;
+
+            var lblNwsZones = CreateLabel("Zone IDs:", labelX, y);
+            txtNwsZones = CreateTextBox(fieldX, y - 2, 270);
+            var lblNwsZonesHelp = CreateHelpLabel("e.g. ILZ014, CAZ006", fieldX + 280, y + 2);
+            y += rowHeight;
+
+            var lblNwsPoint = CreateLabel("Point Filter (lat,lon):", labelX, y);
+            txtNwsPoint = CreateTextBox(fieldX, y - 2, 200);
+            var lblNwsPointHelp = CreateHelpLabel("e.g. 41.88,-87.63 for Chicago", fieldX + 210, y + 2);
+            y += rowHeight;
+
+            var lblNwsMaxAge = CreateLabel("Max Alert Age:", labelX, y);
+            numNwsMaxAgeHours = CreateNumericUpDown(fieldX, y - 2, 80, 1, 168, 24);
+            var lblNwsMaxAgeUnit = CreateHelpLabel("hours", fieldX + 90, y + 2);
+            y += rowHeight;
+
+            var lblNwsPolling = CreateLabel("Polling Interval:", labelX, y);
+            numNwsPollingInterval = CreateNumericUpDown(fieldX, y - 2, 80, 1, 60, 3);
+            var lblNwsPollingUnit = CreateHelpLabel("minutes", fieldX + 90, y + 2);
+            y += rowHeight;
+
+            chkNwsHighRiskOnly = CreateCheckBox("High Risk Alerts Only (Extreme/Severe)", labelX, y, 320);
+            y += rowHeight;
+
+            var lblNwsSeverity = CreateLabel("Severity Filter:", labelX, y);
+            txtNwsSeverityFilter = CreateTextBox(fieldX, y - 2, 270);
+            var lblNwsSeverityHelp = CreateHelpLabel("e.g. Extreme, Severe, Moderate", fieldX + 280, y + 2);
+            y += rowHeight;
+
+            var lblNwsUserAgent = CreateLabel("User-Agent:", labelX, y);
+            txtNwsUserAgent = CreateTextBox(fieldX, y - 2, 320);
+            y += 40;
+
             var divider = CreateDivider(labelX, y, 700);
             y += 25;
 
@@ -1275,7 +1331,14 @@ namespace WeatherImageGenerator.Forms
                 chkAlertReadyIncludeTests, lblMaxAge, numAlertReadyMaxAgeHours, lblMaxAgeUnit,
                 lblLanguage, cmbAlertReadyLanguage, lblAreaFilters, txtAlertReadyAreaFilters, lblAreaHelp,
                 lblJurisdictions, txtAlertReadyJurisdictions, lblJurisHelp,
-                chkAlertReadyHighRiskOnly, chkAlertReadyExcludeWeather, divider,
+                chkAlertReadyHighRiskOnly, chkAlertReadyExcludeWeather, divider1,
+                lblNws, chkNwsEnabled, lblNwsStates, txtNwsStates, lblNwsStatesHelp,
+                lblNwsZones, txtNwsZones, lblNwsZonesHelp,
+                lblNwsPoint, txtNwsPoint, lblNwsPointHelp,
+                lblNwsMaxAge, numNwsMaxAgeHours, lblNwsMaxAgeUnit,
+                lblNwsPolling, numNwsPollingInterval, lblNwsPollingUnit,
+                chkNwsHighRiskOnly, lblNwsSeverity, txtNwsSeverityFilter, lblNwsSeverityHelp,
+                lblNwsUserAgent, txtNwsUserAgent, divider,
                 lblTts, lblEngine, cmbTtsEngine, lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp,
                 lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices,
                 lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, btnInstallPiper, lblTtsNote
@@ -1970,6 +2033,18 @@ namespace WeatherImageGenerator.Forms
                 txtAlertReadyJurisdictions.Text = alertReady.Jurisdictions != null ? string.Join(", ", alertReady.Jurisdictions) : "QC, CA";
                 chkAlertReadyHighRiskOnly.Checked = alertReady.HighRiskOnly;
                 chkAlertReadyExcludeWeather.Checked = alertReady.ExcludeWeatherAlerts;
+
+                // NWS (USA) settings
+                var nws = cfg.Nws ?? new EAS.NWS.NwsOptions();
+                chkNwsEnabled.Checked = nws.Enabled;
+                txtNwsStates.Text = nws.States != null ? string.Join(", ", nws.States) : "";
+                txtNwsZones.Text = nws.Zones != null ? string.Join(", ", nws.Zones) : "";
+                txtNwsPoint.Text = nws.Point ?? "";
+                numNwsMaxAgeHours.Value = Math.Clamp(nws.MaxAgeHours, 1, 168);
+                numNwsPollingInterval.Value = Math.Clamp(nws.PollingIntervalMinutes, 1, 60);
+                chkNwsHighRiskOnly.Checked = nws.HighRiskOnly;
+                txtNwsSeverityFilter.Text = nws.SeverityFilter != null ? string.Join(", ", nws.SeverityFilter) : "";
+                txtNwsUserAgent.Text = nws.UserAgent;
                 
                 var tts = cfg.TTS ?? new TTSSettings();
                 
@@ -2130,6 +2205,33 @@ namespace WeatherImageGenerator.Forms
                 alertReady.HighRiskOnly = chkAlertReadyHighRiskOnly.Checked;
                 alertReady.ExcludeWeatherAlerts = chkAlertReadyExcludeWeather.Checked;
                 cfg.AlertReady = alertReady;
+
+                // NWS (USA) settings
+                var nwsOpt = cfg.Nws ?? new EAS.NWS.NwsOptions();
+                nwsOpt.Enabled = chkNwsEnabled.Checked;
+                nwsOpt.States = txtNwsStates.Text
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim().ToUpperInvariant())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                nwsOpt.Zones = txtNwsZones.Text
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim().ToUpperInvariant())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                nwsOpt.Point = string.IsNullOrWhiteSpace(txtNwsPoint.Text) ? null : txtNwsPoint.Text.Trim();
+                nwsOpt.MaxAgeHours = (int)numNwsMaxAgeHours.Value;
+                nwsOpt.PollingIntervalMinutes = (int)numNwsPollingInterval.Value;
+                nwsOpt.HighRiskOnly = chkNwsHighRiskOnly.Checked;
+                nwsOpt.SeverityFilter = txtNwsSeverityFilter.Text
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                nwsOpt.UserAgent = string.IsNullOrWhiteSpace(txtNwsUserAgent.Text) 
+                    ? "WSG-Weather-Still-Generator/1.0" 
+                    : txtNwsUserAgent.Text.Trim();
+                cfg.Nws = nwsOpt;
 
                 var tts = cfg.TTS ?? new TTSSettings();
                 

@@ -11,6 +11,14 @@ namespace WeatherImageGenerator.Models
         public string SeverityColor { get; set; } = "Gray"; // Red, Yellow, Gray
         /// <summary>Alert provider: USA_NWS or Canada_AlertReady</summary>
         public string? Provider { get; set; }
+        /// <summary>Unique alert identifier (CAP identifier or NWS ID)</summary>
+        public string? Identifier { get; set; }
+        /// <summary>Alert severity level: Extreme, Severe, Moderate, Minor, Unknown</summary>
+        public string? Severity { get; set; }
+        /// <summary>Alert urgency: Immediate, Expected, Future, Past, Unknown</summary>
+        public string? Urgency { get; set; }
+        /// <summary>Alert certainty: Observed, Likely, Possible, Unlikely, Unknown</summary>
+        public string? Certainty { get; set; }
         
         // Extended fields from ECCC API
         /// <summary>Impact level: modéré, élevé, etc.</summary>

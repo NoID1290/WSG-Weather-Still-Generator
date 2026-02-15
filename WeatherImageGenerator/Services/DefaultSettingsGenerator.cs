@@ -126,7 +126,8 @@ namespace WeatherImageGenerator.Services
                     MaxAgeHours = 24,
                     HighRiskOnly = false,
                     HttpTimeoutSeconds = 30,
-                    UserAgent = "WSG-Weather-Still-Generator/1.0"
+                    UserAgent = "WSG-Weather-Still-Generator/1.0",
+                    PollingIntervalMinutes = 3
                 },
                 WeatherImages = new WeatherImagesSettings
                 {

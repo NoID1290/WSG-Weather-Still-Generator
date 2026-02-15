@@ -87,8 +87,6 @@ namespace WeatherImageGenerator.Services
         /// <returns>Path to the generated video, or null if generation failed</returns>
         public static string? GenerateAlertVideo(string alertImagePath, string alertAudioPath, string outputDir)
         {
-            const double MIN_VIDEO_DURATION = 30.0; // Minimum 30 seconds for emergency alert videos
-
             try
             {
                 if (!File.Exists(alertImagePath))
@@ -106,6 +104,11 @@ namespace WeatherImageGenerator.Services
                 var config = ConfigManager.LoadConfig();
                 var videoConfig = config.Video ?? new VideoSettings();
 
+                // Use configurable alert display duration, falling back to 30s minimum
+                double minVideoDuration = videoConfig.AlertDisplayDurationSeconds > 0 
+                    ? videoConfig.AlertDisplayDurationSeconds 
+                    : 30.0;
+
                 // Determine output file path
                 string container = (videoConfig.Container ?? "mp4").Trim().Trim('.');
                 string outputPath = Path.Combine(outputDir, $"alert_video.{container}");
@@ -119,7 +122,7 @@ namespace WeatherImageGenerator.Services
                 double? audioDuration = GetAudioDuration(alertAudioPath);
                 if (!audioDuration.HasValue || audioDuration.Value <= 0)
                 {
-                    audioDuration = MIN_VIDEO_DURATION;
+                    audioDuration = minVideoDuration;
                     Logger.Log($"[EmergencyAlertGenerator] Could not determine audio duration, using default: {audioDuration}s", Logger.LogLevel.Warning);
                 }
                 else
@@ -127,10 +130,10 @@ namespace WeatherImageGenerator.Services
                     Logger.Log($"[EmergencyAlertGenerator] Audio duration: {audioDuration:F2}s", Logger.LogLevel.Debug);
                 }
 
-                // Enforce minimum video duration of 30 seconds
+                // Enforce minimum video duration (from AlertDisplayDurationSeconds config, default 30s)
                 // The image will display for the full duration; audio plays then silence follows
-                double videoDuration = Math.Max(audioDuration.Value, MIN_VIDEO_DURATION);
-                Logger.Log($"[EmergencyAlertGenerator] Video duration: {videoDuration:F2}s (min {MIN_VIDEO_DURATION}s)", Logger.LogLevel.Info);
+                double videoDuration = Math.Max(audioDuration.Value, minVideoDuration);
+                Logger.Log($"[EmergencyAlertGenerator] Video duration: {videoDuration:F2}s (min {minVideoDuration:F0}s)", Logger.LogLevel.Info);
 
                 // Build FFmpeg command to create video from single image + audio
                 // -loop 1: loop the image indefinitely
@@ -382,63 +385,186 @@ namespace WeatherImageGenerator.Services
 
         private static void DrawNwsAlert(Graphics g, AlertEntry alert, int width, int height, ImageGenerationSettings imgConfig, int pageNum)
         {
-            // USA NWS style: Blue background, simple text layout
+            // USA NWS style: Blue background with severity-colored accent bar
             using (var bgBrush = new SolidBrush(Color.FromArgb(0, 51, 153)))  // NWS Blue
             {
                 g.FillRectangle(bgBrush, 0, 0, width, height);
             }
 
-            float margin = 60;
-            float currentY = margin;
-            using (Brush whiteBrush = new SolidBrush(Color.White))
-            using (Font headerFont = new Font(imgConfig.FontFamily ?? "Arial", 36, FontStyle.Bold))
-            using (Font bodyFont = new Font(imgConfig.FontFamily ?? "Arial", 28, FontStyle.Regular))
-            using (Font smallFont = new Font(imgConfig.FontFamily ?? "Arial", 24, FontStyle.Regular))
+            // Severity-based accent bar at top
+            Color accentColor = GetNwsSeverityColor(alert.Severity);
+            using (var accentBrush = new SolidBrush(accentColor))
             {
-                // Title: "The National Weather Service has issued A [TYPE] for the following counties or areas:"
-                string headerText = $"The National Weather Service has issued A {alert.Type.ToUpperInvariant()} for the following counties or areas:";
+                g.FillRectangle(accentBrush, 0, 0, width, 12);
+            }
+
+            // Thin white border
+            using (var borderPen = new Pen(Color.FromArgb(180, Color.White), 3))
+            {
+                g.DrawRectangle(borderPen, 8, 8, width - 16, height - 16);
+            }
+
+            float margin = 60;
+            float currentY = margin + 10;
+            using (Brush whiteBrush = new SolidBrush(Color.White))
+            using (Brush accentBrushText = new SolidBrush(accentColor))
+            using (Brush dimBrush = new SolidBrush(Color.FromArgb(180, 200, 220)))
+            using (Font headerFont = new Font(imgConfig.FontFamily ?? "Arial", 34, FontStyle.Bold))
+            using (Font typeFont = new Font(imgConfig.FontFamily ?? "Arial", 40, FontStyle.Bold))
+            using (Font bodyFont = new Font(imgConfig.FontFamily ?? "Arial", 26, FontStyle.Regular))
+            using (Font smallFont = new Font(imgConfig.FontFamily ?? "Arial", 22, FontStyle.Regular))
+            using (Font tinyFont = new Font(imgConfig.FontFamily ?? "Arial", 18, FontStyle.Regular))
+            using (Font badgeFont = new Font(imgConfig.FontFamily ?? "Arial", 16, FontStyle.Bold))
+            {
+                // NWS header line
+                string nwsHeader = "NATIONAL WEATHER SERVICE";
+                SizeF nwsSize = g.MeasureString(nwsHeader, smallFont);
+                g.DrawString(nwsHeader, smallFont, dimBrush, (width - nwsSize.Width) / 2, currentY);
+                currentY += nwsSize.Height + 5;
+
+                // Severity/Urgency/Certainty badge bar
+                float badgeX = margin;
+                if (!string.IsNullOrWhiteSpace(alert.Severity))
+                {
+                    badgeX = DrawBadge(g, $"SEVERITY: {alert.Severity.ToUpperInvariant()}", badgeFont, accentColor, badgeX, currentY, 8);
+                    badgeX += 12;
+                }
+                if (!string.IsNullOrWhiteSpace(alert.Urgency))
+                {
+                    badgeX = DrawBadge(g, $"URGENCY: {alert.Urgency.ToUpperInvariant()}", badgeFont, Color.FromArgb(52, 73, 94), badgeX, currentY, 8);
+                    badgeX += 12;
+                }
+                if (!string.IsNullOrWhiteSpace(alert.Certainty))
+                {
+                    badgeX = DrawBadge(g, $"CERTAINTY: {alert.Certainty.ToUpperInvariant()}", badgeFont, Color.FromArgb(44, 62, 80), badgeX, currentY, 8);
+                }
+                currentY += 35;
+
+                // Separator line
+                using (var linePen = new Pen(Color.FromArgb(80, Color.White), 1f))
+                {
+                    g.DrawLine(linePen, margin, currentY, width - margin, currentY);
+                }
+                currentY += 15;
+
+                // Alert type in accent color
+                string alertType = (alert.Type ?? "ALERT").ToUpperInvariant();
+                SizeF typeSize = g.MeasureString(alertType, typeFont, (int)(width - margin * 2));
+                g.DrawString(alertType, typeFont, accentBrushText, margin, currentY);
+                currentY += typeSize.Height + 10;
+
+                // Title: "The National Weather Service has issued..."
+                string headerText = $"The National Weather Service has issued a {alert.Type} for the following counties or areas:";
                 var headerRect = new RectangleF(margin, currentY, width - margin * 2, height);
-                SizeF headerSize = g.MeasureString(headerText, headerFont, (int)(width - margin * 2));
-                g.DrawString(headerText, headerFont, whiteBrush, headerRect);
-                currentY += headerSize.Height + 40;
+                SizeF headerSize = g.MeasureString(headerText, bodyFont, (int)(width - margin * 2));
+                g.DrawString(headerText, bodyFont, whiteBrush, headerRect);
+                currentY += headerSize.Height + 20;
 
                 // Counties/Areas
                 if (!string.IsNullOrWhiteSpace(alert.City))
                 {
-                    var areaRect = new RectangleF(margin, currentY, width - margin * 2, height);
+                    var areaRect = new RectangleF(margin, currentY, width - margin * 2, height - currentY - 120);
                     SizeF areaSize = g.MeasureString(alert.City, bodyFont, (int)(width - margin * 2));
                     g.DrawString(alert.City, bodyFont, whiteBrush, areaRect);
-                    currentY += areaSize.Height + 40;
+                    currentY += Math.Min(areaSize.Height, 80) + 20;
                 }
 
                 // Time information
                 if (alert.IssuedAt.HasValue)
                 {
-                    string timeText = $"at {alert.IssuedAt.Value.ToLocalTime():h:mm tt} on {alert.IssuedAt.Value.ToLocalTime():MMM d, yyyy}";
-                    g.DrawString(timeText, smallFont, whiteBrush, margin, currentY);
-                    currentY += 35;
+                    string timeText = $"Issued at {alert.IssuedAt.Value.ToLocalTime():h:mm tt} on {alert.IssuedAt.Value.ToLocalTime():MMM d, yyyy}";
+                    g.DrawString(timeText, smallFont, dimBrush, margin, currentY);
+                    currentY += 30;
                 }
 
                 if (alert.ExpiresAt.HasValue)
                 {
-                    string expiresText = $"Effective until {alert.ExpiresAt.Value.ToLocalTime():h:mm tt}.";
-                    g.DrawString(expiresText, smallFont, whiteBrush, margin, currentY);
-                    currentY += 50;
+                    string expiresText = $"Effective until {alert.ExpiresAt.Value.ToLocalTime():h:mm tt} {alert.ExpiresAt.Value.ToLocalTime():MMM d, yyyy}";
+                    g.DrawString(expiresText, smallFont, dimBrush, margin, currentY);
+                    currentY += 35;
+                }
+
+                // Description text (truncated to fit)
+                if (!string.IsNullOrWhiteSpace(alert.Description))
+                {
+                    currentY += 10;
+                    // Semi-transparent description panel
+                    float descHeight = Math.Min(height - currentY - 100, 200);
+                    if (descHeight > 60)
+                    {
+                        using (var descBg = new SolidBrush(Color.FromArgb(40, 0, 0, 0)))
+                        {
+                            g.FillRectangle(descBg, margin - 10, currentY - 5, width - margin * 2 + 20, descHeight + 10);
+                        }
+                        string descText = alert.Description.Length > 500
+                            ? alert.Description.Substring(0, 497) + "..."
+                            : alert.Description;
+                        var descRect = new RectangleF(margin, currentY, width - margin * 2, descHeight);
+                        g.DrawString(descText, tinyFont, dimBrush, descRect);
+                        currentY += descHeight + 15;
+                    }
                 }
 
                 // Message from station
                 string station = "NWS";
                 if (!string.IsNullOrWhiteSpace(alert.Region))
                 {
-                    station = alert.Region;
+                    station = alert.Region.Length > 60 ? alert.Region.Substring(0, 57) + "..." : alert.Region;
                 }
-                g.DrawString($"Message from {station}.", smallFont, whiteBrush, margin, currentY);
+                g.DrawString($"Message from {station}.", smallFont, whiteBrush, margin, height - margin - 30);
 
-                // Page number at bottom
+                // Page number at bottom right
                 string pageInfo = $"{pageNum}/1";
                 SizeF pageSize = g.MeasureString(pageInfo, smallFont);
-                g.DrawString(pageInfo, smallFont, whiteBrush, (width - pageSize.Width)  / 2, height - margin);
+                g.DrawString(pageInfo, smallFont, dimBrush, width - margin - pageSize.Width, height - margin - 30);
             }
+        }
+
+        /// <summary>
+        /// Draws a colored badge/pill with text and returns the X position after the badge.
+        /// </summary>
+        private static float DrawBadge(Graphics g, string text, Font font, Color bgColor, float x, float y, float padding)
+        {
+            SizeF textSize = g.MeasureString(text, font);
+            float badgeWidth = textSize.Width + padding * 2;
+            float badgeHeight = textSize.Height + 4;
+
+            using (var bgBrush = new SolidBrush(bgColor))
+            {
+                var rect = new RectangleF(x, y, badgeWidth, badgeHeight);
+                // Draw rounded rectangle
+                using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    float r = 6;
+                    path.AddArc(rect.X, rect.Y, r * 2, r * 2, 180, 90);
+                    path.AddArc(rect.Right - r * 2, rect.Y, r * 2, r * 2, 270, 90);
+                    path.AddArc(rect.Right - r * 2, rect.Bottom - r * 2, r * 2, r * 2, 0, 90);
+                    path.AddArc(rect.X, rect.Bottom - r * 2, r * 2, r * 2, 90, 90);
+                    path.CloseFigure();
+                    g.FillPath(bgBrush, path);
+                }
+            }
+            using (var textBrush = new SolidBrush(Color.White))
+            {
+                g.DrawString(text, font, textBrush, x + padding, y + 2);
+            }
+            return x + badgeWidth;
+        }
+
+        /// <summary>
+        /// Maps NWS severity level to a display color.
+        /// </summary>
+        private static Color GetNwsSeverityColor(string? severity)
+        {
+            if (string.IsNullOrWhiteSpace(severity)) return Color.FromArgb(52, 73, 94); // dark gray-blue
+            return severity.Trim().ToLowerInvariant() switch
+            {
+                "extreme" => Color.FromArgb(192, 57, 43),   // Deep red
+                "severe"  => Color.FromArgb(231, 76, 60),   // Red
+                "moderate" => Color.FromArgb(230, 126, 34),  // Orange
+                "minor"   => Color.FromArgb(241, 196, 15),  // Yellow
+                _         => Color.FromArgb(52, 73, 94)     // Dark gray-blue
+            };
         }
 
         private static void DrawAlertReadyAlert(Graphics g, AlertEntry alert, int width, int height, float margin, ImageGenerationSettings imgConfig, string language)
@@ -748,13 +874,38 @@ namespace WeatherImageGenerator.Services
                 
                 if (provider == "USA_NWS")
                 {
-                    // USA Emergency Alert System (EAS) format
+                    // USA Emergency Alert System (EAS) format — enhanced with full detail
                     audioText.AppendLine("The Emergency Alert System has been activated.");
+                    audioText.AppendLine();
+                    audioText.AppendLine($"The National Weather Service has issued a {alert.Type ?? "weather alert"}.");
+                    audioText.AppendLine();
                     audioText.AppendLine(alert.Title ?? "Emergency Alert");
                     if (!string.IsNullOrWhiteSpace(alert.City))
-                        audioText.AppendLine($"Affected area: {alert.City}");
-                    if (!string.IsNullOrWhiteSpace(alert.Summary))
-                        audioText.AppendLine(CleanTextForTTS(alert.Summary));
+                        audioText.AppendLine($"Affected areas: {alert.City}.");
+                    if (alert.IssuedAt.HasValue)
+                        audioText.AppendLine($"Issued at {alert.IssuedAt.Value.ToLocalTime():h:mm tt} on {alert.IssuedAt.Value.ToLocalTime():MMMM d, yyyy}.");
+                    if (alert.ExpiresAt.HasValue)
+                        audioText.AppendLine($"Effective until {alert.ExpiresAt.Value.ToLocalTime():h:mm tt}.");
+                    audioText.AppendLine();
+                    // Include alert description for full detail narration
+                    if (!string.IsNullOrWhiteSpace(alert.Description))
+                    {
+                        string descForTts = CleanTextForTTS(alert.Description);
+                        // Limit to ~800 chars for reasonable TTS length
+                        if (descForTts.Length > 800)
+                            descForTts = descForTts.Substring(0, 797) + "...";
+                        audioText.AppendLine(descForTts);
+                        audioText.AppendLine();
+                    }
+                    // Include safety instructions if available
+                    if (!string.IsNullOrWhiteSpace(alert.Instructions))
+                    {
+                        string instrForTts = CleanTextForTTS(alert.Instructions);
+                        if (instrForTts.Length > 400)
+                            instrForTts = instrForTts.Substring(0, 397) + "...";
+                        audioText.AppendLine(instrForTts);
+                        audioText.AppendLine();
+                    }
                     audioText.AppendLine("Follow instructions from local authorities.");
                     audioText.AppendLine("This concludes this Emergency Alert System message.");
                 }

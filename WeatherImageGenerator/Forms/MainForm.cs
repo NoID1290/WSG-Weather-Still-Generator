@@ -150,6 +150,16 @@ namespace WeatherImageGenerator.Forms
         private CancellationTokenSource? _naadCts;
         private System.Net.Http.HttpClient? _naadHttpClient;
 
+        // NWS Status Panel & Polling
+        private Panel? _nwsPanel;
+        private Label? _nwsTitleLabel;
+        private Label? _nwsStatusLabel;
+        private Label? _nwsLastFetchLabel;
+        private Label? _nwsAlertLabel;
+        private CancellationTokenSource? _nwsPollCts;
+        private System.Net.Http.HttpClient? _nwsHttpClient;
+        private HashSet<string> _nwsSeenAlertIds = new HashSet<string>();
+
         // Theme colors for dynamic updates
         private Color _themeSuccessColor = Color.Green;
         private Color _themeDangerColor = Color.Red;
@@ -255,10 +265,11 @@ namespace WeatherImageGenerator.Forms
             _progress = new TextProgressBar { Left = 15, Top = statusRowTop, Width = progressWidth, Height = 28, Style = ProgressBarStyle.Continuous, Font = new Font("Segoe UI", 9.5F, FontStyle.Bold) };
 
             // NAAD Status Panel - Modern professional status bar design
+            int statusPanelWidth = (progressWidth - 8) / 2;  // Half width for side-by-side layout with NWS
             _naadPanel = new Panel { 
                 Left = 15, 
                 Top = statusRow2Top, 
-                Width = progressWidth, 
+                Width = statusPanelWidth, 
                 Height = 28, 
                 BackColor = Color.FromArgb(35, 45, 60), 
                 Padding = new Padding(8, 0, 8, 0) 
@@ -314,7 +325,7 @@ namespace WeatherImageGenerator.Forms
             // Heartbeat with subtle styling
             _naadHeartbeatLabel = new Label { 
                 Text = "♡ --:--:--", 
-                Left = 200, 
+                Left = 175, 
                 Top = 5, 
                 AutoSize = true, 
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular),
@@ -325,7 +336,7 @@ namespace WeatherImageGenerator.Forms
             // Alert counter with emphasis styling
             _naadAlertLabel = new Label { 
                 Text = "△ 0 alerts", 
-                Left = 320, 
+                Left = statusPanelWidth - 90, 
                 Top = 5, 
                 AutoSize = true, 
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
@@ -337,6 +348,86 @@ namespace WeatherImageGenerator.Forms
             _naadPanel.Controls.Add(_naadConnectionLabel);
             _naadPanel.Controls.Add(_naadHeartbeatLabel);
             _naadPanel.Controls.Add(_naadAlertLabel);
+
+            // NWS Status Panel - matching NAAD style, side by side with NAAD panel
+            _nwsPanel = new Panel {
+                Left = 15 + statusPanelWidth + 8,
+                Top = statusRow2Top,
+                Width = statusPanelWidth,
+                Height = 28,
+                BackColor = Color.FromArgb(35, 45, 60),
+                Padding = new Padding(8, 0, 8, 0),
+                Visible = false  // hidden until NWS is enabled
+            };
+            _nwsPanel.Paint += (s, e) => {
+                var rect = _nwsPanel.ClientRectangle;
+                rect.Width -= 1; rect.Height -= 1;
+                using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    int r = 6;
+                    path.AddArc(rect.X, rect.Y, r * 2, r * 2, 180, 90);
+                    path.AddArc(rect.Right - r * 2, rect.Y, r * 2, r * 2, 270, 90);
+                    path.AddArc(rect.Right - r * 2, rect.Bottom - r * 2, r * 2, r * 2, 0, 90);
+                    path.AddArc(rect.X, rect.Bottom - r * 2, r * 2, r * 2, 90, 90);
+                    path.CloseFigure();
+                    e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(rect,
+                        Color.FromArgb(40, 42, 70), Color.FromArgb(30, 30, 55),
+                        System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+                    {
+                        e.Graphics.FillPath(brush, path);
+                    }
+                    using (var pen = new Pen(Color.FromArgb(55, 60, 90), 1f))
+                    {
+                        e.Graphics.DrawPath(pen, path);
+                    }
+                }
+            };
+
+            _nwsTitleLabel = new Label {
+                Text = "\u25c8 NWS",
+                Left = 10,
+                Top = 5,
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(100, 149, 237),  // Cornflower blue for NWS
+                BackColor = Color.Transparent
+            };
+
+            _nwsStatusLabel = new Label {
+                Text = "\u25cb Idle",
+                Left = 75,
+                Top = 5,
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(120, 130, 150),
+                BackColor = Color.Transparent
+            };
+
+            _nwsLastFetchLabel = new Label {
+                Text = "\u231a --:--:--",
+                Left = 175,
+                Top = 5,
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                ForeColor = Color.FromArgb(140, 150, 170),
+                BackColor = Color.Transparent
+            };
+
+            _nwsAlertLabel = new Label {
+                Text = "\u25b3 0 alerts",
+                Left = statusPanelWidth - 90,
+                Top = 5,
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(140, 150, 170),
+                BackColor = Color.Transparent
+            };
+
+            _nwsPanel.Controls.Add(_nwsTitleLabel);
+            _nwsPanel.Controls.Add(_nwsStatusLabel);
+            _nwsPanel.Controls.Add(_nwsLastFetchLabel);
+            _nwsPanel.Controls.Add(_nwsAlertLabel);
 
             _statusLabel2 = new Label { Text = "STATUS", Left = statusLeft, Top = statusSectionTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(140, 150, 170) };
             _statusLabel = new Label { Left = statusLeft, Top = statusRowTop, Width = 400, Height = 28, Text = "✦ Idle — Ready to process", AutoSize = false, Font = new Font("Segoe UI", 10.5F, FontStyle.Bold), BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 0, 0, 0) };
@@ -377,6 +468,16 @@ namespace WeatherImageGenerator.Forms
                     else
                     {
                         Logger.Log("AlertReady is not enabled in config.", Logger.LogLevel.Info);
+                    }
+
+                    // Start NWS polling if NWS is enabled
+                    if (cfg.Nws?.Enabled == true)
+                    {
+                        StartNwsPolling(cfg);
+                    }
+                    else
+                    {
+                        Logger.Log("NWS alerts are not enabled in config.", Logger.LogLevel.Info);
                     }
                     
                     // Check for updates on startup if enabled
@@ -614,6 +715,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_statusLabel);
             _topPanel.Controls.Add(_sleepLabel);
             _topPanel.Controls.Add(_naadPanel);
+            _topPanel.Controls.Add(_nwsPanel);
             // _lastFetchLabel moved to splitContainer.Panel1
 
             _splitContainer = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
@@ -1160,6 +1262,9 @@ namespace WeatherImageGenerator.Forms
 
                 // Stop NAAD listener
                 StopNaadListener();
+
+                // Stop NWS polling
+                StopNwsPolling();
 
                 // Dispose timer
                 try
@@ -2921,6 +3026,212 @@ namespace WeatherImageGenerator.Forms
                 Logger.Log($"Error stopping NAAD listener: {ex.Message}", Logger.LogLevel.Warning);
             }
         }
+
+        #region NWS Background Polling
+
+        private void StartNwsPolling(AppSettings cfg)
+        {
+            if (_nwsPollCts != null) return; // already polling
+
+            try
+            {
+                var nwsOptions = cfg.Nws ?? new EAS.NWS.NwsOptions();
+                int intervalMinutes = Math.Max(1, nwsOptions.PollingIntervalMinutes);
+
+                Logger.Log($"Starting NWS background polling (every {intervalMinutes} min)...", Logger.LogLevel.Info);
+                Logger.Log($"NWS config: States={string.Join(",", nwsOptions.States ?? new())}, Zones={string.Join(",", nwsOptions.Zones ?? new())}, Point={nwsOptions.Point ?? "none"}", Logger.LogLevel.Info);
+
+                _nwsHttpClient = new System.Net.Http.HttpClient();
+                _nwsHttpClient.DefaultRequestHeaders.UserAgent.ParseAdd(nwsOptions.UserAgent);
+                _nwsPollCts = new CancellationTokenSource();
+                _nwsSeenAlertIds.Clear();
+
+                // Show the NWS panel
+                if (_nwsPanel != null)
+                {
+                    _nwsPanel.Visible = true;
+                }
+
+                UpdateNwsStatus("● Polling", Color.FromArgb(46, 204, 113));
+
+                var token = _nwsPollCts.Token;
+                _ = Task.Run(async () => await NwsPollingLoopAsync(nwsOptions, token), token);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to start NWS polling: {ex.Message}", Logger.LogLevel.Error);
+                UpdateNwsStatus("✗ Error", Color.FromArgb(231, 76, 60));
+            }
+        }
+
+        private void StopNwsPolling()
+        {
+            try
+            {
+                _nwsPollCts?.Cancel();
+                _nwsPollCts?.Dispose();
+                _nwsPollCts = null;
+
+                _nwsHttpClient?.Dispose();
+                _nwsHttpClient = null;
+
+                _nwsSeenAlertIds.Clear();
+
+                UpdateNwsStatus("○ Stopped", Color.FromArgb(120, 130, 150));
+                Logger.Log("NWS polling stopped.", Logger.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Error stopping NWS polling: {ex.Message}", Logger.LogLevel.Warning);
+            }
+        }
+
+        private async Task NwsPollingLoopAsync(EAS.NWS.NwsOptions options, CancellationToken token)
+        {
+            int intervalMs = Math.Max(60000, options.PollingIntervalMinutes * 60 * 1000);
+
+            // Initial fetch immediately
+            await NwsPollOnceAsync(options, token);
+
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(intervalMs, token);
+                }
+                catch (TaskCanceledException) { break; }
+
+                if (token.IsCancellationRequested) break;
+                await NwsPollOnceAsync(options, token);
+            }
+        }
+
+        private async Task NwsPollOnceAsync(EAS.NWS.NwsOptions options, CancellationToken token)
+        {
+            try
+            {
+                if (_nwsHttpClient == null) return;
+
+                // Update status to "Polling..."
+                SafeInvoke(() =>
+                {
+                    if (_nwsStatusLabel != null)
+                    {
+                        _nwsStatusLabel.Text = "◐ Polling...";
+                        _nwsStatusLabel.ForeColor = Color.FromArgb(241, 196, 15); // Yellow
+                    }
+                });
+
+                var nwsClient = new EAS.NWS.NwsClient(_nwsHttpClient, options)
+                {
+                    Log = msg => Logger.Log($"[NWS] {msg}", Logger.LogLevel.Info)
+                };
+
+                var cfg = ConfigManager.LoadConfig();
+                var locations = cfg.Locations?.GetLocationsArray()?.Where(l => l != null).Select(l => l!).ToArray() ?? Array.Empty<string>();
+
+                var alerts = await nwsClient.FetchAlertsAsync(locations);
+
+                var now = DateTime.Now;
+
+                // Check for new alerts not seen before
+                var newAlerts = new List<AlertEntry>();
+                foreach (var alert in alerts)
+                {
+                    string alertId = alert.Identifier ?? $"{alert.Title}_{alert.IssuedAt}";
+                    if (_nwsSeenAlertIds.Add(alertId))
+                    {
+                        newAlerts.Add(alert);
+                    }
+                }
+
+                // Update UI
+                SafeInvoke(() =>
+                {
+                    if (_nwsStatusLabel != null)
+                    {
+                        _nwsStatusLabel.Text = "● Active";
+                        _nwsStatusLabel.ForeColor = Color.FromArgb(46, 204, 113); // Green
+                    }
+                    if (_nwsLastFetchLabel != null)
+                    {
+                        _nwsLastFetchLabel.Text = $"⏰ {now:HH:mm:ss}";
+                        _nwsLastFetchLabel.ForeColor = Color.FromArgb(155, 170, 190);
+                    }
+                    if (_nwsAlertLabel != null)
+                    {
+                        string icon = alerts.Count > 0 ? "▲" : "△";
+                        _nwsAlertLabel.Text = $"{icon} {alerts.Count} alert{(alerts.Count != 1 ? "s" : "")}";
+                        _nwsAlertLabel.ForeColor = alerts.Count > 0
+                            ? Color.FromArgb(241, 196, 15)    // Warning yellow
+                            : Color.FromArgb(140, 150, 170);  // Muted
+                    }
+                });
+
+                Logger.Log($"[NWS] Polled: {alerts.Count} active alert(s), {newAlerts.Count} new.", Logger.LogLevel.Info);
+
+                // Generate media for new alerts
+                foreach (var alert in newAlerts)
+                {
+                    if (token.IsCancellationRequested) break;
+                    Logger.Log($"[NWS] New alert detected: {alert.Title}", Logger.LogLevel.Info);
+                    await GenerateAlertMediaAsync(alert);
+                }
+
+                // Prune old seen IDs to prevent unbounded growth (keep last 5000)
+                if (_nwsSeenAlertIds.Count > 5000)
+                {
+                    _nwsSeenAlertIds.Clear();
+                    foreach (var a in alerts)
+                    {
+                        string id = a.Identifier ?? $"{a.Title}_{a.IssuedAt}";
+                        _nwsSeenAlertIds.Add(id);
+                    }
+                }
+            }
+            catch (TaskCanceledException) { /* expected on shutdown */ }
+            catch (Exception ex)
+            {
+                Logger.Log($"[NWS] Polling error: {ex.Message}", Logger.LogLevel.Error);
+                SafeInvoke(() =>
+                {
+                    if (_nwsStatusLabel != null)
+                    {
+                        _nwsStatusLabel.Text = "✗ Error";
+                        _nwsStatusLabel.ForeColor = Color.FromArgb(231, 76, 60); // Red
+                    }
+                });
+            }
+        }
+
+        private void UpdateNwsStatus(string text, Color color)
+        {
+            SafeInvoke(() =>
+            {
+                if (_nwsStatusLabel != null)
+                {
+                    _nwsStatusLabel.Text = text;
+                    _nwsStatusLabel.ForeColor = color;
+                }
+            });
+        }
+
+        private void SafeInvoke(Action action)
+        {
+            try
+            {
+                if (this.IsHandleCreated && !this.IsDisposed)
+                {
+                    if (this.InvokeRequired)
+                        this.BeginInvoke(action);
+                    else
+                        action();
+                }
+            }
+            catch (ObjectDisposedException) { }
+        }
+
+        #endregion
 
         private void OnNaadConnectionChanged(object? sender, ConnectionStatusEventArgs e)
         {
