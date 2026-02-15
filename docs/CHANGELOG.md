@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.10.0215] - 2026-02-15
+
+- feat: Add NWS alert support with customizable settings and enhanced UI integration
+- feat: Implement NWS alert provider with modern API support and legacy CAP fallback
+- feat: Enhance temperature overlay caching logic to improve refresh efficiency
+
 ## [1.9.9.0215] - 2026-02-15
 
 - Enhance WeatherMapControl and OverlayManager for improved overlay handling and performance
