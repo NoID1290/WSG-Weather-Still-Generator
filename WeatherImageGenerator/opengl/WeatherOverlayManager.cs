@@ -35,6 +35,11 @@ namespace WeatherImageGenerator.OpenGL
         private double _lastRadarLon;
         private int _lastRadarZoom;
         
+        // Track last temperature parameters to detect when refresh is needed
+        private double _lastTempLat;
+        private double _lastTempLon;
+        private int _lastTempZoom;
+        
         // Configuration
         private readonly TimeSpan _radarUpdateInterval = TimeSpan.FromMinutes(5);
         private readonly TimeSpan _temperatureUpdateInterval = TimeSpan.FromMinutes(30);
@@ -143,9 +148,21 @@ namespace WeatherImageGenerator.OpenGL
             if (!TemperatureEnabled)
                 return null;
 
-            // Check if we need to update
-            if (DateTime.UtcNow - _lastTemperatureUpdate < _temperatureUpdateInterval && _temperatureOverlay != null)
+            // Check if position/zoom changed significantly (requires re-fetch)
+            bool positionChanged = Math.Abs(centerLat - _lastTempLat) > 0.1 || Math.Abs(centerLon - _lastTempLon) > 0.1;
+            bool zoomChanged = mapZoom != _lastTempZoom;
+            bool cacheExpired = DateTime.UtcNow - _lastTemperatureUpdate >= _temperatureUpdateInterval;
+
+            // Use cached data if available and parameters haven't changed significantly
+            if (_temperatureOverlay != null && !positionChanged && !zoomChanged && !cacheExpired)
                 return _temperatureOverlay;
+
+            // Force invalidation: clear stale cached data so we don't return old image with new bbox
+            if (positionChanged || zoomChanged)
+            {
+                _temperatureOverlay = null;
+                Console.WriteLine($"[WeatherOverlay] Temperature cache invalidated: posChanged={positionChanged}, zoomChanged={zoomChanged}");
+            }
 
             try
             {
@@ -160,6 +177,9 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     _temperatureOverlay = tempData;
                     _lastTemperatureUpdate = DateTime.UtcNow;
+                    _lastTempLat = centerLat;
+                    _lastTempLon = centerLon;
+                    _lastTempZoom = mapZoom;
                 }
 
                 return _temperatureOverlay;
