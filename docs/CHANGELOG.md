@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.11.0215] - 2026-02-15
+
+- feat: Enhance alert description and instructions rendering with improved layout and clipping logic
+- feat: Implement cross-cycle alert deduplication and enhance alert display functionality
+
 ## [1.9.10.0215] - 2026-02-15
 
 - feat: Add NWS alert support with customizable settings and enhanced UI integration
