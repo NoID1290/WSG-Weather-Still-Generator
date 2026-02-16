@@ -484,24 +484,47 @@ namespace WeatherImageGenerator.Services
                     currentY += 35;
                 }
 
-                // Description text (truncated to fit)
+                // Description text
+                float footerReserveNws = 60; // space for station message + page number at bottom
                 if (!string.IsNullOrWhiteSpace(alert.Description))
                 {
                     currentY += 10;
-                    // Semi-transparent description panel
-                    float descHeight = Math.Min(height - currentY - 100, 200);
+                    float availableDescHeight = height - currentY - footerReserveNws;
+                    // If we also have Instructions, split the remaining space
+                    bool hasInstructions = !string.IsNullOrWhiteSpace(alert.Instructions);
+                    float descHeight = hasInstructions
+                        ? Math.Max(availableDescHeight * 0.55f, 100)
+                        : Math.Max(availableDescHeight, 100);
+
                     if (descHeight > 60)
                     {
                         using (var descBg = new SolidBrush(Color.FromArgb(40, 0, 0, 0)))
                         {
                             g.FillRectangle(descBg, margin - 10, currentY - 5, width - margin * 2 + 20, descHeight + 10);
                         }
-                        string descText = alert.Description.Length > 500
-                            ? alert.Description.Substring(0, 497) + "..."
+
+                        // Use the full description — let the rect clip naturally rather than truncating prematurely
+                        string descText = alert.Description.Length > 2000
+                            ? alert.Description.Substring(0, 1997) + "..."
                             : alert.Description;
                         var descRect = new RectangleF(margin, currentY, width - margin * 2, descHeight);
-                        g.DrawString(descText, tinyFont, dimBrush, descRect);
+                        g.DrawString(descText, tinyFont, whiteBrush, descRect);
                         currentY += descHeight + 15;
+                    }
+                }
+
+                // Instructions text (if available)
+                if (!string.IsNullOrWhiteSpace(alert.Instructions))
+                {
+                    float instrAvailable = height - currentY - footerReserveNws;
+                    if (instrAvailable > 50)
+                    {
+                        string instrText = alert.Instructions.Length > 1500
+                            ? alert.Instructions.Substring(0, 1497) + "..."
+                            : alert.Instructions;
+                        var instrRect = new RectangleF(margin, currentY, width - margin * 2, instrAvailable);
+                        g.DrawString(instrText, tinyFont, dimBrush, instrRect);
+                        currentY += instrAvailable + 10;
                     }
                 }
 
@@ -509,7 +532,25 @@ namespace WeatherImageGenerator.Services
                 string station = "NWS";
                 if (!string.IsNullOrWhiteSpace(alert.Region))
                 {
-                    station = alert.Region.Length > 60 ? alert.Region.Substring(0, 57) + "..." : alert.Region;
+                    // Measure how much width is available for the station text
+                    float stationMaxWidth = width - margin * 2 - g.MeasureString("Message from ", smallFont).Width;
+                    string regionText = alert.Region;
+                    SizeF regionSize = g.MeasureString(regionText, smallFont);
+                    if (regionSize.Width > stationMaxWidth && regionText.Length > 3)
+                    {
+                        int maxLen = regionText.Length;
+                        while (maxLen > 10)
+                        {
+                            maxLen -= 5;
+                            string candidate = regionText.Substring(0, maxLen) + "...";
+                            if (g.MeasureString(candidate, smallFont).Width <= stationMaxWidth)
+                            {
+                                regionText = candidate;
+                                break;
+                            }
+                        }
+                    }
+                    station = regionText;
                 }
                 g.DrawString($"Message from {station}.", smallFont, whiteBrush, margin, height - margin - 30);
 
