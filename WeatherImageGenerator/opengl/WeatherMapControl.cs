@@ -57,6 +57,8 @@ namespace WeatherImageGenerator.OpenGL
         private bool _isAnimating;
         private Timer _animationTimer;
         private int _animationSpeedMs = 500;
+        private System.Threading.Timer? _animationRefreshDebounce;
+        private bool _animationRefreshInProgress = false;
         
         private HttpClient _httpClient;
         private double _currentLat = 56.1304; // Canada centroid
@@ -140,6 +142,7 @@ namespace WeatherImageGenerator.OpenGL
                 UpdateStatusLabels();
                 if (!_suppressOverlayUpdates)
                     _ = UpdateOverlays();
+                ScheduleAnimationRefresh();
             };
             
             _glControl.MapPositionChanged += (lat, lon) =>
@@ -149,6 +152,7 @@ namespace WeatherImageGenerator.OpenGL
                 UpdateStatusLabels();
                 if (!_suppressOverlayUpdates)
                     _ = UpdateOverlays();
+                ScheduleAnimationRefresh();
             };
             
             _glControl.TileStatusChanged += (text, color) =>
@@ -761,6 +765,77 @@ namespace WeatherImageGenerator.OpenGL
             if (_isAnimating)
             {
                 _animationTimer.Interval = _animationSpeedMs;
+            }
+        }
+
+        /// <summary>
+        /// Schedule a debounced re-fetch of animation frames after map pan/zoom.
+        /// Waits 400ms after the last move event before re-fetching.
+        /// </summary>
+        private void ScheduleAnimationRefresh()
+        {
+            // Only refresh if animation frames are loaded
+            if (_animationTimestamps.Count == 0) return;
+
+            // Reset the debounce timer (400ms after last pan/zoom event)
+            _animationRefreshDebounce?.Dispose();
+            _animationRefreshDebounce = new System.Threading.Timer(
+                _ => this.BeginInvoke(new Action(async () => await RefreshAnimationFrames())),
+                null, 400, System.Threading.Timeout.Infinite);
+        }
+
+        /// <summary>
+        /// Re-fetches all animation frames for the current viewport, keeping the same timestamps.
+        /// </summary>
+        private async Task RefreshAnimationFrames()
+        {
+            if (_animationRefreshInProgress || _animationTimestamps.Count == 0) return;
+            _animationRefreshInProgress = true;
+
+            // Remember playback state
+            bool wasPlaying = _isAnimating;
+            if (wasPlaying)
+            {
+                _animationTimer.Stop();
+            }
+
+            _lblFrameInfo.Text = "Updating frames...";
+
+            try
+            {
+                var (frames, validTimestamps) = await _overlayManager.FetchMultipleRadarFramesAsync(
+                    _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom, _animationTimestamps);
+
+                if (frames.Count > 0)
+                {
+                    _animationFrames = frames;
+                    _animationTimestamps = validTimestamps;
+
+                    // Clamp frame index
+                    _currentFrameIndex = Math.Min(_currentFrameIndex, _animationFrames.Count - 1);
+                    _trackTimeline.Maximum = Math.Max(1, _animationFrames.Count - 1);
+                    if (_trackTimeline.Value > _trackTimeline.Maximum)
+                        _trackTimeline.Value = _trackTimeline.Maximum;
+
+                    // Show current frame at new viewport position
+                    ShowAnimationFrame(_currentFrameIndex);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherMap] Animation refresh error: {ex.Message}");
+            }
+            finally
+            {
+                _animationRefreshInProgress = false;
+
+                // Resume playback if it was playing
+                if (wasPlaying && _animationFrames.Count > 0)
+                {
+                    _isAnimating = true;
+                    _animationTimer.Interval = _animationSpeedMs;
+                    _animationTimer.Start();
+                }
             }
         }
 
@@ -1384,6 +1459,7 @@ namespace WeatherImageGenerator.OpenGL
                 _updateTimer?.Dispose();
                 _animationTimer?.Stop();
                 _animationTimer?.Dispose();
+                _animationRefreshDebounce?.Dispose();
                 _tileCache?.Dispose();
                 _overlayManager?.Dispose();
                 _httpClient?.Dispose();
