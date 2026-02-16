@@ -75,6 +75,28 @@ namespace WeatherImageGenerator.OpenGL
         private float _zoom = 1.0f;
         private Vector2 _pan = Vector2.Zero;
 
+        // Debounce timer for snapping tile zoom after smooth GL zoom
+        private System.Threading.Timer? _zoomSnapTimer;
+#pragma warning disable CS0414 // assigned but not yet read — reserved for future tile-snap logic
+        private int _baseMapZoom = 4; // tile zoom before smooth zoom offset
+#pragma warning restore CS0414
+
+        // Cached uniform locations for optimization
+        private int _tileShaderTransformLoc = -1;
+        private int _tileShaderOpacityLoc = -1;
+        private int _tileShaderTextureLoc = -1;
+        private int _overlayShaderColorLoc = -1;
+        private int _overlayShaderAlphaLoc = -1;
+
+        // Tile loading deduplication
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task> _pendingLoads 
+            = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task>();
+
+        // Dirty flag for batching invalidations
+#pragma warning disable CS0414 // assigned but not yet read — reserved for future render batching
+        private bool _renderDirty = false;
+#pragma warning restore CS0414
+
         private readonly string _vertexSourceFallback = @"#version 330 core
 layout(location=0) in vec2 aPos;
 layout(location=1) in vec2 aTex;
@@ -197,6 +219,13 @@ void main() {
             _tileShader!.SetInt("uTexture", 0);
             _tileShader!.SetFloat("uOpacity", 1.0f);
 
+            // Cache uniform locations for optimization
+            _tileShaderTransformLoc = GL.GetUniformLocation(_tileShader.Handle, "uTransform");
+            _tileShaderOpacityLoc = GL.GetUniformLocation(_tileShader.Handle, "uOpacity");
+            _tileShaderTextureLoc = GL.GetUniformLocation(_tileShader.Handle, "uTexture");
+            _overlayShaderColorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
+            _overlayShaderAlphaLoc = GL.GetUniformLocation(_overlayShader.Handle, "uAlpha");
+
             // Setup overlay buffers (we'll fill data on resize)
             _overlayVao = GL.GenVertexArray();
             _overlayVbo = GL.GenBuffer();
@@ -289,13 +318,16 @@ void main() {
                 float imgWnd = (float)(imgWidthMapPx / (Width / 2.0));
                 float imgHnd = (float)(imgHeightMapPx / (Height / 2.0));
 
-                float tileSx = imgWnd / 2f;
-                float tileSy = imgHnd / 2f;
-                float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0);
-                float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0));
+                float tileSx = imgWnd / 2f * _zoom;
+                float tileSy = imgHnd / 2f * _zoom;
+                float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0) * _zoom + _pan.X;
+                float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0)) * _zoom + _pan.Y;
 
                 float[] tmat = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, centerNdcX, centerNdcY, 1f };
-                _tileShader.SetMatrix3("uTransform", tmat);
+                if (_tileShaderTransformLoc >= 0)
+                    GL.UniformMatrix3(_tileShaderTransformLoc, 1, false, tmat);
+                else
+                    _tileShader.SetMatrix3("uTransform", tmat);
 
                 GL.BindTexture(TextureTarget.Texture2D, _texture);
                 GL.BindVertexArray(_vao);
@@ -314,72 +346,77 @@ void main() {
                 double cx = LonToPixelX(_centerLon, z);
                 double cy = LatToPixelY(_centerLat, z);
 
-                int tilesWide = (int)Math.Ceiling((double)Width / 256.0) + 2;
-                int tilesHigh = (int)Math.Ceiling((double)Height / 256.0) + 2;
+                // Expand visible range by inverse zoom to ensure coverage during smooth zoom-out
+                int extraTiles = _zoom < 1.0f ? (int)Math.Ceiling(1.0 / _zoom) : 0;
+                int tilesWide = (int)Math.Ceiling((double)Width / 256.0) + 2 + extraTiles * 2;
+                int tilesHigh = (int)Math.Ceiling((double)Height / 256.0) + 2 + extraTiles * 2;
 
                 // tile coordinates for center
                 int centerTileX = (int)Math.Floor(cx / 256.0);
                 int centerTileY = (int)Math.Floor(cy / 256.0);
 
                 for (int dx = -tilesWide/2; dx <= tilesWide/2; dx++)
-            {
-                for (int dy = -tilesHigh/2; dy <= tilesHigh/2; dy++)
                 {
-                    int tileX = centerTileX + dx;
-                    int tileY = centerTileY + dy;
-                    int wrap = (int)Math.Pow(2, z);
-                    int wrappedX = ((tileX % wrap) + wrap) % wrap;
-                    if (tileY < 0 || tileY >= (1 << z)) continue; // out of lat range
-
-                    var key = (z, wrappedX, tileY);
-                    int texToBind = _fallbackTexture;
-                    if (_tileTextures.TryGetValue(key, out int texId))
+                    for (int dy = -tilesHigh/2; dy <= tilesHigh/2; dy++)
                     {
-                        texToBind = texId;
-                        _tileLastUsed[key] = DateTime.UtcNow.Ticks;
+                        int tileX = centerTileX + dx;
+                        int tileY = centerTileY + dy;
+                        int wrap = (int)Math.Pow(2, z);
+                        int wrappedX = ((tileX % wrap) + wrap) % wrap;
+                        if (tileY < 0 || tileY >= (1 << z)) continue; // out of lat range
+
+                        var key = (z, wrappedX, tileY);
+                        int texToBind = _fallbackTexture;
+                        if (_tileTextures.TryGetValue(key, out int texId))
+                        {
+                            texToBind = texId;
+                            _tileLastUsed[key] = DateTime.UtcNow.Ticks;
+                        }
+                        else if (_blockedTiles.ContainsKey(key))
+                        {
+                            // blocked tile known -> keep fallback and don't re-request frequently
+                        }
+                        else
+                        {
+                            // schedule download if not already queued
+                            _ = EnsureTileLoadedAsync(z, wrappedX, tileY);
+                        }
+
+                        // compute tile's top-left pixel in global pixel space
+                        double tilePx = tileX * 256.0;
+                        double tilePy = tileY * 256.0;
+
+                        // screen position of tile center
+                        double screenCenterX = (tilePx - cx) + Width / 2.0 + 128.0;
+                        double screenCenterY = (tilePy - cy) + Height / 2.0 + 128.0;
+
+                        // tile size in NDC (incorporate smooth zoom)
+                        float tileW = (float)((256.0) / (Width / 2.0)) * _zoom;
+                        float tileH = (float)((256.0) / (Height / 2.0)) * _zoom;
+
+                        // center NDC coords (incorporate smooth zoom + pan)
+                        float centerNdcX = ((float)(screenCenterX / (Width / 2.0) - 1.0)) * _zoom + _pan.X;
+                        float centerNdcY = ((float)(1.0 - screenCenterY / (Height / 2.0))) * _zoom + _pan.Y;
+
+                        // tile transform: scale then translate
+                        float tileSx = tileW / 2f;
+                        float tileSy = tileH / 2f;
+                        float txf = centerNdcX;
+                        float tyf = centerNdcY;
+
+                        float[] tmat = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, txf, tyf, 1f };
+
+                        if (_tileShaderTransformLoc >= 0)
+                            GL.UniformMatrix3(_tileShaderTransformLoc, 1, false, tmat);
+                        else
+                            _tileShader.SetMatrix3("uTransform", tmat);
+
+                        GL.BindTexture(TextureTarget.Texture2D, texToBind);
+                        GL.BindVertexArray(_vao);
+                        GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                        GL.BindVertexArray(0);
                     }
-                    else if (_blockedTiles.ContainsKey(key))
-                    {
-                        // blocked tile known -> keep fallback and don't re-request frequently
-                    }
-                    else
-                    {
-                        // schedule download if not already queued
-                        _ = EnsureTileLoadedAsync(z, wrappedX, tileY);
-                    }
-
-                    // compute tile's top-left pixel in global pixel space
-                    double tilePx = tileX * 256.0;
-                    double tilePy = tileY * 256.0;
-
-                    // screen position of tile center
-                    double screenCenterX = (tilePx - cx) + Width / 2.0 + 128.0;
-                    double screenCenterY = (tilePy - cy) + Height / 2.0 + 128.0;
-
-                    // tile size in NDC
-                    float tileW = (float)((256.0) / (Width / 2.0));
-                    float tileH = (float)((256.0) / (Height / 2.0));
-
-                    // center NDC coords
-                    float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0);
-                    float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0));
-
-                    // tile transform: scale then translate
-                    float tileSx = tileW / 2f;
-                    float tileSy = tileH / 2f;
-                    float txf = centerNdcX;
-                    float tyf = centerNdcY;
-
-                    float[] tmat = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, txf, tyf, 1f };
-
-                    _tileShader.SetMatrix3("uTransform", tmat);
-
-                    GL.BindTexture(TextureTarget.Texture2D, texToBind);
-                    GL.BindVertexArray(_vao);
-                    GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
-                    GL.BindVertexArray(0);
                 }
-            }
             }
 
             // Draw positioned overlay (anchored to geographic bbox) if present
@@ -388,7 +425,10 @@ void main() {
                 // Use tile shader so overlay colors & alpha are preserved
                 GL.Enable(EnableCap.Blend);
                 _tileShader.Use();
-                _tileShader.SetFloat("uOpacity", _overlayOpacity);
+                if (_tileShaderOpacityLoc >= 0)
+                    GL.Uniform1(_tileShaderOpacityLoc, _overlayOpacity);
+                else
+                    _tileShader.SetFloat("uOpacity", _overlayOpacity);
                 GL.ActiveTexture(TextureUnit.Texture0);
 
                 int z = _mapZoom;
@@ -410,17 +450,20 @@ void main() {
                 double screenCenterX = (imgCenterPx - cx) + Width / 2.0;
                 double screenCenterY = (imgCenterPy - cy) + Height / 2.0;
 
-                // Size in NDC (matching tile/background transform math)
-                float imgWnd = (float)(imgWidthMapPx / (Width / 2.0));
-                float imgHnd = (float)(imgHeightMapPx / (Height / 2.0));
+                // Size in NDC (matching tile/background transform math, with smooth zoom)
+                float imgWnd = (float)(imgWidthMapPx / (Width / 2.0)) * _zoom;
+                float imgHnd = (float)(imgHeightMapPx / (Height / 2.0)) * _zoom;
 
                 float tileSx = imgWnd / 2f;
                 float tileSy = imgHnd / 2f;
-                float centerNdcX = (float)(screenCenterX / (Width / 2.0) - 1.0);
-                float centerNdcY = (float)(1.0 - screenCenterY / (Height / 2.0));
+                float centerNdcX = ((float)(screenCenterX / (Width / 2.0) - 1.0)) * _zoom + _pan.X;
+                float centerNdcY = ((float)(1.0 - screenCenterY / (Height / 2.0))) * _zoom + _pan.Y;
 
                 float[] tmatOverlay = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, centerNdcX, centerNdcY, 1f };
-                _tileShader.SetMatrix3("uTransform", tmatOverlay);
+                if (_tileShaderTransformLoc >= 0)
+                    GL.UniformMatrix3(_tileShaderTransformLoc, 1, false, tmatOverlay);
+                else
+                    _tileShader.SetMatrix3("uTransform", tmatOverlay);
 
                 GL.BindTexture(TextureTarget.Texture2D, _overlayTexture);
                 GL.BindVertexArray(_vao);
@@ -429,7 +472,10 @@ void main() {
                 GL.BindTexture(TextureTarget.Texture2D, 0);
 
                 // Reset opacity to 1.0 for subsequent draws
-                _tileShader.SetFloat("uOpacity", 1.0f);
+                if (_tileShaderOpacityLoc >= 0)
+                    GL.Uniform1(_tileShaderOpacityLoc, 1.0f);
+                else
+                    _tileShader.SetFloat("uOpacity", 1.0f);
 
                 // Debug: draw overlay bounding box so we can verify placement/size visually
                 if (_debugOverlayBounds && _overlayShader != null)
@@ -453,9 +499,17 @@ void main() {
                     GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, quad.Length * sizeof(float), quad);
 
                     _overlayShader.Use();
-                    _overlayShader.SetFloat("uAlpha", 0.9f);
-                    var colorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
-                    GL.Uniform3(colorLoc, 1.0f, 0.2f, 0.2f);
+                    if (_overlayShaderAlphaLoc >= 0)
+                        GL.Uniform1(_overlayShaderAlphaLoc, 0.9f);
+                    else
+                        _overlayShader.SetFloat("uAlpha", 0.9f);
+                    if (_overlayShaderColorLoc >= 0)
+                        GL.Uniform3(_overlayShaderColorLoc, 1.0f, 0.2f, 0.2f);
+                    else
+                    {
+                        var colorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
+                        GL.Uniform3(colorLoc, 1.0f, 0.2f, 0.2f);
+                    }
 
                     GL.BindVertexArray(_overlayVao);
                     GL.LineWidth(2f);
@@ -479,9 +533,12 @@ void main() {
                     // fading alpha for animation effect
                     float alpha = (float)(i + 1) / (_radarFrames.Count + 1);
                     
-                    // Identity transform (fullscreen)
-                    float[] tmat = new float[] { 1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f };
-                    _tileShader.SetMatrix3("uTransform", tmat);
+                    // Apply smooth zoom to fullscreen radar frames too
+                    float[] tmat = new float[] { _zoom, 0f, 0f, 0f, _zoom, 0f, _pan.X, _pan.Y, 1f };
+                    if (_tileShaderTransformLoc >= 0)
+                        GL.UniformMatrix3(_tileShaderTransformLoc, 1, false, tmat);
+                    else
+                        _tileShader.SetMatrix3("uTransform", tmat);
                     
                     GL.BindTexture(TextureTarget.Texture2D, tex);
                     GL.BindVertexArray(_vao);
@@ -494,10 +551,18 @@ void main() {
             if (_overlayShader != null)
             {
                 _overlayShader.Use();
-                _overlayShader.SetFloat("uAlpha", 1.0f);
+                if (_overlayShaderAlphaLoc >= 0)
+                    GL.Uniform1(_overlayShaderAlphaLoc, 1.0f);
+                else
+                    _overlayShader.SetFloat("uAlpha", 1.0f);
                 // draw crosshair in green
-                var colorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
-                GL.Uniform3(colorLoc, 0.6f, 1.0f, 0.2f);
+                if (_overlayShaderColorLoc >= 0)
+                    GL.Uniform3(_overlayShaderColorLoc, 0.6f, 1.0f, 0.2f);
+                else
+                {
+                    var colorLoc2 = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
+                    GL.Uniform3(colorLoc2, 0.6f, 1.0f, 0.2f);
+                }
 
                 GL.BindVertexArray(_overlayVao);
                 GL.LineWidth(2f);
@@ -520,34 +585,65 @@ void main() {
 
         private void GLRadarControl_MouseWheel(object? sender, MouseEventArgs e)
         {
-            // If Shift is down, adjust map zoom (tile zoom), else adjust local GL zoom
-            bool shift = (ModifierKeys & Keys.Shift) == Keys.Shift;
-            if (shift)
+            // Smooth GL zoom with cursor-centered pan adjustment
+            var oldZoom = _zoom;
+            var delta = e.Delta > 0 ? 1.15f : 1f / 1.15f;
+            _zoom *= delta;
+            _zoom = Math.Max(0.25f, Math.Min(8f, _zoom));
+
+            // Adjust pan so the point under cursor stays under cursor
+            if (Width > 0 && Height > 0)
             {
-                // map zoom
-                if (e.Delta > 0) SetMapZoom(Math.Min(20, _mapZoom + 1));
-                else SetMapZoom(Math.Max(0, _mapZoom - 1));
+                var nx = (2f * e.X / Width) - 1f;
+                var ny = 1f - (2f * e.Y / Height);
+                _pan.X = (nx - (nx - _pan.X) * (oldZoom / _zoom));
+                _pan.Y = (ny - (ny - _pan.Y) * (oldZoom / _zoom));
+            }
+
+            Invalidate();
+
+            // Debounced tile zoom snap after 300ms of no scrolling
+            _zoomSnapTimer?.Dispose();
+            _zoomSnapTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    if (this.IsHandleCreated)
+                    {
+                        this.BeginInvoke(new Action(() => SnapTileZoom()));
+                    }
+                }
+                catch { }
+            }, null, 300, System.Threading.Timeout.Infinite);
+        }
+
+        private void SnapTileZoom()
+        {
+            // Compute target tile zoom from smooth zoom factor
+            int zoomDelta = (int)Math.Round(Math.Log(_zoom) / Math.Log(2));
+            if (zoomDelta == 0 && Math.Abs(_zoom - 1.0f) < 0.05f)
+            {
+                // Already at correct tile zoom, just reset smooth zoom
+                _zoom = 1.0f;
+                _pan = Vector2.Zero;
+                Invalidate();
+                return;
+            }
+
+            int targetZoom = Math.Max(0, Math.Min(20, _mapZoom + zoomDelta));
+            
+            // Reset smooth zoom
+            _zoom = 1.0f;
+            _pan = Vector2.Zero;
+            
+            if (targetZoom != _mapZoom)
+            {
+                SetMapZoom(targetZoom);
             }
             else
             {
-                var oldZoom = _zoom;
-                var delta = e.Delta > 0 ? 1.1f : 1f / 1.1f;
-                _zoom *= delta;
-                _zoom = Math.Max(0.1f, Math.Min(10f, _zoom));
-
-                // Optionally adjust pan to zoom towards cursor (nice UX)
-                if (Width > 0 && Height > 0)
-                {
-                    var nx = (2f * e.X / Width) - 1f;
-                    var ny = 1f - (2f * e.Y / Height);
-                    // adjust pan so the point under cursor stays roughly under cursor
-                    _pan.X = (nx - (nx - _pan.X) * (oldZoom / _zoom));
-                    _pan.Y = (ny - (ny - _pan.Y) * (oldZoom / _zoom));
-                }
+                Invalidate();
             }
-
-            UpdateTiles();
-            Invalidate();
         }
 
         private void GLRadarControl_MouseDown(object? sender, MouseEventArgs e)
@@ -669,6 +765,27 @@ void main() {
             }
             _radarFrames.Clear();
             
+            Invalidate();
+        }
+
+        /// <summary>
+        /// Clears only the positioned overlay (radar animation frames) without touching background/tiles
+        /// </summary>
+        public void ClearPositionedOverlay()
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => ClearPositionedOverlay()));
+                return;
+            }
+
+            MakeCurrent();
+            if (_overlayTexture != 0)
+            {
+                try { GL.DeleteTexture(_overlayTexture); } catch { }
+                _overlayTexture = 0;
+            }
+            _hasPositionedOverlay = false;
             Invalidate();
         }
 
@@ -932,6 +1049,7 @@ void main() {
         {
             if (disposing)
             {
+                _zoomSnapTimer?.Dispose();
                 MakeCurrent();
                 if (_texture != 0)
                 {
@@ -1157,7 +1275,19 @@ void main() {
                 var key = (z, x, y);
                 if (_tileTextures.ContainsKey(key) || _blockedTiles.ContainsKey(key)) return;
 
-                var (bytes, status) = await _tileProvider.GetTileBytesAsync(z, x, y);
+                // Deduplicate concurrent loads for same tile
+                var loadTask = _pendingLoads.GetOrAdd(key, k => LoadTileInternalAsync(k.z, k.x, k.y));
+                await loadTask;
+            }
+            catch { }
+        }
+
+        private async System.Threading.Tasks.Task LoadTileInternalAsync(int z, int x, int y)
+        {
+            var key = (z, x, y);
+            try
+            {
+                var (bytes, status) = await _tileProvider!.GetTileBytesAsync(z, x, y);
                 if (status == TileFetchStatus.Blocked)
                 {
                     _blockedTiles[key] = DateTime.UtcNow;
@@ -1209,6 +1339,10 @@ void main() {
                 }));
             }
             catch { }
+            finally
+            {
+                _pendingLoads.TryRemove(key, out _);
+            }
         }
 
         private void UpdateTiles()

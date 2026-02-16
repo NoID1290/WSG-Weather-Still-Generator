@@ -64,7 +64,20 @@ namespace WeatherImageGenerator.OpenGL
 
         // Attribution overlay
         private Panel _attributionPanel;
-        
+
+        // Close animation button
+        private Button _btnCloseAnimation;
+
+        // Collapsible options panel
+        private Panel _optionsPanel;
+        private Label _lblOptionsHeader;
+        private bool _optionsExpanded = false;
+
+        // Panel position
+        public enum PanelPosition { Left, Right, Top }
+        private PanelPosition _panelPosition = PanelPosition.Right;
+        private FlowLayoutPanel _panelPositionBar;
+
         private HttpClient _httpClient;
         private double _currentLat = 56.1304; // Canada centroid
         private double _currentLon = -106.3468;
@@ -79,6 +92,9 @@ namespace WeatherImageGenerator.OpenGL
             SetupEventHandlers();
             ApplyModernStyling();
             
+            // Load persisted panel position
+            LoadPanelPosition();
+
             // Start update timer
             _updateTimer = new Timer { Interval = 60000 }; // Update every minute
             _updateTimer.Tick += UpdateTimer_Tick;
@@ -174,37 +190,55 @@ namespace WeatherImageGenerator.OpenGL
 
         private void BuildControlPanel()
         {
-            int y = 10;
-            int spacing = 10;
+            int y = 6;
+            int spacing = 6;
             int controlWidth = 256;
-            int buttonHeight = 36;
-            int smallButtonHeight = 30;
+            int buttonHeight = 28;
+            int smallButtonHeight = 26;
+
+            // ═══ Panel Position Bar ═══
+            _panelPositionBar = new FlowLayoutPanel
+            {
+                Location = new Point(10, y),
+                Size = new Size(controlWidth, 24),
+                FlowDirection = FlowDirection.LeftToRight,
+                BackColor = Color.Transparent,
+                WrapContents = false
+            };
+            var btnDockLeft = CreateDockButton("◀", PanelPosition.Left);
+            var btnDockTop = CreateDockButton("▲", PanelPosition.Top);
+            var btnDockRight = CreateDockButton("▶", PanelPosition.Right);
+            _panelPositionBar.Controls.Add(btnDockLeft);
+            _panelPositionBar.Controls.Add(btnDockTop);
+            _panelPositionBar.Controls.Add(btnDockRight);
+            _controlPanel.Controls.Add(_panelPositionBar);
+            y += 28;
 
             // ═══ Header ═══
             var header = new Label
             {
                 Text = "Weather Map Controls",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 30),
-                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                Size = new Size(controlWidth, 26),
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.White
             };
             _controlPanel.Controls.Add(header);
-            y += 38;
+            y += 30;
 
-            AddSeparator(y); y += 12;
+            AddSeparator(y); y += 8;
 
             // ═══ Map Style ═══
             var lblMapStyle = CreateSectionLabel("🗺️ Map Style", y);
             _controlPanel.Controls.Add(lblMapStyle);
-            y += 24;
+            y += 22;
 
             _cmbMapStyle = new ComboBox
             {
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 28),
+                Size = new Size(controlWidth, 24),
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = new Font("Segoe UI", 10),
+                Font = new Font("Segoe UI", 9),
                 BackColor = Color.FromArgb(55, 55, 60),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat
@@ -213,22 +247,22 @@ namespace WeatherImageGenerator.OpenGL
             _cmbMapStyle.SelectedIndex = 0;
             _cmbMapStyle.SelectedIndexChanged += (s, e) => OnMapStyleChanged();
             _controlPanel.Controls.Add(_cmbMapStyle);
-            y += 36;
+            y += 30;
 
             // ═══ Zoom Controls ═══
             var lblZoomControls = CreateSectionLabel("🔍 Zoom Controls", y);
             _controlPanel.Controls.Add(lblZoomControls);
-            y += 24;
+            y += 22;
 
             var zoomPanel = new FlowLayoutPanel
             {
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 38),
+                Size = new Size(controlWidth, 30),
                 FlowDirection = FlowDirection.LeftToRight,
                 BackColor = Color.Transparent
             };
 
-            _btnZoomIn = CreateSmallButton("+ Zoom In", smallButtonHeight);
+            _btnZoomIn = CreateSmallButton("+ Zoom", smallButtonHeight);
             _btnZoomIn.Click += (s, e) => ZoomIn();
             
             _btnZoomOut = CreateSmallButton("- Zoom", smallButtonHeight);
@@ -241,49 +275,49 @@ namespace WeatherImageGenerator.OpenGL
             zoomPanel.Controls.Add(_btnZoomOut);
             zoomPanel.Controls.Add(_btnCenter);
             _controlPanel.Controls.Add(zoomPanel);
-            y += 44;
+            y += 34;
 
             _lblZoom = new Label
             {
                 Text = $"Zoom Level: {_currentZoom}",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 18),
-                Font = new Font("Segoe UI", 9),
+                Size = new Size(controlWidth, 16),
+                Font = new Font("Segoe UI", 8),
                 ForeColor = Color.FromArgb(180, 180, 180)
             };
             _controlPanel.Controls.Add(_lblZoom);
-            y += 24;
+            y += 20;
 
-            AddSeparator(y); y += 12;
+            AddSeparator(y); y += 8;
 
             // ═══ Weather Overlays ═══
             var lblOverlays = CreateSectionLabel("🌦️ Weather Overlays", y);
             _controlPanel.Controls.Add(lblOverlays);
-            y += 28;
+            y += 24;
 
             // Radar Toggle
             _chkRadar = new CheckBox
             {
                 Text = "🌧️ Radar Composite",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 22),
-                Font = new Font("Segoe UI", 10),
+                Size = new Size(controlWidth, 20),
+                Font = new Font("Segoe UI", 9),
                 ForeColor = Color.White,
                 Checked = true
             };
             _chkRadar.CheckedChanged += async (s, e) => { UpdateAttributionText(); await UpdateOverlays(); };
             _controlPanel.Controls.Add(_chkRadar);
-            y += 28;
+            y += 24;
 
             // Radar Layer
             var lblRadarLayer = CreateSmallLabel("Radar Layer:", y);
             _controlPanel.Controls.Add(lblRadarLayer);
-            y += 18;
+            y += 16;
 
             _cmbRadarLayer = new ComboBox
             {
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 26),
+                Size = new Size(controlWidth, 24),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9),
                 BackColor = Color.FromArgb(55, 55, 60),
@@ -299,17 +333,17 @@ namespace WeatherImageGenerator.OpenGL
             _cmbRadarLayer.SelectedIndex = 0;
             _cmbRadarLayer.SelectedIndexChanged += (s, e) => OnRadarLayerChanged();
             _controlPanel.Controls.Add(_cmbRadarLayer);
-            y += 30;
+            y += 28;
 
             // Radar Style
             var lblRadarStyle = CreateSmallLabel("Radar Style:", y);
             _controlPanel.Controls.Add(lblRadarStyle);
-            y += 18;
+            y += 16;
 
             _cmbRadarStyle = new ComboBox
             {
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 26),
+                Size = new Size(controlWidth, 24),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9),
                 BackColor = Color.FromArgb(55, 55, 60),
@@ -323,17 +357,17 @@ namespace WeatherImageGenerator.OpenGL
             _cmbRadarStyle.SelectedIndex = 0;
             _cmbRadarStyle.SelectedIndexChanged += (s, e) => OnRadarStyleChanged();
             _controlPanel.Controls.Add(_cmbRadarStyle);
-            y += 30;
+            y += 28;
 
             // Radar Opacity
             var lblRadarOpacity = CreateSmallLabel("Radar Opacity:", y);
             _controlPanel.Controls.Add(lblRadarOpacity);
-            y += 18;
+            y += 16;
 
             _trackRadarOpacity = new TrackBar
             {
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 40),
+                Size = new Size(controlWidth, 34),
                 Minimum = 0,
                 Maximum = 100,
                 Value = 75,
@@ -346,31 +380,31 @@ namespace WeatherImageGenerator.OpenGL
                 await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackRadarOpacity);
-            y += 44;
+            y += 38;
 
             // Temperature Toggle
             _chkTemperature = new CheckBox
             {
                 Text = "🌡️ Temperature Grid",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 22),
-                Font = new Font("Segoe UI", 10),
+                Size = new Size(controlWidth, 20),
+                Font = new Font("Segoe UI", 9),
                 ForeColor = Color.White,
                 Checked = false
             };
             _chkTemperature.CheckedChanged += async (s, e) => { UpdateAttributionText(); await UpdateOverlays(); };
             _controlPanel.Controls.Add(_chkTemperature);
-            y += 26;
+            y += 24;
 
             // Temperature Opacity
             var lblTempOpacity = CreateSmallLabel("Temperature Opacity:", y);
             _controlPanel.Controls.Add(lblTempOpacity);
-            y += 18;
+            y += 16;
 
             _trackTempOpacity = new TrackBar
             {
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 40),
+                Size = new Size(controlWidth, 34),
                 Minimum = 0,
                 Maximum = 100,
                 Value = 60,
@@ -382,39 +416,75 @@ namespace WeatherImageGenerator.OpenGL
                 await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackTempOpacity);
-            y += 48;
+            y += 38;
 
-            AddSeparator(y); y += 12;
+            AddSeparator(y); y += 8;
 
             // ═══ Radar Animation ═══
             var lblAnimation = CreateSectionLabel("🎬 Radar Animation", y);
             _controlPanel.Controls.Add(lblAnimation);
-            y += 28;
+            y += 24;
 
-            _btnLoadAnimation = CreateActionButton("▶ Load Animation Frames", y);
+            var animBtnPanel = new FlowLayoutPanel
+            {
+                Location = new Point(10, y),
+                Size = new Size(controlWidth, buttonHeight + 2),
+                FlowDirection = FlowDirection.LeftToRight,
+                BackColor = Color.Transparent,
+                WrapContents = false
+            };
+
+            _btnLoadAnimation = new Button
+            {
+                Text = "▶ Load Frames",
+                Size = new Size(160, buttonHeight),
+                Font = new Font("Segoe UI", 9),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0, 122, 204),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand
+            };
+            _btnLoadAnimation.FlatAppearance.BorderSize = 0;
             _btnLoadAnimation.Click += async (s, e) => await LoadRadarAnimation();
-            _controlPanel.Controls.Add(_btnLoadAnimation);
+            animBtnPanel.Controls.Add(_btnLoadAnimation);
+
+            _btnCloseAnimation = new Button
+            {
+                Text = "✕ Close",
+                Size = new Size(90, buttonHeight),
+                Font = new Font("Segoe UI", 9),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(160, 50, 50),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand,
+                Enabled = false
+            };
+            _btnCloseAnimation.FlatAppearance.BorderSize = 0;
+            _btnCloseAnimation.Click += (s, e) => CloseRadarAnimation();
+            animBtnPanel.Controls.Add(_btnCloseAnimation);
+
+            _controlPanel.Controls.Add(animBtnPanel);
             y += buttonHeight + spacing;
 
             _chkAnimationFollowMap = new CheckBox
             {
                 Text = "Fetch new animation when moving",
                 Location = new Point(14, y),
-                Size = new Size(controlWidth - 14, 24),
+                Size = new Size(controlWidth - 14, 20),
                 Checked = true,
                 ForeColor = Color.FromArgb(200, 200, 200),
-                Font = new Font("Segoe UI", 9),
+                Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat
             };
             _controlPanel.Controls.Add(_chkAnimationFollowMap);
-            y += 30;
+            y += 24;
 
-            AddSeparator(y); y += 12;
+            AddSeparator(y); y += 8;
 
             // ═══ Actions ═══
             var lblActions = CreateSectionLabel("⚡ Actions", y);
             _controlPanel.Controls.Add(lblActions);
-            y += 28;
+            y += 24;
 
             _btnRefresh = CreateActionButton("🔄 Refresh Weather", y);
             _btnRefresh.Click += async (s, e) => await RefreshWeather();
@@ -426,62 +496,91 @@ namespace WeatherImageGenerator.OpenGL
             _controlPanel.Controls.Add(_btnClearCache);
             y += buttonHeight + spacing;
 
-            _btnPrefetchTiles = CreateActionButton("📥 Prefetch Map Tiles (CAN+USA)", y);
-            _btnPrefetchTiles.Click += async (s, e) => await PrefetchMapTiles();
-            _controlPanel.Controls.Add(_btnPrefetchTiles);
-            y += buttonHeight + spacing;
-
-            _btnPrefetchRadarTiles = CreateActionButton("📥 Prefetch Radar Tiles", y);
-            _btnPrefetchRadarTiles.Click += async (s, e) => await PrefetchRadarTiles();
-            _controlPanel.Controls.Add(_btnPrefetchRadarTiles);
-            y += buttonHeight + spacing;
-
             var btnGen = CreateActionButton("🖼️ Generate Precomposed", y);
             btnGen.Click += async (s, e) => await GeneratePrecomposedComposites();
             _controlPanel.Controls.Add(btnGen);
             y += buttonHeight + spacing;
 
+            AddSeparator(y); y += 8;
+
+            // ═══ Options (collapsible) ═══
+            _lblOptionsHeader = new Label
+            {
+                Text = "▶ ⚙ Options",
+                Location = new Point(10, y),
+                Size = new Size(controlWidth, 22),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(0, 160, 230),
+                Cursor = Cursors.Hand
+            };
+            _lblOptionsHeader.Click += (s, e) => ToggleOptionsPanel();
+            _controlPanel.Controls.Add(_lblOptionsHeader);
+            y += 24;
+
+            _optionsPanel = new Panel
+            {
+                Location = new Point(0, y),
+                Size = new Size(controlWidth + 20, 130),
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+
+            int oy = 2;
+            _btnPrefetchTiles = CreateActionButton("📥 Prefetch Map Tiles (CAN+USA)", oy);
+            _btnPrefetchTiles.Click += async (s, e) => await PrefetchMapTiles();
+            _optionsPanel.Controls.Add(_btnPrefetchTiles);
+            oy += buttonHeight + spacing;
+
+            _btnPrefetchRadarTiles = CreateActionButton("📥 Prefetch Radar Tiles", oy);
+            _btnPrefetchRadarTiles.Click += async (s, e) => await PrefetchRadarTiles();
+            _optionsPanel.Controls.Add(_btnPrefetchRadarTiles);
+            oy += buttonHeight + spacing;
+
             var chkPbo = new CheckBox
             {
                 Text = "Use PBO uploads",
-                Location = new Point(10, y),
-                Size = new Size(controlWidth, 22),
+                Location = new Point(10, oy),
+                Size = new Size(controlWidth, 20),
                 Checked = true,
                 ForeColor = Color.FromArgb(180, 180, 180),
-                Font = new Font("Segoe UI", 9F)
+                Font = new Font("Segoe UI", 8F)
             };
             chkPbo.CheckedChanged += (s, e) => { _glControl.UsePboUploads = chkPbo.Checked; };
-            _controlPanel.Controls.Add(chkPbo);
-            y += 28;
+            _optionsPanel.Controls.Add(chkPbo);
+            oy += 24;
+            _optionsPanel.Size = new Size(controlWidth + 20, oy + 4);
 
-            AddSeparator(y); y += 12;
+            _controlPanel.Controls.Add(_optionsPanel);
+            // Don't add options panel height to y when collapsed
+
+            AddSeparator(y); y += 8;
 
             // ═══ Status ═══
             var lblStatus = CreateSectionLabel("📊 Status", y);
             _controlPanel.Controls.Add(lblStatus);
-            y += 24;
+            y += 22;
 
             _lblPosition = new Label
             {
                 Text = $"Lat: {_currentLat:F2}, Lon: {_currentLon:F2}",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 18),
-                Font = new Font("Consolas", 9),
+                Size = new Size(controlWidth, 16),
+                Font = new Font("Consolas", 8),
                 ForeColor = Color.FromArgb(160, 160, 160)
             };
             _controlPanel.Controls.Add(_lblPosition);
-            y += 22;
+            y += 18;
 
             _lblCacheStats = new Label
             {
                 Text = "Cache: Loading...",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 18),
-                Font = new Font("Consolas", 9),
+                Size = new Size(controlWidth, 16),
+                Font = new Font("Consolas", 8),
                 ForeColor = Color.FromArgb(160, 160, 160)
             };
             _controlPanel.Controls.Add(_lblCacheStats);
-            y += 22;
+            y += 18;
 
             UpdateStatusLabels();
 
@@ -495,12 +594,28 @@ namespace WeatherImageGenerator.OpenGL
         {
             _animationPanel = new Panel
             {
-                Size = new Size(520, 90),
+                Size = new Size(540, 90),
                 BackColor = Color.FromArgb(210, 22, 22, 26),
                 Visible = false
             };
             this.Controls.Add(_animationPanel);
             _animationPanel.BringToFront();
+
+            // Close button on floating panel
+            var btnCloseFloat = new Button
+            {
+                Text = "✕",
+                Location = new Point(514, 4),
+                Size = new Size(22, 22),
+                Font = new Font("Segoe UI", 8),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(140, 40, 40),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand
+            };
+            btnCloseFloat.FlatAppearance.BorderSize = 0;
+            btnCloseFloat.Click += (s, e) => CloseRadarAnimation();
+            _animationPanel.Controls.Add(btnCloseFloat);
 
             // Row 1: Transport controls
             int ax = 10, ay = 8;
@@ -721,10 +836,29 @@ namespace WeatherImageGenerator.OpenGL
         private void RepositionAnimationPanel()
         {
             if (_animationPanel == null) return;
-            int mapWidth = this.Width - _controlPanel.Width;
-            int x = Math.Max(0, (mapWidth - _animationPanel.Width) / 2);
-            int panelY = Math.Max(0, this.Height - _animationPanel.Height - 15);
-            _animationPanel.Location = new Point(x, panelY);
+            int mapWidth, mapHeight;
+            switch (_panelPosition)
+            {
+                case PanelPosition.Top:
+                    mapWidth = this.Width;
+                    mapHeight = this.Height - _controlPanel.Height;
+                    int xTop = Math.Max(0, (mapWidth - _animationPanel.Width) / 2);
+                    int yTop = Math.Max(0, this.Height - _animationPanel.Height - 15);
+                    _animationPanel.Location = new Point(xTop, yTop);
+                    break;
+                case PanelPosition.Left:
+                    mapWidth = this.Width - _controlPanel.Width;
+                    int xLeft = Math.Max(0, _controlPanel.Width + (mapWidth - _animationPanel.Width) / 2);
+                    int panelYL = Math.Max(0, this.Height - _animationPanel.Height - 15);
+                    _animationPanel.Location = new Point(xLeft, panelYL);
+                    break;
+                default: // Right
+                    mapWidth = this.Width - _controlPanel.Width;
+                    int x = Math.Max(0, (mapWidth - _animationPanel.Width) / 2);
+                    int panelY = Math.Max(0, this.Height - _animationPanel.Height - 15);
+                    _animationPanel.Location = new Point(x, panelY);
+                    break;
+            }
         }
 
         protected override void OnLayout(LayoutEventArgs levent)
@@ -772,6 +906,7 @@ namespace WeatherImageGenerator.OpenGL
 
                 // Show animation panel
                 _animationPanel.Visible = true;
+                _btnCloseAnimation.Enabled = true;
                 RepositionAnimationPanel();
 
                 // Show first frame
@@ -1060,8 +1195,8 @@ namespace WeatherImageGenerator.OpenGL
             return new Button
             {
                 Text = text,
-                Size = new Size(82, height),
-                Font = new Font("Segoe UI", 9),
+                Size = new Size(78, height),
+                Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(0, 122, 204),
                 ForeColor = Color.White,
@@ -1075,8 +1210,8 @@ namespace WeatherImageGenerator.OpenGL
             {
                 Text = text,
                 Location = new Point(10, y),
-                Size = new Size(256, 36),
-                Font = new Font("Segoe UI", 10),
+                Size = new Size(256, 28),
+                Font = new Font("Segoe UI", 9),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(0, 122, 204),
                 ForeColor = Color.White,
@@ -1084,6 +1219,183 @@ namespace WeatherImageGenerator.OpenGL
             };
             btn.FlatAppearance.BorderSize = 0;
             return btn;
+        }
+
+        private Button CreateDockButton(string text, PanelPosition pos)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Size = new Size(40, 20),
+                Font = new Font("Segoe UI", 8),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(55, 55, 60),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand,
+                Margin = new Padding(1)
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.Click += (s, e) => SetPanelPosition(pos);
+            return btn;
+        }
+
+        private void ToggleOptionsPanel()
+        {
+            _optionsExpanded = !_optionsExpanded;
+            _optionsPanel.Visible = _optionsExpanded;
+            _lblOptionsHeader.Text = _optionsExpanded ? "▼ ⚙ Options" : "▶ ⚙ Options";
+            // Reflow controls below the options panel
+            ReflowControlsAfterOptions();
+        }
+
+        private void ReflowControlsAfterOptions()
+        {
+            // Find the options panel position and shift status/separator controls
+            int baseY = _optionsPanel.Location.Y;
+            int optHeight = _optionsExpanded ? _optionsPanel.Height : 0;
+            int newY = baseY + optHeight;
+
+            // Find controls that are after the options panel and adjust them
+            foreach (Control c in _controlPanel.Controls)
+            {
+                if (c == _optionsPanel || c == _lblOptionsHeader) continue;
+                if (c.Location.Y >= baseY && c != _optionsPanel)
+                {
+                    // Don't move controls that are the options header itself or above it
+                }
+            }
+        }
+
+        private void CloseRadarAnimation()
+        {
+            // Stop animation
+            if (_isAnimating)
+            {
+                _isAnimating = false;
+                _animationTimer?.Stop();
+                _btnPlayPause.Text = "▶";
+                _btnPlayPause.BackColor = Color.FromArgb(0, 122, 204);
+            }
+
+            // Clear frames
+            _animationFrames.Clear();
+            _animationTimestamps.Clear();
+            _animationBBox = null;
+            _currentFrameIndex = 0;
+
+            // Hide animation panel
+            _animationPanel.Visible = false;
+
+            // Clear overlay from GL
+            _glControl.ClearPositionedOverlay();
+
+            // Reset timeline
+            _trackTimeline.Value = 0;
+            _trackTimeline.Maximum = 1;
+            _lblFrameInfo.Text = "No animation loaded";
+
+            // Disable close button
+            _btnCloseAnimation.Enabled = false;
+        }
+
+        private void SetPanelPosition(PanelPosition pos)
+        {
+            if (_panelPosition == pos) return;
+            _panelPosition = pos;
+            ApplyPanelPosition();
+            SavePanelPosition();
+        }
+
+        private void ApplyPanelPosition()
+        {
+            _controlPanel.SuspendLayout();
+            switch (_panelPosition)
+            {
+                case PanelPosition.Right:
+                    _controlPanel.Dock = DockStyle.Right;
+                    _controlPanel.Width = 280;
+                    _controlPanel.Height = 0; // auto from dock
+                    break;
+                case PanelPosition.Left:
+                    _controlPanel.Dock = DockStyle.Left;
+                    _controlPanel.Width = 280;
+                    _controlPanel.Height = 0;
+                    break;
+                case PanelPosition.Top:
+                    _controlPanel.Dock = DockStyle.Top;
+                    _controlPanel.Height = 140;
+                    _controlPanel.Width = 0;
+                    break;
+            }
+            _controlPanel.ResumeLayout(true);
+
+            // Ensure GL control is behind panel
+            _glControl.BringToFront();
+            _controlPanel.BringToFront();
+            if (_animationPanel != null) _animationPanel.BringToFront();
+            if (_attributionPanel != null) _attributionPanel.BringToFront();
+
+            RepositionAnimationPanel();
+            RepositionAttributionPanel();
+        }
+
+        private void SavePanelPosition()
+        {
+            try
+            {
+                var settingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+                if (!System.IO.File.Exists(settingsPath)) return;
+                var json = System.IO.File.ReadAllText(settingsPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                // Build new JSON with WeatherMap section
+                var options = new System.Text.Json.JsonWriterOptions { Indented = true };
+                using var ms = new System.IO.MemoryStream();
+                using (var writer = new System.Text.Json.Utf8JsonWriter(ms, options))
+                {
+                    writer.WriteStartObject();
+                    foreach (var prop in root.EnumerateObject())
+                    {
+                        if (prop.Name == "WeatherMap") continue; // skip old, we'll rewrite
+                        prop.WriteTo(writer);
+                    }
+                    writer.WriteStartObject("WeatherMap");
+                    writer.WriteString("PanelPosition", _panelPosition.ToString());
+                    writer.WriteEndObject();
+                    writer.WriteEndObject();
+                }
+                System.IO.File.WriteAllText(settingsPath, System.Text.Encoding.UTF8.GetString(ms.ToArray()));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherMap] Failed to save panel position: {ex.Message}");
+            }
+        }
+
+        private void LoadPanelPosition()
+        {
+            try
+            {
+                var settingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+                if (!System.IO.File.Exists(settingsPath)) return;
+                var json = System.IO.File.ReadAllText(settingsPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("WeatherMap", out var wm)
+                    && wm.TryGetProperty("PanelPosition", out var pp))
+                {
+                    var posStr = pp.GetString();
+                    if (Enum.TryParse<PanelPosition>(posStr, out var pos))
+                    {
+                        _panelPosition = pos;
+                        ApplyPanelPosition();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherMap] Failed to load panel position: {ex.Message}");
+            }
         }
 
         private void AddSeparator(int y)
