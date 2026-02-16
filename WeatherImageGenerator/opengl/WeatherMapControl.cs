@@ -61,6 +61,9 @@ namespace WeatherImageGenerator.OpenGL
         private System.Threading.Timer? _animationRefreshDebounce;
         private bool _animationRefreshInProgress = false;
         private (double MinLat, double MinLon, double MaxLat, double MaxLon)? _animationBBox;
+
+        // Attribution overlay
+        private Panel _attributionPanel;
         
         private HttpClient _httpClient;
         private double _currentLat = 56.1304; // Canada centroid
@@ -112,6 +115,9 @@ namespace WeatherImageGenerator.OpenGL
             this.Controls.Add(_glControl);
             _glControl.BringToFront();
             _controlPanel.BringToFront();
+
+            // Attribution overlay (bottom-left of map viewport)
+            BuildAttributionPanel();
         }
 
         private void InitializeWeatherSystem()
@@ -136,6 +142,9 @@ namespace WeatherImageGenerator.OpenGL
         {
             // Build control panel UI
             BuildControlPanel();
+
+            // Refresh attribution now that checkboxes exist (radar is checked by default)
+            UpdateAttributionText();
             
             // Map events
             _glControl.MapZoomChanged += zoom => 
@@ -262,7 +271,7 @@ namespace WeatherImageGenerator.OpenGL
                 ForeColor = Color.White,
                 Checked = true
             };
-            _chkRadar.CheckedChanged += async (s, e) => await UpdateOverlays();
+            _chkRadar.CheckedChanged += async (s, e) => { UpdateAttributionText(); await UpdateOverlays(); };
             _controlPanel.Controls.Add(_chkRadar);
             y += 28;
 
@@ -349,7 +358,7 @@ namespace WeatherImageGenerator.OpenGL
                 ForeColor = Color.White,
                 Checked = false
             };
-            _chkTemperature.CheckedChanged += async (s, e) => await UpdateOverlays();
+            _chkTemperature.CheckedChanged += async (s, e) => { UpdateAttributionText(); await UpdateOverlays(); };
             _controlPanel.Controls.Add(_chkTemperature);
             y += 26;
 
@@ -635,6 +644,80 @@ namespace WeatherImageGenerator.OpenGL
             _animationTimer.Tick += AnimationTimer_Tick;
         }
 
+        private void BuildAttributionPanel()
+        {
+            _attributionPanel = new Panel
+            {
+                AutoSize = true,
+                BackColor = Color.FromArgb(160, 0, 0, 0),
+                Padding = new Padding(6, 4, 6, 4)
+            };
+
+            var lblAttribution = new Label
+            {
+                Name = "lblAttributionText",
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(210, 255, 255, 255),
+                BackColor = Color.Transparent,
+                Location = new Point(6, 4),
+                MaximumSize = new Size(500, 0),
+                Cursor = Cursors.Hand
+            };
+            lblAttribution.Click += (s, e) =>
+            {
+                var style = GetCurrentMapStyle();
+                var url = MapOverlayService.GetAttributionUrl(style);
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+                catch { }
+            };
+            _attributionPanel.Controls.Add(lblAttribution);
+
+            this.Controls.Add(_attributionPanel);
+            _attributionPanel.BringToFront();
+
+            UpdateAttributionText();
+        }
+
+        private MapStyle GetCurrentMapStyle()
+        {
+            if (_cmbMapStyle == null) return MapStyle.Standard;
+            return _cmbMapStyle.SelectedIndex switch
+            {
+                0 => MapStyle.Standard,
+                1 => MapStyle.TerrainDark,
+                2 => MapStyle.Terrain,
+                3 => MapStyle.Satellite,
+                _ => MapStyle.Standard
+            };
+        }
+
+        private void UpdateAttributionText()
+        {
+            if (_attributionPanel == null) return;
+            var lbl = _attributionPanel.Controls["lblAttributionText"] as Label;
+            if (lbl == null) return;
+
+            var style = GetCurrentMapStyle();
+            var lines = new List<string>();
+            lines.Add(MapOverlayService.GetAttributionText(style));
+
+            if (_chkRadar != null && _chkRadar.Checked)
+                lines.Add("Radar: Environment and Climate Change Canada");
+            if (_chkTemperature != null && _chkTemperature.Checked)
+                lines.Add("Weather: Open-Meteo.com (CC BY 4.0)");
+
+            lbl.Text = string.Join("\n", lines);
+        }
+
+        private void RepositionAttributionPanel()
+        {
+            if (_attributionPanel == null) return;
+            int panelX = 6;
+            int panelY = this.Height - _attributionPanel.Height - 6;
+            _attributionPanel.Location = new Point(panelX, Math.Max(0, panelY));
+        }
+
         private void RepositionAnimationPanel()
         {
             if (_animationPanel == null) return;
@@ -648,6 +731,7 @@ namespace WeatherImageGenerator.OpenGL
         {
             base.OnLayout(levent);
             RepositionAnimationPanel();
+            RepositionAttributionPanel();
         }
 
         // ═══ Animation Logic ═══
@@ -885,6 +969,7 @@ namespace WeatherImageGenerator.OpenGL
                 _ => MapStyle.Standard
             };
             _glControl.SetMapStyle(style);
+            UpdateAttributionText();
         }
 
         private void OnRadarLayerChanged()
