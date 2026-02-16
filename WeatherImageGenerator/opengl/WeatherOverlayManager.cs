@@ -83,7 +83,8 @@ namespace WeatherImageGenerator.OpenGL
             var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
 
             // Check if position/zoom changed significantly (requires new radar fetch)
-            bool positionChanged = Math.Abs(centerLat - _lastRadarLat) > 0.1 || Math.Abs(centerLon - _lastRadarLon) > 0.1;
+            // 0.5° tolerance prevents re-fetching on small pans — radar covers viewport + margin
+            bool positionChanged = Math.Abs(centerLat - _lastRadarLat) > 0.5 || Math.Abs(centerLon - _lastRadarLon) > 0.5;
             bool zoomChanged = mapZoom != _lastRadarZoom;
             bool cacheExpired = DateTime.UtcNow - _lastRadarUpdate >= _radarUpdateInterval;
 
@@ -127,9 +128,9 @@ namespace WeatherImageGenerator.OpenGL
                     _lastRadarLon = centerLon;
                     _lastRadarZoom = mapZoom;
                     
-                    // Cache to disk
-                    var cachePath = Path.Combine(_cacheDirectory, $"radar_{centerLat:F2}_{centerLon:F2}.png");
-                    await File.WriteAllBytesAsync(cachePath, radarData);
+                    // NOTE: Disk caching removed — radar overlay is held in RAM and
+                    // re-fetched from WMS when expired. The old disk cache was write-only
+                    // (never read back), so it wasted I/O without any benefit.
                 }
 
                 return _radarOverlay;
@@ -155,7 +156,8 @@ namespace WeatherImageGenerator.OpenGL
                 return null;
 
             // Check if position/zoom changed significantly (requires re-fetch)
-            bool positionChanged = Math.Abs(centerLat - _lastTempLat) > 0.1 || Math.Abs(centerLon - _lastTempLon) > 0.1;
+            // 0.5° tolerance prevents re-fetching on small pans
+            bool positionChanged = Math.Abs(centerLat - _lastTempLat) > 0.5 || Math.Abs(centerLon - _lastTempLon) > 0.5;
             bool zoomChanged = mapZoom != _lastTempZoom;
             bool cacheExpired = DateTime.UtcNow - _lastTemperatureUpdate >= _temperatureUpdateInterval;
 

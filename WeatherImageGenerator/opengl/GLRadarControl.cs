@@ -52,6 +52,34 @@ namespace WeatherImageGenerator.OpenGL
         private int _overlayZoom = 0;
         private bool _hasPositionedOverlay = false;
 
+        // Second overlay slot for GPU-side compositing (e.g. temperature on top of radar)
+        // Each overlay has its own GL texture, bbox, opacity — composited via alpha blending on GPU
+        private int _overlay2Texture = 0;
+        private double _overlay2MinLat = 0.0;
+        private double _overlay2MinLon = 0.0;
+        private double _overlay2MaxLat = 0.0;
+        private double _overlay2MaxLon = 0.0;
+        private int _overlay2Zoom = 0;
+        private bool _hasPositionedOverlay2 = false;
+        private float _overlay2Opacity = 0.6f;
+
+        /// <summary>Opacity for the second positioned overlay (0.0–1.0)</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public float Overlay2Opacity
+        {
+            get => _overlay2Opacity;
+            set { _overlay2Opacity = Math.Max(0f, Math.Min(1f, value)); Invalidate(); }
+        }
+
+        // PBO pool for async texture uploads — avoids CPU stall during glTexImage2D
+        private int _pboId = 0;
+        private const int PBO_BUFFER_SIZE = 256 * 256 * 4; // one 256x256 RGBA tile
+
+        // Render batching timer — coalesces rapid Invalidate() calls from tile loads
+        private System.Threading.Timer? _renderBatchTimer;
+        private volatile bool _renderPending = false;
+
         // Use Pixel Buffer Objects (PBO) for async texture uploads when available.
         // Enabled by default — can be toggled for diagnostics.
         private bool _usePboUploads = true;
@@ -64,9 +92,15 @@ namespace WeatherImageGenerator.OpenGL
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool UsePboUploads { get => _usePboUploads; set => _usePboUploads = value; }
 
-        private const int MAX_TILE_TEXTURES = 300;
+        // VRAM tile texture cache — modern GPUs can hold thousands of 256×256 RGBA textures
+        // (~256 KB each). 4000 textures ≈ ~1 GB VRAM which is safe for any modern discrete GPU.
+        // Keeping more tiles in VRAM eliminates re-uploads when panning/zooming back to previously viewed areas.
+        private const int MAX_TILE_TEXTURES = 4000;
 
         private const int PREFETCH_RADIUS = 1;
+
+        // Dedicated overlay shader for weather data (no saturation/contrast/vignette)
+        private Shader? _weatherOverlayShader;
 
         // Radar frame buffer for ghosting/animation
         private readonly System.Collections.Generic.List<int> _radarFrames = new System.Collections.Generic.List<int>();
@@ -91,11 +125,6 @@ namespace WeatherImageGenerator.OpenGL
         // Tile loading deduplication
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task> _pendingLoads 
             = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task>();
-
-        // Dirty flag for batching invalidations
-#pragma warning disable CS0414 // assigned but not yet read — reserved for future render batching
-        private bool _renderDirty = false;
-#pragma warning restore CS0414
 
         private readonly string _vertexSourceFallback = @"#version 330 core
 layout(location=0) in vec2 aPos;
@@ -219,6 +248,28 @@ void main() {
             _tileShader!.SetInt("uTexture", 0);
             _tileShader!.SetFloat("uOpacity", 1.0f);
 
+            // Build dedicated weather overlay shader (pass-through, no tile effects)
+            var overlayTexVPath = Path.Combine(baseDir, "opengl", "shaders", "weather_overlay.vert.glsl");
+            var overlayTexFPath = Path.Combine(baseDir, "opengl", "shaders", "weather_overlay.frag.glsl");
+            string woV, woF;
+            try { woV = File.ReadAllText(overlayTexVPath); } catch { woV = _vertexSourceFallback; }
+            try { woF = File.ReadAllText(overlayTexFPath); } catch {
+                // Inline fallback: clean pass-through with opacity
+                woF = @"#version 330 core
+in vec2 vTex;
+out vec4 FragColor;
+uniform sampler2D uTexture;
+uniform float uOpacity;
+void main() {
+    vec4 c = texture(uTexture, vec2(vTex.x, 1.0 - vTex.y));
+    FragColor = vec4(c.rgb, c.a * uOpacity);
+}";
+            }
+            _weatherOverlayShader = new Shader(woV, woF);
+            _weatherOverlayShader.Use();
+            _weatherOverlayShader.SetInt("uTexture", 0);
+            _weatherOverlayShader.SetFloat("uOpacity", 1.0f);
+
             // Cache uniform locations for optimization
             _tileShaderTransformLoc = GL.GetUniformLocation(_tileShader.Handle, "uTransform");
             _tileShaderOpacityLoc = GL.GetUniformLocation(_tileShader.Handle, "uOpacity");
@@ -238,6 +289,25 @@ void main() {
             GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+
+            // Initialize PBO for async texture uploads
+            if (_usePboUploads)
+            {
+                try
+                {
+                    _pboId = GL.GenBuffer();
+                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, _pboId);
+                    GL.BufferData(BufferTarget.PixelUnpackBuffer, PBO_BUFFER_SIZE, IntPtr.Zero, BufferUsageHint.StreamDraw);
+                    GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+                    Console.WriteLine($"[GLRadarControl] PBO initialized: id={_pboId}, size={PBO_BUFFER_SIZE} bytes");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GLRadarControl] PBO init failed, falling back to direct upload: {ex.Message}");
+                    _usePboUploads = false;
+                    _pboId = 0;
+                }
+            }
         }
 
         private void GLRadarControl_Resize(object? sender, EventArgs e)
@@ -422,13 +492,16 @@ void main() {
             // Draw positioned overlay (anchored to geographic bbox) if present
             if (_hasPositionedOverlay && _overlayTexture != 0)
             {
-                // Use tile shader so overlay colors & alpha are preserved
+                // Use dedicated weather overlay shader (clean pass-through, no tile effects)
                 GL.Enable(EnableCap.Blend);
-                _tileShader.Use();
-                if (_tileShaderOpacityLoc >= 0)
-                    GL.Uniform1(_tileShaderOpacityLoc, _overlayOpacity);
+                var ovShader = _weatherOverlayShader ?? _tileShader;
+                ovShader.Use();
+                int ovTransformLoc = GL.GetUniformLocation(ovShader.Handle, "uTransform");
+                int ovOpacityLoc = GL.GetUniformLocation(ovShader.Handle, "uOpacity");
+                if (ovOpacityLoc >= 0)
+                    GL.Uniform1(ovOpacityLoc, _overlayOpacity);
                 else
-                    _tileShader.SetFloat("uOpacity", _overlayOpacity);
+                    ovShader.SetFloat("uOpacity", _overlayOpacity);
                 GL.ActiveTexture(TextureUnit.Texture0);
 
                 int z = _mapZoom;
@@ -460,10 +533,10 @@ void main() {
                 float centerNdcY = ((float)(1.0 - screenCenterY / (Height / 2.0))) * _zoom + _pan.Y;
 
                 float[] tmatOverlay = new float[] { tileSx, 0f, 0f, 0f, tileSy, 0f, centerNdcX, centerNdcY, 1f };
-                if (_tileShaderTransformLoc >= 0)
-                    GL.UniformMatrix3(_tileShaderTransformLoc, 1, false, tmatOverlay);
+                if (ovTransformLoc >= 0)
+                    GL.UniformMatrix3(ovTransformLoc, 1, false, tmatOverlay);
                 else
-                    _tileShader.SetMatrix3("uTransform", tmatOverlay);
+                    ovShader.SetMatrix3("uTransform", tmatOverlay);
 
                 GL.BindTexture(TextureTarget.Texture2D, _overlayTexture);
                 GL.BindVertexArray(_vao);
@@ -472,10 +545,10 @@ void main() {
                 GL.BindTexture(TextureTarget.Texture2D, 0);
 
                 // Reset opacity to 1.0 for subsequent draws
-                if (_tileShaderOpacityLoc >= 0)
-                    GL.Uniform1(_tileShaderOpacityLoc, 1.0f);
+                if (ovOpacityLoc >= 0)
+                    GL.Uniform1(ovOpacityLoc, 1.0f);
                 else
-                    _tileShader.SetFloat("uOpacity", 1.0f);
+                    ovShader.SetFloat("uOpacity", 1.0f);
 
                 // Debug: draw overlay bounding box so we can verify placement/size visually
                 if (_debugOverlayBounds && _overlayShader != null)
@@ -521,24 +594,89 @@ void main() {
                 }
             } // positioned overlay
 
+            // Draw second positioned overlay (e.g. temperature) — GPU compositing via alpha blend
+            if (_hasPositionedOverlay2 && _overlay2Texture != 0)
+            {
+                GL.Enable(EnableCap.Blend);
+                var ov2Shader = _weatherOverlayShader ?? _tileShader;
+                ov2Shader.Use();
+                int ov2TransformLoc = GL.GetUniformLocation(ov2Shader.Handle, "uTransform");
+                int ov2OpacityLoc = GL.GetUniformLocation(ov2Shader.Handle, "uOpacity");
+                if (ov2OpacityLoc >= 0)
+                    GL.Uniform1(ov2OpacityLoc, _overlay2Opacity);
+                else
+                    ov2Shader.SetFloat("uOpacity", _overlay2Opacity);
+                GL.ActiveTexture(TextureUnit.Texture0);
+
+                int z2 = _mapZoom;
+                double cx2 = LonToPixelX(_centerLon, z2);
+                double cy2 = LatToPixelY(_centerLat, z2);
+
+                double leftPx2 = LonToPixelX(_overlay2MinLon, z2);
+                double rightPx2 = LonToPixelX(_overlay2MaxLon, z2);
+                double topPy2 = LatToPixelY(_overlay2MaxLat, z2);
+                double bottomPy2 = LatToPixelY(_overlay2MinLat, z2);
+
+                double imgW2 = Math.Abs(rightPx2 - leftPx2);
+                double imgH2 = Math.Abs(bottomPy2 - topPy2);
+                double imgCx2 = (leftPx2 + rightPx2) / 2.0;
+                double imgCy2 = (topPy2 + bottomPy2) / 2.0;
+
+                double sCx2 = (imgCx2 - cx2) + Width / 2.0;
+                double sCy2 = (imgCy2 - cy2) + Height / 2.0;
+
+                float wNdc2 = (float)(imgW2 / (Width / 2.0)) * _zoom;
+                float hNdc2 = (float)(imgH2 / (Height / 2.0)) * _zoom;
+
+                float sx2 = wNdc2 / 2f;
+                float sy2 = hNdc2 / 2f;
+                float ndcX2 = ((float)(sCx2 / (Width / 2.0) - 1.0)) * _zoom + _pan.X;
+                float ndcY2 = ((float)(1.0 - sCy2 / (Height / 2.0))) * _zoom + _pan.Y;
+
+                float[] tmat2 = { sx2, 0f, 0f, 0f, sy2, 0f, ndcX2, ndcY2, 1f };
+                if (ov2TransformLoc >= 0)
+                    GL.UniformMatrix3(ov2TransformLoc, 1, false, tmat2);
+                else
+                    ov2Shader.SetMatrix3("uTransform", tmat2);
+
+                GL.BindTexture(TextureTarget.Texture2D, _overlay2Texture);
+                GL.BindVertexArray(_vao);
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+                GL.BindTexture(TextureTarget.Texture2D, 0);
+
+                if (ov2OpacityLoc >= 0)
+                    GL.Uniform1(ov2OpacityLoc, 1.0f);
+                else
+                    ov2Shader.SetFloat("uOpacity", 1.0f);
+            } // positioned overlay 2
+
             // Draw radar frames (oldest first) with fading alpha
             if (_radarFrames.Count > 0)
             {
                 GL.Enable(EnableCap.Blend);
-                // Use tile shader to preserve overlay colors (not radar palette shader)
-                _tileShader.Use();
+                // Use weather overlay shader for clean pass-through (no tile contrast/vignette)
+                var rfShader = _weatherOverlayShader ?? _tileShader;
+                rfShader.Use();
+                int rfTransformLoc = GL.GetUniformLocation(rfShader.Handle, "uTransform");
+                int rfOpacityLoc = GL.GetUniformLocation(rfShader.Handle, "uOpacity");
                 for (int i = 0; i < _radarFrames.Count; i++)
                 {
                     int tex = _radarFrames[i];
                     // fading alpha for animation effect
                     float alpha = (float)(i + 1) / (_radarFrames.Count + 1);
+
+                    if (rfOpacityLoc >= 0)
+                        GL.Uniform1(rfOpacityLoc, alpha);
+                    else
+                        rfShader.SetFloat("uOpacity", alpha);
                     
                     // Apply smooth zoom to fullscreen radar frames too
                     float[] tmat = new float[] { _zoom, 0f, 0f, 0f, _zoom, 0f, _pan.X, _pan.Y, 1f };
-                    if (_tileShaderTransformLoc >= 0)
-                        GL.UniformMatrix3(_tileShaderTransformLoc, 1, false, tmat);
+                    if (rfTransformLoc >= 0)
+                        GL.UniformMatrix3(rfTransformLoc, 1, false, tmat);
                     else
-                        _tileShader.SetMatrix3("uTransform", tmat);
+                        rfShader.SetMatrix3("uTransform", tmat);
                     
                     GL.BindTexture(TextureTarget.Texture2D, tex);
                     GL.BindVertexArray(_vao);
@@ -764,6 +902,10 @@ void main() {
                 try { GL.DeleteTexture(t); } catch { }
             }
             _radarFrames.Clear();
+
+            // Clear both positioned overlays
+            ClearPositionedOverlay();
+            ClearPositionedOverlay2();
             
             Invalidate();
         }
@@ -787,6 +929,76 @@ void main() {
             }
             _hasPositionedOverlay = false;
             Invalidate();
+        }
+
+        /// <summary>
+        /// Clears the second positioned overlay (temperature layer)
+        /// </summary>
+        public void ClearPositionedOverlay2()
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => ClearPositionedOverlay2()));
+                return;
+            }
+
+            MakeCurrent();
+            if (_overlay2Texture != 0)
+            {
+                try { GL.DeleteTexture(_overlay2Texture); } catch { }
+                _overlay2Texture = 0;
+            }
+            _hasPositionedOverlay2 = false;
+            Invalidate();
+        }
+
+        /// <summary>
+        /// Sets a second overlay texture with geographic bounding box (GPU compositing, no CPU compositing needed)
+        /// </summary>
+        public void SetOverlay2Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom)
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => SetOverlay2Bytes(data, minLat, minLon, maxLat, maxLon, sourceZoom)));
+                return;
+            }
+
+            if (minLat >= maxLat || minLon >= maxLon)
+            {
+                Console.WriteLine($"[GLRadarControl] ERROR: Invalid bbox for overlay2");
+                return;
+            }
+
+            try
+            {
+                MakeCurrent();
+                if (_overlay2Texture != 0)
+                {
+                    try { GL.DeleteTexture(_overlay2Texture); } catch { }
+                    _overlay2Texture = 0;
+                }
+
+                using var ms = new MemoryStream(data);
+                using var bmp = new Bitmap(ms);
+                _overlay2Texture = UploadBitmapToOverlayTexture(bmp);
+
+                if (_overlay2Texture != 0)
+                {
+                    _overlay2MinLat = minLat;
+                    _overlay2MinLon = minLon;
+                    _overlay2MaxLat = maxLat;
+                    _overlay2MaxLon = maxLon;
+                    _overlay2Zoom = sourceZoom;
+                    _hasPositionedOverlay2 = true;
+                    Console.WriteLine($"[GLRadarControl] Overlay2 uploaded: texture={_overlay2Texture}");
+                    Invalidate();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Overlay2 upload error: {ex.Message}");
+                _hasPositionedOverlay2 = false;
+            }
         }
 
 
@@ -1050,6 +1262,7 @@ void main() {
             if (disposing)
             {
                 _zoomSnapTimer?.Dispose();
+                _renderBatchTimer?.Dispose();
                 MakeCurrent();
                 if (_texture != 0)
                 {
@@ -1058,9 +1271,13 @@ void main() {
                     if (_hasBackgroundTexture) { _hasBackgroundTexture = false; BackgroundTextureChanged?.Invoke(false); }
                 }
                 if (_fallbackTexture != 0) GL.DeleteTexture(_fallbackTexture);
+                if (_overlayTexture != 0) { try { GL.DeleteTexture(_overlayTexture); } catch { } _overlayTexture = 0; }
+                if (_overlay2Texture != 0) { try { GL.DeleteTexture(_overlay2Texture); } catch { } _overlay2Texture = 0; }
+                if (_pboId != 0) { try { GL.DeleteBuffer(_pboId); } catch { } _pboId = 0; }
                 if (_shader != null) _shader.Dispose();
                 if (_tileShader != null) _tileShader.Dispose();
                 if (_overlayShader != null) _overlayShader.Dispose();
+                if (_weatherOverlayShader != null) _weatherOverlayShader.Dispose();
 
                 // delete tile textures
                 foreach (var kv in _tileTextures)
@@ -1132,19 +1349,55 @@ void main() {
         {
             try
             {
-                while (_tileTextures.Count > MAX_TILE_TEXTURES)
+                if (_tileTextures.Count <= MAX_TILE_TEXTURES) return;
+
+                // Evict 25% of tiles in one batch using O(n) partial sort approach
+                int toEvict = Math.Max(1, _tileTextures.Count / 4);
+                
+                // Find the N oldest entries by timestamp without full sort
+                var entries = _tileLastUsed.ToArray();
+                // Partition: find approximate eviction threshold
+                if (entries.Length <= toEvict)
+                    return; // shouldn't happen, but safety check
+
+                // Use Array.Sort on a copy (still O(n log n) but on a value array, not LINQ allocation)
+                Array.Sort(entries, (a, b) => a.Value.CompareTo(b.Value));
+                
+                for (int i = 0; i < toEvict && i < entries.Length; i++)
                 {
-                    // find oldest used
-                    var oldest = _tileLastUsed.OrderBy(kv => kv.Value).FirstOrDefault();
-                    if (oldest.Key == default) break;
-                    if (_tileTextures.TryRemove(oldest.Key, out int tex))
+                    var key = entries[i].Key;
+                    if (_tileTextures.TryRemove(key, out int tex))
                     {
                         try { GL.DeleteTexture(tex); } catch { }
                     }
-                    _tileLastUsed.TryRemove(oldest.Key, out _);
+                    _tileLastUsed.TryRemove(key, out _);
                 }
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Coalesces rapid tile-load Invalidate() calls into a single redraw.
+        /// Multiple tiles loading within 16ms will trigger only one paint.
+        /// </summary>
+        private void BatchedInvalidate()
+        {
+            if (_renderPending) return;
+            _renderPending = true;
+
+            _renderBatchTimer?.Dispose();
+            _renderBatchTimer = new System.Threading.Timer(_ =>
+            {
+                _renderPending = false;
+                try
+                {
+                    if (this.IsHandleCreated)
+                    {
+                        this.BeginInvoke(new Action(() => Invalidate()));
+                    }
+                }
+                catch { }
+            }, null, 16, System.Threading.Timeout.Infinite); // ~60fps
         }
 
         private int CreateFallbackTexture(int w, int h)
@@ -1321,7 +1574,49 @@ void main() {
                         var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
                         try
                         {
-                            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, bmp.Width, bmp.Height, 0, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+                            int pixelBytes = bmp.Width * bmp.Height * 4;
+
+                            // Use PBO for async DMA upload when available and tile fits
+                            if (_usePboUploads && _pboId != 0 && pixelBytes <= PBO_BUFFER_SIZE)
+                            {
+                                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, _pboId);
+                                // Orphan the old buffer (driver can DMA from it while we fill the new one)
+                                GL.BufferData(BufferTarget.PixelUnpackBuffer, pixelBytes, IntPtr.Zero, BufferUsageHint.StreamDraw);
+                                // Map the PBO and copy pixel data into it
+                                IntPtr pboPtr = GL.MapBuffer(BufferTarget.PixelUnpackBuffer, BufferAccess.WriteOnly);
+                                if (pboPtr != IntPtr.Zero)
+                                {
+                                    // Copy from bitmap scanlines to PBO via Marshal (safe, no /unsafe needed)
+                                    int stride = Math.Abs(data.Stride);
+                                    int rowBytes = bmp.Width * 4;
+                                    byte[] rowBuffer = new byte[rowBytes];
+                                    for (int row = 0; row < bmp.Height; row++)
+                                    {
+                                        Marshal.Copy(data.Scan0 + row * data.Stride, rowBuffer, 0, rowBytes);
+                                        Marshal.Copy(rowBuffer, 0, pboPtr + row * rowBytes, rowBytes);
+                                    }
+                                    GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer);
+                                    // Upload from PBO (IntPtr.Zero = read from bound PBO)
+                                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 
+                                        bmp.Width, bmp.Height, 0, 
+                                        OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
+                                }
+                                else
+                                {
+                                    // PBO map failed — fallback to direct upload
+                                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 
+                                        bmp.Width, bmp.Height, 0, 
+                                        OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+                                }
+                                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+                            }
+                            else
+                            {
+                                // Direct upload (no PBO)
+                                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 
+                                    bmp.Width, bmp.Height, 0, 
+                                    OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+                            }
                         }
                         finally
                         {
@@ -1333,7 +1628,7 @@ void main() {
                         _tileLastUsed[key] = DateTime.UtcNow.Ticks;
                         NotifyTileStatus("Tiles: Remote", System.Drawing.Color.LightGreen);
                         EvictTilesIfNeeded();
-                        Invalidate();
+                        BatchedInvalidate();
                     }
                     catch { }
                 }));

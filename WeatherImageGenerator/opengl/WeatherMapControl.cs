@@ -1507,85 +1507,77 @@ namespace WeatherImageGenerator.OpenGL
 
                 Console.WriteLine($"[WeatherMap] UpdateOverlays: pos=({_currentLat:F2},{_currentLon:F2}), size={_glControl.Width}x{_glControl.Height}, zoom={_currentZoom}");
 
-                byte[]? overlayData = null;
-                bool bothEnabled = _overlayManager.RadarEnabled && _overlayManager.TemperatureEnabled;
+                // ── GPU compositing: upload radar and temperature as separate GL textures ──
+                // Each overlay gets its own texture slot with independent opacity.
+                // Alpha blending on the GPU composites them — no CPU-side GDI+ CompositeOverlays needed.
 
-                if (bothEnabled)
+                byte[]? radarData = null;
+                byte[]? tempData = null;
+
+                if (_overlayManager.RadarEnabled)
                 {
-                    // Both layers enabled: composite them CPU-side (radar + temperature)
-                    overlayData = await _overlayManager.GetCompositedOverlaysAsync(
-                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
-                }
-                else if (_overlayManager.RadarEnabled)
-                {
-                    // Single layer: pass raw radar PNG directly to GL (avoids CompositeOverlays roundtrip)
-                    overlayData = await _overlayManager.UpdateRadarOverlayAsync(
-                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
-                }
-                else if (_overlayManager.TemperatureEnabled)
-                {
-                    overlayData = await _overlayManager.UpdateTemperatureOverlayAsync(
+                    radarData = await _overlayManager.UpdateRadarOverlayAsync(
                         _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
                 }
 
-                Console.WriteLine($"[WeatherMap] Overlay data received: {(overlayData != null ? $"{overlayData.Length} bytes" : "null")}");
-
-                // Set opacity on GL control (shader-based, no CPU compositing needed)
-                _glControl.OverlayOpacity = _overlayManager.RadarEnabled 
-                    ? _overlayManager.RadarOpacity 
-                    : _overlayManager.TemperatureOpacity;
-
-                if (overlayData != null && overlayData.Length > 0)
+                if (_overlayManager.TemperatureEnabled)
                 {
-                    // Count non-transparent pixels for diagnostics
-                    int nonTransparentPixels = 0;
-                    int totalPixels = 0;
-                    try
+                    tempData = await _overlayManager.UpdateTemperatureOverlayAsync(
+                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
+                }
+
+                Console.WriteLine($"[WeatherMap] Radar: {(radarData != null ? $"{radarData.Length} bytes" : "null")}, Temp: {(tempData != null ? $"{tempData.Length} bytes" : "null")}");
+
+                // Upload radar overlay to primary overlay slot
+                if (radarData != null && radarData.Length > 0)
+                {
+                    _glControl.OverlayOpacity = _overlayManager.RadarOpacity;
+                    var radarBBox = _overlayManager.LastRadarBBox;
+                    if (radarBBox.HasValue)
                     {
-                        using var diagMs = new System.IO.MemoryStream(overlayData);
-                        using var diagBmp = new Bitmap(diagMs);
-                        var rect = new Rectangle(0, 0, diagBmp.Width, diagBmp.Height);
-                        var dataBmp = diagBmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                        try
-                        {
-                            int stride = Math.Abs(dataBmp.Stride);
-                            int stepX = Math.Max(1, diagBmp.Width / 40);
-                            int stepY = Math.Max(1, diagBmp.Height / 40);
-                            byte[] row = new byte[stride];
-                            for (int y = 0; y < diagBmp.Height; y += stepY)
-                            {
-                                System.Runtime.InteropServices.Marshal.Copy(dataBmp.Scan0 + y * dataBmp.Stride, row, 0, stride);
-                                for (int x = 0; x < diagBmp.Width; x += stepX)
-                                {
-                                    int idx = x * 4;
-                                    if (idx + 3 >= row.Length) continue;
-                                    totalPixels++;
-                                    if (row[idx + 3] > 8) nonTransparentPixels++;
-                                }
-                            }
-                        }
-                        finally { diagBmp.UnlockBits(dataBmp); }
-                    }
-                    catch { }
-
-                    Console.WriteLine($"[WeatherMap] Overlay pixel scan: {nonTransparentPixels}/{totalPixels} sampled pixels are non-transparent");
-
-                    // Always use positioned overlay path (bbox-aware) for geographic anchoring
-                    var bbox = _overlayManager.LastOverlayBBox;
-                    if (bbox.HasValue)
-                    {
-                        Console.WriteLine($"[WeatherMap] Setting positioned overlay with bbox: ({bbox.Value.MinLat:F4},{bbox.Value.MinLon:F4}) to ({bbox.Value.MaxLat:F4},{bbox.Value.MaxLon:F4})");
-                        _glControl.SetImageBytes(overlayData, bbox.Value.MinLat, bbox.Value.MinLon, bbox.Value.MaxLat, bbox.Value.MaxLon, _currentZoom);
+                        Console.WriteLine($"[WeatherMap] Setting radar overlay (slot 1) with bbox: ({radarBBox.Value.MinLat:F4},{radarBBox.Value.MinLon:F4}) to ({radarBBox.Value.MaxLat:F4},{radarBBox.Value.MaxLon:F4})");
+                        _glControl.SetImageBytes(radarData, radarBBox.Value.MinLat, radarBBox.Value.MinLon, radarBBox.Value.MaxLat, radarBBox.Value.MaxLon, _currentZoom);
                     }
                     else
                     {
-                        Console.WriteLine("[WeatherMap] Setting overlay without bbox (fallback to center/zoom)");
-                        _glControl.SetImageBytes(overlayData, _currentLat, _currentLon, _currentZoom);
+                        _glControl.SetImageBytes(radarData, _currentLat, _currentLon, _currentZoom);
                     }
                 }
-                else
+                else if (!_overlayManager.RadarEnabled)
                 {
-                    Console.WriteLine("[WeatherMap] No overlay data available");
+                    _glControl.ClearPositionedOverlay();
+                }
+
+                // Upload temperature overlay to second overlay slot (GPU composites via alpha blend)
+                if (tempData != null && tempData.Length > 0)
+                {
+                    _glControl.Overlay2Opacity = _overlayManager.TemperatureOpacity;
+                    var tempBBox = _overlayManager.LastTemperatureBBox;
+                    if (tempBBox.HasValue)
+                    {
+                        Console.WriteLine($"[WeatherMap] Setting temperature overlay (slot 2) with bbox: ({tempBBox.Value.MinLat:F4},{tempBBox.Value.MinLon:F4}) to ({tempBBox.Value.MaxLat:F4},{tempBBox.Value.MaxLon:F4})");
+                        _glControl.SetOverlay2Bytes(tempData, tempBBox.Value.MinLat, tempBBox.Value.MinLon, tempBBox.Value.MaxLat, tempBBox.Value.MaxLon, _currentZoom);
+                    }
+                }
+                else if (!_overlayManager.TemperatureEnabled)
+                {
+                    _glControl.ClearPositionedOverlay2();
+                }
+
+                // If only temperature (no radar), use primary slot for it instead
+                if (!_overlayManager.RadarEnabled && _overlayManager.TemperatureEnabled && tempData != null && tempData.Length > 0)
+                {
+                    _glControl.OverlayOpacity = _overlayManager.TemperatureOpacity;
+                    var tempBBox = _overlayManager.LastTemperatureBBox;
+                    if (tempBBox.HasValue)
+                    {
+                        _glControl.SetImageBytes(tempData, tempBBox.Value.MinLat, tempBBox.Value.MinLon, tempBBox.Value.MaxLat, tempBBox.Value.MaxLon, _currentZoom);
+                    }
+                    else
+                    {
+                        _glControl.SetImageBytes(tempData, _currentLat, _currentLon, _currentZoom);
+                    }
+                    _glControl.ClearPositionedOverlay2(); // don't double-draw
                 }
             }
             catch (Exception ex)
