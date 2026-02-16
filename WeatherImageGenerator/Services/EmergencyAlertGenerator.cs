@@ -832,6 +832,21 @@ namespace WeatherImageGenerator.Services
             }
         }
 
+        /// <summary>
+        /// Public wrapper for audio generation — used by AlertDisplayForm to generate
+        /// alert tone + TTS audio independently of video/image generation.
+        /// </summary>
+        /// <param name="alert">The alert entry</param>
+        /// <param name="outputDir">Output directory for the audio file</param>
+        /// <param name="index">Alert index (for filename)</param>
+        /// <param name="language">Language code (en-CA, fr-CA)</param>
+        /// <param name="provider">Provider: USA_NWS or Canada_AlertReady</param>
+        /// <returns>Path to the generated audio file, or empty string on failure</returns>
+        public static string GenerateAlertAudioPublic(AlertEntry alert, string outputDir, int index, string language, string provider)
+        {
+            return GenerateAlertAudio(alert, outputDir, index, language, provider);
+        }
+
         private static string GenerateAlertAudio(AlertEntry alert, string outputDir, int index, string language, string provider)
         {
             try

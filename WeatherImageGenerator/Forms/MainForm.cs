@@ -160,6 +160,10 @@ namespace WeatherImageGenerator.Forms
         private System.Net.Http.HttpClient? _nwsHttpClient;
         private HashSet<string> _nwsSeenAlertIds = new HashSet<string>();
 
+        // Cross-cycle alert deduplication: tracks fingerprints of alerts already processed (video + form shown)
+        private HashSet<string> _cycleProcessedAlertFingerprints = new HashSet<string>();
+        private bool _forceFetchAlertGeneration = false;
+
         // Theme colors for dynamic updates
         private Color _themeSuccessColor = Color.Green;
         private Color _themeDangerColor = Color.Red;
@@ -1304,6 +1308,34 @@ namespace WeatherImageGenerator.Forms
             // Cache the alerts for detail view
             _cachedAlerts = alerts;
 
+            // --- Cross-cycle alert deduplication: generate video + show form only for new/changed alerts ---
+            bool forceAll = _forceFetchAlertGeneration;
+            _forceFetchAlertGeneration = false;
+
+            var currentFingerprints = new HashSet<string>();
+            var cfg = ConfigManager.LoadConfig();
+            string alertLanguage = cfg.AlertReady?.PreferredLanguage ?? "fr-CA";
+
+            foreach (var alert in alerts)
+            {
+                string fp = ComputeAlertFingerprint(alert);
+                currentFingerprints.Add(fp);
+
+                if (forceAll || !_cycleProcessedAlertFingerprints.Contains(fp))
+                {
+                    _cycleProcessedAlertFingerprints.Add(fp);
+                    Logger.Log($"[Cycle Alert] New/changed alert detected — generating media: {alert.Title}", Logger.LogLevel.Info);
+                    _ = Task.Run(() => GenerateAlertMediaAsync(alert));
+                }
+                else
+                {
+                    Logger.Log($"[Cycle Alert] Skipping already-processed alert: {alert.Title}", Logger.LogLevel.Debug);
+                }
+            }
+
+            // Prune fingerprints for alerts that are no longer active (expired/removed)
+            _cycleProcessedAlertFingerprints.IntersectWith(currentFingerprints);
+
             // Clear previous alerts in the list
             foreach (ListViewItem item in _weatherList.Items)
             {
@@ -1381,6 +1413,18 @@ namespace WeatherImageGenerator.Forms
                 }
             }
             return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Computes a stable fingerprint for an alert based on its key fields.
+        /// The fingerprint changes when the alert content actually changes but stays
+        /// the same for identical re-fetches across cycles.
+        /// </summary>
+        private static string ComputeAlertFingerprint(AlertEntry alert)
+        {
+            var summary = alert.Summary ?? "";
+            if (summary.Length > 500) summary = summary.Substring(0, 500);
+            return $"{alert.Identifier}|{alert.Title}|{alert.Severity}|{alert.City}|{summary}|{alert.IssuedAt}";
         }
 
         private void SetSleepRemaining(TimeSpan ts)
@@ -1553,6 +1597,9 @@ namespace WeatherImageGenerator.Forms
 
         private void FetchClicked(Button fetchBtn)
         {
+            // Force regeneration of alert media regardless of deduplication
+            _forceFetchAlertGeneration = true;
+
             SetButtonEnabled(fetchBtn, false);
             _operationCts?.Dispose();
             _operationCts = new CancellationTokenSource();
@@ -2726,6 +2773,12 @@ namespace WeatherImageGenerator.Forms
 
                         try
                         {
+                            // Show the first alert in a live Windows Form (exact replica of the video frame)
+                            if (alerts.Count > 0)
+                            {
+                                AlertDisplayForm.ShowAlert(alerts[0], language, autoCloseSeconds: 120);
+                            }
+
                             // Use the new method that generates both media AND video automatically
                             var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                                 alerts,
@@ -3170,12 +3223,24 @@ namespace WeatherImageGenerator.Forms
 
                 Logger.Log($"[NWS] Polled: {alerts.Count} active alert(s), {newAlerts.Count} new.", Logger.LogLevel.Info);
 
-                // Generate media for new alerts
+                // Always show alert forms for new alerts; only generate video when cycle is running
                 foreach (var alert in newAlerts)
                 {
                     if (token.IsCancellationRequested) break;
                     Logger.Log($"[NWS] New alert detected: {alert.Title}", Logger.LogLevel.Info);
-                    await GenerateAlertMediaAsync(alert);
+
+                    var nwsCfg = ConfigManager.LoadConfig();
+                    string nwsLang = nwsCfg.AlertReady?.PreferredLanguage ?? "fr-CA";
+                    AlertDisplayForm.ShowAlert(alert, nwsLang, autoCloseSeconds: 120);
+
+                    if (_cts != null)
+                    {
+                        await GenerateAlertMediaAsync(alert, skipFormDisplay: true);
+                    }
+                    else
+                    {
+                        Logger.Log($"[NWS] Alert shown: {alert.Title} (video skipped \u2014 cycle not running)", Logger.LogLevel.Info);
+                    }
                 }
 
                 // Prune old seen IDs to prevent unbounded growth (keep last 5000)
@@ -3275,10 +3340,21 @@ namespace WeatherImageGenerator.Forms
             // Log the alert
             Logger.Log($"[NAAD] Alert received: {e.Alert?.Title}", Logger.LogLevel.Info);
 
-            // Generate alert media automatically
+            // Always show the alert form; only generate video when cycle is running
             if (e.Alert != null)
             {
-                _ = Task.Run(() => GenerateAlertMediaAsync(e.Alert));
+                var naadCfg = ConfigManager.LoadConfig();
+                string naadLang = naadCfg.AlertReady?.PreferredLanguage ?? "fr-CA";
+                AlertDisplayForm.ShowAlert(e.Alert, naadLang, autoCloseSeconds: 120);
+
+                if (_cts != null)
+                {
+                    _ = Task.Run(() => GenerateAlertMediaAsync(e.Alert, skipFormDisplay: true));
+                }
+                else
+                {
+                    Logger.Log($"[NAAD] Alert shown: {e.Alert.Title} (video skipped \u2014 cycle not running)", Logger.LogLevel.Info);
+                }
             }
         }
 
@@ -3307,7 +3383,7 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
-        private async Task GenerateAlertMediaAsync(AlertEntry alert)
+        private async Task GenerateAlertMediaAsync(AlertEntry alert, bool skipFormDisplay = false)
         {
             try
             {
@@ -3321,6 +3397,12 @@ namespace WeatherImageGenerator.Forms
                 string language = cfg.AlertReady?.PreferredLanguage ?? "fr-CA";
 
                 Logger.Log($"Generating media and video for alert: {alert.Title}", Logger.LogLevel.Info);
+
+                // Show the alert in a live Windows Form (exact replica of the video frame)
+                if (!skipFormDisplay)
+                {
+                    AlertDisplayForm.ShowAlert(alert, language, autoCloseSeconds: 120);
+                }
 
                 var alerts = new List<AlertEntry> { alert };
                 
