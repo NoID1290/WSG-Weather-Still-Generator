@@ -51,6 +51,7 @@ namespace WeatherImageGenerator.OpenGL
         private Label _lblFrameInfo;
         private Label _lblSpeed;
         private Button _btnLoadAnimation;
+        private CheckBox _chkAnimationFollowMap;
         private List<byte[]> _animationFrames = new List<byte[]>();
         private List<string> _animationTimestamps = new List<string>();
         private int _currentFrameIndex;
@@ -59,6 +60,7 @@ namespace WeatherImageGenerator.OpenGL
         private int _animationSpeedMs = 500;
         private System.Threading.Timer? _animationRefreshDebounce;
         private bool _animationRefreshInProgress = false;
+        private (double MinLat, double MinLon, double MaxLat, double MaxLon)? _animationBBox;
         
         private HttpClient _httpClient;
         private double _currentLat = 56.1304; // Canada centroid
@@ -385,6 +387,19 @@ namespace WeatherImageGenerator.OpenGL
             _controlPanel.Controls.Add(_btnLoadAnimation);
             y += buttonHeight + spacing;
 
+            _chkAnimationFollowMap = new CheckBox
+            {
+                Text = "Fetch new animation when moving",
+                Location = new Point(14, y),
+                Size = new Size(controlWidth - 14, 24),
+                Checked = true,
+                ForeColor = Color.FromArgb(200, 200, 200),
+                Font = new Font("Segoe UI", 9),
+                FlatStyle = FlatStyle.Flat
+            };
+            _controlPanel.Controls.Add(_chkAnimationFollowMap);
+            y += 30;
+
             AddSeparator(y); y += 12;
 
             // ═══ Actions ═══
@@ -664,6 +679,7 @@ namespace WeatherImageGenerator.OpenGL
 
                 _animationFrames = frames;
                 _animationTimestamps = validTimestamps;
+                _animationBBox = _overlayManager.LastRadarBBox;
                 _currentFrameIndex = 0;
 
                 // Configure timeline slider
@@ -733,7 +749,11 @@ namespace WeatherImageGenerator.OpenGL
             _currentFrameIndex = index;
 
             var frameData = _animationFrames[index];
-            var bbox = _overlayManager.LastRadarBBox;
+            // Use the saved bbox from when frames were loaded/refreshed,
+            // so frames stay anchored to their original position when follow-map is off
+            var bbox = _chkAnimationFollowMap.Checked
+                ? _overlayManager.LastRadarBBox
+                : _animationBBox;
             if (bbox.HasValue)
             {
                 _glControl.SetImageBytes(frameData, bbox.Value.MinLat, bbox.Value.MinLon,
@@ -774,8 +794,9 @@ namespace WeatherImageGenerator.OpenGL
         /// </summary>
         private void ScheduleAnimationRefresh()
         {
-            // Only refresh if animation frames are loaded
+            // Only refresh if animation frames are loaded and checkbox is checked
             if (_animationTimestamps.Count == 0) return;
+            if (!_chkAnimationFollowMap.Checked) return;
 
             // Reset the debounce timer (400ms after last pan/zoom event)
             _animationRefreshDebounce?.Dispose();
@@ -789,6 +810,8 @@ namespace WeatherImageGenerator.OpenGL
         /// </summary>
         private async Task RefreshAnimationFrames()
         {
+            // Re-check checkbox state at execution time (timer may have been scheduled before unchecking)
+            if (!_chkAnimationFollowMap.Checked) return;
             if (_animationRefreshInProgress || _animationTimestamps.Count == 0) return;
             _animationRefreshInProgress = true;
 
@@ -810,6 +833,7 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     _animationFrames = frames;
                     _animationTimestamps = validTimestamps;
+                    _animationBBox = _overlayManager.LastRadarBBox;
 
                     // Clamp frame index
                     _currentFrameIndex = Math.Min(_currentFrameIndex, _animationFrames.Count - 1);
