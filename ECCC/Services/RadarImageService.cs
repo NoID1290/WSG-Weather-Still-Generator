@@ -102,6 +102,41 @@ namespace ECCC.Services
         }
 
         /// <summary>
+        /// Fetches a radar overlay directly from ECCC WMS with configurable layer, style, and time.
+        /// Returns transparent PNG bytes (no base map compositing).
+        /// </summary>
+        public async Task<byte[]?> FetchRadarOverlayOnlyAsync(
+            (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
+            int width,
+            int height,
+            string radarLayer = "RADAR_1KM_RRAI",
+            string? wmsStyle = "RADARURPPRECIPR14-LINEAR",
+            string? time = null)
+        {
+            try
+            {
+                var radarUrl = BuildRadarUrl(bbox, width, height, radarLayer, wmsStyle, time);
+                Console.WriteLine($"[RadarImageService] Fetching radar overlay (layer={radarLayer}, time={time ?? "latest"})...");
+
+                var response = await _httpClient.GetAsync(radarUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    var data = await response.Content.ReadAsByteArrayAsync();
+                    Console.WriteLine($"[RadarImageService] Radar overlay fetched: {data?.Length ?? 0} bytes");
+                    return data;
+                }
+
+                Console.WriteLine($"[RadarImageService] Radar fetch failed: {response.StatusCode}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RadarImageService] Error fetching radar overlay: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Fetches the base map layer using OpenMap service or fallback.
         /// </summary>
         private async Task<byte[]?> FetchBaseMapAsync(
@@ -335,25 +370,35 @@ namespace ECCC.Services
         }
 
         /// <summary>
-        /// Builds the ECCC GeoMet WMS URL for radar data.
+        /// Builds the ECCC GeoMet WMS URL for radar data with configurable layer, style, and time.
         /// </summary>
         private string BuildRadarUrl(
             (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
             int width,
-            int height)
+            int height,
+            string radarLayer = "RADAR_1KM_RRAI",
+            string? wmsStyle = "RADARURPPRECIPR14-LINEAR",
+            string? time = null)
         {
-            return $"{ECCC_GEOMET_WMS}?" +
+            var url = $"{ECCC_GEOMET_WMS}?" +
                    $"SERVICE=WMS&" +
                    $"VERSION=1.3.0&" +
                    $"REQUEST=GetMap&" +
-                   $"LAYERS=RADAR_1KM_RRAI&" +
+                   $"LAYERS={Uri.EscapeDataString(radarLayer)}&" +
                    $"CRS=EPSG:4326&" +
                    $"BBOX={bbox.MinLat},{bbox.MinLon},{bbox.MaxLat},{bbox.MaxLon}&" +
                    $"WIDTH={width}&" +
                    $"HEIGHT={height}&" +
                    $"FORMAT=image/png&" +
-                   $"TRANSPARENT=TRUE&" +
-                   $"STYLES=RADARURPPRECIPR14-LINEAR";
+                   $"TRANSPARENT=TRUE";
+
+            if (!string.IsNullOrEmpty(wmsStyle))
+                url += $"&STYLES={Uri.EscapeDataString(wmsStyle)}";
+
+            if (!string.IsNullOrEmpty(time))
+                url += $"&TIME={Uri.EscapeDataString(time)}";
+
+            return url;
         }
 
         /// <summary>

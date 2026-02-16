@@ -13,37 +13,67 @@ namespace WeatherImageGenerator.OpenGL
         private readonly string _cacheRoot;
         private readonly string _urlTemplate;
         private readonly OpenMap.MapOverlayService? _mapService;
-        private readonly BinaryTileCache? _binaryCache;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, BinaryTileCache> _styleCaches = new();
+        private readonly bool _useBinaryCache;
 
         /// <summary>
         /// Optional local tiles root folder. If set, tiles will be read from here first (path layout z/x/y.png).
         /// </summary>
         public string? LocalTilesRoot { get; set; }
 
+        /// <summary>
+        /// Current map tile style. Changes which tile server URLs are used for fetching.
+        /// </summary>
+        public OpenMap.MapStyle CurrentStyle { get; set; } = OpenMap.MapStyle.Standard;
+
         public TileProvider(string urlTemplate = "https://tile.openstreetmap.org/{z}/{x}/{y}.png", OpenMap.MapOverlayService? mapService = null, bool useBinaryCache = true)
         {
             _urlTemplate = urlTemplate;
             _cacheRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "tilecache");
             Directory.CreateDirectory(_cacheRoot);
+            _useBinaryCache = useBinaryCache;
 
             // Provide a minimal User-Agent to be polite to tile servers
             try { _client.DefaultRequestHeaders.UserAgent.ParseAdd("WSG-Radar/1.0 (+https://example.com)"); } catch { }
 
             // Use existing OpenMap map service if provided so we reuse its cache and timeouts
             _mapService = mapService;
-            
-            // Initialize binary cache if enabled
-            if (useBinaryCache)
+        }
+
+        private BinaryTileCache? GetCacheForCurrentStyle()
+        {
+            if (!_useBinaryCache) return null;
+            var key = CurrentStyle.ToString().ToLowerInvariant();
+            try
             {
-                try
+                return _styleCaches.GetOrAdd(key, k =>
                 {
-                    _binaryCache = new BinaryTileCache(_cacheRoot);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[TileProvider] Binary cache init failed: {ex.Message}");
-                }
+                    var dir = Path.Combine(_cacheRoot, k);
+                    Directory.CreateDirectory(dir);
+                    return new BinaryTileCache(dir);
+                });
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TileProvider] Binary cache init failed for style {key}: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the tile URL for the specified coordinates using the current map style.
+        /// </summary>
+        private string GetTileUrlForCurrentStyle(int z, int x, int y)
+        {
+            return CurrentStyle switch
+            {
+                OpenMap.MapStyle.Standard => $"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                OpenMap.MapStyle.Minimal => $"https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+                OpenMap.MapStyle.Terrain => $"https://tile.opentopomap.org/{z}/{x}/{y}.png",
+                OpenMap.MapStyle.Satellite => $"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                OpenMap.MapStyle.TerrainDark => $"https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
+                _ => $"https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            };
         }
 
         /// <summary>
@@ -64,10 +94,13 @@ namespace WeatherImageGenerator.OpenGL
                     }
                 }
 
-                // Check binary cache first (fastest)
-                if (_binaryCache != null)
+                var binaryCache = GetCacheForCurrentStyle();
+                var styleDir = CurrentStyle.ToString().ToLowerInvariant();
+
+                // Check binary cache first (fastest, style-specific)
+                if (binaryCache != null)
                 {
-                    var cachedBytes = await _binaryCache.GetTileAsync(z, x, y);
+                    var cachedBytes = await binaryCache.GetTileAsync(z, x, y);
                     if (cachedBytes != null)
                     {
                         if (IsBlockedImage(cachedBytes)) return (null, TileFetchStatus.Blocked);
@@ -75,20 +108,18 @@ namespace WeatherImageGenerator.OpenGL
                     }
                 }
 
-                // Check old file-based cache (fallback)
-                var dir = Path.Combine(_cacheRoot, z.ToString(), x.ToString());
+                // Check old file-based cache (fallback, style-prefixed)
+                var dir = Path.Combine(_cacheRoot, styleDir, z.ToString(), x.ToString());
                 Directory.CreateDirectory(dir);
                 var file = Path.Combine(dir, y + ".png");
                 if (File.Exists(file))
                 {
                     var b = await File.ReadAllBytesAsync(file);
-                    // detect blocked image text
                     if (IsBlockedImage(b)) return (null, TileFetchStatus.Blocked);
                     
-                    // Migrate to binary cache
-                    if (_binaryCache != null)
+                    if (binaryCache != null)
                     {
-                        _ = _binaryCache.PutTileAsync(z, x, y, b);
+                        _ = binaryCache.PutTileAsync(z, x, y, b);
                     }
                     
                     return (b, TileFetchStatus.Ok);
@@ -99,23 +130,19 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     try
                     {
-                        // Use Standard style by default; MapOverlayService will handle cache and timeouts
-                        var (bytes, httpStatus) = await _mapService.FetchTileBytesAsync(x, y, z, OpenMap.MapStyle.Standard);
+                        var (bytes, httpStatus) = await _mapService.FetchTileBytesAsync(x, y, z, CurrentStyle);
                         if (httpStatus == 403 || httpStatus == 401) return (null, TileFetchStatus.Blocked);
                         if (httpStatus == 404) return (null, TileFetchStatus.NotFound);
                         if (httpStatus != 0 || bytes == null) return (null, TileFetchStatus.Error);
 
-                        // Detect blocked image heuristics
                         if (IsBlockedImage(bytes)) return (null, TileFetchStatus.Blocked);
 
-                        // Store in binary cache
-                        if (_binaryCache != null)
+                        if (binaryCache != null)
                         {
-                            await _binaryCache.PutTileAsync(z, x, y, bytes);
+                            await binaryCache.PutTileAsync(z, x, y, bytes);
                         }
                         else
                         {
-                            // Fallback to file cache
                             try { await File.WriteAllBytesAsync(file, bytes); } catch { }
                         }
                         
@@ -127,25 +154,22 @@ namespace WeatherImageGenerator.OpenGL
                     }
                 }
 
-                // Fetch from network (legacy fallback)
-                var url = _urlTemplate.Replace("{z}", z.ToString()).Replace("{x}", x.ToString()).Replace("{y}", y.ToString());
+                // Fetch from network (style-aware)
+                var url = GetTileUrlForCurrentStyle(z, x, y);
                 var resp = await _client.GetAsync(url);
                 if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return (null, TileFetchStatus.NotFound);
                 if (resp.StatusCode == System.Net.HttpStatusCode.Forbidden || resp.StatusCode == System.Net.HttpStatusCode.Unauthorized) return (null, TileFetchStatus.Blocked);
                 if (!resp.IsSuccessStatusCode) return (null, TileFetchStatus.Error);
 
                 var data = await resp.Content.ReadAsByteArrayAsync();
-                // Check common blocked-image content
                 if (IsBlockedImage(data)) return (null, TileFetchStatus.Blocked);
 
-                // Store in binary cache
-                if (_binaryCache != null)
+                if (binaryCache != null)
                 {
-                    await _binaryCache.PutTileAsync(z, x, y, data);
+                    await binaryCache.PutTileAsync(z, x, y, data);
                 }
                 else
                 {
-                    // Fallback to file cache
                     try { await File.WriteAllBytesAsync(file, data); } catch { }
                 }
                 
@@ -159,12 +183,9 @@ namespace WeatherImageGenerator.OpenGL
 
         private static bool IsBlockedImage(byte[] data)
         {
-            // Simple heuristic: check if the bytes contain the ASCII text "Access blocked" or "access blocked"
             try
             {
                 var s = System.Text.Encoding.ASCII.GetString(data);
-                if (s.IndexOf("Access blocked", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-                if (s.IndexOf("access blocked", StringComparison.OrdinalIgnoreCase) >= 0) return true;
                 if (s.IndexOf("Access blocked", StringComparison.OrdinalIgnoreCase) >= 0) return true;
             }
             catch { }
@@ -174,7 +195,11 @@ namespace WeatherImageGenerator.OpenGL
         public void Dispose()
         {
             _client?.Dispose();
-            _binaryCache?.Dispose();
+            foreach (var cache in _styleCaches.Values)
+            {
+                try { cache?.Dispose(); } catch { }
+            }
+            _styleCaches.Clear();
         }
     }
 }

@@ -1115,6 +1115,29 @@ void main() {
         }
 
         /// <summary>
+        /// Change the map tile style. Clears all cached tile textures and re-fetches with the new style.
+        /// </summary>
+        public void SetMapStyle(OpenMap.MapStyle style)
+        {
+            if (_tileProvider == null) _tileProvider = new TileProvider();
+            _tileProvider.CurrentStyle = style;
+
+            // Clear all tile textures (they belong to the old style)
+            MakeCurrent();
+            foreach (var kv in _tileTextures)
+            {
+                try { GL.DeleteTexture(kv.Value); } catch { }
+            }
+            _tileTextures.Clear();
+            _tileLastUsed.Clear();
+            _blockedTiles.Clear();
+
+            // Re-fetch tiles for new style
+            UpdateTiles();
+            Invalidate();
+        }
+
+        /// <summary>
         /// Use a local folder containing tiles in z/x/y.png layout. If set, TileProvider will prefer local tiles.
         /// </summary>
         public void SetLocalTilesFolder(string? folder)

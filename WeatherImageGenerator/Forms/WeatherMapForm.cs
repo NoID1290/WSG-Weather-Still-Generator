@@ -138,6 +138,38 @@ namespace WeatherImageGenerator.Forms
                     _weatherMap.RefreshOverlays();
                     e.Handled = true;
                     break;
+                case Keys.Space:
+                    _weatherMap.ToggleAnimation();
+                    e.Handled = true;
+                    break;
+                case Keys.Left:
+                    _weatherMap.StepBackward();
+                    e.Handled = true;
+                    break;
+                case Keys.Right:
+                    _weatherMap.StepForward();
+                    e.Handled = true;
+                    break;
+                case Keys.M:
+                    _weatherMap.CycleMapStyle();
+                    e.Handled = true;
+                    break;
+                case Keys.D1:
+                    _weatherMap.SetMapStyleByIndex(0); // Standard
+                    e.Handled = true;
+                    break;
+                case Keys.D2:
+                    _weatherMap.SetMapStyleByIndex(1); // Dark
+                    e.Handled = true;
+                    break;
+                case Keys.D3:
+                    _weatherMap.SetMapStyleByIndex(2); // Terrain
+                    e.Handled = true;
+                    break;
+                case Keys.D4:
+                    _weatherMap.SetMapStyleByIndex(3); // Satellite
+                    e.Handled = true;
+                    break;
             }
         }
 

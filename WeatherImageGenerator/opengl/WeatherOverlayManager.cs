@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using ECCC.Services;
 using OpenMap;
 using OpenMeteo;
@@ -52,6 +53,10 @@ namespace WeatherImageGenerator.OpenGL
         public bool TemperatureEnabled { get; set; } = false;
         public float RadarOpacity { get; set; } = 0.75f;
         public float TemperatureOpacity { get; set; } = 0.6f;
+
+        // Configurable radar layer and WMS style
+        public string RadarLayer { get; set; } = "RADAR_1KM_RRAI";
+        public string? RadarWmsStyle { get; set; } = "RADARURPPRECIPR14-LINEAR";
 
         public WeatherOverlayManager(HttpClient httpClient, MapOverlayService? mapService = null, string? cacheDir = null)
         {
@@ -105,12 +110,13 @@ namespace WeatherImageGenerator.OpenGL
                 Console.WriteLine($"[WeatherOverlay] Fetching radar (composite WMS) for viewport: center=({centerLat:F2},{centerLon:F2}), size={width}x{height}, zoom={mapZoom}");
                 Console.WriteLine($"[WeatherOverlay] Radar bbox (viewport): ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
 
-                // Use the bbox-aware composite API so the Interactive Map and Video/Still generator use identical data
-                var radarData = await _radarService.FetchRadarImageAsync(
+                // Use configurable layer/style for radar overlay
+                var radarData = await _radarService.FetchRadarOverlayOnlyAsync(
                     (MinLat: bbox.MinLat, MinLon: bbox.MinLon, MaxLat: bbox.MaxLat, MaxLon: bbox.MaxLon),
                     width,
                     height,
-                    mapZoom);
+                    RadarLayer,
+                    RadarWmsStyle);
 
 
                 if (radarData != null)
@@ -498,6 +504,151 @@ namespace WeatherImageGenerator.OpenGL
                 MaxLat: centerLat + latOffset,
                 MaxLon: centerLon + lonOffset
             );
+        }
+
+        // ─── Radar Animation Support ───────────────────────────────────────
+
+        private const string ECCC_GEOMET_WMS = "https://geo.weather.gc.ca/geomet";
+
+        /// <summary>
+        /// Fetches available radar timestamps from ECCC WMS GetCapabilities.
+        /// Returns ISO8601 timestamps in chronological order.
+        /// </summary>
+        public async Task<List<string>> FetchRadarTimestampsAsync(int numFrames = 8)
+        {
+            try
+            {
+                var capsUrl = $"{ECCC_GEOMET_WMS}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities&LAYERS={Uri.EscapeDataString(RadarLayer)}";
+                Console.WriteLine($"[WeatherOverlay] Fetching radar timestamps for {RadarLayer}...");
+                var xml = await _httpClient.GetStringAsync(capsUrl);
+                var doc = XDocument.Parse(xml);
+                var ns = doc.Root?.GetDefaultNamespace();
+
+                if (ns == null)
+                {
+                    Console.WriteLine("[WeatherOverlay] Failed to parse GetCapabilities XML");
+                    return GenerateFallbackTimestamps(numFrames, 6);
+                }
+
+                var dim = doc.Descendants(ns + "Dimension")
+                             .FirstOrDefault(d => (string?)d.Attribute("name") == "time");
+
+                if (dim != null)
+                {
+                    var content = dim.Value.Trim();
+
+                    // Format: start/end/period (e.g., 2024-01-01T00:00:00Z/2024-01-01T12:00:00Z/PT6M)
+                    if (content.Contains('/') && content.Contains("PT"))
+                    {
+                        var parts = content.Split('/');
+                        if (parts.Length >= 3 &&
+                            DateTime.TryParse(parts[0], null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime start) &&
+                            DateTime.TryParse(parts[1], null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime end))
+                        {
+                            var step = ParseIso8601Period(parts[2]);
+
+                            if (step.TotalSeconds > 0)
+                            {
+                                var times = new List<string>();
+                                var t = end.ToUniversalTime();
+
+                                for (int i = 0; i < numFrames; i++)
+                                {
+                                    times.Add(t.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+                                    t = t.Subtract(step);
+                                    if (t < start) break;
+                                }
+
+                                times.Reverse(); // Chronological order
+                                Console.WriteLine($"[WeatherOverlay] Found {times.Count} radar timestamps");
+                                return times;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherOverlay] Failed to fetch timestamps: {ex.Message}");
+            }
+
+            return GenerateFallbackTimestamps(numFrames, 6);
+        }
+
+        /// <summary>
+        /// Fetches multiple radar frames for animation.
+        /// Returns list of transparent PNG byte arrays and their timestamps.
+        /// </summary>
+        public async Task<(List<byte[]> Frames, List<string> Timestamps)> FetchMultipleRadarFramesAsync(
+            double centerLat, double centerLon, int width, int height, int mapZoom,
+            List<string> timestamps)
+        {
+            var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
+            LastRadarBBox = bbox;
+
+            var frames = new List<byte[]>();
+            var validTimestamps = new List<string>();
+
+            Console.WriteLine($"[WeatherOverlay] Fetching {timestamps.Count} radar frames for animation...");
+
+            foreach (var time in timestamps)
+            {
+                try
+                {
+                    var data = await _radarService.FetchRadarOverlayOnlyAsync(
+                        (bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon),
+                        width, height, RadarLayer, RadarWmsStyle, time);
+
+                    if (data != null && data.Length > 0)
+                    {
+                        frames.Add(data);
+                        validTimestamps.Add(time);
+                        Console.WriteLine($"[WeatherOverlay] Frame {frames.Count}/{timestamps.Count}: {time} ({data.Length} bytes)");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WeatherOverlay] Failed to fetch frame for {time}: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine($"[WeatherOverlay] Animation frames loaded: {frames.Count}/{timestamps.Count}");
+            return (frames, validTimestamps);
+        }
+
+        private List<string> GenerateFallbackTimestamps(int numFrames, int stepMinutes)
+        {
+            var times = new List<string>();
+            var now = DateTime.UtcNow;
+
+            for (int i = numFrames - 1; i >= 0; i--)
+            {
+                var t = now.Subtract(TimeSpan.FromMinutes(i * stepMinutes));
+                times.Add(t.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+            }
+
+            return times;
+        }
+
+        private TimeSpan ParseIso8601Period(string period)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(period) || !period.StartsWith("PT"))
+                    return TimeSpan.Zero;
+
+                var value = period.Substring(2).TrimEnd('M', 'H', 'S');
+
+                if (period.EndsWith("M"))
+                    return TimeSpan.FromMinutes(int.Parse(value));
+                else if (period.EndsWith("H"))
+                    return TimeSpan.FromHours(int.Parse(value));
+                else if (period.EndsWith("S"))
+                    return TimeSpan.FromSeconds(int.Parse(value));
+            }
+            catch { }
+
+            return TimeSpan.Zero;
         }
 
         public void Dispose()
