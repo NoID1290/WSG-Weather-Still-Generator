@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0.0217] - 2026-02-17
+
+- Releasing Interactive Weather Map
+- feat: Add Weather Map button to main form and remove dev-only map button from settings
+- feat: Enhance font atlas with additional extended characters and improve UI component sizes
+- Enhance Weather Overlay and UI Components
+
 ## [1.9.12.0216] - 2026-02-16
 
 - Refactor and enhance OpenGL rendering components
