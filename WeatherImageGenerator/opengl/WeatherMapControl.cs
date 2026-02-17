@@ -317,9 +317,9 @@ namespace WeatherImageGenerator.OpenGL
             // Radar Toggle
             _chkRadar = new CheckBox
             {
-                Text = "🌧️ Radar Composite",
+                Text = "Radar Composite",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 20),
+                Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.White,
                 Checked = true
@@ -399,14 +399,14 @@ namespace WeatherImageGenerator.OpenGL
                 await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackRadarOpacity);
-            y += 38;
+            y += 44;
 
             // Temperature Toggle
             _chkTemperature = new CheckBox
             {
-                Text = "🌡️ Temperature Grid",
+                Text = "Temperature Grid",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 20),
+                Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.White,
                 Checked = false
@@ -435,7 +435,7 @@ namespace WeatherImageGenerator.OpenGL
                 await UpdateOverlays();
             };
             _controlPanel.Controls.Add(_trackTempOpacity);
-            y += 38;
+            y += 44;
 
             AddSeparator(y); y += 8;
 
@@ -784,7 +784,8 @@ namespace WeatherImageGenerator.OpenGL
             {
                 AutoSize = true,
                 BackColor = Color.FromArgb(160, 0, 0, 0),
-                Padding = new Padding(6, 4, 6, 4)
+                Padding = new Padding(6, 4, 6, 4),
+                Visible = false  // Hidden – attribution is rendered via GL HUD
             };
 
             var lblAttribution = new Label

@@ -68,11 +68,25 @@ namespace WeatherImageGenerator.OpenGL
 
         private void BuildFontAtlas(string fontFamily, float fontSize)
         {
-            // Rasterize ASCII printable range (32-126) + a few extended chars
+            // Rasterize ASCII printable range (32-126) + extended chars (©, °, etc.)
+            var charList = new List<char>();
+            for (int i = 32; i <= 126; i++) charList.Add((char)i);
+            // Add commonly needed extended characters
+            charList.Add('©'); // U+00A9 copyright
+            charList.Add('°'); // U+00B0 degree
+            charList.Add('±'); // U+00B1 plus-minus
+            charList.Add('²'); // U+00B2 superscript 2
+            charList.Add('³'); // U+00B3 superscript 3
+            charList.Add('µ'); // U+00B5 micro
+            charList.Add('·'); // U+00B7 middle dot
+            charList.Add('é'); // U+00E9 e-acute
+            charList.Add('è'); // U+00E8 e-grave
+
+            int totalChars = charList.Count;
             int cellW = (int)(fontSize * 1.4f);
             int cellH = (int)(fontSize * 1.8f);
             int cols = 16;
-            int rows = 6; // 96 chars
+            int rows = (int)Math.Ceiling(totalChars / (double)cols);
             _atlasWidth = cols * cellW;
             _atlasHeight = rows * cellH;
 
@@ -89,9 +103,9 @@ namespace WeatherImageGenerator.OpenGL
                 FormatFlags = StringFormatFlags.MeasureTrailingSpaces | StringFormatFlags.NoWrap | StringFormatFlags.NoClip
             };
 
-            for (int i = 0; i < 96; i++)
+            for (int i = 0; i < totalChars; i++)
             {
-                char c = (char)(32 + i);
+                char c = charList[i];
                 int col = i % cols;
                 int row = i / cols;
                 float x = col * cellW;
