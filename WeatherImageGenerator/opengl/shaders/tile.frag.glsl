@@ -10,25 +10,15 @@ void main() {
     vec4 c = texture(uTexture, vec2(vTex.x, 1.0 - vTex.y));
     float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
 
-    // --- Saturation boost ---
+    // --- Subtle saturation boost ---
     float luma = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-    vec3 saturated = mix(vec3(luma), c.rgb, 1.18); // subtle 18% boost
+    vec3 saturated = mix(vec3(luma), c.rgb, 1.12); // gentle 12% boost
 
-    // --- Contrast S-curve ---
-    vec3 contrasted = smoothstep(vec3(-0.02), vec3(1.02), saturated);
+    // --- Mild contrast ---
+    vec3 contrasted = smoothstep(vec3(-0.01), vec3(1.01), saturated);
 
-    // --- Vignette ---
-    float dist = length(vScreenPos); // distance from center in NDC (0..~1.4)
-    float vignette = 1.0 - smoothstep(0.8, 1.8, dist) * 0.22; // subtle darkening at edges
+    // No edge fade - tiles must be seamless (edge blending causes visible seams)
+    // No per-tile vignette - vignette must be applied screen-wide, not per-tile
 
-    // --- Anti-aliased tile edge blending ---
-    float edgeFade = 1.0;
-    float edgeWidth = 0.005;
-    edgeFade *= smoothstep(0.0, edgeWidth, vTex.x);
-    edgeFade *= smoothstep(0.0, edgeWidth, 1.0 - vTex.x);
-    edgeFade *= smoothstep(0.0, edgeWidth, vTex.y);
-    edgeFade *= smoothstep(0.0, edgeWidth, 1.0 - vTex.y);
-
-    vec3 finalColor = contrasted * vignette;
-    FragColor = vec4(finalColor, c.a * opacity * edgeFade);
-} 
+    FragColor = vec4(contrasted, c.a * opacity);
+}

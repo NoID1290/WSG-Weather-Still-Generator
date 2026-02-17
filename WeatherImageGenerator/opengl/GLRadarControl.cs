@@ -469,8 +469,11 @@ void main() {
                         float centerNdcY = ((float)(1.0 - screenCenterY / (Height / 2.0))) * _zoom + _pan.Y;
 
                         // tile transform: scale then translate
-                        float tileSx = tileW / 2f;
-                        float tileSy = tileH / 2f;
+                        // Add 0.5 pixel overlap to eliminate sub-pixel seams between tiles
+                        float halfPixelNdcX = _zoom / (float)Width;
+                        float halfPixelNdcY = _zoom / (float)Height;
+                        float tileSx = tileW / 2f + halfPixelNdcX;
+                        float tileSy = tileH / 2f + halfPixelNdcY;
                         float txf = centerNdcX;
                         float tyf = centerNdcY;
 
