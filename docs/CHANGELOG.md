@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.12.0216] - 2026-02-16
+
+- Refactor and enhance OpenGL rendering components
+- feat: Improve tile rendering with pixel overlap and refined color adjustments
+- feat: Enhance weather overlay functionality with GPU compositing
+- feat: Enhance WeatherMapControl with collapsible options and panel positioning
+- feat: Add attribution overlay with dynamic text updates based on selected map style and overlays
+- feat: Add checkbox to control animation fetching behavior during map movements
+- feat: Implement debounced animation frame refresh after map interactions
+- feat: Add configurable map styles and radar animation support
+
 ## [1.9.11.0215] - 2026-02-15
 
 - feat: Enhance alert description and instructions rendering with improved layout and clipping logic
