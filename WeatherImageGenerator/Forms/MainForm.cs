@@ -140,6 +140,7 @@ namespace WeatherImageGenerator.Forms
         private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
         private System.Threading.Timer? _logArchiveTimer;
         private Button? _openWebUIBtn;
+        private Button? _weatherMapBtn;
         // NAAD Status Panel
         private Panel? _naadPanel;
         private Label? _naadTitleLabel;
@@ -244,6 +245,7 @@ namespace WeatherImageGenerator.Forms
             _clearDirBtn = CreateStyledButton("Clear", g3Left + g3BtnWidth + btnSpacing, row1Top, g3BtnWidth, btnHeight, Color.FromArgb(127, 140, 141), Color.White);
             _galleryBtn = CreateStyledButton("Gallery", g3Left, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
             _openWebUIBtn = CreateStyledButton("WebUI", g3Left + g3BtnWidth + btnSpacing, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
+            _weatherMapBtn = CreateStyledButton("Map", g3Left + (g3BtnWidth + btnSpacing) * 2, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(39, 174, 96), Color.White);
             
             // Group 4: Settings (Locations, Music, Settings, About)
             int g4Left = g3Left + (g3BtnWidth + btnSpacing) * 2 + groupSpacing;
@@ -615,6 +617,19 @@ namespace WeatherImageGenerator.Forms
             _fetchBtn.Click += (s, e) => FetchClicked(_fetchBtn);
             _stillBtn.Click += (s, e) => StillClicked(_stillBtn);
             _openWebUIBtn.Click += (s, e) => OpenWebUIInBrowser();
+            _weatherMapBtn.Click += (s, e) =>
+            {
+                try
+                {
+                    var f = new WeatherMapForm();
+                    f.Show();
+                    Logger.Log("Opened Weather Interactive Map.", Logger.LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to open weather map: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
             
             // Subscribe to WebUI events if the service is running
             SubscribeToWebUIEvents();
@@ -710,6 +725,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
             _topPanel.Controls.Add(_openWebUIBtn);
+            _topPanel.Controls.Add(_weatherMapBtn);
             _topPanel.Controls.Add(_toggleLogsBtn);
             _topPanel.Controls.Add(_txtWebUIUrl);
             // Add progress and status
@@ -1054,6 +1070,7 @@ namespace WeatherImageGenerator.Forms
             SetBtn(_galleryBtn, buttonColor, neutralBtnText);
             SetBtn(_settingsBtn, buttonColor, neutralBtnText);
             SetBtn(_aboutBtn, buttonColor, neutralBtnText);
+            SetBtn(_weatherMapBtn, successColor, coloredBtnText);
             SetBtn(_clearLogBtn, dangerColor, coloredBtnText);
 
             // Combos & Inputs
