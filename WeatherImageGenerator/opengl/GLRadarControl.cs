@@ -85,6 +85,10 @@ namespace WeatherImageGenerator.OpenGL
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), int> _tileTextures = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), int>();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), long> _tileLastUsed = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), long>();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime> _blockedTiles = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime>();
+        /// <summary>Limits concurrent tile HTTP requests to avoid hammering the server.</summary>
+        private static readonly System.Threading.SemaphoreSlim _tileSemaphore = new System.Threading.SemaphoreSlim(8, 8);
+        /// <summary>Blocked-tile TTL – re-attempt after this interval.</summary>
+        private static readonly TimeSpan BlockedTileTtl = TimeSpan.FromMinutes(2);
         private HttpClient _tileHttpClient = new HttpClient();
         private int _mapZoom = 4; // tile zoom (default to show Canada)
         private double _centerLat = 56.1304; // Canada centroid latitude
@@ -135,6 +139,9 @@ namespace WeatherImageGenerator.OpenGL
         private System.Threading.Timer? _renderBatchTimer;
         private volatile bool _renderPending = false;
 
+        // Animation refresh timer for shader time-based effects (crosshair pulse, glow)
+        private System.Threading.Timer? _animRefreshTimer;
+
         // Use Pixel Buffer Objects (PBO) for async texture uploads when available.
         // Enabled by default — can be toggled for diagnostics.
         private bool _usePboUploads = true;
@@ -174,8 +181,18 @@ namespace WeatherImageGenerator.OpenGL
         private int _tileShaderTransformLoc = -1;
         private int _tileShaderOpacityLoc = -1;
         private int _tileShaderTextureLoc = -1;
+        private int _tileShaderZoomNormLoc = -1;
         private int _overlayShaderColorLoc = -1;
         private int _overlayShaderAlphaLoc = -1;
+        private int _overlayShaderTimeLoc = -1;
+
+        // Weather overlay shader cached uniforms
+        private int _woShaderTransformLoc = -1;
+        private int _woShaderOpacityLoc = -1;
+        private int _woShaderTimeLoc = -1;
+
+        // Elapsed time for shader animations (crosshair pulse, overlay effects)
+        private System.Diagnostics.Stopwatch _elapsedTimer = System.Diagnostics.Stopwatch.StartNew();
 
         // Tile loading deduplication
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task> _pendingLoads 
@@ -303,8 +320,8 @@ void main() {
             var overlayVPath = Path.Combine(baseDir, "opengl", "shaders", "overlay.vert.glsl");
             var overlayFPath = Path.Combine(baseDir, "opengl", "shaders", "overlay.frag.glsl");
             string ovSrcV, ovSrcF;
-            try { ovSrcV = File.ReadAllText(overlayVPath); } catch { ovSrcV = "#version 330 core\nlayout(location=0) in vec2 aPos; void main(){ gl_Position = vec4(aPos,0,1); }"; }
-            try { ovSrcF = File.ReadAllText(overlayFPath); } catch { ovSrcF = "#version 330 core\nout vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; void main(){ FragColor = vec4(uColor,uAlpha); }"; }
+            try { ovSrcV = File.ReadAllText(overlayVPath); } catch { ovSrcV = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }"; }
+            try { ovSrcF = File.ReadAllText(overlayFPath); } catch { ovSrcF = "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }"; }
 
             try
             {
@@ -314,8 +331,8 @@ void main() {
             {
                 Console.WriteLine($"[GLRadarControl] Overlay shader compile failed: {ex.Message} — using fallback");
                 _overlayShader = new Shader(
-                    "#version 330 core\nlayout(location=0) in vec2 aPos; void main(){ gl_Position = vec4(aPos,0,1); }",
-                    "#version 330 core\nout vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; void main(){ FragColor = vec4(uColor,uAlpha); }");
+                    "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }",
+                    "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }");
             }
 
             // Initialize tile provider
@@ -335,15 +352,20 @@ void main() {
             string woV, woF;
             try { woV = File.ReadAllText(overlayTexVPath); } catch { woV = _vertexSourceFallback; }
             try { woF = File.ReadAllText(overlayTexFPath); } catch {
-                // Inline fallback: clean pass-through with opacity
+                // Inline fallback: clean pass-through with opacity and edge blend
                 woF = @"#version 330 core
 in vec2 vTex;
+in vec2 vScreenPos;
 out vec4 FragColor;
 uniform sampler2D uTexture;
 uniform float uOpacity;
+uniform float uTime;
 void main() {
-    vec4 c = texture(uTexture, vec2(vTex.x, 1.0 - vTex.y));
-    FragColor = vec4(c.rgb, c.a * uOpacity);
+    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
+    vec4 c = texture(uTexture, uv);
+    float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
+    float edgeFade = smoothstep(0.0, 0.015, uv.x) * smoothstep(0.0, 0.015, 1.0 - uv.x) * smoothstep(0.0, 0.015, uv.y) * smoothstep(0.0, 0.015, 1.0 - uv.y);
+    FragColor = vec4(c.rgb, c.a * opacity * edgeFade);
 }";
             }
             try
@@ -359,8 +381,11 @@ out vec4 FragColor;
 uniform sampler2D uTexture;
 uniform float uOpacity;
 void main() {
-    vec4 c = texture(uTexture, vec2(vTex.x, 1.0 - vTex.y));
-    FragColor = vec4(c.rgb, c.a * uOpacity);
+    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
+    vec4 c = texture(uTexture, uv);
+    float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
+    float edgeFade = smoothstep(0.0, 0.015, uv.x) * smoothstep(0.0, 0.015, 1.0 - uv.x) * smoothstep(0.0, 0.015, uv.y) * smoothstep(0.0, 0.015, 1.0 - uv.y);
+    FragColor = vec4(c.rgb, c.a * opacity * edgeFade);
 }");
             }
             _weatherOverlayShader.Use();
@@ -371,17 +396,27 @@ void main() {
             _tileShaderTransformLoc = GL.GetUniformLocation(_tileShader.Handle, "uTransform");
             _tileShaderOpacityLoc = GL.GetUniformLocation(_tileShader.Handle, "uOpacity");
             _tileShaderTextureLoc = GL.GetUniformLocation(_tileShader.Handle, "uTexture");
+            _tileShaderZoomNormLoc = GL.GetUniformLocation(_tileShader.Handle, "uZoomNorm");
             _overlayShaderColorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
             _overlayShaderAlphaLoc = GL.GetUniformLocation(_overlayShader.Handle, "uAlpha");
+            _overlayShaderTimeLoc = GL.GetUniformLocation(_overlayShader.Handle, "uTime");
 
-            // Setup overlay buffers (we'll fill data on resize)
+            // Cache weather overlay shader uniforms
+            _woShaderTransformLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTransform");
+            _woShaderOpacityLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uOpacity");
+            _woShaderTimeLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTime");
+
+            // Setup overlay buffers (we'll fill data on resize)\n            // Format: [x, y, lineEdge] per vertex — lineEdge is 0 at center, 1 at edge (for AA)
             _overlayVao = GL.GenVertexArray();
             _overlayVbo = GL.GenBuffer();
             GL.BindVertexArray(_overlayVao);
             GL.BindBuffer(BufferTarget.ArrayBuffer, _overlayVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, 4 * 2 * sizeof(float), IntPtr.Zero, BufferUsageHint.DynamicDraw);
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
+            // Allocate for crosshair quad-lines: 4 quads * 6 verts * 3 floats + center dot
+            GL.BufferData(BufferTarget.ArrayBuffer, 128 * 3 * sizeof(float), IntPtr.Zero, BufferUsageHint.DynamicDraw);
+            GL.EnableVertexAttribArray(0); // aPos
+            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
+            GL.EnableVertexAttribArray(1); // aLineEdge
+            GL.VertexAttribPointer(1, 1, VertexAttribPointerType.Float, false, 3 * sizeof(float), 2 * sizeof(float));
 
             GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
@@ -417,6 +452,18 @@ void main() {
                     _pboId = 0;
                 }
             }
+
+            // Animation refresh timer — triggers repaints at ~30fps for crosshair pulse
+            // and shader time-based effects. Low overhead (just Invalidate, no work until Paint).
+            _animRefreshTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    if (this.IsHandleCreated)
+                        this.BeginInvoke(new Action(() => Invalidate()));
+                }
+                catch { }
+            }, null, 33, 33); // ~30fps
         }
 
         private void GLRadarControl_Resize(object? sender, EventArgs e)
@@ -427,25 +474,56 @@ void main() {
             Invalidate();
         }
 
+        private int _crosshairVertexCount = 0;
+
         private void UpdateOverlayVertices()
         {
-            // Build a small crosshair in NDC coordinates centered at (0,0)
-            // length in pixels
-            int lenPx = 16;
+            // Build anti-aliased crosshair using quad-strip lines.
+            // Each line segment is a screen-aligned quad with lineEdge = 0 at center, ±1 at edges.
+            // The fragment shader uses lineEdge for smooth anti-aliasing.
+            int lenPx = 18;
+            float halfW = 1.5f; // half-width of the line in pixels
             float hx = (lenPx * 2f) / Math.Max(1, Width);
             float hy = (lenPx * 2f) / Math.Max(1, Height);
+            float wx = halfW * 2f / Math.Max(1, Width);  // line width in NDC X
+            float wy = halfW * 2f / Math.Max(1, Height); // line width in NDC Y
 
-            // horizontal then vertical lines
-            float[] verts = new float[]
-            {
-                -hx, 0f,
-                 hx, 0f,
-                 0f,-hy,
-                 0f, hy
-            };
+            // Each line = 2 triangles = 6 vertices. 2 lines (H + V) = 12 vertices.
+            // Format: x, y, lineEdge
+            var verts = new System.Collections.Generic.List<float>();
 
+            // Horizontal line quad: from (-hx, 0) to (hx, 0), width = wy
+            // Triangle 1: top-left, bottom-left, top-right
+            verts.AddRange(new float[] { -hx, +wy, -1f });  // top-left (edge)
+            verts.AddRange(new float[] { -hx, -wy, +1f });  // bottom-left (edge)
+            verts.AddRange(new float[] { +hx, +wy, -1f });  // top-right (edge)
+            // Triangle 2: top-right, bottom-left, bottom-right
+            verts.AddRange(new float[] { +hx, +wy, -1f });
+            verts.AddRange(new float[] { -hx, -wy, +1f });
+            verts.AddRange(new float[] { +hx, -wy, +1f });
+
+            // Vertical line quad: from (0, -hy) to (0, hy), width = wx
+            verts.AddRange(new float[] { -wx, -hy, -1f });
+            verts.AddRange(new float[] { +wx, -hy, +1f });
+            verts.AddRange(new float[] { -wx, +hy, -1f });
+            verts.AddRange(new float[] { -wx, +hy, -1f });
+            verts.AddRange(new float[] { +wx, -hy, +1f });
+            verts.AddRange(new float[] { +wx, +hy, +1f });
+
+            // Center dot (small quad, all edges = 0 for full opacity)
+            float dotR = 3f / Math.Max(1, Width);
+            float dotRy = 3f / Math.Max(1, Height);
+            verts.AddRange(new float[] { -dotR, +dotRy, 0f });
+            verts.AddRange(new float[] { -dotR, -dotRy, 0f });
+            verts.AddRange(new float[] { +dotR, +dotRy, 0f });
+            verts.AddRange(new float[] { +dotR, +dotRy, 0f });
+            verts.AddRange(new float[] { -dotR, -dotRy, 0f });
+            verts.AddRange(new float[] { +dotR, -dotRy, 0f });
+
+            _crosshairVertexCount = verts.Count / 3;
+            float[] arr = verts.ToArray();
             GL.BindBuffer(BufferTarget.ArrayBuffer, _overlayVbo);
-            GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, verts.Length * sizeof(float), verts);
+            GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, arr.Length * sizeof(float), arr);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         }
 
@@ -518,6 +596,12 @@ void main() {
             {
                 _tileShader.Use();
                 GL.ActiveTexture(TextureUnit.Texture0);
+
+                // Pass zoom normalization to tile shader for atmospheric effects
+                // Normalize: zoom 0-20 → 0.0-1.0
+                float zoomNorm = Math.Clamp(_mapZoom / 20.0f, 0f, 1f);
+                if (_tileShaderZoomNormLoc >= 0)
+                    GL.Uniform1(_tileShaderZoomNormLoc, zoomNorm);
 
                 // Compute world/pixel metrics
                 int z = _mapZoom;
@@ -608,12 +692,13 @@ void main() {
                 GL.Enable(EnableCap.Blend);
                 var ovShader = _weatherOverlayShader ?? _tileShader;
                 ovShader.Use();
-                int ovTransformLoc = GL.GetUniformLocation(ovShader.Handle, "uTransform");
-                int ovOpacityLoc = GL.GetUniformLocation(ovShader.Handle, "uOpacity");
+                int ovTransformLoc = _woShaderTransformLoc >= 0 ? _woShaderTransformLoc : GL.GetUniformLocation(ovShader.Handle, "uTransform");
+                int ovOpacityLoc = _woShaderOpacityLoc >= 0 ? _woShaderOpacityLoc : GL.GetUniformLocation(ovShader.Handle, "uOpacity");
+                int ovTimeLoc = _woShaderTimeLoc >= 0 ? _woShaderTimeLoc : GL.GetUniformLocation(ovShader.Handle, "uTime");
                 if (ovOpacityLoc >= 0)
                     GL.Uniform1(ovOpacityLoc, _overlayOpacity);
-                else
-                    ovShader.SetFloat("uOpacity", _overlayOpacity);
+                if (ovTimeLoc >= 0)
+                    GL.Uniform1(ovTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
                 GL.ActiveTexture(TextureUnit.Texture0);
 
                 int z = _mapZoom;
@@ -659,8 +744,6 @@ void main() {
                 // Reset opacity to 1.0 for subsequent draws
                 if (ovOpacityLoc >= 0)
                     GL.Uniform1(ovOpacityLoc, 1.0f);
-                else
-                    ovShader.SetFloat("uOpacity", 1.0f);
 
                 // Debug: draw overlay bounding box so we can verify placement/size visually
                 if (_debugOverlayBounds && _overlayShader != null)
@@ -671,12 +754,13 @@ void main() {
                     float topNdc = centerNdcY + tileSy;
                     float bottomNdc = centerNdcY - tileSy;
 
+                    // Debug quad with lineEdge = 0 (fully opaque, no AA needed for debug)
                     float[] quad = new float[]
                     {
-                        leftNdc, topNdc,
-                        rightNdc, topNdc,
-                        rightNdc, bottomNdc,
-                        leftNdc, bottomNdc
+                        leftNdc, topNdc, 0f,
+                        rightNdc, topNdc, 0f,
+                        rightNdc, bottomNdc, 0f,
+                        leftNdc, bottomNdc, 0f
                     };
 
                     // Upload to overlay VBO (temporary) and draw a red outline
@@ -684,17 +768,12 @@ void main() {
                     GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, quad.Length * sizeof(float), quad);
 
                     _overlayShader.Use();
+                    if (_overlayShaderTimeLoc >= 0)
+                        GL.Uniform1(_overlayShaderTimeLoc, 0f); // no pulse for debug
                     if (_overlayShaderAlphaLoc >= 0)
                         GL.Uniform1(_overlayShaderAlphaLoc, 0.9f);
-                    else
-                        _overlayShader.SetFloat("uAlpha", 0.9f);
                     if (_overlayShaderColorLoc >= 0)
                         GL.Uniform3(_overlayShaderColorLoc, 1.0f, 0.2f, 0.2f);
-                    else
-                    {
-                        var colorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
-                        GL.Uniform3(colorLoc, 1.0f, 0.2f, 0.2f);
-                    }
 
                     GL.BindVertexArray(_overlayVao);
                     GL.LineWidth(2f);
@@ -712,12 +791,13 @@ void main() {
                 GL.Enable(EnableCap.Blend);
                 var ov2Shader = _weatherOverlayShader ?? _tileShader;
                 ov2Shader.Use();
-                int ov2TransformLoc = GL.GetUniformLocation(ov2Shader.Handle, "uTransform");
-                int ov2OpacityLoc = GL.GetUniformLocation(ov2Shader.Handle, "uOpacity");
+                int ov2TransformLoc = _woShaderTransformLoc >= 0 ? _woShaderTransformLoc : GL.GetUniformLocation(ov2Shader.Handle, "uTransform");
+                int ov2OpacityLoc = _woShaderOpacityLoc >= 0 ? _woShaderOpacityLoc : GL.GetUniformLocation(ov2Shader.Handle, "uOpacity");
+                int ov2TimeLoc = _woShaderTimeLoc >= 0 ? _woShaderTimeLoc : GL.GetUniformLocation(ov2Shader.Handle, "uTime");
                 if (ov2OpacityLoc >= 0)
                     GL.Uniform1(ov2OpacityLoc, _overlay2Opacity);
-                else
-                    ov2Shader.SetFloat("uOpacity", _overlay2Opacity);
+                if (ov2TimeLoc >= 0)
+                    GL.Uniform1(ov2TimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
                 GL.ActiveTexture(TextureUnit.Texture0);
 
                 int z2 = _mapZoom;
@@ -759,8 +839,6 @@ void main() {
 
                 if (ov2OpacityLoc >= 0)
                     GL.Uniform1(ov2OpacityLoc, 1.0f);
-                else
-                    ov2Shader.SetFloat("uOpacity", 1.0f);
             } // positioned overlay 2
 
             // Draw radar frames (oldest first) with fading alpha
@@ -770,8 +848,11 @@ void main() {
                 // Use weather overlay shader for clean pass-through (no tile contrast/vignette)
                 var rfShader = _weatherOverlayShader ?? _tileShader;
                 rfShader.Use();
-                int rfTransformLoc = GL.GetUniformLocation(rfShader.Handle, "uTransform");
-                int rfOpacityLoc = GL.GetUniformLocation(rfShader.Handle, "uOpacity");
+                int rfTransformLoc = _woShaderTransformLoc >= 0 ? _woShaderTransformLoc : GL.GetUniformLocation(rfShader.Handle, "uTransform");
+                int rfOpacityLoc = _woShaderOpacityLoc >= 0 ? _woShaderOpacityLoc : GL.GetUniformLocation(rfShader.Handle, "uOpacity");
+                int rfTimeLoc = _woShaderTimeLoc >= 0 ? _woShaderTimeLoc : GL.GetUniformLocation(rfShader.Handle, "uTime");
+                if (rfTimeLoc >= 0)
+                    GL.Uniform1(rfTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
                 for (int i = 0; i < _radarFrames.Count; i++)
                 {
                     int tex = _radarFrames[i];
@@ -797,10 +878,13 @@ void main() {
                 }
             }
 
-            // Draw overlay crosshair/marker in NDC with overlay shader
-            if (_overlayShader != null)
+            // Draw overlay crosshair/marker in NDC with overlay shader (anti-aliased quads)
+            if (_overlayShader != null && _crosshairVertexCount > 0)
             {
                 _overlayShader.Use();
+                // Pass time for pulse animation
+                if (_overlayShaderTimeLoc >= 0)
+                    GL.Uniform1(_overlayShaderTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
                 if (_overlayShaderAlphaLoc >= 0)
                     GL.Uniform1(_overlayShaderAlphaLoc, 1.0f);
                 else
@@ -815,13 +899,7 @@ void main() {
                 }
 
                 GL.BindVertexArray(_overlayVao);
-                GL.LineWidth(2f);
-                GL.DrawArrays(PrimitiveType.Lines, 0, 4);
-                GL.BindVertexArray(0);
-
-                GL.PointSize(6f);
-                GL.BindVertexArray(_overlayVao);
-                GL.DrawArrays(PrimitiveType.Points, 0, 1);
+                GL.DrawArrays(PrimitiveType.Triangles, 0, _crosshairVertexCount);
                 GL.BindVertexArray(0);
             }
 
@@ -1424,6 +1502,7 @@ void main() {
             {
                 _zoomSnapTimer?.Dispose();
                 _renderBatchTimer?.Dispose();
+                _animRefreshTimer?.Dispose();
                 MakeCurrent();
                 if (_texture != 0)
                 {
@@ -1688,7 +1767,14 @@ void main() {
             {
                 if (_tileProvider == null) _tileProvider = new TileProvider();
                 var key = (z, x, y);
-                if (_tileTextures.ContainsKey(key) || _blockedTiles.ContainsKey(key)) return;
+                if (_tileTextures.ContainsKey(key)) return;
+
+                // Honour blocked-tile TTL: allow retry after expiry
+                if (_blockedTiles.TryGetValue(key, out var blockedAt))
+                {
+                    if (DateTime.UtcNow - blockedAt < BlockedTileTtl) return;
+                    _blockedTiles.TryRemove(key, out _);
+                }
 
                 // Deduplicate concurrent loads for same tile
                 var loadTask = _pendingLoads.GetOrAdd(key, k => LoadTileInternalAsync(k.z, k.x, k.y));
@@ -1700,6 +1786,7 @@ void main() {
         private async System.Threading.Tasks.Task LoadTileInternalAsync(int z, int x, int y)
         {
             var key = (z, x, y);
+            await _tileSemaphore.WaitAsync();
             try
             {
                 var (bytes, status) = await _tileProvider!.GetTileBytesAsync(z, x, y);
@@ -1798,6 +1885,7 @@ void main() {
             catch { }
             finally
             {
+                _tileSemaphore.Release();
                 _pendingLoads.TryRemove(key, out _);
             }
         }

@@ -107,14 +107,14 @@ namespace WeatherImageGenerator.OpenGL
         private void InitializeComponents()
         {
             this.Size = new Size(1200, 800);
-            this.BackColor = Color.FromArgb(30, 30, 30);
+            this.BackColor = Color.FromArgb(24, 24, 28);
             
-            // Control panel (right side)
+            // Control panel (right side) – dark sidebar
             _controlPanel = new Panel
             {
                 Dock = DockStyle.Right,
                 Width = 280,
-                BackColor = Color.FromArgb(40, 40, 43),
+                BackColor = Color.FromArgb(32, 34, 38),
                 Padding = new Padding(10),
                 AutoScroll = true
             };
@@ -152,6 +152,25 @@ namespace WeatherImageGenerator.OpenGL
             // Use overlay-only mode: do NOT provide MapOverlayService here so
             // RadarImageService returns transparent radar overlays (live fetching)
             _overlayManager = new WeatherOverlayManager(_httpClient);
+
+            // Subscribe to overlay status events (e.g., "no snow data") for HUD display
+            _overlayManager.OverlayStatusChanged += (msg) =>
+            {
+                if (_glControl != null)
+                {
+                    _glControl.HudStatusText = msg;
+                    // Auto-clear after 5 seconds
+                    var clearTimer = new System.Threading.Timer(_ =>
+                    {
+                        try
+                        {
+                            if (_glControl.IsHandleCreated)
+                                _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = ""));
+                        }
+                        catch { }
+                    }, null, 5000, System.Threading.Timeout.Infinite);
+                }
+            };
         }
 
         private void SetupEventHandlers()
@@ -219,9 +238,9 @@ namespace WeatherImageGenerator.OpenGL
             {
                 Text = "Weather Map Controls",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 26),
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                ForeColor = Color.White
+                Size = new Size(controlWidth, 28),
+                Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold),
+                ForeColor = Color.FromArgb(240, 242, 248)
             };
             _controlPanel.Controls.Add(header);
             y += 30;
@@ -509,8 +528,8 @@ namespace WeatherImageGenerator.OpenGL
                 Text = "▶ ⚙ Options",
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 22),
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 160, 230),
+                Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 190, 255),
                 Cursor = Cursors.Hand
             };
             _lblOptionsHeader.Click += (s, e) => ToggleOptionsPanel();
@@ -1124,6 +1143,10 @@ namespace WeatherImageGenerator.OpenGL
                 3 => "RADAR_COVERAGE_RRAI.INV",
                 _ => "RADAR_1KM_RRAI"
             };
+            // Auto-set the correct WMS style for the selected layer
+            _overlayManager.RadarWmsStyle = WeatherOverlayManager.GetDefaultStyleForLayer(_overlayManager.RadarLayer);
+            // Update style dropdown to reflect the auto-selected style
+            _cmbRadarStyle.SelectedIndex = _overlayManager.RadarWmsStyle != null ? 0 : 1;
             _ = UpdateOverlays();
         }
 
@@ -1168,8 +1191,8 @@ namespace WeatherImageGenerator.OpenGL
                 Text = text,
                 Location = new Point(10, y),
                 Size = new Size(256, 22),
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = Color.FromArgb(0, 160, 230)
+                Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 190, 255)
             };
         }
 
@@ -1181,7 +1204,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(256, 16),
                 Font = new Font("Segoe UI", 9),
-                ForeColor = Color.FromArgb(170, 170, 170)
+                ForeColor = Color.FromArgb(185, 185, 190)
             };
         }
 
@@ -1192,23 +1215,28 @@ namespace WeatherImageGenerator.OpenGL
                 Text = text,
                 Location = new Point(10, y),
                 Size = new Size(256, 20),
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.LightGray
+                Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 220, 225)
             };
         }
 
         private Button CreateSmallButton(string text, int height)
         {
-            return new Button
+            var btn = new Button
             {
                 Text = text,
                 Size = new Size(78, height),
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
+                BackColor = Color.FromArgb(50, 55, 62),
+                ForeColor = Color.FromArgb(220, 225, 235),
                 Cursor = Cursors.Hand
             };
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 85);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 140, 220);
+            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 100, 170);
+            return btn;
         }
 
         private Button CreateActionButton(string text, int y)
@@ -1217,14 +1245,17 @@ namespace WeatherImageGenerator.OpenGL
             {
                 Text = text,
                 Location = new Point(10, y),
-                Size = new Size(256, 28),
-                Font = new Font("Segoe UI", 9),
+                Size = new Size(256, 30),
+                Font = new Font("Segoe UI", 9.5f),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(0, 122, 204),
                 ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleCenter
             };
             btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(28, 151, 234);
+            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 90, 158);
             return btn;
         }
 
@@ -1233,15 +1264,18 @@ namespace WeatherImageGenerator.OpenGL
             var btn = new Button
             {
                 Text = text,
-                Size = new Size(40, 20),
+                Size = new Size(40, 22),
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(55, 55, 60),
-                ForeColor = Color.White,
+                BackColor = Color.FromArgb(50, 52, 58),
+                ForeColor = Color.FromArgb(200, 200, 210),
                 Cursor = Cursors.Hand,
                 Margin = new Padding(1)
             };
-            btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.BorderColor = Color.FromArgb(65, 67, 75);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(70, 75, 85);
+            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 122, 204);
             btn.Click += (s, e) => SetPanelPosition(pos);
             return btn;
         }
@@ -1411,9 +1445,9 @@ namespace WeatherImageGenerator.OpenGL
         {
             var separator = new Panel
             {
-                Location = new Point(10, y),
-                Size = new Size(256, 1),
-                BackColor = Color.FromArgb(65, 65, 70)
+                Location = new Point(14, y + 2),
+                Size = new Size(248, 1),
+                BackColor = Color.FromArgb(58, 60, 68)
             };
             _controlPanel.Controls.Add(separator);
         }
@@ -1424,9 +1458,19 @@ namespace WeatherImageGenerator.OpenGL
             {
                 if (ctrl is Button btn)
                 {
-                    btn.FlatAppearance.BorderSize = 0;
-                    btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 150, 230);
-                    btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 100, 180);
+                    if (btn.FlatAppearance.MouseOverBackColor == Color.Empty)
+                        btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(28, 151, 234);
+                    if (btn.FlatAppearance.MouseDownBackColor == Color.Empty)
+                        btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 100, 180);
+                }
+                if (ctrl is ComboBox cmb)
+                {
+                    cmb.BackColor = Color.FromArgb(48, 50, 56);
+                    cmb.ForeColor = Color.FromArgb(220, 225, 235);
+                }
+                if (ctrl is CheckBox chk)
+                {
+                    chk.ForeColor = Color.FromArgb(210, 215, 225);
                 }
             }
         }

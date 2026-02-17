@@ -10,6 +10,11 @@ using WeatherImageGenerator.OpenGL;
 
 namespace WeatherImageGenerator.Forms
 {
+    /// <summary>
+    /// Legacy radar map form — superseded by <see cref="WeatherMapForm"/> which provides
+    /// all radar features plus temperature, animation, multiple layers, and GPU compositing.
+    /// </summary>
+    [System.Obsolete("Use WeatherMapForm instead. RadarMapForm is a legacy prototype and will be removed in a future version.")]
     public partial class RadarMapForm : Form
     {
         private GLRadarControl _glControl;

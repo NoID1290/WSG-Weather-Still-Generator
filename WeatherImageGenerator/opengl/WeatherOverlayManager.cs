@@ -60,6 +60,28 @@ namespace WeatherImageGenerator.OpenGL
         public string RadarLayer { get; set; } = "RADAR_1KM_RRAI";
         public string? RadarWmsStyle { get; set; } = "RADARURPPRECIPR14-LINEAR";
 
+        /// <summary>
+        /// Fired when an overlay fetch completes but the result is empty (all transparent).
+        /// The string parameter is a user-friendly status message.
+        /// </summary>
+        public event Action<string>? OverlayStatusChanged;
+
+        /// <summary>
+        /// Returns the recommended WMS style for a given ECCC radar layer.
+        /// Each layer has its own palette; using the wrong style produces blank results.
+        /// </summary>
+        public static string? GetDefaultStyleForLayer(string layer)
+        {
+            return layer switch
+            {
+                "RADAR_1KM_RRAI" => "RADARURPPRECIPR14-LINEAR",   // Rain rate
+                "RADAR_1KM_RSNO" => "RADARURPPRECIPS14-LINEAR",   // Snow rate
+                "RADAR_1KM_RDBR" => null,                          // Combined (server default palette)
+                "RADAR_COVERAGE_RRAI.INV" => null,                 // Coverage (server default)
+                _ => "RADARURPPRECIPR14-LINEAR"
+            };
+        }
+
         public WeatherOverlayManager(HttpClient httpClient, MapOverlayService? mapService = null, string? cacheDir = null)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
@@ -125,6 +147,22 @@ namespace WeatherImageGenerator.OpenGL
 
                 if (radarData != null)
                 {
+                    // Detect empty overlays (all-transparent PNGs = no precipitation in area)
+                    bool isEmpty = IsOverlayEmpty(radarData);
+                    if (isEmpty)
+                    {
+                        string layerName = RadarLayer switch
+                        {
+                            "RADAR_1KM_RRAI" => "Rain",
+                            "RADAR_1KM_RSNO" => "Snow",
+                            "RADAR_1KM_RDBR" => "Rain/Snow",
+                            "RADAR_COVERAGE_RRAI.INV" => "Coverage",
+                            _ => "Radar"
+                        };
+                        Console.WriteLine($"[WeatherOverlay] {layerName} layer returned empty data — no precipitation detected in this area");
+                        OverlayStatusChanged?.Invoke($"No {layerName.ToLower()} data available for this area");
+                    }
+
                     _radarOverlay = radarData;
                     _lastRadarUpdate = DateTime.UtcNow;
                     _lastRadarLat = centerLat;
@@ -249,7 +287,7 @@ namespace WeatherImageGenerator.OpenGL
         }
 
         /// <summary>
-        /// Generates a temperature grid overlay
+        /// Generates a temperature grid overlay with bilinear-interpolated heatmap
         /// </summary>
         private async Task<byte[]?> GenerateTemperatureGridAsync(
             (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
@@ -261,51 +299,68 @@ namespace WeatherImageGenerator.OpenGL
             {
                 Console.WriteLine($"[WeatherOverlay] Generating temperature grid for bbox: {bbox.MinLat:F2},{bbox.MinLon:F2} to {bbox.MaxLat:F2},{bbox.MaxLon:F2}");
                 
-                // Sample temperature at grid points (reduce API calls)
-                int gridSize = 5; // 5x5 grid
+                // 6×6 grid gives 36 sample points – good balance of density vs API calls
+                int gridSize = 6;
+                // Store results in a 2-D array for bilinear interpolation
+                float?[,] tempGrid = new float?[gridSize, gridSize];
                 var tempPoints = new List<(double lat, double lon, float temp, string location)>();
 
                 double latStep = (bbox.MaxLat - bbox.MinLat) / (gridSize - 1);
                 double lonStep = (bbox.MaxLon - bbox.MinLon) / (gridSize - 1);
 
+                // Fire all API calls concurrently (throttled via SemaphoreSlim)
+                var sem = new System.Threading.SemaphoreSlim(8);
+                var tasks = new List<System.Threading.Tasks.Task>();
+
                 for (int i = 0; i < gridSize; i++)
                 {
                     for (int j = 0; j < gridSize; j++)
                     {
-                        double lat = bbox.MinLat + (i * latStep);
-                        double lon = bbox.MinLon + (j * lonStep);
+                        int ci = i, cj = j;
+                        double lat = bbox.MinLat + (ci * latStep);
+                        double lon = bbox.MinLon + (cj * lonStep);
 
-                        try
+                        tasks.Add(System.Threading.Tasks.Task.Run(async () =>
                         {
-                            // Use OpenMeteo API with weather forecast request
-                            var options = new WeatherForecastOptions
+                            await sem.WaitAsync();
+                            try
                             {
-                                Current = new CurrentOptions(CurrentOptionsParameter.temperature_2m),
-                                Latitude = (float)lat,
-                                Longitude = (float)lon
-                            };
-                            var weatherData = await _openMeteoClient.QueryAsync(options);
+                                var options = new WeatherForecastOptions
+                                {
+                                    Current = new CurrentOptions(CurrentOptionsParameter.temperature_2m),
+                                    Latitude = (float)lat,
+                                    Longitude = (float)lon
+                                };
+                                var weatherData = await _openMeteoClient.QueryAsync(options);
 
-                            if (weatherData?.Current?.Temperature_2m != null)
-                            {
-                                tempPoints.Add((lat, lon, weatherData.Current.Temperature_2m.Value, $"{lat:F2},{lon:F2}"));
-                                Console.WriteLine($"[WeatherOverlay] Temperature at {lat:F2},{lon:F2}: {weatherData.Current.Temperature_2m.Value:F1}°C");
+                                if (weatherData?.Current?.Temperature_2m != null)
+                                {
+                                    float t = weatherData.Current.Temperature_2m.Value;
+                                    tempGrid[ci, cj] = t;
+                                    lock (tempPoints)
+                                        tempPoints.Add((lat, lon, t, $"{lat:F2},{lon:F2}"));
+                                }
                             }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[WeatherOverlay] Failed to fetch temp at {lat:F2},{lon:F2}: {ex.Message}");
-                        }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[WeatherOverlay] Failed to fetch temp at {lat:F2},{lon:F2}: {ex.Message}");
+                            }
+                            finally { sem.Release(); }
+                        }));
                     }
                 }
 
+                await System.Threading.Tasks.Task.WhenAll(tasks);
+
                 Console.WriteLine($"[WeatherOverlay] Collected {tempPoints.Count} temperature points");
                 
-                if (tempPoints.Count == 0)
-                    return null;
+                if (tempPoints.Count == 0) return null;
 
-                // Render temperature overlay
-                return RenderTemperatureOverlay(tempPoints, bbox, width, height, mapZoom);
+                // Fill any missing grid cells with nearest-neighbor
+                FillMissingGridCells(tempGrid, gridSize);
+
+                // Render bilinear-interpolated heatmap + labels
+                return RenderTemperatureOverlay(tempPoints, tempGrid, gridSize, bbox, width, height, mapZoom);
             }
             catch (Exception ex)
             {
@@ -314,11 +369,44 @@ namespace WeatherImageGenerator.OpenGL
             }
         }
 
+        /// <summary>Fill null cells with nearest available value so bilinear interpolation is complete.</summary>
+        private static void FillMissingGridCells(float?[,] grid, int size)
+        {
+            for (int i = 0; i < size; i++)
+            {
+                for (int j = 0; j < size; j++)
+                {
+                    if (grid[i, j].HasValue) continue;
+                    // spiral search for nearest
+                    float val = 0;
+                    bool found = false;
+                    for (int r = 1; r < size && !found; r++)
+                    {
+                        for (int di = -r; di <= r && !found; di++)
+                        {
+                            for (int dj = -r; dj <= r && !found; dj++)
+                            {
+                                int ni = i + di, nj = j + dj;
+                                if (ni >= 0 && ni < size && nj >= 0 && nj < size && grid[ni, nj].HasValue)
+                                {
+                                    val = grid[ni, nj]!.Value;
+                                    found = true;
+                                }
+                            }
+                        }
+                    }
+                    grid[i, j] = val;
+                }
+            }
+        }
+
         /// <summary>
-        /// Renders temperature data as a colored overlay
+        /// Renders a bilinear-interpolated temperature heatmap with pill-shaped labels
         /// </summary>
         private byte[]? RenderTemperatureOverlay(
             List<(double lat, double lon, float temp, string location)> points,
+            float?[,] tempGrid,
+            int gridSize,
             (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
             int width,
             int height,
@@ -331,45 +419,78 @@ namespace WeatherImageGenerator.OpenGL
                 
                 g.Clear(Color.Transparent);
                 g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Bilinear;
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
 
-                // Draw temperature points with gradient circles
-                foreach (var point in points)
+                // ── Render bilinear-interpolated heatmap raster ──
+                // Downsample to small raster, then stretch with bilinear filtering
+                int rasterW = Math.Max(gridSize * 8, 64);
+                int rasterH = Math.Max(gridSize * 8, 64);
+                using var heatRaster = new Bitmap(rasterW, rasterH, PixelFormat.Format32bppArgb);
+                for (int py = 0; py < rasterH; py++)
                 {
-                    // Convert lat/lon to pixel coordinates
-                    var pixelPos = LatLonToPixel(point.lat, point.lon, bbox, width, height);
-                    
-                    // Get color based on temperature
-                    var color = GetTemperatureColor(point.temp);
-                    
-                    // Draw gradient circle
-                    int radius = 80;
-                    using var path = new GraphicsPath();
-                    path.AddEllipse(pixelPos.x - radius, pixelPos.y - radius, radius * 2, radius * 2);
-                    
-                    using var pgb = new PathGradientBrush(path);
-                    pgb.CenterColor = Color.FromArgb(120, color);
-                    pgb.SurroundColors = new[] { Color.FromArgb(0, color) };
-                    
-                    g.FillEllipse(pgb, pixelPos.x - radius, pixelPos.y - radius, radius * 2, radius * 2);
-                    
-                    // Draw temperature text
-                    string tempText = $"{point.temp:F1}°C";
-                    using var font = new Font("Segoe UI", 14, FontStyle.Bold);
-                    using var textBrush = new SolidBrush(Color.White);
-                    using var shadowBrush = new SolidBrush(Color.FromArgb(180, 0, 0, 0));
-                    
-                    var textSize = g.MeasureString(tempText, font);
-                    float textX = pixelPos.x - textSize.Width / 2;
-                    float textY = pixelPos.y - textSize.Height / 2;
-                    
-                    // Shadow
-                    g.DrawString(tempText, font, shadowBrush, textX + 2, textY + 2);
-                    // Text
-                    g.DrawString(tempText, font, textBrush, textX, textY);
+                    for (int px = 0; px < rasterW; px++)
+                    {
+                        // Map pixel to grid coordinate (fractional)
+                        float gx = (float)px / rasterW * (gridSize - 1);
+                        float gy = (float)(rasterH - 1 - py) / rasterH * (gridSize - 1); // flip Y
+
+                        // Bilinear sample
+                        int x0 = Math.Min((int)gx, gridSize - 2);
+                        int y0 = Math.Min((int)gy, gridSize - 2);
+                        float fx = gx - x0;
+                        float fy = gy - y0;
+
+                        float t00 = tempGrid[y0, x0] ?? 0;
+                        float t10 = tempGrid[y0, x0 + 1] ?? 0;
+                        float t01 = tempGrid[y0 + 1, x0] ?? 0;
+                        float t11 = tempGrid[y0 + 1, x0 + 1] ?? 0;
+
+                        float temp = t00 * (1 - fx) * (1 - fy) +
+                                     t10 * fx * (1 - fy) +
+                                     t01 * (1 - fx) * fy +
+                                     t11 * fx * fy;
+
+                        var col = GetTemperatureColor(temp);
+                        heatRaster.SetPixel(px, py, Color.FromArgb(100, col));
+                    }
                 }
 
-                // Convert to PNG bytes
+                // Draw heatmap stretched to full viewport
+                g.DrawImage(heatRaster, 0, 0, width, height);
+
+                // ── Draw temperature labels with pill badge ──
+                using var font = new Font("Segoe UI", 12, FontStyle.Bold);
+                using var smallFont = new Font("Segoe UI", 8);
+
+                foreach (var pt in points)
+                {
+                    var pixelPos = LatLonToPixel(pt.lat, pt.lon, bbox, width, height);
+                    if (pixelPos.x < -20 || pixelPos.x > width + 20 || pixelPos.y < -20 || pixelPos.y > height + 20) continue;
+
+                    string tempText = $"{pt.temp:F1}°";
+                    var textSize = g.MeasureString(tempText, font);
+
+                    float badgeW = textSize.Width + 14;
+                    float badgeH = textSize.Height + 6;
+                    float bx = pixelPos.x - badgeW / 2;
+                    float by = pixelPos.y - badgeH / 2;
+
+                    // Pill background
+                    var badgeColor = GetTemperatureColor(pt.temp);
+                    using var badgePath = CreateRoundRectPath(bx, by, badgeW, badgeH, badgeH / 2);
+                    using var bgBrush = new SolidBrush(Color.FromArgb(200, badgeColor));
+                    using var borderPen = new Pen(Color.FromArgb(210, 255, 255, 255), 1.5f);
+                    g.FillPath(bgBrush, badgePath);
+                    g.DrawPath(borderPen, badgePath);
+
+                    // Temperature text (white with shadow)
+                    float tx = bx + 7;
+                    float ty = by + 3;
+                    g.DrawString(tempText, font, Brushes.Black, tx + 1, ty + 1);
+                    g.DrawString(tempText, font, Brushes.White, tx, ty);
+                }
+
                 using var ms = new MemoryStream();
                 bitmap.Save(ms, ImageFormat.Png);
                 return ms.ToArray();
@@ -378,6 +499,19 @@ namespace WeatherImageGenerator.OpenGL
             {
                 return null;
             }
+        }
+
+        /// <summary>Creates a rounded rectangle GraphicsPath.</summary>
+        private static GraphicsPath CreateRoundRectPath(float x, float y, float w, float h, float r)
+        {
+            r = Math.Min(r, Math.Min(w, h) / 2);
+            var path = new GraphicsPath();
+            path.AddArc(x, y, r * 2, r * 2, 180, 90);
+            path.AddArc(x + w - r * 2, y, r * 2, r * 2, 270, 90);
+            path.AddArc(x + w - r * 2, y + h - r * 2, r * 2, r * 2, 0, 90);
+            path.AddArc(x, y + h - r * 2, r * 2, r * 2, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         /// <summary>
@@ -420,18 +554,43 @@ namespace WeatherImageGenerator.OpenGL
         }
 
         /// <summary>
-        /// Gets color based on temperature (blue=cold, red=hot)
+        /// Gets color for temperature using smooth linear interpolation across a 10-stop palette.
         /// </summary>
         private Color GetTemperatureColor(float tempC)
         {
-            // Temperature color mapping
-            if (tempC < -20) return Color.FromArgb(0, 0, 139);      // Dark blue
-            if (tempC < -10) return Color.FromArgb(0, 102, 204);    // Blue
-            if (tempC < 0) return Color.FromArgb(102, 178, 255);    // Light blue
-            if (tempC < 10) return Color.FromArgb(144, 238, 144);   // Light green
-            if (tempC < 20) return Color.FromArgb(255, 255, 0);     // Yellow
-            if (tempC < 30) return Color.FromArgb(255, 165, 0);     // Orange
-            return Color.FromArgb(220, 20, 60);                      // Red
+            // (temperature °C, R, G, B)
+            (float t, int r, int g, int b)[] stops =
+            {
+                (-40, 40,   0, 100),   // deep purple
+                (-30,  0,   0, 180),   // dark blue
+                (-20,  0,  80, 220),   // blue
+                (-10, 60, 160, 240),   // sky blue
+                (  0,130, 210, 255),   // light cyan
+                ( 10,120, 220, 120),   // green
+                ( 20,240, 230,  50),   // yellow
+                ( 30,255, 160,  20),   // orange
+                ( 40,220,  30,  20),   // red
+                ( 50,140,   0,  50),   // dark crimson
+            };
+
+            if (tempC <= stops[0].t) return Color.FromArgb(stops[0].r, stops[0].g, stops[0].b);
+            if (tempC >= stops[^1].t) return Color.FromArgb(stops[^1].r, stops[^1].g, stops[^1].b);
+
+            for (int i = 0; i < stops.Length - 1; i++)
+            {
+                if (tempC >= stops[i].t && tempC <= stops[i + 1].t)
+                {
+                    float f = (tempC - stops[i].t) / (stops[i + 1].t - stops[i].t);
+                    int cr = (int)(stops[i].r + (stops[i + 1].r - stops[i].r) * f);
+                    int cg = (int)(stops[i].g + (stops[i + 1].g - stops[i].g) * f);
+                    int cb = (int)(stops[i].b + (stops[i + 1].b - stops[i].b) * f);
+                    return Color.FromArgb(
+                        Math.Clamp(cr, 0, 255),
+                        Math.Clamp(cg, 0, 255),
+                        Math.Clamp(cb, 0, 255));
+                }
+            }
+            return Color.Gray;
         }
 
         private (int x, int y) LatLonToPixel(double lat, double lon, 
@@ -678,6 +837,45 @@ namespace WeatherImageGenerator.OpenGL
         public void Dispose()
         {
             // Cleanup
+        }
+
+        /// <summary>
+        /// Checks if an overlay image is effectively empty (all pixels fully transparent).
+        /// Samples a grid of pixels for performance — avoids scanning every pixel.
+        /// </summary>
+        private static bool IsOverlayEmpty(byte[] pngData)
+        {
+            try
+            {
+                using var ms = new MemoryStream(pngData);
+                using var bmp = new Bitmap(ms);
+                if (!Image.IsAlphaPixelFormat(bmp.PixelFormat)) return false;
+
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var bits = bmp.LockBits(rect, ImageLockMode.ReadOnly,
+                    System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    int stride = bits.Stride;
+                    int stepX = Math.Max(1, bmp.Width / 32);  // sample ~32x32 grid
+                    int stepY = Math.Max(1, bmp.Height / 32);
+                    for (int y = 0; y < bmp.Height; y += stepY)
+                    {
+                        for (int x = 0; x < bmp.Width; x += stepX)
+                        {
+                            int idx = y * stride + x * 4 + 3; // alpha byte (BGRA)
+                            if (idx < stride * bmp.Height)
+                            {
+                                byte alpha = System.Runtime.InteropServices.Marshal.ReadByte(bits.Scan0, idx);
+                                if (alpha > 10) return false; // non-transparent pixel found
+                            }
+                        }
+                    }
+                    return true; // all sampled pixels are transparent
+                }
+                finally { bmp.UnlockBits(bits); }
+            }
+            catch { return false; }
         }
     }
 }
