@@ -181,6 +181,28 @@ namespace WeatherImageGenerator.OpenGL
             }
         }
 
+        /// <summary>
+        /// Returns aggregate cache stats across all tile style caches.
+        /// </summary>
+        public CacheStats GetAggregateStats()
+        {
+            var result = new CacheStats();
+            foreach (var kvp in _styleCaches)
+            {
+                try
+                {
+                    var s = kvp.Value.GetStats();
+                    result.TileCount += s.TileCount;
+                    result.TotalSizeBytes += s.TotalSizeBytes;
+                    result.RamCacheEntries += s.RamCacheEntries;
+                    result.RamCacheBytes += s.RamCacheBytes;
+                }
+                catch { }
+            }
+            result.CacheFilePath = _cacheRoot;
+            return result;
+        }
+
         private static bool IsBlockedImage(byte[] data)
         {
             try

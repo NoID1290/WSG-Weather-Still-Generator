@@ -35,6 +35,8 @@ namespace WeatherImageGenerator.OpenGL
         private double _lastRadarLat;
         private double _lastRadarLon;
         private int _lastRadarZoom;
+        private string _lastRadarLayer = "RADAR_1KM_RRAI";
+        private string? _lastRadarWmsStyle = "RADARURPPRECIPR14-LINEAR";
         
         // Track last temperature parameters to detect when refresh is needed
         private double _lastTempLat;
@@ -87,9 +89,10 @@ namespace WeatherImageGenerator.OpenGL
             bool positionChanged = Math.Abs(centerLat - _lastRadarLat) > 0.5 || Math.Abs(centerLon - _lastRadarLon) > 0.5;
             bool zoomChanged = mapZoom != _lastRadarZoom;
             bool cacheExpired = DateTime.UtcNow - _lastRadarUpdate >= _radarUpdateInterval;
+            bool layerChanged = RadarLayer != _lastRadarLayer || RadarWmsStyle != _lastRadarWmsStyle;
 
             // Use cached data if available and parameters haven't changed significantly
-            if (_radarOverlay != null && !positionChanged && !zoomChanged && !cacheExpired)
+            if (_radarOverlay != null && !positionChanged && !zoomChanged && !cacheExpired && !layerChanged)
             {
                 // Keep bbox consistent with the cached image (don't update to new viewport)
                 Console.WriteLine($"[WeatherOverlay] Using cached radar data (bbox unchanged from last fetch)");
@@ -97,10 +100,10 @@ namespace WeatherImageGenerator.OpenGL
             }
 
             // Force invalidation: clear stale cached data so we don't return old image with new bbox
-            if (positionChanged || zoomChanged)
+            if (positionChanged || zoomChanged || layerChanged)
             {
                 _radarOverlay = null;
-                Console.WriteLine($"[WeatherOverlay] Cache invalidated: posChanged={positionChanged}, zoomChanged={zoomChanged}");
+                Console.WriteLine($"[WeatherOverlay] Cache invalidated: posChanged={positionChanged}, zoomChanged={zoomChanged}, layerChanged={layerChanged}");
             }
 
             // We're doing a real fetch — update the bbox to match the image we'll receive
@@ -127,6 +130,8 @@ namespace WeatherImageGenerator.OpenGL
                     _lastRadarLat = centerLat;
                     _lastRadarLon = centerLon;
                     _lastRadarZoom = mapZoom;
+                    _lastRadarLayer = RadarLayer;
+                    _lastRadarWmsStyle = RadarWmsStyle;
                     
                     // NOTE: Disk caching removed — radar overlay is held in RAM and
                     // re-fetched from WMS when expired. The old disk cache was write-only
@@ -454,9 +459,17 @@ namespace WeatherImageGenerator.OpenGL
             return Math.Min(radiusKm, 1000.0);
         }
 
+        /// <summary>Over-fetch multiplier: fetch overlays for a wider area than the viewport
+        /// so the user can pan without seeing cutoff edges.</summary>
+        private const double OVERLAY_OVERFETCH = 2.0;
+
         private (double MinLat, double MinLon, double MaxLat, double MaxLon) CalculateBoundingBox(
             double centerLat, double centerLon, int zoom, int width, int height)
         {
+            // Over-fetch: request 2× the viewport so panning doesn't immediately show cutoff
+            double fetchWidth = width * OVERLAY_OVERFETCH;
+            double fetchHeight = height * OVERLAY_OVERFETCH;
+
             // Web Mercator calculations for proper viewport bounds
             // At this zoom level, world is 2^zoom * 256 pixels
             double worldPixels = 256.0 * Math.Pow(2, zoom);
@@ -466,11 +479,11 @@ namespace WeatherImageGenerator.OpenGL
             double latRad = centerLat * Math.PI / 180.0;
             double centerPixelY = (1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * worldPixels;
             
-            // Calculate viewport bounds in pixels
-            double minPixelX = centerPixelX - width / 2.0;
-            double maxPixelX = centerPixelX + width / 2.0;
-            double minPixelY = centerPixelY - height / 2.0;
-            double maxPixelY = centerPixelY + height / 2.0;
+            // Calculate viewport bounds in pixels (using over-fetched dimensions)
+            double minPixelX = centerPixelX - fetchWidth / 2.0;
+            double maxPixelX = centerPixelX + fetchWidth / 2.0;
+            double minPixelY = centerPixelY - fetchHeight / 2.0;
+            double maxPixelY = centerPixelY + fetchHeight / 2.0;
             
             // Convert back to lat/lon
             double minLon = (minPixelX / worldPixels) * 360.0 - 180.0;
@@ -481,6 +494,15 @@ namespace WeatherImageGenerator.OpenGL
             double maxLatRad = Math.Atan(Math.Sinh(Math.PI * (1.0 - 2.0 * minPixelY / worldPixels)));
             double minLat = minLatRad * 180.0 / Math.PI;
             double maxLat = maxLatRad * 180.0 / Math.PI;
+
+            // Cap lat span to avoid absurdly large WMS requests
+            double latSpan = maxLat - minLat;
+            if (latSpan > 80.0)
+            {
+                double mid = (minLat + maxLat) / 2.0;
+                minLat = mid - 40.0;
+                maxLat = mid + 40.0;
+            }
 
             return (minLat, minLon, maxLat, maxLon);
         }

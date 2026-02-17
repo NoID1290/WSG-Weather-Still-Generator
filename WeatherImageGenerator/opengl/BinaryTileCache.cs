@@ -18,9 +18,7 @@ namespace WeatherImageGenerator.OpenGL
         private readonly string _cacheFilePath;
         private readonly string _indexFilePath;
         private readonly ConcurrentDictionary<(int z, int x, int y), TileCacheEntry> _index;
-        private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
-        private readonly SemaphoreSlim _readLock = new SemaphoreSlim(1, 1);
-        private FileStream? _cacheFileStream;
+        private readonly SemaphoreSlim _ioLock = new SemaphoreSlim(1, 1); // unified I/O lock for reads and writes
         private long _currentFilePosition = 0;
 
         // ── In-memory LRU cache ──────────────────────────────────────────
@@ -38,7 +36,12 @@ namespace WeatherImageGenerator.OpenGL
         // ── Batched index persistence ────────────────────────────────────
         private int _indexDirtyCount = 0;
         private const int INDEX_SAVE_BATCH_SIZE = 50; // save index every N writes
-        
+        // ── Eviction guard to prevent concurrent eviction races ─────
+        private int _evictionRunning = 0;
+
+        // ── Auto-compaction counter ─────────────────────────────
+        private int _writesSinceCompaction = 0;
+        private const int AUTO_COMPACT_WRITES = 500;        
         public BinaryTileCache(string cacheDirectory)
         {
             if (!Directory.Exists(cacheDirectory))
@@ -79,7 +82,7 @@ namespace WeatherImageGenerator.OpenGL
             // 2. Read from disk
             try
             {
-                await _readLock.WaitAsync();
+                await _ioLock.WaitAsync();
                 
                 if (!File.Exists(_cacheFilePath))
                     return null;
@@ -104,7 +107,7 @@ namespace WeatherImageGenerator.OpenGL
             }
             finally
             {
-                _readLock.Release();
+                _ioLock.Release();
             }
         }
 
@@ -120,7 +123,7 @@ namespace WeatherImageGenerator.OpenGL
 
             try
             {
-                await _writeLock.WaitAsync();
+                await _ioLock.WaitAsync();
 
                 // Open or create cache file in append mode
                 using var fs = new FileStream(_cacheFilePath, FileMode.Append, FileAccess.Write, FileShare.None);
@@ -150,6 +153,15 @@ namespace WeatherImageGenerator.OpenGL
                     await SaveIndexAsync();
                 }
 
+                // Auto-compaction: trigger after every N writes to reclaim dead space
+                _writesSinceCompaction++;
+                if (_writesSinceCompaction >= AUTO_COMPACT_WRITES)
+                {
+                    _writesSinceCompaction = 0;
+                    // Fire-and-forget compaction outside the lock
+                    _ = Task.Run(async () => { try { await CompactCacheAsync(); } catch { } });
+                }
+
                 return true;
             }
             catch
@@ -158,7 +170,7 @@ namespace WeatherImageGenerator.OpenGL
             }
             finally
             {
-                _writeLock.Release();
+                _ioLock.Release();
             }
         }
 
@@ -215,19 +227,35 @@ namespace WeatherImageGenerator.OpenGL
                 Interlocked.Read(ref _ramCacheTotalBytes) <= MAX_RAM_CACHE_BYTES)
                 return;
 
-            // Evict ~25% oldest entries in one pass
-            int toEvict = Math.Max(1, _ramCache.Count / 4);
-            var oldest = _ramCacheLastUsed
-                .OrderBy(kv => kv.Value)
-                .Take(toEvict)
-                .Select(kv => kv.Key)
-                .ToList();
+            // Only allow one thread to run eviction at a time
+            if (Interlocked.CompareExchange(ref _evictionRunning, 1, 0) != 0)
+                return;
 
-            foreach (var k in oldest)
+            try
             {
-                if (_ramCache.TryRemove(k, out var removed))
-                    Interlocked.Add(ref _ramCacheTotalBytes, -removed.Length);
-                _ramCacheLastUsed.TryRemove(k, out _);
+                // Re-check under the guard
+                if (_ramCache.Count <= MAX_RAM_CACHE_ENTRIES && 
+                    Interlocked.Read(ref _ramCacheTotalBytes) <= MAX_RAM_CACHE_BYTES)
+                    return;
+
+                // Evict ~25% oldest entries in one pass
+                int toEvict = Math.Max(1, _ramCache.Count / 4);
+                var oldest = _ramCacheLastUsed
+                    .OrderBy(kv => kv.Value)
+                    .Take(toEvict)
+                    .Select(kv => kv.Key)
+                    .ToList();
+
+                foreach (var k in oldest)
+                {
+                    if (_ramCache.TryRemove(k, out var removed))
+                        Interlocked.Add(ref _ramCacheTotalBytes, -removed.Length);
+                    _ramCacheLastUsed.TryRemove(k, out _);
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _evictionRunning, 0);
             }
         }
 
@@ -294,7 +322,7 @@ namespace WeatherImageGenerator.OpenGL
 
                 Console.WriteLine($"[BinaryTileCache] Compacting bin file: {fileSize / 1024 / 1024} MB -> ~{totalIndexedBytes / 1024 / 1024} MB ({wasteRatio * 100:F0}% waste)");
 
-                await _writeLock.WaitAsync();
+                await _ioLock.WaitAsync();
                 try
                 {
                     var tempPath = _cacheFilePath + ".tmp";
@@ -335,7 +363,7 @@ namespace WeatherImageGenerator.OpenGL
                 }
                 finally
                 {
-                    _writeLock.Release();
+                    _ioLock.Release();
                 }
             }
             catch (Exception ex)
@@ -349,7 +377,7 @@ namespace WeatherImageGenerator.OpenGL
         /// </summary>
         public async Task ClearCacheAsync()
         {
-            await _writeLock.WaitAsync();
+            await _ioLock.WaitAsync();
             try
             {
                 _index.Clear();
@@ -368,7 +396,7 @@ namespace WeatherImageGenerator.OpenGL
             }
             finally
             {
-                _writeLock.Release();
+                _ioLock.Release();
             }
         }
 
@@ -467,9 +495,7 @@ namespace WeatherImageGenerator.OpenGL
             }
             _ramCache.Clear();
             _ramCacheLastUsed.Clear();
-            _cacheFileStream?.Dispose();
-            _writeLock?.Dispose();
-            _readLock?.Dispose();
+            _ioLock?.Dispose();
         }
 
         private struct TileCacheEntry

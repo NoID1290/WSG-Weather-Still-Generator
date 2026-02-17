@@ -24,7 +24,62 @@ namespace WeatherImageGenerator.OpenGL
         private int _overlayVao = 0;
         private int _overlayVbo = 0;
 
+        // GL-native HUD text renderer for attribution + status
+        private GLTextRenderer? _uiRenderer;
+        private string _hudAttributionText = "";
+        private string _hudStatusText = "";
+
+        /// <summary>Attribution text rendered as GL HUD in the bottom-left corner of the viewport</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string HudAttributionText
+        {
+            get => _hudAttributionText;
+            set { _hudAttributionText = value ?? ""; Invalidate(); }
+        }
+
+        /// <summary>Status/frame info rendered as GL HUD in the bottom-center of the viewport</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string HudStatusText
+        {
+            get => _hudStatusText;
+            set { _hudStatusText = value ?? ""; Invalidate(); }
+        }
+
         // Map tile support
+        public TileProvider? ActiveTileProvider => _tileProvider;
+        /// <summary>Total number of GL textures currently allocated (tiles + overlays + frames + background)</summary>
+        public int VramTextureCount
+        {
+            get
+            {
+                int count = _tileTextures.Count;
+                if (_overlayTexture != 0) count++;
+                if (_overlay2Texture != 0) count++;
+                if (_texture != 0) count++;
+                if (_fallbackTexture != 0) count++;
+                count += _radarFrames.Count;
+                return count;
+            }
+        }
+
+        /// <summary>Estimated VRAM usage in bytes for all tracked GL textures</summary>
+        public long VramEstimatedBytes
+        {
+            get
+            {
+                // Tiles: 256x256x4 = 256KB each
+                long bytes = (long)_tileTextures.Count * 256 * 256 * 4;
+                // Overlays and frames are variable-size; estimate from stored dimensions
+                if (_overlayTexture != 0) bytes += 1024L * 1024 * 4; // ~4MB estimate for overlay
+                if (_overlay2Texture != 0) bytes += 1024L * 1024 * 4;
+                if (_texture != 0) bytes += (long)_bgPixelWidth * _bgPixelHeight * 4;
+                if (_fallbackTexture != 0) bytes += 256L * 256 * 4;
+                bytes += (long)_radarFrames.Count * 1024 * 1024 * 4; // estimate per frame
+                return bytes;
+            }
+        }
         private TileProvider? _tileProvider;
         private string? _localTileFolder = null;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), int> _tileTextures = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), int>();
@@ -93,9 +148,9 @@ namespace WeatherImageGenerator.OpenGL
         public bool UsePboUploads { get => _usePboUploads; set => _usePboUploads = value; }
 
         // VRAM tile texture cache — modern GPUs can hold thousands of 256×256 RGBA textures
-        // (~256 KB each). 4000 textures ≈ ~1 GB VRAM which is safe for any modern discrete GPU.
+        // (~256 KB each). 2000 textures ≈ ~512 MB VRAM which is safe for mid-range GPUs.
         // Keeping more tiles in VRAM eliminates re-uploads when panning/zooming back to previously viewed areas.
-        private const int MAX_TILE_TEXTURES = 4000;
+        private const int MAX_TILE_TEXTURES = 2000;
 
         private const int PREFETCH_RADIUS = 1;
 
@@ -208,7 +263,15 @@ void main() {
             try { vSrc = File.ReadAllText(vPath); } catch { vSrc = _vertexSourceFallback; }
             try { fSrc = File.ReadAllText(fPath); } catch { fSrc = _fragmentSourceFallback; }
 
-            _shader = new Shader(vSrc, fSrc);
+            try
+            {
+                _shader = new Shader(vSrc, fSrc);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Primary shader compile failed: {ex.Message} — using fallback");
+                _shader = new Shader(_vertexSourceFallback, _fragmentSourceFallback);
+            }
             _shader.Use();
             _shader.SetInt("uTexture", 0);
             _shader.SetFloat("uOpacity", 1.0f);
@@ -222,7 +285,15 @@ void main() {
             string tileV, tileF;
             try { tileV = File.ReadAllText(tileVPath); } catch { tileV = _vertexSourceFallback; }
             try { tileF = File.ReadAllText(tileFPath); } catch { tileF = "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }"; }
-            _tileShader = new Shader(tileV, tileF);
+            try
+            {
+                _tileShader = new Shader(tileV, tileF);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Tile shader compile failed: {ex.Message} — using fallback");
+                _tileShader = new Shader(_vertexSourceFallback, "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }");
+            }
 
             // Enable alpha blending for radar overlays
             GL.Enable(EnableCap.Blend);
@@ -235,7 +306,17 @@ void main() {
             try { ovSrcV = File.ReadAllText(overlayVPath); } catch { ovSrcV = "#version 330 core\nlayout(location=0) in vec2 aPos; void main(){ gl_Position = vec4(aPos,0,1); }"; }
             try { ovSrcF = File.ReadAllText(overlayFPath); } catch { ovSrcF = "#version 330 core\nout vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; void main(){ FragColor = vec4(uColor,uAlpha); }"; }
 
-            _overlayShader = new Shader(ovSrcV, ovSrcF);
+            try
+            {
+                _overlayShader = new Shader(ovSrcV, ovSrcF);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Overlay shader compile failed: {ex.Message} — using fallback");
+                _overlayShader = new Shader(
+                    "#version 330 core\nlayout(location=0) in vec2 aPos; void main(){ gl_Position = vec4(aPos,0,1); }",
+                    "#version 330 core\nout vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; void main(){ FragColor = vec4(uColor,uAlpha); }");
+            }
 
             // Initialize tile provider
             _tileProvider = new TileProvider();
@@ -265,7 +346,23 @@ void main() {
     FragColor = vec4(c.rgb, c.a * uOpacity);
 }";
             }
-            _weatherOverlayShader = new Shader(woV, woF);
+            try
+            {
+                _weatherOverlayShader = new Shader(woV, woF);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Weather overlay shader compile failed: {ex.Message} — using fallback");
+                _weatherOverlayShader = new Shader(_vertexSourceFallback, @"#version 330 core
+in vec2 vTex;
+out vec4 FragColor;
+uniform sampler2D uTexture;
+uniform float uOpacity;
+void main() {
+    vec4 c = texture(uTexture, vec2(vTex.x, 1.0 - vTex.y));
+    FragColor = vec4(c.rgb, c.a * uOpacity);
+}");
+            }
             _weatherOverlayShader.Use();
             _weatherOverlayShader.SetInt("uTexture", 0);
             _weatherOverlayShader.SetFloat("uOpacity", 1.0f);
@@ -289,6 +386,18 @@ void main() {
             GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+
+            // Initialize GL-native HUD text renderer
+            try
+            {
+                _uiRenderer = new GLTextRenderer();
+                _uiRenderer.Initialize();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] GLTextRenderer init failed: {ex.Message}");
+                _uiRenderer = null;
+            }
 
             // Initialize PBO for async texture uploads
             if (_usePboUploads)
@@ -714,6 +823,55 @@ void main() {
                 GL.BindVertexArray(_overlayVao);
                 GL.DrawArrays(PrimitiveType.Points, 0, 1);
                 GL.BindVertexArray(0);
+            }
+
+            // --- GL HUD rendering (attribution + status) ---
+            if (_uiRenderer != null && _uiRenderer.IsInitialized)
+            {
+                GL.Enable(EnableCap.Blend);
+                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                GL.Disable(EnableCap.DepthTest);
+
+                _uiRenderer.BeginFrame(Width, Height);
+
+                // Attribution text: semi-transparent background bar at bottom-left
+                if (!string.IsNullOrEmpty(_hudAttributionText))
+                {
+                    float textW = _uiRenderer.MeasureTextWidth(_hudAttributionText);
+                    float lh = _uiRenderer.LineHeight;
+                    float pad = 6f;
+                    float barH = lh + pad * 2;
+                    float barW = textW + pad * 2;
+                    float barX = 0;
+                    float barY = Height - barH;
+
+                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0f, 0f, 0f, 0.55f);
+                    _uiRenderer.DrawText(_hudAttributionText, barX + pad, barY + pad, 0.82f, 0.82f, 0.82f, 0.85f);
+                }
+
+                // Status / frame info: centered near bottom
+                if (!string.IsNullOrEmpty(_hudStatusText))
+                {
+                    float textW = _uiRenderer.MeasureTextWidth(_hudStatusText);
+                    float lh = _uiRenderer.LineHeight;
+                    float pad = 6f;
+                    float barH = lh + pad * 2;
+                    float barW = textW + pad * 2;
+                    float barX = (Width - barW) / 2f;
+                    float barY = Height - barH - 4f;
+
+                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0.08f, 0.08f, 0.1f, 0.7f);
+                    _uiRenderer.DrawText(_hudStatusText, barX + pad, barY + pad, 0.9f, 0.9f, 0.9f, 1f);
+                }
+
+                _uiRenderer.EndFrame();
+            }
+
+            // Check for any accumulated GL errors at end of frame
+            {
+                ErrorCode err = GL.GetError();
+                if (err != ErrorCode.NoError)
+                    Console.WriteLine($"[GLRadarControl] GL error after paint: {err}");
             }
 
             SwapBuffers();
@@ -1281,6 +1439,7 @@ void main() {
                 if (_tileShader != null) _tileShader.Dispose();
                 if (_overlayShader != null) _overlayShader.Dispose();
                 if (_weatherOverlayShader != null) _weatherOverlayShader.Dispose();
+                _uiRenderer?.Dispose();
 
                 // delete tile textures
                 foreach (var kv in _tileTextures)

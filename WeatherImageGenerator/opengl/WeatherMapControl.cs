@@ -575,12 +575,12 @@ namespace WeatherImageGenerator.OpenGL
             {
                 Text = "Cache: Loading...",
                 Location = new Point(10, y),
-                Size = new Size(controlWidth, 16),
+                Size = new Size(controlWidth, 32),
                 Font = new Font("Consolas", 8),
                 ForeColor = Color.FromArgb(160, 160, 160)
             };
             _controlPanel.Controls.Add(_lblCacheStats);
-            y += 18;
+            y += 34;
 
             UpdateStatusLabels();
 
@@ -809,10 +809,6 @@ namespace WeatherImageGenerator.OpenGL
 
         private void UpdateAttributionText()
         {
-            if (_attributionPanel == null) return;
-            var lbl = _attributionPanel.Controls["lblAttributionText"] as Label;
-            if (lbl == null) return;
-
             var style = GetCurrentMapStyle();
             var lines = new List<string>();
             lines.Add(MapOverlayService.GetAttributionText(style));
@@ -822,7 +818,18 @@ namespace WeatherImageGenerator.OpenGL
             if (_chkTemperature != null && _chkTemperature.Checked)
                 lines.Add("Weather: Open-Meteo.com (CC BY 4.0)");
 
-            lbl.Text = string.Join("\n", lines);
+            var text = string.Join("  |  ", lines);
+
+            // Update WinForms label for fallback
+            if (_attributionPanel != null)
+            {
+                var lbl = _attributionPanel.Controls["lblAttributionText"] as Label;
+                if (lbl != null) lbl.Text = string.Join("\n", lines);
+            }
+
+            // Pipe to GL HUD
+            if (_glControl != null)
+                _glControl.HudAttributionText = text;
         }
 
         private void RepositionAttributionPanel()
@@ -1250,20 +1257,22 @@ namespace WeatherImageGenerator.OpenGL
 
         private void ReflowControlsAfterOptions()
         {
-            // Find the options panel position and shift status/separator controls
+            // Shift all controls below the options header by the options panel height delta
             int baseY = _optionsPanel.Location.Y;
-            int optHeight = _optionsExpanded ? _optionsPanel.Height : 0;
-            int newY = baseY + optHeight;
+            int delta = _optionsExpanded ? _optionsPanel.Height : -_optionsPanel.Height;
 
-            // Find controls that are after the options panel and adjust them
+            _controlPanel.SuspendLayout();
             foreach (Control c in _controlPanel.Controls)
             {
+                // Skip the options panel itself and its header label — they don't move
                 if (c == _optionsPanel || c == _lblOptionsHeader) continue;
-                if (c.Location.Y >= baseY && c != _optionsPanel)
+                // Only shift controls that are at or below the options panel's Y origin
+                if (c.Location.Y >= baseY)
                 {
-                    // Don't move controls that are the options header itself or above it
+                    c.Location = new Point(c.Location.X, c.Location.Y + delta);
                 }
             }
+            _controlPanel.ResumeLayout(true);
         }
 
         private void CloseRadarAnimation()
@@ -1825,8 +1834,24 @@ namespace WeatherImageGenerator.OpenGL
         {
             if (_lblCacheStats != null)
             {
-                var stats = _tileCache.GetStats();
-                _lblCacheStats.Text = $"Cache: {stats.TileCount} tiles, {stats.TotalSizeMB}";
+                // Always include VRAM stats from the GL control
+                int vramCount = _glControl?.VramTextureCount ?? 0;
+                long vramBytes = 0;
+                try { vramBytes = _glControl?.VramEstimatedBytes ?? 0; } catch { }
+                string vramMB = $"{vramBytes / 1024.0 / 1024.0:F1} MB";
+
+                // Show stats from the TileProvider's active caches (these are the ones actually used)
+                var tpStats = _glControl?.ActiveTileProvider?.GetAggregateStats();
+                if (tpStats != null && tpStats.TileCount > 0)
+                {
+                    _lblCacheStats.Text = $"Cache: {tpStats.TileCount} tiles, {tpStats.TotalSizeMB}\nRAM: {tpStats.RamCacheEntries} | VRAM: {vramCount} (~{vramMB})";
+                }
+                else
+                {
+                    // Fallback to prefetch/map_cache stats
+                    var stats = _tileCache.GetStats();
+                    _lblCacheStats.Text = $"Cache: {stats.TileCount} tiles, {stats.TotalSizeMB}\nVRAM: {vramCount} (~{vramMB})";
+                }
             }
         }
 
@@ -1837,6 +1862,8 @@ namespace WeatherImageGenerator.OpenGL
             {
                 await UpdateOverlays();
             }
+            // Keep cache stats fresh
+            UpdateCacheStats();
         }
 
         /// <summary>Toggle radar checkbox from external code (keyboard shortcut)</summary>
