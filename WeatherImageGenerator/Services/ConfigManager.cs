@@ -19,7 +19,7 @@ namespace WeatherImageGenerator.Services
     public static class ConfigManager
     {
         private static AppSettings? _settings;
-        private static readonly string ConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+        private static readonly string ConfigFilePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 
         /// <summary>
         /// Loads configuration from appsettings.json. Caches the result after first load.
@@ -193,6 +193,9 @@ namespace WeatherImageGenerator.Services
         // Line spacing for in-app logs (twips, used with PARAFORMAT2 rule 4: 200=Tight, 240=Normal, 340=Relaxed, 460=Spacious)
         [JsonPropertyName("LogLineSpacing")]
         public int LogLineSpacing { get; set; } = 220;
+
+        [JsonPropertyName("WeatherMapView")]
+        public WeatherMapViewSettings? WeatherMapView { get; set; }
     }
 
     /// <summary>
@@ -953,5 +956,44 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         [JsonPropertyName("Borders")]
         public string? Borders { get; set; }
+    }
+
+    /// <summary>
+    /// Persisted state for the interactive Weather Map viewer (zoom, position, layers, etc.)
+    /// </summary>
+    public class WeatherMapViewSettings
+    {
+        [JsonPropertyName("ZoomLevel")]
+        public int ZoomLevel { get; set; } = 4;
+
+        [JsonPropertyName("Latitude")]
+        public double Latitude { get; set; } = 56.1304;
+
+        [JsonPropertyName("Longitude")]
+        public double Longitude { get; set; } = -106.3468;
+
+        [JsonPropertyName("MapStyleIndex")]
+        public int MapStyleIndex { get; set; } = 0;
+
+        [JsonPropertyName("RadarEnabled")]
+        public bool RadarEnabled { get; set; } = true;
+
+        [JsonPropertyName("TemperatureEnabled")]
+        public bool TemperatureEnabled { get; set; } = false;
+
+        [JsonPropertyName("RadarOpacity")]
+        public int RadarOpacity { get; set; } = 75;
+
+        [JsonPropertyName("TemperatureOpacity")]
+        public int TemperatureOpacity { get; set; } = 60;
+
+        [JsonPropertyName("RadarLayerIndex")]
+        public int RadarLayerIndex { get; set; } = 0;
+
+        [JsonPropertyName("RadarStyleIndex")]
+        public int RadarStyleIndex { get; set; } = 0;
+
+        [JsonPropertyName("PanelPosition")]
+        public string PanelPosition { get; set; } = "Right";
     }
 }

@@ -22,7 +22,7 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         public static AppSettings CreateDefaultSettings()
         {
-            var basePath = Directory.GetCurrentDirectory();
+            var basePath = AppContext.BaseDirectory;
             var musicDir = Path.Combine(basePath, "Music");
 
             return new AppSettings
@@ -230,7 +230,7 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         public static (AppSettings Settings, List<string> Repairs) EnsureValidSettings()
         {
-            var configPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+            var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
             var repairs = new List<string>();
             AppSettings settings;
 

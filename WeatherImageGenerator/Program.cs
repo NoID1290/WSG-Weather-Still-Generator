@@ -42,6 +42,11 @@ namespace WeatherImageGenerator
         [STAThread]
         static void Main(string[] args)
         {
+            // Ensure the working directory is the application's own directory.
+            // Critical for auto-start via registry where CWD may be System32.
+            try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); }
+            catch { /* best effort */ }
+
             // Initialize FFmpeg settings from configuration early (safe even if appsettings.json is missing)
             try { FFmpegLocator.ConfigureFromSettings(); }
             catch { /* Will be properly configured after boot screen validates settings */ }

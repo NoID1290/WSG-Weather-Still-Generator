@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using System.Net.Http;
 using System.Threading.Tasks;
 using OpenMap;
+using WeatherImageGenerator.Services;
 
 namespace WeatherImageGenerator.OpenGL
 {
@@ -92,8 +93,8 @@ namespace WeatherImageGenerator.OpenGL
             SetupEventHandlers();
             ApplyModernStyling();
             
-            // Load persisted panel position
-            LoadPanelPosition();
+            // Load persisted map settings (zoom, position, layers, opacity, panel position)
+            LoadMapSettings();
 
             // Start update timer
             _updateTimer = new Timer { Interval = 60000 }; // Update every minute
@@ -1347,7 +1348,7 @@ namespace WeatherImageGenerator.OpenGL
             if (_panelPosition == pos) return;
             _panelPosition = pos;
             ApplyPanelPosition();
-            SavePanelPosition();
+            SaveMapSettings();
         }
 
         private void ApplyPanelPosition()
@@ -1383,62 +1384,97 @@ namespace WeatherImageGenerator.OpenGL
             RepositionAttributionPanel();
         }
 
-        private void SavePanelPosition()
+        private void SaveMapSettings()
         {
             try
             {
-                var settingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
-                if (!System.IO.File.Exists(settingsPath)) return;
-                var json = System.IO.File.ReadAllText(settingsPath);
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                // Build new JSON with WeatherMap section
-                var options = new System.Text.Json.JsonWriterOptions { Indented = true };
-                using var ms = new System.IO.MemoryStream();
-                using (var writer = new System.Text.Json.Utf8JsonWriter(ms, options))
-                {
-                    writer.WriteStartObject();
-                    foreach (var prop in root.EnumerateObject())
-                    {
-                        if (prop.Name == "WeatherMap") continue; // skip old, we'll rewrite
-                        prop.WriteTo(writer);
-                    }
-                    writer.WriteStartObject("WeatherMap");
-                    writer.WriteString("PanelPosition", _panelPosition.ToString());
-                    writer.WriteEndObject();
-                    writer.WriteEndObject();
-                }
-                System.IO.File.WriteAllText(settingsPath, System.Text.Encoding.UTF8.GetString(ms.ToArray()));
+                var config = ConfigManager.LoadConfig();
+                config.WeatherMapView ??= new WeatherMapViewSettings();
+                config.WeatherMapView.ZoomLevel = _currentZoom;
+                config.WeatherMapView.Latitude = _currentLat;
+                config.WeatherMapView.Longitude = _currentLon;
+                config.WeatherMapView.MapStyleIndex = _cmbMapStyle?.SelectedIndex ?? 0;
+                config.WeatherMapView.RadarEnabled = _chkRadar?.Checked ?? true;
+                config.WeatherMapView.TemperatureEnabled = _chkTemperature?.Checked ?? false;
+                config.WeatherMapView.RadarOpacity = _trackRadarOpacity?.Value ?? 75;
+                config.WeatherMapView.TemperatureOpacity = _trackTempOpacity?.Value ?? 60;
+                config.WeatherMapView.RadarLayerIndex = _cmbRadarLayer?.SelectedIndex ?? 0;
+                config.WeatherMapView.RadarStyleIndex = _cmbRadarStyle?.SelectedIndex ?? 0;
+                config.WeatherMapView.PanelPosition = _panelPosition.ToString();
+                ConfigManager.SaveConfig(config, silent: true);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[WeatherMap] Failed to save panel position: {ex.Message}");
+                Console.WriteLine($"[WeatherMap] Failed to save map settings: {ex.Message}");
             }
         }
 
-        private void LoadPanelPosition()
+        private void LoadMapSettings()
         {
             try
             {
-                var settingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
-                if (!System.IO.File.Exists(settingsPath)) return;
-                var json = System.IO.File.ReadAllText(settingsPath);
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("WeatherMap", out var wm)
-                    && wm.TryGetProperty("PanelPosition", out var pp))
+                var config = ConfigManager.LoadConfig();
+                var s = config.WeatherMapView;
+                if (s == null) return;
+
+                _currentZoom = Math.Max(1, Math.Min(20, s.ZoomLevel));
+                _currentLat = s.Latitude;
+                _currentLon = s.Longitude;
+
+                // Suppress overlay updates while restoring UI state to avoid
+                // redundant fetches for each control change.
+                _suppressOverlayUpdates = true;
+                try
                 {
-                    var posStr = pp.GetString();
-                    if (Enum.TryParse<PanelPosition>(posStr, out var pos))
-                    {
-                        _panelPosition = pos;
-                        ApplyPanelPosition();
-                    }
+                    if (_cmbMapStyle != null && s.MapStyleIndex >= 0 && s.MapStyleIndex < _cmbMapStyle.Items.Count)
+                        _cmbMapStyle.SelectedIndex = s.MapStyleIndex;
+
+                    if (_chkRadar != null) _chkRadar.Checked = s.RadarEnabled;
+                    if (_chkTemperature != null) _chkTemperature.Checked = s.TemperatureEnabled;
+
+                    if (_trackRadarOpacity != null && s.RadarOpacity >= 0 && s.RadarOpacity <= 100)
+                        _trackRadarOpacity.Value = s.RadarOpacity;
+
+                    if (_trackTempOpacity != null && s.TemperatureOpacity >= 0 && s.TemperatureOpacity <= 100)
+                        _trackTempOpacity.Value = s.TemperatureOpacity;
+
+                    if (_cmbRadarLayer != null && s.RadarLayerIndex >= 0 && s.RadarLayerIndex < _cmbRadarLayer.Items.Count)
+                        _cmbRadarLayer.SelectedIndex = s.RadarLayerIndex;
+
+                    if (_cmbRadarStyle != null && s.RadarStyleIndex >= 0 && s.RadarStyleIndex < _cmbRadarStyle.Items.Count)
+                        _cmbRadarStyle.SelectedIndex = s.RadarStyleIndex;
+                }
+                finally
+                {
+                    _suppressOverlayUpdates = false;
+                }
+
+                // Always apply map style & overlay manager state explicitly,
+                // because SelectedIndexChanged won't fire when the index matches the default.
+                OnMapStyleChanged();
+                OnRadarLayerChanged();
+                OnRadarStyleChanged();
+
+                // Apply opacity to overlay manager
+                if (_overlayManager != null)
+                {
+                    _overlayManager.RadarOpacity = (_trackRadarOpacity?.Value ?? 75) / 100f;
+                    _overlayManager.TemperatureOpacity = (_trackTempOpacity?.Value ?? 60) / 100f;
+                }
+                if (_glControl != null)
+                {
+                    _glControl.OverlayOpacity = (_trackRadarOpacity?.Value ?? 75) / 100f;
+                }
+
+                if (Enum.TryParse<PanelPosition>(s.PanelPosition, out var pos))
+                {
+                    _panelPosition = pos;
+                    ApplyPanelPosition();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[WeatherMap] Failed to load panel position: {ex.Message}");
+                Console.WriteLine($"[WeatherMap] Failed to load map settings: {ex.Message}");
             }
         }
 
@@ -1940,6 +1976,9 @@ namespace WeatherImageGenerator.OpenGL
         {
             if (disposing)
             {
+                // Save all map settings before disposing
+                try { SaveMapSettings(); } catch { }
+
                 _updateTimer?.Stop();
                 _updateTimer?.Dispose();
                 _animationTimer?.Stop();

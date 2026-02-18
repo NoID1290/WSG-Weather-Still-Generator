@@ -27,32 +27,16 @@ namespace WeatherImageGenerator.Utilities
                         throw new InvalidOperationException("Unable to open Windows startup registry key");
                     }
 
-                    string executablePath = Assembly.GetExecutingAssembly().Location;
-                    
-                    // If running as a .dll (common for .NET Core/5+), get the .exe path
-                    if (executablePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                    // Environment.ProcessPath is the most reliable way to get the .exe path
+                    // in .NET 5+ (works correctly with single-file publish, unlike Assembly.Location)
+                    string? executablePath = Environment.ProcessPath;
+
+                    if (string.IsNullOrEmpty(executablePath))
                     {
-                        executablePath = Path.ChangeExtension(executablePath, ".exe");
-                        
-                        // If .exe doesn't exist, try to find it in the same directory
-                        if (!File.Exists(executablePath))
-                        {
-                            string? directory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                            if (directory != null)
-                            {
-                                // Look for any .exe in the directory
-                                var exeFiles = Directory.GetFiles(directory, "*.exe");
-                                if (exeFiles.Length > 0)
-                                {
-                                    executablePath = exeFiles[0];
-                                }
-                                else
-                                {
-                                    // Fallback: use dotnet command with dll
-                                    executablePath = $"dotnet \"{Assembly.GetExecutingAssembly().Location}\"";
-                                }
-                            }
-                        }
+                        // Fallback for edge cases
+                        executablePath = Assembly.GetExecutingAssembly().Location;
+                        if (executablePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                            executablePath = Path.ChangeExtension(executablePath, ".exe");
                     }
 
                     // Wrap path in quotes to handle spaces

@@ -339,7 +339,7 @@ namespace WeatherImageGenerator.Services
                     
                     Process.Start(new ProcessStartInfo(updaterPath, updaterArgs)
                     {
-                        UseShellExecute = true,
+                        UseShellExecute = false,  // Avoid SmartScreen for this trusted internal tool
                         CreateNoWindow = false
                     });
                     

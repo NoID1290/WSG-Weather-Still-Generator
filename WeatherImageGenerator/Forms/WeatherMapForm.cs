@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using WeatherImageGenerator.OpenGL;
+using WeatherImageGenerator.Services;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -37,8 +38,23 @@ namespace WeatherImageGenerator.Forms
             
             this.Controls.Add(_weatherMap);
 
-            // Try to get user's location, fallback to Canada if it fails
-            _ = InitializeLocationAsync();
+            // Only auto-detect location if no saved map settings exist.
+            // If the user has previously used the map, LoadMapSettings() in the
+            // control constructor already restored zoom/lat/lon/layers/etc.
+            var config = ConfigManager.LoadConfig();
+            if (config.WeatherMapView == null)
+            {
+                _ = InitializeLocationAsync();
+            }
+            else
+            {
+                // Settings were loaded by the control — just apply the saved
+                // zoom + position to the GL control so it renders correctly.
+                _weatherMap.SetLocationAndZoom(
+                    config.WeatherMapView.Latitude,
+                    config.WeatherMapView.Longitude,
+                    config.WeatherMapView.ZoomLevel);
+            }
         }
 
         private async Task InitializeLocationAsync()

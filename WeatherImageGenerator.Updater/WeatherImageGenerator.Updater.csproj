@@ -14,6 +14,7 @@
     <AssemblyVersion>1.10.0.0217</AssemblyVersion>
     <FileVersion>1.10.0.0217</FileVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <!-- Keep Updater separate - no dependencies -->
