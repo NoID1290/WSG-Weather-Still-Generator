@@ -1,12 +1,20 @@
 # TODO
 
-Refuse startup if another instance is running
-Start verify udpate when opening about form
-If first boot and no config, show disclaimer
-Add option to reset config to default "clear appsettings" on about form
-Fix themes
-Add option to disable auto update check
-Add clearing cache on about form
+- Refuse startup if another instance is running
+- Start verify update when opening about form
+- If first boot and no config, show disclaimer about:
+   While this application provides access to Alert Ready emergency alerts, 
+   users should always verify critical information through official government 
+   channels and local emergency management authorities.
+   This application is for informational and educational purposes only. 
+   It should NOT be used for safety-critical decisions, navigation, emergency 
+   response, or protection of life and property.
+
+- Add option to reset config to default "clear appsettings" on about form
+- Fix themes
+- Add option to disable auto update check
+- Add clearing cache on about form
+- Enhancing bootcheck GUI for better user experience and more professional look
 
 - INTERACTIVE MAP
     Add xy location in the viewport(opgengl) that always follow the green aiming dot
