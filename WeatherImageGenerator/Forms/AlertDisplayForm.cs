@@ -163,7 +163,14 @@ namespace WeatherImageGenerator.Forms
                 if (!Directory.Exists(outputDir))
                     Directory.CreateDirectory(outputDir);
 
-                string provider = _alert.Provider ?? "Canada_AlertReady";
+                string provider = _alert.Provider ?? "";
+
+                // Only generate emergency audio for AlertReady (NAAD) and NWS alerts
+                if (provider != "Canada_AlertReady" && provider != "USA_NWS")
+                {
+                    Logger.Log($"[AlertDisplayForm] Skipping audio generation for non-emergency provider '{provider}'", Logger.LogLevel.Info);
+                    return;
+                }
 
                 Logger.Log("[AlertDisplayForm] Generating alert audio (tone + TTS)...", Logger.LogLevel.Info);
 
@@ -271,14 +278,19 @@ namespace WeatherImageGenerator.Forms
             int width = this.ClientSize.Width;
             int height = this.ClientSize.Height;
 
-            string provider = _alert.Provider ?? "Canada_AlertReady";
+            string provider = _alert.Provider ?? "";
 
             if (provider == "USA_NWS")
             {
                 PaintNwsAlert(g, width, height);
             }
+            else if (provider == "Canada_AlertReady")
+            {
+                PaintAlertReadyAlert(g, width, height);
+            }
             else
             {
+                // ECCC / unknown provider — use a simple generic rendering
                 PaintAlertReadyAlert(g, width, height);
             }
         }

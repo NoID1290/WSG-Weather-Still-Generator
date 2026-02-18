@@ -226,7 +226,8 @@ namespace EAS.AlertReady
                 Type = !string.IsNullOrWhiteSpace(eventName) ? eventName : severity ?? "Alert",
                 Title = !string.IsNullOrWhiteSpace(headline) ? headline : eventName ?? "Alert Ready Notification",
                 Summary = summary,
-                SeverityColor = MapSeverity(severity)
+                SeverityColor = MapSeverity(severity),
+                Provider = "Canada_AlertReady"
             };
         }
 

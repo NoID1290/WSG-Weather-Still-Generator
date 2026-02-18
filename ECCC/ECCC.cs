@@ -1649,7 +1649,8 @@ namespace WeatherImageGenerator.Services
                                 IssuedAt = issuedAt,
                                 DetailUrl = detailUrl,
                                 Description = description,
-                                Instructions = instruction
+                                Instructions = instruction,
+                                Provider = "Canada_ECCC"
                             });
                         }
                         else if (!string.IsNullOrWhiteSpace(category))
@@ -2354,7 +2355,8 @@ namespace WeatherImageGenerator.Services
                             ExpiresAt = expiresTime,
                             Description = description,
                             Instructions = instruction,
-                            Region = string.Join(", ", areas)
+                            Region = string.Join(", ", areas),
+                            Provider = "Canada_ECCC"
                         });
                     }
                 }
@@ -2372,7 +2374,8 @@ namespace WeatherImageGenerator.Services
                         IssuedAt = sentTime,
                         ExpiresAt = expiresTime,
                         Description = description,
-                        Instructions = instruction
+                        Instructions = instruction,
+                        Provider = "Canada_ECCC"
                     });
                 }
             }

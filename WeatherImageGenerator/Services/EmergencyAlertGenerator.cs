@@ -56,11 +56,17 @@ namespace WeatherImageGenerator.Services
                 var alert = alerts[i];
                 try
                 {
-                    // Determine provider
-                    string provider = alert.Provider ?? "Canada_AlertReady";
+                    // Determine provider — only AlertReady (NAAD) and NWS generate emergency media
+                    string provider = alert.Provider ?? "";
+                    if (provider != "Canada_AlertReady" && provider != "USA_NWS")
+                    {
+                        Logger.Log($"[EmergencyAlertGenerator] Skipping non-emergency provider '{provider}': {alert.Title}", Logger.LogLevel.Debug);
+                        continue;
+                    }
                     
-                    string imageFile = GenerateAlertImage(alert, outputDir, i + 1, width, height, margin, imgConfig, language, provider);
-                    generatedFiles.Add(imageFile);
+                    string? imageFile = GenerateAlertImage(alert, outputDir, i + 1, width, height, margin, imgConfig, language, provider);
+                    if (!string.IsNullOrEmpty(imageFile))
+                        generatedFiles.Add(imageFile);
 
                     string audioFile = GenerateAlertAudio(alert, outputDir, i + 1, language, provider);
                     if (!string.IsNullOrEmpty(audioFile))
@@ -343,7 +349,7 @@ namespace WeatherImageGenerator.Services
             }
         }
 
-        private static string GenerateAlertImage(AlertEntry alert, string outputDir, int index, 
+        private static string? GenerateAlertImage(AlertEntry alert, string outputDir, int index, 
             int width, int height, float margin, ImageGenerationSettings imgConfig, string language, string provider)
         {
             string filename = $"EmergencyAlert_{index:D2}.png";
@@ -363,9 +369,15 @@ namespace WeatherImageGenerator.Services
                     {
                         DrawNwsAlert(g, alert, width, height, imgConfig, index);
                     }
-                    else
+                    else if (provider == "Canada_AlertReady")
                     {
                         DrawAlertReadyAlert(g, alert, width, height, margin, imgConfig, language);
+                    }
+                    else
+                    {
+                        // Non-AlertReady alerts (e.g. ECCC weather) — skip emergency rendering
+                        Logger.Log($"[EmergencyAlertGenerator] Skipping alert image for non-emergency provider '{provider}': {alert.Title}", Logger.LogLevel.Debug);
+                        return null;
                     }
 
                     bmp.Save(fullPath, ImageFormat.Png);

@@ -1341,8 +1341,17 @@ namespace WeatherImageGenerator.Forms
                 if (forceAll || !_cycleProcessedAlertFingerprints.Contains(fp))
                 {
                     _cycleProcessedAlertFingerprints.Add(fp);
-                    Logger.Log($"[Cycle Alert] New/changed alert detected — generating media: {alert.Title}", Logger.LogLevel.Info);
-                    _ = Task.Run(() => GenerateAlertMediaAsync(alert));
+
+                    // Only NAAD/AlertReady and NWS alerts trigger emergency media generation
+                    if (alert.Provider == "Canada_AlertReady" || alert.Provider == "USA_NWS")
+                    {
+                        Logger.Log($"[Cycle Alert] New/changed alert detected — generating media: {alert.Title}", Logger.LogLevel.Info);
+                        _ = Task.Run(() => GenerateAlertMediaAsync(alert));
+                    }
+                    else
+                    {
+                        Logger.Log($"[Cycle Alert] Skipping media generation for non-emergency provider '{alert.Provider}': {alert.Title}", Logger.LogLevel.Debug);
+                    }
                 }
                 else
                 {
