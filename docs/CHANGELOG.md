@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.2.0218] - 2026-02-18
+
+- Fix ECCC triggering false emergency alert
+
 ## [1.10.1.0218] - 2026-02-18
 
 - Add application manifest files Fix auto-start fail for reading path Fix auto-update
