@@ -49,7 +49,7 @@
   <ItemGroup>
     <PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
     <PackageReference Include="OpenTK.WinForms" Version="4.0.0-pre.8" />
-    <PackageReference Include="OpenTK.Graphics" Version="4.9.1" />
+    <PackageReference Include="OpenTK.Graphics" Version="4.9.4" />
   </ItemGroup>
   <!-- Copy the updater executable to the output directory -->
   <Target Name="CopyUpdater" AfterTargets="Build">
