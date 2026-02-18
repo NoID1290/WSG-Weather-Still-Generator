@@ -1,6 +1,15 @@
-Refuse startup if another instance is running
-==============================================
+# TODO
 
-If you try to start a second instance of the application, it will refuse to start and display an error message. This is to prevent conflicts and ensure that only one instance of the application is running at a time.
-To check if another instance is running, the application uses a lock file. When the application starts, it creates a lock file in a specific location. If the lock file already exists, it means that another instance of the application is running, and the new instance will display an error message and exit.
-If you want to allow multiple instances of the application to run simultaneously, you can disable this feature by modifying the application's settings. However, it is generally recommended to keep this feature enabled to avoid potential issues with data corruption or conflicts between instances.
+Refuse startup if another instance is running
+Start verify udpate when opening about form
+If first boot and no config, show disclaimer
+Add option to reset config to default "clear appsettings" on about form
+Fix themes
+Add option to disable auto update check
+Add clearing cache on about form
+
+- INTERACTIVE MAP
+    Add xy location in the viewport(opgengl) that always follow the green aiming dot
+    Add option to disable the green aiming dot
+    Add options to disable temperature but keeping the heat signature
+    Enhancing all the viewport GUI
