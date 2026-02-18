@@ -20,6 +20,6 @@
     <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.13" />
   </ItemGroup>
 </Project>
