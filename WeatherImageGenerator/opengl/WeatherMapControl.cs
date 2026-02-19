@@ -64,6 +64,7 @@ namespace WeatherImageGenerator.OpenGL
         private int _animationSpeedMs = 500;
         private System.Threading.Timer? _animationRefreshDebounce;
         private bool _animationRefreshInProgress = false;
+        private System.Threading.Timer? _hudClearTimer;
         private (double MinLat, double MinLon, double MaxLat, double MaxLon)? _animationBBox;
 
         // Attribution overlay
@@ -160,11 +161,26 @@ namespace WeatherImageGenerator.OpenGL
             // Subscribe to overlay status events (e.g., "no snow data") for HUD display
             _overlayManager.OverlayStatusChanged += (msg) =>
             {
-                if (_glControl != null)
+                if (_glControl == null) return;
+
+                // Cancel any pending auto-clear timer to prevent race conditions
+                _hudClearTimer?.Dispose();
+                _hudClearTimer = null;
+
+                if (string.IsNullOrEmpty(msg))
                 {
+                    // Data is now available — clear HUD immediately
+                    if (_glControl.IsHandleCreated)
+                    {
+                        try { _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); }
+                        catch { }
+                    }
+                }
+                else
+                {
+                    // Show status message and auto-clear after 5 seconds
                     _glControl.HudStatusText = msg;
-                    // Auto-clear after 5 seconds
-                    var clearTimer = new System.Threading.Timer(_ =>
+                    _hudClearTimer = new System.Threading.Timer(_ =>
                     {
                         try
                         {

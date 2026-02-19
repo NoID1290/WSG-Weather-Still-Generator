@@ -14,17 +14,17 @@ namespace WeatherImageGenerator.Forms
     {
         private bool _isLoadingSettings = false;
         
-        // UI Style Constants
-        private static readonly Color AccentColor = Color.FromArgb(41, 128, 185);
-        private static readonly Color AccentColorLight = Color.FromArgb(52, 152, 219);
-        private static readonly Color SuccessColor = Color.FromArgb(39, 174, 96);
-        private static readonly Color WarningColor = Color.FromArgb(230, 126, 34);
-        private static readonly Color DangerColor = Color.FromArgb(192, 57, 43);
-        private static readonly Color BackgroundColor = Color.FromArgb(248, 249, 250);
-        private static readonly Color CardColor = Color.White;
-        private static readonly Color BorderColor = Color.FromArgb(222, 226, 230);
-        private static readonly Color TextColor = Color.FromArgb(33, 37, 41);
-        private static readonly Color TextMutedColor = Color.FromArgb(108, 117, 125);
+        // UI Style — delegates to ThemeManager so every usage is theme-aware
+        private static Color AccentColor => ThemeManager.Current.Accent;
+        private static Color AccentColorLight => ControlPaint.Light(ThemeManager.Current.Accent, 0.15f);
+        private static Color SuccessColor => ThemeManager.Current.Success;
+        private static Color WarningColor => ThemeManager.Current.Warning;
+        private static Color DangerColor => ThemeManager.Current.Danger;
+        private static Color BackgroundColor => ThemeManager.Current.Background;
+        private static Color CardColor => ThemeManager.Current.CardBackground;
+        private static Color BorderColor => ThemeManager.Current.Border;
+        private static Color TextColor => ThemeManager.Current.TextPrimary;
+        private static Color TextMutedColor => ThemeManager.Current.TextSecondary;
         private static readonly Font HeaderFont = new Font("Segoe UI", 12F, FontStyle.Bold);
         private static readonly Font SubHeaderFont = new Font("Segoe UI", 10F, FontStyle.Bold);
         private static readonly Font LabelFont = new Font("Segoe UI", 9.5F);
@@ -138,8 +138,8 @@ namespace WeatherImageGenerator.Forms
         private void InitializeForm()
         {
             this.Text = "⚙ Settings";
-            this.Width = 820;
-            this.Height = 740;
+            this.Width = 1024;
+            this.Height = 850;
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = false;
             this.MinimizeBox = true;
@@ -175,6 +175,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 28,
                 Font = HeaderFont,
                 ForeColor = AccentColor,
+                Tag = "accent",
                 AutoSize = false
             };
         }
@@ -221,6 +222,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 20,
                 Font = HelpFont,
                 ForeColor = TextMutedColor,
+                Tag = "muted",
                 AutoSize = false
             };
         }
@@ -377,7 +379,7 @@ namespace WeatherImageGenerator.Forms
             var tabControl = new TabControl
             {
                 Dock = DockStyle.Top,
-                Height = 615,
+                Height = 720,
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
                 Padding = new Point(12, 6)
             };
@@ -397,11 +399,13 @@ namespace WeatherImageGenerator.Forms
                 tabOpenMap, tabEas, tabWebUI, tabExperimental 
             });
 
-            // Footer buttons
-            var btnSave = CreateSuccessButton("✔ Save Settings", 470, 630, 140, 38);
+            // Footer buttons — anchored to bottom-right of form
+            var btnSave = CreateSuccessButton("✔ Save Settings", 650, 735, 150, 40);
+            btnSave.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             btnSave.Click += (s, e) => SaveClicked();
 
-            var btnCancel = CreateSecondaryButton("✖ Cancel", 620, 630, 110, 38);
+            var btnCancel = CreateSecondaryButton("✖ Cancel", 810, 735, 120, 40);
+            btnCancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
 
             this.Controls.Add(tabControl);
@@ -494,11 +498,13 @@ namespace WeatherImageGenerator.Forms
 
             chkStartMinimizedToTray = CreateCheckBox("  └─ Start minimized to system tray", labelX + 20, y, 350);
             chkStartMinimizedToTray.ForeColor = TextMutedColor;
+            chkStartMinimizedToTray.Tag = "muted";
             chkStartMinimizedToTray.Enabled = false;
             
             chkStartWithWindows.CheckedChanged += (s, e) => {
                 chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked;
                 chkStartMinimizedToTray.ForeColor = chkStartWithWindows.Checked ? TextColor : TextMutedColor;
+                chkStartMinimizedToTray.Tag = chkStartWithWindows.Checked ? null : "muted";
             };
 
             tab.Controls.AddRange(new Control[] {
@@ -635,6 +641,7 @@ namespace WeatherImageGenerator.Forms
             chkVideoGeneration = CreateCheckBox("  Enable Video Generation", leftCol, y, 280);
             chkVideoGeneration.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
             chkVideoGeneration.ForeColor = AccentColor;
+            chkVideoGeneration.Tag = "accent";
             y += 40;
 
             // Row 1: Alert Settings & Output Format
@@ -736,6 +743,7 @@ namespace WeatherImageGenerator.Forms
             lblFade.Width = 100;
             lblFade.Font = SmallFont;
             lblFade.ForeColor = TextMutedColor;
+            lblFade.Tag = "muted";
             numFade = CreateNumericUpDown(innerPad + 105, tY - 2, 70, 0, 10, 0.5M);
             numFade.DecimalPlaces = 2;
             numFade.Increment = 0.1M;
@@ -745,6 +753,7 @@ namespace WeatherImageGenerator.Forms
             chkFade.Font = SmallFont;
             chkFade.Enabled = false;
             chkFade.ForeColor = TextMutedColor;
+            chkFade.Tag = "muted";
             
             grpTiming.Controls.AddRange(new Control[] {
                 lblStatic, numStatic, lblStaticHelp,
@@ -799,6 +808,7 @@ namespace WeatherImageGenerator.Forms
             chkEnableExperimental = CreateCheckBox("⚠ Enable Experimental Features", innerPad + 440, dY, 240);
             chkEnableExperimental.Font = SmallFont;
             chkEnableExperimental.ForeColor = WarningColor;
+            chkEnableExperimental.Tag = "warning";
             chkEnableExperimental.CheckedChanged += (s, e) => {
                 if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked;
             };
@@ -960,6 +970,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 28,
                 Font = LabelFont,
                 ForeColor = TextMutedColor,
+                Tag = "muted",
                 AutoSize = false
             };
             y += 40;
@@ -1112,6 +1123,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 25,
                 Font = HelpFont,
                 ForeColor = DangerColor,
+                Tag = "danger",
                 AutoSize = false
             };
 
@@ -1325,6 +1337,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 55,
                 Font = SmallFont,
                 ForeColor = TextMutedColor,
+                Tag = "muted",
                 AutoSize = false
             };
 
@@ -1370,6 +1383,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 25,
                 Font = LabelFont,
                 ForeColor = TextMutedColor,
+                Tag = "muted",
                 AutoSize = false
             };
             y += 40;
@@ -1396,7 +1410,7 @@ namespace WeatherImageGenerator.Forms
             var lblUrl = CreateLabel("Access URL:", labelX, y);
             txtWebUIUrl = CreateTextBox(fieldX, y - 2, 350);
             txtWebUIUrl.ReadOnly = true;
-            txtWebUIUrl.BackColor = Color.FromArgb(248, 249, 250);
+            txtWebUIUrl.BackColor = ThemeManager.Current.InputBackground;
             y += rowHeight;
 
             // IP Address Information (shown when AllowRemoteAccess is checked)
@@ -1408,6 +1422,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 25,
                 Font = LabelFont,
                 ForeColor = AccentColor,
+                Tag = "accent",
                 Text = "Local IP: Checking...",
                 AutoSize = false,
                 Visible = false
@@ -1422,6 +1437,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 25,
                 Font = LabelFont,
                 ForeColor = AccentColor,
+                Tag = "accent",
                 Text = "Public IP: Checking...",
                 AutoSize = false,
                 Visible = false
@@ -1436,6 +1452,7 @@ namespace WeatherImageGenerator.Forms
                 Height = 25,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 ForeColor = TextMutedColor,
+                Tag = "muted",
                 Text = "Status: Not running",
                 AutoSize = false
             };
@@ -1455,6 +1472,7 @@ namespace WeatherImageGenerator.Forms
             // Security Notice
             var lblSecurityHeader = CreateSubHeader("⚠ Security Notice", labelX, y);
             lblSecurityHeader.ForeColor = WarningColor;
+            lblSecurityHeader.Tag = "warning";
             y += 30;
 
             var lblSecurityNote = new Label
@@ -1504,7 +1522,7 @@ namespace WeatherImageGenerator.Forms
 
         private TabPage BuildExperimentalTab()
         {
-            var tab = new TabPage("⚠ Experimental") { BackColor = Color.FromArgb(255, 252, 245), Padding = new Padding(20) };
+            var tab = new TabPage("⚠ Experimental") { BackColor = BackgroundColor, Padding = new Padding(20) };
             tab.Enabled = false;
             
             int y = 15;
@@ -1519,7 +1537,7 @@ namespace WeatherImageGenerator.Forms
                 Top = y,
                 Width = 700,
                 Height = 50,
-                BackColor = Color.FromArgb(255, 243, 205)
+                BackColor = ThemeManager.Current.IsDark ? Color.FromArgb(60, 50, 20) : Color.FromArgb(255, 243, 205)
             };
             var lblWarning = new Label
             {
@@ -1529,7 +1547,7 @@ namespace WeatherImageGenerator.Forms
                 Width = 670,
                 Height = 35,
                 Font = LabelFont,
-                ForeColor = Color.FromArgb(133, 100, 4),
+                ForeColor = ThemeManager.Current.IsDark ? WarningColor : Color.FromArgb(133, 100, 4),
                 AutoSize = false
             };
             warningPanel.Controls.Add(lblWarning);

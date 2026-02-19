@@ -173,6 +173,11 @@ namespace WeatherImageGenerator.OpenGL
                         Console.WriteLine($"[WeatherOverlay] {layerName} layer returned empty data — no precipitation detected in this area");
                         OverlayStatusChanged?.Invoke($"No {layerName.ToLower()} data available for this area");
                     }
+                    else
+                    {
+                        // Precipitation data is present — clear any "no data" HUD message immediately
+                        OverlayStatusChanged?.Invoke("");
+                    }
 
                     _radarOverlay = radarData;
                     _lastRadarUpdate = DateTime.UtcNow;

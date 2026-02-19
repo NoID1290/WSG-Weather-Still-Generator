@@ -3718,8 +3718,8 @@ namespace WeatherImageGenerator.Forms
                 this.Text = "About Weather Image Generator";
                 this.FormBorderStyle = FormBorderStyle.FixedDialog;
                 this.StartPosition = FormStartPosition.CenterParent;
-                this.Width = 700;
-                this.Height = 600;
+                this.Width = 800;
+                this.Height = 680;
                 this.MaximizeBox = false;
                 this.MinimizeBox = false;
                 this.BackColor = ThemeManager.Current.Surface;
@@ -3746,7 +3746,7 @@ namespace WeatherImageGenerator.Forms
                 var tabControl = new TabControl
                 {
                     Dock = DockStyle.Top,
-                    Height = 520
+                    Height = 590
                 };
 
                 // --- Tab 1: General Info ---
@@ -4110,6 +4110,11 @@ namespace WeatherImageGenerator.Forms
                     MkLbl("Official Canadian weather data and forecasts", false),
                     MkLbl("License: Open Government Licence - Canada", false, true),
                     Spacer(),
+                    MkLbl("National Weather Service (NWS)", true),
+                    MkLink("https://www.weather.gov/", "https://www.weather.gov/"),
+                    MkLbl("Official U.S. weather data, forecasts and SAME-encoded alerts", false),
+                    MkLbl("License: Public Domain (U.S. Government work)", false, true),
+                    Spacer(),
                     MkLbl("Alert Ready / NAAD", true),
                     MkLink("https://alerts.pelmorex.com/", "https://alerts.pelmorex.com/"),
                     MkLbl("National Alert Aggregation & Dissemination system for emergency alerts", false),
@@ -4121,6 +4126,20 @@ namespace WeatherImageGenerator.Forms
                     MkLbl("Open-Meteo .NET Library by AlienDwarf", true),
                     MkLink("https://github.com/AlienDwarf/open-meteo-dotnet", "https://github.com/AlienDwarf/open-meteo-dotnet"),
                     MkLbl("License: MIT License", false, true),
+                    Spacer(),
+                    MkLbl("SkiaSharp", true),
+                    MkLink("https://github.com/mono/SkiaSharp", "https://github.com/mono/SkiaSharp"),
+                    MkLbl("Cross-platform 2D graphics API based on Google's Skia library", false),
+                    MkLbl("License: MIT License", false, true),
+                    Spacer(),
+                    MkLbl("OpenTK (WinForms + Graphics)", true),
+                    MkLink("https://github.com/opentk/opentk", "https://github.com/opentk/opentk"),
+                    MkLbl("Open Toolkit for OpenGL, OpenAL and OpenCL in .NET", false),
+                    MkLbl("License: MIT License", false, true),
+                    Spacer(),
+                    MkLbl("System.Drawing.Common", true),
+                    MkLbl(".NET cross-platform drawing library based on GDI+", false),
+                    MkLbl("License: MIT License (.NET Library License)", false, true),
                     Spacer(),
                     MkLbl("Xabe.FFmpeg.Downloader", true),
                     MkLbl("Automatic FFmpeg binary downloader for .NET", false),
@@ -4217,7 +4236,53 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.";
+SOFTWARE.
+
+════════════════════════════════════════════════════════════════════
+                    THIRD-PARTY LICENSES
+════════════════════════════════════════════════════════════════════
+
+This application uses the following third-party software:
+
+  SkiaSharp ........................ MIT License
+    https://github.com/mono/SkiaSharp
+
+  OpenTK (WinForms + Graphics) .... MIT License
+    https://github.com/opentk/opentk
+
+  open-meteo-dotnet ............... MIT License
+    https://github.com/AlienDwarf/open-meteo-dotnet
+
+  Xabe.FFmpeg.Downloader .......... MIT License
+    https://github.com/tomaszzmuda/Xabe.FFmpeg
+
+  System.Drawing.Common ........... MIT License (.NET Foundation)
+    https://www.nuget.org/packages/System.Drawing.Common
+
+  FFmpeg ........................... LGPL v2.1+ / GPL v2+
+    https://ffmpeg.org/legal.html
+
+  Piper TTS ....................... MIT License
+    https://github.com/rhasspy/piper
+
+  OpenStreetMap ................... Open Database License (ODbL) 1.0
+    https://www.openstreetmap.org/copyright
+
+  OpenTopoMap ..................... CC BY-SA (style), ODbL (data)
+    https://opentopomap.org/
+
+  Open-Meteo API .................. CC BY 4.0
+    https://open-meteo.com/
+
+  ECCC Weather Data ............... Open Government Licence - Canada
+    https://weather.gc.ca/
+
+  NWS Weather Data ................ Public Domain (U.S. Government)
+    https://www.weather.gov/
+
+  Kevin MacLeod Music ............. CC BY 3.0
+    https://incompetech.com/
+";
                 tabLicense.Controls.Add(txtLicense);
 
                 // --- Tab 4: Disclaimer ---

@@ -57,98 +57,98 @@ namespace WeatherImageGenerator.Services
             IsDark = true,
             Primary = ColorTranslator.FromHtml("#2C3E50"),
             Secondary = ColorTranslator.FromHtml("#34495E"),
-            Accent = ColorTranslator.FromHtml("#3498DB"),
+            Accent = ColorTranslator.FromHtml("#4A90B8"),
             Success = ColorTranslator.FromHtml("#27AE60"),
-            Warning = ColorTranslator.FromHtml("#F39C12"),
-            Danger = ColorTranslator.FromHtml("#E74C3C"),
-            Background = ColorTranslator.FromHtml("#233140"),
-            Surface = ColorTranslator.FromHtml("#2C3E50"),
-            CardBackground = ColorTranslator.FromHtml("#34495E"),
-            InputBackground = ColorTranslator.FromHtml("#3D5266"),
-            TextPrimary = ColorTranslator.FromHtml("#FFFFFF"),
-            TextSecondary = ColorTranslator.FromHtml("#ECF0F1"),
-            TextDim = ColorTranslator.FromHtml("#BDC3C7"),
+            Warning = ColorTranslator.FromHtml("#E6A23C"),
+            Danger = ColorTranslator.FromHtml("#D94F4F"),
+            Background = ColorTranslator.FromHtml("#1E2A36"),
+            Surface = ColorTranslator.FromHtml("#263645"),
+            CardBackground = ColorTranslator.FromHtml("#2F4254"),
+            InputBackground = ColorTranslator.FromHtml("#374F63"),
+            TextPrimary = ColorTranslator.FromHtml("#E8ECF0"),
+            TextSecondary = ColorTranslator.FromHtml("#B0BEC5"),
+            TextDim = ColorTranslator.FromHtml("#7E929E"),
             TextOnAccent = Color.White,
-            TextOnButton = Color.White,
-            TextOnWarning = Color.Black,
-            ButtonBackground = ColorTranslator.FromHtml("#4E6781"),
-            ButtonHover = ColorTranslator.FromHtml("#5A7A99"),
-            Border = ColorTranslator.FromHtml("#4A6278"),
-            Separator = ColorTranslator.FromHtml("#3D5266")
+            TextOnButton = ColorTranslator.FromHtml("#E8ECF0"),
+            TextOnWarning = ColorTranslator.FromHtml("#1E2A36"),
+            ButtonBackground = ColorTranslator.FromHtml("#3A5268"),
+            ButtonHover = ColorTranslator.FromHtml("#4A6A84"),
+            Border = ColorTranslator.FromHtml("#3A5268"),
+            Separator = ColorTranslator.FromHtml("#2F4254")
         };
 
         public static readonly ThemeColors Dark = new ThemeColors
         {
             Name = "Dark",
             IsDark = true,
-            Primary = ColorTranslator.FromHtml("#121212"),
-            Secondary = ColorTranslator.FromHtml("#1E1E1E"),
-            Accent = ColorTranslator.FromHtml("#3498DB"),
-            Success = ColorTranslator.FromHtml("#27AE60"),
-            Warning = ColorTranslator.FromHtml("#F39C12"),
-            Danger = ColorTranslator.FromHtml("#E74C3C"),
-            Background = ColorTranslator.FromHtml("#1E1E1E"),
-            Surface = ColorTranslator.FromHtml("#121212"),
-            CardBackground = ColorTranslator.FromHtml("#1E1E1E"),
-            InputBackground = ColorTranslator.FromHtml("#2A2A2A"),
-            TextPrimary = Color.White,
-            TextSecondary = ColorTranslator.FromHtml("#E0E0E0"),
-            TextDim = ColorTranslator.FromHtml("#B0B0B0"),
+            Primary = ColorTranslator.FromHtml("#161719"),
+            Secondary = ColorTranslator.FromHtml("#1E2024"),
+            Accent = ColorTranslator.FromHtml("#5B9BD5"),
+            Success = ColorTranslator.FromHtml("#4CAF6E"),
+            Warning = ColorTranslator.FromHtml("#E6A23C"),
+            Danger = ColorTranslator.FromHtml("#D94F4F"),
+            Background = ColorTranslator.FromHtml("#121314"),
+            Surface = ColorTranslator.FromHtml("#1A1C1E"),
+            CardBackground = ColorTranslator.FromHtml("#222528"),
+            InputBackground = ColorTranslator.FromHtml("#2A2D31"),
+            TextPrimary = ColorTranslator.FromHtml("#DCDFE3"),
+            TextSecondary = ColorTranslator.FromHtml("#9EA4AD"),
+            TextDim = ColorTranslator.FromHtml("#6B7280"),
             TextOnAccent = Color.White,
-            TextOnButton = Color.White,
-            TextOnWarning = Color.Black,
-            ButtonBackground = ColorTranslator.FromHtml("#333333"),
-            ButtonHover = ColorTranslator.FromHtml("#444444"),
-            Border = ColorTranslator.FromHtml("#3A3A3A"),
-            Separator = ColorTranslator.FromHtml("#333333")
+            TextOnButton = ColorTranslator.FromHtml("#DCDFE3"),
+            TextOnWarning = ColorTranslator.FromHtml("#121314"),
+            ButtonBackground = ColorTranslator.FromHtml("#32363B"),
+            ButtonHover = ColorTranslator.FromHtml("#42474E"),
+            Border = ColorTranslator.FromHtml("#32363B"),
+            Separator = ColorTranslator.FromHtml("#2A2D31")
         };
 
         public static readonly ThemeColors Light = new ThemeColors
         {
             Name = "Light",
             IsDark = false,
-            Primary = ColorTranslator.FromHtml("#F8F9FA"),
+            Primary = ColorTranslator.FromHtml("#F5F6F8"),
             Secondary = Color.White,
-            Accent = ColorTranslator.FromHtml("#0D6EFD"),
-            Success = ColorTranslator.FromHtml("#198754"),
-            Warning = ColorTranslator.FromHtml("#FFC107"),
-            Danger = ColorTranslator.FromHtml("#DC3545"),
-            Background = Color.White,
-            Surface = ColorTranslator.FromHtml("#F8F9FA"),
+            Accent = ColorTranslator.FromHtml("#3B6FC1"),
+            Success = ColorTranslator.FromHtml("#2D8C55"),
+            Warning = ColorTranslator.FromHtml("#D4940A"),
+            Danger = ColorTranslator.FromHtml("#C93B3B"),
+            Background = ColorTranslator.FromHtml("#F0F2F5"),
+            Surface = ColorTranslator.FromHtml("#F7F8FA"),
             CardBackground = Color.White,
             InputBackground = Color.White,
-            TextPrimary = ColorTranslator.FromHtml("#212529"),
-            TextSecondary = ColorTranslator.FromHtml("#495057"),
-            TextDim = ColorTranslator.FromHtml("#6C757D"),
+            TextPrimary = ColorTranslator.FromHtml("#1A1D23"),
+            TextSecondary = ColorTranslator.FromHtml("#4A5568"),
+            TextDim = ColorTranslator.FromHtml("#718096"),
             TextOnAccent = Color.White,
-            TextOnButton = Color.Black,
-            TextOnWarning = Color.Black,
-            ButtonBackground = ColorTranslator.FromHtml("#DEE2E6"),
-            ButtonHover = ColorTranslator.FromHtml("#C8CDD2"),
-            Border = ColorTranslator.FromHtml("#DEE2E6"),
-            Separator = ColorTranslator.FromHtml("#DEE2E6")
+            TextOnButton = ColorTranslator.FromHtml("#1A1D23"),
+            TextOnWarning = ColorTranslator.FromHtml("#1A1D23"),
+            ButtonBackground = ColorTranslator.FromHtml("#E2E5EA"),
+            ButtonHover = ColorTranslator.FromHtml("#CBD0D8"),
+            Border = ColorTranslator.FromHtml("#D1D5DB"),
+            Separator = ColorTranslator.FromHtml("#E2E5EA")
         };
 
         public static readonly ThemeColors Green = new ThemeColors
         {
             Name = "Green",
             IsDark = true,
-            Primary = ColorTranslator.FromHtml("#102018"),
-            Secondary = ColorTranslator.FromHtml("#1B3A28"),
-            Accent = ColorTranslator.FromHtml("#2E8B57"),
-            Success = ColorTranslator.FromHtml("#27AE60"),
-            Warning = ColorTranslator.FromHtml("#F39C12"),
-            Danger = ColorTranslator.FromHtml("#E74C3C"),
-            Background = ColorTranslator.FromHtml("#0A1510"),
-            Surface = ColorTranslator.FromHtml("#102018"),
-            CardBackground = ColorTranslator.FromHtml("#1B3A28"),
+            Primary = ColorTranslator.FromHtml("#152A1E"),
+            Secondary = ColorTranslator.FromHtml("#1E3A2A"),
+            Accent = ColorTranslator.FromHtml("#3D8B6E"),
+            Success = ColorTranslator.FromHtml("#48B07A"),
+            Warning = ColorTranslator.FromHtml("#E6A23C"),
+            Danger = ColorTranslator.FromHtml("#D94F4F"),
+            Background = ColorTranslator.FromHtml("#0E1F15"),
+            Surface = ColorTranslator.FromHtml("#152A1E"),
+            CardBackground = ColorTranslator.FromHtml("#1E3A2A"),
             InputBackground = ColorTranslator.FromHtml("#264D35"),
-            TextPrimary = Color.White,
-            TextSecondary = ColorTranslator.FromHtml("#E8F8F1"),
-            TextDim = ColorTranslator.FromHtml("#A0C0B0"),
+            TextPrimary = ColorTranslator.FromHtml("#E0EDE6"),
+            TextSecondary = ColorTranslator.FromHtml("#9CBFAA"),
+            TextDim = ColorTranslator.FromHtml("#6A9880"),
             TextOnAccent = Color.White,
-            TextOnButton = Color.White,
-            TextOnWarning = Color.Black,
+            TextOnButton = ColorTranslator.FromHtml("#E0EDE6"),
+            TextOnWarning = ColorTranslator.FromHtml("#0E1F15"),
             ButtonBackground = ColorTranslator.FromHtml("#2D5A40"),
             ButtonHover = ColorTranslator.FromHtml("#3A7353"),
             Border = ColorTranslator.FromHtml("#2D5A40"),
@@ -262,7 +262,15 @@ namespace WeatherImageGenerator.Services
                     break;
 
                 case CheckBox chk:
-                    chk.ForeColor = t.TextSecondary;
+                    // Respect semantic tags for themed checkboxes
+                    if (chk.Tag is string chkSemantic)
+                    {
+                        chk.ForeColor = ResolveSemanticColor(chkSemantic, t);
+                    }
+                    else
+                    {
+                        chk.ForeColor = t.TextSecondary;
+                    }
                     break;
 
                 case NumericUpDown nud:
@@ -272,6 +280,7 @@ namespace WeatherImageGenerator.Services
 
                 case GroupBox gb:
                     gb.ForeColor = t.Accent;
+                    gb.BackColor = t.CardBackground;
                     foreach (Control c in gb.Controls)
                         ApplyToControl(c, t);
                     break;
@@ -321,9 +330,21 @@ namespace WeatherImageGenerator.Services
                     break;
 
                 case Label lbl:
-                    // Don't override labels with explicit color assignments (e.g., accent-colored headers)
-                    if (lbl.ForeColor == SystemColors.ControlText || lbl.ForeColor == Color.Black)
+                    // Thin separator / divider lines
+                    if (lbl.Height <= 2 && string.IsNullOrEmpty(lbl.Text))
+                    {
+                        lbl.BackColor = t.Border;
+                        break;
+                    }
+                    // Semantic label color via Tag
+                    if (lbl.Tag is string labelSemantic)
+                    {
+                        lbl.ForeColor = ResolveSemanticColor(labelSemantic, t);
+                    }
+                    else
+                    {
                         lbl.ForeColor = t.TextPrimary;
+                    }
                     break;
 
                 case ListView lv:
@@ -361,6 +382,25 @@ namespace WeatherImageGenerator.Services
             btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(bgColor, 0.15f);
             btn.Tag = new Color[] { bgColor, fgColor };
             btn.Cursor = Cursors.Hand;
+        }
+
+        /// <summary>
+        /// Resolves a semantic tag string (e.g., "accent", "warning") to the corresponding theme color.
+        /// Controls can set Tag = "accent" | "muted" | "dim" | "warning" | "danger" | "success"
+        /// and ApplyToControl will map it to the active theme's palette.
+        /// </summary>
+        private static Color ResolveSemanticColor(string semantic, ThemeColors t)
+        {
+            return semantic switch
+            {
+                "accent" => t.Accent,
+                "muted" => t.TextSecondary,
+                "dim" => t.TextDim,
+                "warning" => t.Warning,
+                "danger" => t.Danger,
+                "success" => t.Success,
+                _ => t.TextPrimary
+            };
         }
     }
 }
