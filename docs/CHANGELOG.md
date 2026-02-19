@@ -15,8 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement theme management and first-boot disclaimer
 - Update System.Drawing.Common package version to 9.0.13
 - Update OpenTK.Graphics package version to 4.9.4
-- Update TODO list
-- TODO added
+- Added ThemeManager for centralized theme management with support for live theme switching.
+- Integrated theme application in MediaViewerForm, MusicForm, SettingsForm, TestAlertSelectionForm, and WeatherDetailsForm.
+- Introduced a DisclaimerDialog to display a first-boot disclaimer, requiring user acknowledgment before proceeding.
+- Updated ConfigManager to include settings for first boot completion and UI preferences (crosshair, coordinates HUD, temperature labels).
+- Enhanced GLRadarControl and WeatherMapControl to support new UI settings and improved overlay management.
+- Added options for showing/hiding temperature labels and crosshair in the UI.
+- Implemented persistent settings storage for user preferences.
 
 ## [1.10.2.0218] - 2026-02-18
 
