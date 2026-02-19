@@ -112,16 +112,15 @@ namespace WeatherImageGenerator.OpenGL
         private void InitializeComponents()
         {
             this.Size = new Size(1200, 800);
-            this.BackColor = Color.FromArgb(24, 24, 28);
+            this.BackColor = ThemeManager.Current.Background;
             
             // Control panel (right side) – dark sidebar
             _controlPanel = new Panel
             {
                 Dock = DockStyle.Right,
                 Width = 280,
-                BackColor = Color.FromArgb(32, 34, 38),
-                Padding = new Padding(10),
-                AutoScroll = true
+                BackColor = ThemeManager.Current.Surface,
+                Padding = new Padding(10)
             };
             this.Controls.Add(_controlPanel);
         }
@@ -131,7 +130,7 @@ namespace WeatherImageGenerator.OpenGL
             _glControl = new GLRadarControl
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(20, 20, 20)
+                BackColor = ThemeManager.Current.Background
             };
             this.Controls.Add(_glControl);
             _glControl.BringToFront();
@@ -260,7 +259,8 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 28),
                 Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold),
-                ForeColor = Color.FromArgb(240, 242, 248)
+                ForeColor = ThemeManager.Current.TextPrimary,
+                Tag = "header"
             };
             _controlPanel.Controls.Add(header);
             y += 30;
@@ -278,8 +278,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(controlWidth, 24),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9),
-                BackColor = Color.FromArgb(55, 55, 60),
-                ForeColor = Color.White,
+                BackColor = ThemeManager.Current.InputBackground,
+                ForeColor = ThemeManager.Current.TextPrimary,
                 FlatStyle = FlatStyle.Flat
             };
             _cmbMapStyle.Items.AddRange(new object[] { "Standard", "Dark", "Terrain", "Satellite" });
@@ -322,7 +322,8 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 16),
                 Font = new Font("Segoe UI", 8),
-                ForeColor = Color.FromArgb(180, 180, 180)
+                ForeColor = ThemeManager.Current.TextSecondary,
+                Tag = "smallLabel"
             };
             _controlPanel.Controls.Add(_lblZoom);
             y += 20;
@@ -341,7 +342,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI", 9),
-                ForeColor = Color.White,
+                ForeColor = ThemeManager.Current.TextSecondary,
                 Checked = true
             };
             _chkRadar.CheckedChanged += async (s, e) => { UpdateAttributionText(); await UpdateOverlays(); };
@@ -359,8 +360,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(controlWidth, 24),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9),
-                BackColor = Color.FromArgb(55, 55, 60),
-                ForeColor = Color.White,
+                BackColor = ThemeManager.Current.InputBackground,
+                ForeColor = ThemeManager.Current.TextPrimary,
                 FlatStyle = FlatStyle.Flat
             };
             _cmbRadarLayer.Items.AddRange(new object[] { 
@@ -385,8 +386,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(controlWidth, 24),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 9),
-                BackColor = Color.FromArgb(55, 55, 60),
-                ForeColor = Color.White,
+                BackColor = ThemeManager.Current.InputBackground,
+                ForeColor = ThemeManager.Current.TextPrimary,
                 FlatStyle = FlatStyle.Flat
             };
             _cmbRadarStyle.Items.AddRange(new object[] { 
@@ -428,7 +429,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI", 9),
-                ForeColor = Color.White,
+                ForeColor = ThemeManager.Current.TextSecondary,
                 Checked = false
             };
             _chkTemperature.CheckedChanged += async (s, e) => { UpdateAttributionText(); await UpdateOverlays(); };
@@ -464,7 +465,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI", 9),
-                ForeColor = Color.White,
+                ForeColor = ThemeManager.Current.TextSecondary,
                 Checked = true
             };
             chkTempLabels.CheckedChanged += async (s, e) =>
@@ -491,7 +492,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI", 9),
-                ForeColor = Color.White,
+                ForeColor = ThemeManager.Current.TextSecondary,
                 Checked = _glControl.ShowCrosshair
             };
             chkCrosshair.CheckedChanged += (s, e) =>
@@ -517,7 +518,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI", 9),
-                ForeColor = Color.White,
+                ForeColor = ThemeManager.Current.TextSecondary,
                 Checked = _glControl.ShowCoordinatesHUD
             };
             chkCoords.CheckedChanged += (s, e) =>
@@ -557,9 +558,10 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(160, buttonHeight),
                 Font = new Font("Segoe UI", 9),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
-                Cursor = Cursors.Hand
+                BackColor = ThemeManager.Current.Accent,
+                ForeColor = ThemeManager.Current.TextOnAccent,
+                Cursor = Cursors.Hand,
+                Tag = "action"
             };
             _btnLoadAnimation.FlatAppearance.BorderSize = 0;
             _btnLoadAnimation.Click += async (s, e) => await LoadRadarAnimation();
@@ -571,10 +573,11 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(90, buttonHeight),
                 Font = new Font("Segoe UI", 9),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(160, 50, 50),
+                BackColor = ThemeManager.Current.Danger,
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand,
-                Enabled = false
+                Enabled = false,
+                Tag = "danger"
             };
             _btnCloseAnimation.FlatAppearance.BorderSize = 0;
             _btnCloseAnimation.Click += (s, e) => CloseRadarAnimation();
@@ -589,7 +592,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(14, y),
                 Size = new Size(controlWidth - 14, 20),
                 Checked = true,
-                ForeColor = Color.FromArgb(200, 200, 200),
+                ForeColor = ThemeManager.Current.TextSecondary,
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat
             };
@@ -627,8 +630,9 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 22),
                 Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold),
-                ForeColor = Color.FromArgb(60, 190, 255),
-                Cursor = Cursors.Hand
+                ForeColor = ThemeManager.Current.Accent,
+                Cursor = Cursors.Hand,
+                Tag = "section"
             };
             _lblOptionsHeader.Click += (s, e) => ToggleOptionsPanel();
             _controlPanel.Controls.Add(_lblOptionsHeader);
@@ -659,7 +663,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, oy),
                 Size = new Size(controlWidth, 20),
                 Checked = true,
-                ForeColor = Color.FromArgb(180, 180, 180),
+                ForeColor = ThemeManager.Current.TextSecondary,
                 Font = new Font("Segoe UI", 8F)
             };
             chkPbo.CheckedChanged += (s, e) => { _glControl.UsePboUploads = chkPbo.Checked; };
@@ -683,7 +687,8 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 16),
                 Font = new Font("Consolas", 8),
-                ForeColor = Color.FromArgb(160, 160, 160)
+                ForeColor = ThemeManager.Current.TextDim,
+                Tag = "status"
             };
             _controlPanel.Controls.Add(_lblPosition);
             y += 18;
@@ -694,7 +699,8 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(controlWidth, 32),
                 Font = new Font("Consolas", 8),
-                ForeColor = Color.FromArgb(160, 160, 160)
+                ForeColor = ThemeManager.Current.TextDim,
+                Tag = "status"
             };
             _controlPanel.Controls.Add(_lblCacheStats);
             y += 34;
@@ -709,10 +715,11 @@ namespace WeatherImageGenerator.OpenGL
 
         private void BuildFloatingAnimationPanel()
         {
+            var t = ThemeManager.Current;
             _animationPanel = new Panel
             {
                 Size = new Size(540, 90),
-                BackColor = Color.FromArgb(210, 22, 22, 26),
+                BackColor = Color.FromArgb(210, t.Surface.R, t.Surface.G, t.Surface.B),
                 Visible = false
             };
             this.Controls.Add(_animationPanel);
@@ -726,7 +733,7 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(22, 22),
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(140, 40, 40),
+                BackColor = t.Danger,
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand
             };
@@ -744,8 +751,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(40, 32),
                 Font = new Font("Segoe UI", 12),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 65),
-                ForeColor = Color.White,
+                BackColor = t.ButtonBackground,
+                ForeColor = t.TextOnButton,
                 Cursor = Cursors.Hand
             };
             _btnStepBack.FlatAppearance.BorderSize = 0;
@@ -760,8 +767,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(50, 32),
                 Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
+                BackColor = t.Accent,
+                ForeColor = t.TextOnAccent,
                 Cursor = Cursors.Hand
             };
             _btnPlayPause.FlatAppearance.BorderSize = 0;
@@ -776,8 +783,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(40, 32),
                 Font = new Font("Segoe UI", 12),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 65),
-                ForeColor = Color.White,
+                BackColor = t.ButtonBackground,
+                ForeColor = t.TextOnButton,
                 Cursor = Cursors.Hand
             };
             _btnStepForward.FlatAppearance.BorderSize = 0;
@@ -813,8 +820,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(26, 26),
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 65),
-                ForeColor = Color.White,
+                BackColor = t.ButtonBackground,
+                ForeColor = t.TextOnButton,
                 Cursor = Cursors.Hand
             };
             btnSpeedDown.FlatAppearance.BorderSize = 0;
@@ -828,7 +835,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(ax, ay + 5),
                 Size = new Size(38, 20),
                 Font = new Font("Consolas", 9),
-                ForeColor = Color.White,
+                ForeColor = t.TextPrimary,
                 TextAlign = ContentAlignment.MiddleCenter
             };
             _animationPanel.Controls.Add(_lblSpeed);
@@ -841,8 +848,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(26, 26),
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 65),
-                ForeColor = Color.White,
+                BackColor = t.ButtonBackground,
+                ForeColor = t.TextOnButton,
                 Cursor = Cursors.Hand
             };
             btnSpeedUp.FlatAppearance.BorderSize = 0;
@@ -858,8 +865,8 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(32, 26),
                 Font = new Font("Segoe UI", 10),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
+                BackColor = t.Accent,
+                ForeColor = t.TextOnAccent,
                 Cursor = Cursors.Hand
             };
             _btnLoopToggle.FlatAppearance.BorderSize = 0;
@@ -867,8 +874,8 @@ namespace WeatherImageGenerator.OpenGL
             {
                 _animationLoop = !_animationLoop;
                 _btnLoopToggle.BackColor = _animationLoop
-                    ? Color.FromArgb(0, 122, 204)
-                    : Color.FromArgb(60, 60, 65);
+                    ? ThemeManager.Current.Accent
+                    : ThemeManager.Current.ButtonBackground;
             };
             _animationPanel.Controls.Add(_btnLoopToggle);
 
@@ -879,7 +886,7 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, 50),
                 Size = new Size(500, 30),
                 Font = new Font("Segoe UI", 10),
-                ForeColor = Color.FromArgb(200, 200, 200),
+                ForeColor = t.TextSecondary,
                 TextAlign = ContentAlignment.MiddleLeft
             };
             _animationPanel.Controls.Add(_lblFrameInfo);
@@ -889,8 +896,8 @@ namespace WeatherImageGenerator.OpenGL
             {
                 if (c is Button btn)
                 {
-                    btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 150, 230);
-                    btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 100, 180);
+                    btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(t.Accent, 0.15f);
+                    btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(t.Accent, 0.15f);
                 }
             }
 
@@ -1082,14 +1089,14 @@ namespace WeatherImageGenerator.OpenGL
             if (_isAnimating)
             {
                 _btnPlayPause.Text = "⏸";
-                _btnPlayPause.BackColor = Color.FromArgb(200, 80, 20);
+                _btnPlayPause.BackColor = ThemeManager.Current.Warning;
                 _animationTimer.Interval = _animationSpeedMs;
                 _animationTimer.Start();
             }
             else
             {
                 _btnPlayPause.Text = "▶";
-                _btnPlayPause.BackColor = Color.FromArgb(0, 122, 204);
+                _btnPlayPause.BackColor = ThemeManager.Current.Accent;
                 _animationTimer.Stop();
             }
         }
@@ -1156,7 +1163,7 @@ namespace WeatherImageGenerator.OpenGL
                     _isAnimating = false;
                     _animationTimer?.Stop();
                     _btnPlayPause.Text = "▶";
-                    _btnPlayPause.BackColor = Color.FromArgb(0, 122, 204);
+                    _btnPlayPause.BackColor = ThemeManager.Current.Accent;
                     return;
                 }
             }
@@ -1333,7 +1340,8 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(256, 22),
                 Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold),
-                ForeColor = Color.FromArgb(60, 190, 255)
+                ForeColor = ThemeManager.Current.Accent,
+                Tag = "section"
             };
         }
 
@@ -1345,7 +1353,8 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(256, 16),
                 Font = new Font("Segoe UI", 9),
-                ForeColor = Color.FromArgb(185, 185, 190)
+                ForeColor = ThemeManager.Current.TextSecondary,
+                Tag = "smallLabel"
             };
         }
 
@@ -1357,31 +1366,34 @@ namespace WeatherImageGenerator.OpenGL
                 Location = new Point(10, y),
                 Size = new Size(256, 20),
                 Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 220, 225)
+                ForeColor = ThemeManager.Current.TextPrimary
             };
         }
 
         private Button CreateSmallButton(string text, int height)
         {
+            var t = ThemeManager.Current;
             var btn = new Button
             {
                 Text = text,
                 Size = new Size(78, height),
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(50, 55, 62),
-                ForeColor = Color.FromArgb(220, 225, 235),
-                Cursor = Cursors.Hand
+                BackColor = t.ButtonBackground,
+                ForeColor = t.TextOnButton,
+                Cursor = Cursors.Hand,
+                Tag = "small"
             };
             btn.FlatAppearance.BorderSize = 1;
-            btn.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 85);
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 140, 220);
-            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 100, 170);
+            btn.FlatAppearance.BorderColor = t.Border;
+            btn.FlatAppearance.MouseOverBackColor = t.ButtonHover;
+            btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(t.Accent, 0.15f);
             return btn;
         }
 
         private Button CreateActionButton(string text, int y)
         {
+            var t = ThemeManager.Current;
             var btn = new Button
             {
                 Text = text,
@@ -1389,15 +1401,16 @@ namespace WeatherImageGenerator.OpenGL
                 Size = new Size(256, 32),
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(0, 122, 204),
-                ForeColor = Color.White,
+                BackColor = t.Accent,
+                ForeColor = t.TextOnAccent,
                 Cursor = Cursors.Hand,
-                TextAlign = ContentAlignment.MiddleCenter
+                TextAlign = ContentAlignment.MiddleCenter,
+                Tag = "action"
             };
             btn.FlatAppearance.BorderSize = 1;
-            btn.FlatAppearance.BorderColor = Color.FromArgb(30, 152, 234);
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(28, 151, 234);
-            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 90, 158);
+            btn.FlatAppearance.BorderColor = ControlPaint.Light(t.Accent, 0.15f);
+            btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(t.Accent, 0.15f);
+            btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(t.Accent, 0.15f);
             // Add subtle hover animation  
             btn.MouseEnter += (s, e) => btn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             btn.MouseLeave += (s, e) => btn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
@@ -1406,21 +1419,23 @@ namespace WeatherImageGenerator.OpenGL
 
         private Button CreateDockButton(string text, PanelPosition pos)
         {
+            var t = ThemeManager.Current;
             var btn = new Button
             {
                 Text = text,
                 Size = new Size(40, 22),
                 Font = new Font("Segoe UI", 8),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(50, 52, 58),
-                ForeColor = Color.FromArgb(200, 200, 210),
+                BackColor = t.ButtonBackground,
+                ForeColor = t.TextOnButton,
                 Cursor = Cursors.Hand,
-                Margin = new Padding(1)
+                Margin = new Padding(1),
+                Tag = "small"
             };
             btn.FlatAppearance.BorderSize = 1;
-            btn.FlatAppearance.BorderColor = Color.FromArgb(65, 67, 75);
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(70, 75, 85);
-            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 122, 204);
+            btn.FlatAppearance.BorderColor = t.Border;
+            btn.FlatAppearance.MouseOverBackColor = t.ButtonHover;
+            btn.FlatAppearance.MouseDownBackColor = t.Accent;
             btn.Click += (s, e) => SetPanelPosition(pos);
             return btn;
         }
@@ -1462,7 +1477,7 @@ namespace WeatherImageGenerator.OpenGL
                 _isAnimating = false;
                 _animationTimer?.Stop();
                 _btnPlayPause.Text = "▶";
-                _btnPlayPause.BackColor = Color.FromArgb(0, 122, 204);
+                _btnPlayPause.BackColor = ThemeManager.Current.Accent;
             }
 
             // Clear frames
@@ -1638,31 +1653,165 @@ namespace WeatherImageGenerator.OpenGL
             {
                 Location = new Point(14, y + 2),
                 Size = new Size(248, 1),
-                BackColor = Color.FromArgb(58, 60, 68)
+                BackColor = ThemeManager.Current.Separator,
+                Tag = "separator"
             };
             _controlPanel.Controls.Add(separator);
         }
 
         private void ApplyModernStyling()
         {
+            ApplyTheme();
+        }
+
+        /// <summary>
+        /// Re-applies all ThemeManager colors to the control and its children.
+        /// Called on initial load and whenever the theme changes.
+        /// </summary>
+        public void ApplyTheme()
+        {
+            var t = ThemeManager.Current;
+
+            // Root backgrounds
+            this.BackColor = t.Background;
+            _controlPanel.BackColor = t.Surface;
+            if (_glControl != null)
+                _glControl.BackColor = t.Background;
+
+            // Control panel children
             foreach (Control ctrl in _controlPanel.Controls)
             {
-                if (ctrl is Button btn)
+                ApplyThemeToControl(ctrl, t);
+            }
+
+            // Floating animation panel
+            if (_animationPanel != null)
+            {
+                _animationPanel.BackColor = Color.FromArgb(210, t.Surface.R, t.Surface.G, t.Surface.B);
+                foreach (Control c in _animationPanel.Controls)
                 {
-                    if (btn.FlatAppearance.MouseOverBackColor == Color.Empty)
-                        btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(28, 151, 234);
-                    if (btn.FlatAppearance.MouseDownBackColor == Color.Empty)
-                        btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 100, 180);
+                    if (c is Button btn)
+                    {
+                        if (btn.BackColor == Color.Empty) continue;
+                        // Preserve play/accent vs transport/neutral distinction via tag or current color
+                        if (btn == _btnPlayPause || btn == _btnLoopToggle)
+                        {
+                            btn.BackColor = (_btnLoopToggle == btn && !_animationLoop) ? t.ButtonBackground : t.Accent;
+                            btn.ForeColor = t.TextOnAccent;
+                        }
+                        else if (btn.Text == "✕") // close button
+                        {
+                            btn.BackColor = t.Danger;
+                            btn.ForeColor = Color.White;
+                        }
+                        else
+                        {
+                            btn.BackColor = t.ButtonBackground;
+                            btn.ForeColor = t.TextOnButton;
+                        }
+                        btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(t.Accent, 0.15f);
+                        btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(t.Accent, 0.15f);
+                    }
+                    else if (c is Label lbl)
+                    {
+                        lbl.ForeColor = t.TextSecondary;
+                    }
                 }
-                if (ctrl is ComboBox cmb)
+            }
+
+            // Options panel children need theming too
+            if (_optionsPanel != null)
+            {
+                foreach (Control c in _optionsPanel.Controls)
                 {
-                    cmb.BackColor = Color.FromArgb(48, 50, 56);
-                    cmb.ForeColor = Color.FromArgb(220, 225, 235);
+                    ApplyThemeToControl(c, t);
                 }
-                if (ctrl is CheckBox chk)
-                {
-                    chk.ForeColor = Color.FromArgb(210, 215, 225);
-                }
+            }
+        }
+
+        private static void ApplyThemeToControl(Control ctrl, ThemeManager.ThemeColors t)
+        {
+            var tag = ctrl.Tag as string;
+
+            switch (ctrl)
+            {
+                case Button btn:
+                    if (tag == "action")
+                    {
+                        btn.BackColor = t.Accent;
+                        btn.ForeColor = t.TextOnAccent;
+                        btn.FlatAppearance.BorderColor = ControlPaint.Light(t.Accent, 0.15f);
+                        btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(t.Accent, 0.15f);
+                        btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(t.Accent, 0.15f);
+                    }
+                    else if (tag == "danger")
+                    {
+                        btn.BackColor = t.Danger;
+                        btn.ForeColor = Color.White;
+                        btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(t.Danger, 0.15f);
+                        btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(t.Danger, 0.15f);
+                    }
+                    else if (tag == "small")
+                    {
+                        btn.BackColor = t.ButtonBackground;
+                        btn.ForeColor = t.TextOnButton;
+                        btn.FlatAppearance.BorderColor = t.Border;
+                        btn.FlatAppearance.MouseOverBackColor = t.ButtonHover;
+                        btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(t.Accent, 0.15f);
+                    }
+                    else
+                    {
+                        btn.BackColor = t.ButtonBackground;
+                        btn.ForeColor = t.TextOnButton;
+                        if (btn.FlatAppearance.MouseOverBackColor == Color.Empty)
+                            btn.FlatAppearance.MouseOverBackColor = t.ButtonHover;
+                    }
+                    break;
+
+                case ComboBox cmb:
+                    cmb.BackColor = t.InputBackground;
+                    cmb.ForeColor = t.TextPrimary;
+                    break;
+
+                case CheckBox chk:
+                    chk.ForeColor = t.TextSecondary;
+                    break;
+
+                case Label lbl:
+                    if (tag == "section")
+                        lbl.ForeColor = t.Accent;
+                    else if (tag == "smallLabel")
+                        lbl.ForeColor = t.TextSecondary;
+                    else if (tag == "status")
+                        lbl.ForeColor = t.TextDim;
+                    else if (tag == "header")
+                        lbl.ForeColor = t.TextPrimary;
+                    else
+                        lbl.ForeColor = t.TextPrimary;
+                    break;
+
+                case FlowLayoutPanel flp:
+                    // Keep transparent backgrounds for flow panels (they sit on the panel)
+                    foreach (Control c in flp.Controls)
+                        ApplyThemeToControl(c, t);
+                    break;
+
+                case Panel pnl:
+                    if (tag == "separator")
+                        pnl.BackColor = t.Separator;
+                    else if (pnl.BackColor != Color.Transparent)
+                        pnl.BackColor = t.Surface;
+                    // Recurse into child panels
+                    foreach (Control c in pnl.Controls)
+                        ApplyThemeToControl(c, t);
+                    break;
+
+                case TrackBar _:
+                    break; // TrackBar doesn't support theming well
+
+                default:
+                    ctrl.ForeColor = t.TextPrimary;
+                    break;
             }
         }
 

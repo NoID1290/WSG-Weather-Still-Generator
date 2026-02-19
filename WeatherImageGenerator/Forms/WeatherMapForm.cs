@@ -18,15 +18,22 @@ namespace WeatherImageGenerator.Forms
         public WeatherMapForm()
         {
             InitializeComponent();
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ApplyTitleBar(this);
+            ThemeManager.ThemeChanged += _ =>
+            {
+                ThemeManager.ApplyTo(this);
+                ThemeManager.ApplyTitleBar(this);
+                _weatherMap?.ApplyTheme();
+            };
             LoadWeatherMap();
         }
 
         private void InitializeComponent()
         {
             this.Text = "Weather Interactive Map";
-            this.Size = new System.Drawing.Size(1400, 900);
+            this.Size = new System.Drawing.Size(1400, 1050);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
         }
 
         private void LoadWeatherMap()
