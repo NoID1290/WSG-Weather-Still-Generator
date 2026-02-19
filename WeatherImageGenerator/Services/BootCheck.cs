@@ -15,6 +15,12 @@ namespace WeatherImageGenerator.Services
         public string StatusMessage { get; set; } = "";
         public string? Detail { get; set; }
         public Exception? Error { get; set; }
+
+        /// <summary>
+        /// When true, this failure is unrecoverable and the application must exit.
+        /// The user will not be offered a "Continue Anyway" option.
+        /// </summary>
+        public bool IsFatal { get; set; }
     }
 
     public enum BootCheckStatus

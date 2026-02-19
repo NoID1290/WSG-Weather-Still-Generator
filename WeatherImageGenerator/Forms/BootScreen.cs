@@ -54,6 +54,7 @@ namespace WeatherImageGenerator.Forms
         private BootRunner? _runner;
         private bool _completed;
         private bool _hasFailures;
+        private bool _hasFatalFailure;
 
         /// <summary>
         /// The validated AppSettings loaded by the configuration check (available after boot completes).
@@ -189,6 +190,12 @@ namespace WeatherImageGenerator.Forms
             _continueBtn.FlatAppearance.MouseOverBackColor = AccentGlow;
             _continueBtn.Click += (_, _) =>
             {
+                if (_hasFatalFailure)
+                {
+                    DialogResult = DialogResult.Cancel;
+                    Close();
+                    return;
+                }
                 DialogResult = _hasFailures ? DialogResult.Abort : DialogResult.OK;
                 Close();
             };
@@ -328,6 +335,7 @@ namespace WeatherImageGenerator.Forms
 
             // Register all checks in order
             var settingsCheck = new AppSettingsCheck();
+            _runner.Add(new SingleInstanceCheck());
             _runner.Add(new EnvironmentCheck());
             _runner.Add(new AppUpdateCheck());
             _runner.Add(settingsCheck);
@@ -348,7 +356,7 @@ namespace WeatherImageGenerator.Forms
             int y = 0;
             var checks = new string[]
             {
-                "Environment", "App Update", "Configuration", "Dependencies",
+                "Single Instance", "Environment", "App Update", "Configuration", "Dependencies",
                 "FFmpeg", "Output Directories", "Map Tile Cache",
                 "Open Meteo API", "ECCC Weather", "Alert Ready (NAAD)",
                 "NAAD Connection", "Web UI", "Web UI Network"
@@ -433,7 +441,25 @@ namespace WeatherImageGenerator.Forms
 
             _hasFailures = failed > 0;
 
-            if (failed > 0)
+            // Check if any failure is fatal (e.g. another instance running)
+            _hasFatalFailure = false;
+            foreach (var r in results)
+            {
+                if (r.IsFatal)
+                {
+                    _hasFatalFailure = true;
+                    break;
+                }
+            }
+
+            if (_hasFatalFailure)
+            {
+                _statusLabel.Text = "Cannot start — another instance is already running";
+                _statusLabel.ForeColor = RedFail;
+                _continueBtn.Text = "Exit";
+                _continueBtn.BackColor = Color.FromArgb(192, 57, 43);
+            }
+            else if (failed > 0)
             {
                 _statusLabel.Text = $"Boot completed with {failed} failure(s) — review below";
                 _statusLabel.ForeColor = RedFail;

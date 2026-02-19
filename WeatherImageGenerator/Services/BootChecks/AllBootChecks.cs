@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -12,6 +13,74 @@ using WeatherImageGenerator.Models;
 
 namespace WeatherImageGenerator.Services.BootChecks
 {
+    // ═══════════════════════════════════════════════════════════════════
+    //  0. Single instance check — prevent multiple WSG instances
+    // ═══════════════════════════════════════════════════════════════════
+    public class SingleInstanceCheck : BootCheck
+    {
+        public override string Name => "Single Instance";
+        public override string Description => "Ensure no other instance of WeatherImageGenerator is running";
+
+        /// <summary>True if another instance was detected (fatal — app must exit).</summary>
+        public bool IsDuplicate { get; private set; }
+
+        public override Task<BootCheckResult> RunAsync(CancellationToken ct)
+        {
+            try
+            {
+                var currentProcess = Process.GetCurrentProcess();
+                var currentId = currentProcess.Id;
+                var processName = currentProcess.ProcessName;
+
+                var allProcesses = Process.GetProcessesByName(processName);
+                var otherInstances = new List<Process>();
+
+                foreach (var p in allProcesses)
+                {
+                    try
+                    {
+                        if (p.Id != currentId && !p.HasExited)
+                            otherInstances.Add(p);
+                    }
+                    catch
+                    {
+                        // Access denied or process exited between check — ignore
+                    }
+                }
+
+                if (otherInstances.Count > 0)
+                {
+                    IsDuplicate = true;
+                    var pids = string.Join(", ", otherInstances.ConvertAll(p => p.Id.ToString()));
+                    return Task.FromResult(new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Failed,
+                        StatusMessage = $"Another instance is already running (PID: {pids})",
+                        Detail = "Only one instance of WeatherImageGenerator can run at a time. Please close the other instance first.",
+                        IsFatal = true
+                    });
+                }
+
+                return Task.FromResult(new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Passed,
+                    StatusMessage = "No other instance detected"
+                });
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"Could not verify: {ex.Message}"
+                });
+            }
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     //  1. AppSettings verification & repair
     // ═══════════════════════════════════════════════════════════════════
