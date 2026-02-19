@@ -42,6 +42,19 @@ namespace WeatherImageGenerator
         [STAThread]
         static void Main(string[] args)
         {
+            // ── Single-instance guard: refuse startup if another instance is running ──
+            const string mutexName = "Global\\WSG-WeatherStillGenerator-B7F3A8E1-4D2C-4F9A-8E1B-3C5D7F9A2B4E";
+            using var singleInstanceMutex = new Mutex(true, mutexName, out bool createdNew);
+            if (!createdNew)
+            {
+                MessageBox.Show(
+                    "Another instance of Weather Still Generator is already running.\n\nPlease close the existing instance before starting a new one.",
+                    "WSG — Already Running",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
             // Ensure the working directory is the application's own directory.
             // Critical for auto-start via registry where CWD may be System32.
             try { Directory.SetCurrentDirectory(AppContext.BaseDirectory); }
@@ -212,8 +225,26 @@ namespace WeatherImageGenerator
                 bootConfig = ConfigManager.LoadConfig();
             }
 
+            // ── First-boot disclaimer: show once when no config has been acknowledged ──
+            if (!bootConfig.FirstBootCompleted)
+            {
+                using (var disclaimer = new DisclaimerDialog())
+                {
+                    var result = disclaimer.ShowDialog();
+                    if (result != DialogResult.OK)
+                    {
+                        return; // User declined — exit
+                    }
+                }
+                bootConfig.FirstBootCompleted = true;
+                ConfigManager.SaveConfig(bootConfig);
+            }
+
             // Re-configure FFmpeg now that settings are validated
             FFmpegLocator.ConfigureFromSettings();
+
+            // Initialize theme system from config
+            ThemeManager.Initialize(bootConfig.Theme);
 
             // Initialize Web UI if enabled in settings
             if (bootConfig.WebUI?.Enabled ?? false)

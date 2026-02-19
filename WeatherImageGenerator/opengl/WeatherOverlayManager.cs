@@ -53,6 +53,7 @@ namespace WeatherImageGenerator.OpenGL
         
         public bool RadarEnabled { get; set; } = true;
         public bool TemperatureEnabled { get; set; } = false;
+        public bool ShowTemperatureLabels { get; set; } = true;
         public float RadarOpacity { get; set; } = 0.75f;
         public float TemperatureOpacity { get; set; } = 0.6f;
 
@@ -93,6 +94,16 @@ namespace WeatherImageGenerator.OpenGL
                 "WSG", "weather_cache");
             
             Directory.CreateDirectory(_cacheDirectory);
+        }
+
+        /// <summary>
+        /// Invalidates the cached temperature overlay so it will be regenerated on next fetch.
+        /// Useful when toggling temperature labels on/off without changing position.
+        /// </summary>
+        public void InvalidateTemperatureCache()
+        {
+            _temperatureOverlay = null;
+            _lastTemperatureUpdate = DateTime.MinValue;
         }
 
         /// <summary>
@@ -460,6 +471,8 @@ namespace WeatherImageGenerator.OpenGL
                 g.DrawImage(heatRaster, 0, 0, width, height);
 
                 // ── Draw temperature labels with pill badge ──
+                if (ShowTemperatureLabels)
+                {
                 using var font = new Font("Segoe UI", 12, FontStyle.Bold);
                 using var smallFont = new Font("Segoe UI", 8);
 
@@ -490,6 +503,7 @@ namespace WeatherImageGenerator.OpenGL
                     g.DrawString(tempText, font, Brushes.Black, tx + 1, ty + 1);
                     g.DrawString(tempText, font, Brushes.White, tx, ty);
                 }
+                } // end if ShowTemperatureLabels
 
                 using var ms = new MemoryStream();
                 bitmap.Save(ms, ImageFormat.Png);

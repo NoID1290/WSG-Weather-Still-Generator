@@ -917,89 +917,24 @@ namespace WeatherImageGenerator.Forms
 
         private void ApplyTheme(string? themeName)
         {
-            themeName ??= "Blue";
-            Color primaryColor, secondaryColor, accentColor, successColor, warningColor, dangerColor;
-            Color lightTextColor, headerTextColor, labelTextColor, bgColor, buttonColor;
-            Color coloredBtnText, neutralBtnText, warningBtnText;
+            // Delegate to ThemeManager (which fires ThemeChanged for child forms too)
+            ThemeManager.SetTheme(themeName);
+            var t = ThemeManager.Current;
 
-            switch (themeName.ToLowerInvariant())
-            {
-                case "light":
-                    primaryColor = ColorTranslator.FromHtml("#F8F9FA");
-                    secondaryColor = ColorTranslator.FromHtml("#FFFFFF");
-                    accentColor = ColorTranslator.FromHtml("#0D6EFD"); // Bootstrap Primary Blue
-                    successColor = ColorTranslator.FromHtml("#198754"); // Bootstrap Success Green
-                    warningColor = ColorTranslator.FromHtml("#FFC107"); // Bootstrap Warning Yellow
-                    dangerColor = ColorTranslator.FromHtml("#DC3545"); // Bootstrap Danger Red
-                    
-                    lightTextColor = ColorTranslator.FromHtml("#212529"); // Dark text for light bg
-                    headerTextColor = ColorTranslator.FromHtml("#212529");
-                    labelTextColor = ColorTranslator.FromHtml("#495057");
-                    bgColor = ColorTranslator.FromHtml("#FFFFFF"); // Log box bg
-                    buttonColor = ColorTranslator.FromHtml("#DEE2E6"); // Light gray button
-                    
-                    coloredBtnText = Color.White;
-                    neutralBtnText = Color.Black;
-                    warningBtnText = Color.Black; // Black on Yellow
-                    break;
-
-                case "dark":
-                    primaryColor = ColorTranslator.FromHtml("#121212");
-                    secondaryColor = ColorTranslator.FromHtml("#1E1E1E");
-                    accentColor = ColorTranslator.FromHtml("#3498DB");
-                    successColor = ColorTranslator.FromHtml("#27AE60");
-                    warningColor = ColorTranslator.FromHtml("#F39C12");
-                    dangerColor = ColorTranslator.FromHtml("#E74C3C");
-                    
-                    lightTextColor = ColorTranslator.FromHtml("#E0E0E0");
-                    headerTextColor = ColorTranslator.FromHtml("#FFFFFF");
-                    labelTextColor = ColorTranslator.FromHtml("#B0B0B0");
-                    bgColor = ColorTranslator.FromHtml("#1E1E1E");
-                    buttonColor = ColorTranslator.FromHtml("#333333"); // Lighter than bg
-                    
-                    coloredBtnText = Color.White;
-                    neutralBtnText = Color.White;
-                    warningBtnText = Color.Black;
-                    break;
-
-                case "green":
-                    primaryColor = ColorTranslator.FromHtml("#102018"); // Very dark green
-                    secondaryColor = ColorTranslator.FromHtml("#1B3A28");
-                    accentColor = ColorTranslator.FromHtml("#2E8B57"); // SeaGreen
-                    successColor = ColorTranslator.FromHtml("#27AE60");
-                    warningColor = ColorTranslator.FromHtml("#F39C12");
-                    dangerColor = ColorTranslator.FromHtml("#E74C3C");
-                    
-                    lightTextColor = ColorTranslator.FromHtml("#E8F8F1");
-                    headerTextColor = ColorTranslator.FromHtml("#FFFFFF");
-                    labelTextColor = ColorTranslator.FromHtml("#A0C0B0");
-                    bgColor = ColorTranslator.FromHtml("#0A1510");
-                    buttonColor = ColorTranslator.FromHtml("#2D5A40"); // Distinct from bg
-                    
-                    coloredBtnText = Color.White;
-                    neutralBtnText = Color.White;
-                    warningBtnText = Color.Black;
-                    break;
-
-                default: // blue
-                    primaryColor = ColorTranslator.FromHtml("#2C3E50");
-                    secondaryColor = ColorTranslator.FromHtml("#34495E");
-                    accentColor = ColorTranslator.FromHtml("#3498DB");
-                    successColor = ColorTranslator.FromHtml("#27AE60");
-                    warningColor = ColorTranslator.FromHtml("#F39C12");
-                    dangerColor = ColorTranslator.FromHtml("#E74C3C");
-                    
-                    lightTextColor = ColorTranslator.FromHtml("#ECF0F1");
-                    headerTextColor = ColorTranslator.FromHtml("#FFFFFF");
-                    labelTextColor = ColorTranslator.FromHtml("#BDC3C7");
-                    bgColor = ColorTranslator.FromHtml("#233140"); // Darker blue for logs
-                    buttonColor = ColorTranslator.FromHtml("#4E6781"); // Lighter blue-grey
-                    
-                    coloredBtnText = Color.White;
-                    neutralBtnText = Color.White;
-                    warningBtnText = Color.Black;
-                    break;
-            }
+            Color primaryColor = t.Primary;
+            Color secondaryColor = t.Secondary;
+            Color accentColor = t.Accent;
+            Color successColor = t.Success;
+            Color warningColor = t.Warning;
+            Color dangerColor = t.Danger;
+            Color lightTextColor = t.TextSecondary;
+            Color headerTextColor = t.TextPrimary;
+            Color labelTextColor = t.TextDim;
+            Color bgColor = t.Background;
+            Color buttonColor = t.ButtonBackground;
+            Color coloredBtnText = t.TextOnAccent;
+            Color neutralBtnText = t.TextOnButton;
+            Color warningBtnText = t.TextOnWarning;
 
             // Update class-level theme colors
             _themeSuccessColor = successColor;
@@ -3787,7 +3722,7 @@ namespace WeatherImageGenerator.Forms
                 this.Height = 600;
                 this.MaximizeBox = false;
                 this.MinimizeBox = false;
-                this.BackColor = Color.WhiteSmoke;
+                this.BackColor = ThemeManager.Current.Surface;
 
                 var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
                 var product = asm.GetCustomAttribute<AssemblyProductAttribute>()?.Product
@@ -3797,16 +3732,15 @@ namespace WeatherImageGenerator.Forms
                               ?? asm.GetName().Version?.ToString() ?? "Unknown";
                 var copyright = asm.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? string.Empty;
 
-                // Get theme accent color
+                // Get theme colors from ThemeManager
                 var aboutCfg = ConfigManager.LoadConfig();
-                var aboutTheme = aboutCfg.Theme ?? "Blue";
-                Color accentColor = aboutTheme.ToLowerInvariant() switch
-                {
-                    "light" => ColorTranslator.FromHtml("#1976D2"),
-                    "dark" => ColorTranslator.FromHtml("#61AFEF"),
-                    "green" => ColorTranslator.FromHtml("#27AE60"),
-                    _ => ColorTranslator.FromHtml("#3498DB")
-                };
+                var t = ThemeManager.Current;
+                Color accentColor = t.Accent;
+                Color formBg = t.Surface;
+                Color tabBg = t.CardBackground;
+                Color textColor = t.TextPrimary;
+                Color textDim = t.TextDim;
+                Color textSecondary = t.TextSecondary;
 
                 // --- Tab Control Setup ---
                 var tabControl = new TabControl
@@ -3816,7 +3750,7 @@ namespace WeatherImageGenerator.Forms
                 };
 
                 // --- Tab 1: General Info ---
-                var tabGeneral = new TabPage("General") { BackColor = Color.White };
+                var tabGeneral = new TabPage("General") { BackColor = tabBg };
                 
                 var lblProduct = new Label 
                 { 
@@ -3829,14 +3763,15 @@ namespace WeatherImageGenerator.Forms
                 { 
                     Text = $"Version: {version}", 
                     Left = 25, Top = 58, Width = 300, 
-                    Font = new Font("Segoe UI", 10.5F) 
+                    Font = new Font("Segoe UI", 10.5F),
+                    ForeColor = textColor
                 };
                 var lblCopyright = new Label 
                 { 
                     Text = copyright, 
                     Left = 25, Top = 82, Width = 620, 
                     Font = new Font("Segoe UI", 9.5F),
-                    ForeColor = Color.DimGray
+                    ForeColor = textDim
                 };
 
                 var githubUrl = "https://github.com/NoID1290/WSG-Weather-Still-Generator";
@@ -3864,7 +3799,7 @@ namespace WeatherImageGenerator.Forms
                     Text = $"Current Version: {version}",
                     Left = 15, Top = 28, Width = 280, Height = 22,
                     Font = new Font("Segoe UI", 10F),
-                    ForeColor = Color.FromArgb(64, 64, 64)
+                    ForeColor = textSecondary
                 };
 
                 var lblLatestVersion = new Label
@@ -3872,7 +3807,7 @@ namespace WeatherImageGenerator.Forms
                     Text = "Latest Version: Checking...",
                     Left = 15, Top = 52, Width = 280, Height = 22,
                     Font = new Font("Segoe UI", 10F),
-                    ForeColor = Color.FromArgb(64, 64, 64)
+                    ForeColor = textSecondary
                 };
 
                 var lblUpdateStatus = new Label
@@ -3880,7 +3815,7 @@ namespace WeatherImageGenerator.Forms
                     Text = "",
                     Left = 15, Top = 76, Width = 400, Height = 22,
                     Font = new Font("Segoe UI", 9.5F, FontStyle.Italic),
-                    ForeColor = Color.DimGray
+                    ForeColor = textDim
                 };
 
                 var btnCheckUpdate = new Button
@@ -3930,7 +3865,7 @@ namespace WeatherImageGenerator.Forms
                     Text = "Check for updates on startup",
                     Left = 15, Top = 110, Width = 250, Height = 22,
                     Font = new Font("Segoe UI", 9.5F),
-                    ForeColor = Color.FromArgb(64, 64, 64),
+                    ForeColor = textSecondary,
                     Checked = aboutCfg.CheckForUpdatesOnStartup
                 };
                 chkAutoUpdate.CheckedChanged += (s, e) =>
@@ -4080,13 +4015,14 @@ namespace WeatherImageGenerator.Forms
                            "• Video generation with background music and transitions\n" +
                            "• Multiple themes and customizable layouts",
                     Left = 25, Top = 295, Width = 620, Height = 200,
-                    Font = new Font("Segoe UI", 10F)
+                    Font = new Font("Segoe UI", 10F),
+                    ForeColor = textColor
                 };
 
                 tabGeneral.Controls.AddRange(new Control[] { lblProduct, lblVersion, lblCopyright, linkGithub, updateGroup, lblDesc });
 
                 // --- Tab 2: Credits & Attribution ---
-                var tabCredits = new TabPage("Credits & Licenses") { BackColor = Color.White };
+                var tabCredits = new TabPage("Credits & Licenses") { BackColor = tabBg };
                 var flowCredits = new FlowLayoutPanel 
                 { 
                     Dock = DockStyle.Fill, 
@@ -4094,7 +4030,7 @@ namespace WeatherImageGenerator.Forms
                     Padding = new Padding(20), 
                     FlowDirection = FlowDirection.TopDown, 
                     WrapContents = false, 
-                    BackColor = Color.White 
+                    BackColor = tabBg
                 };
 
                 // Local helpers for UI construction
@@ -4148,7 +4084,7 @@ namespace WeatherImageGenerator.Forms
                         AutoSize = true, 
                         MaximumSize = new Size(580, 0),
                         Font = new Font("Segoe UI", 9.5F, style), 
-                        ForeColor = italic ? Color.Gray : Color.FromArgb(64, 64, 64)
+                        ForeColor = italic ? textDim : textSecondary
                     };
                 }
 
@@ -4248,7 +4184,7 @@ namespace WeatherImageGenerator.Forms
                 tabCredits.Controls.Add(flowCredits);
 
                 // --- Tab 3: License ---
-                var tabLicense = new TabPage("License") { BackColor = Color.White };
+                var tabLicense = new TabPage("License") { BackColor = tabBg };
                 var txtLicense = new TextBox 
                 { 
                     Dock = DockStyle.Fill, 
@@ -4257,7 +4193,8 @@ namespace WeatherImageGenerator.Forms
                     ScrollBars = ScrollBars.Vertical, 
                     Font = new Font("Consolas", 9.5F),
                     BorderStyle = BorderStyle.None,
-                    BackColor = Color.White,
+                    BackColor = tabBg,
+                    ForeColor = textColor,
                     Padding = new Padding(10)
                 };
                 txtLicense.Text = @"MIT License
@@ -4284,7 +4221,7 @@ SOFTWARE.";
                 tabLicense.Controls.Add(txtLicense);
 
                 // --- Tab 4: Disclaimer ---
-                var tabDisclaimer = new TabPage("Disclaimer") { BackColor = Color.White };
+                var tabDisclaimer = new TabPage("Disclaimer") { BackColor = tabBg };
                 var txtDisclaimer = new TextBox 
                 { 
                     Dock = DockStyle.Fill, 
@@ -4293,7 +4230,8 @@ SOFTWARE.";
                     ScrollBars = ScrollBars.Vertical, 
                     Font = new Font("Segoe UI", 10.5F),
                     BorderStyle = BorderStyle.None,
-                    BackColor = Color.White,
+                    BackColor = tabBg,
+                    ForeColor = textColor,
                     Padding = new Padding(15)
                 };
                 txtDisclaimer.Text = @"⚠️ IMPORTANT DISCLAIMER
@@ -4348,8 +4286,132 @@ By using this software, you acknowledge and accept these limitations.";
                 {
                     Dock = DockStyle.Bottom,
                     Height = 60,
-                    BackColor = Color.WhiteSmoke
+                    BackColor = formBg
                 };
+
+                // ── Reset Settings to Defaults button ──
+                var btnResetConfig = new Button
+                {
+                    Text = "\u267b Reset Settings",
+                    Left = 10,
+                    Top = 15,
+                    Width = 130,
+                    Height = 35,
+                    Font = new Font("Segoe UI", 9F),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(192, 57, 43),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+                btnResetConfig.FlatAppearance.BorderSize = 0;
+                btnResetConfig.Click += (s, e) =>
+                {
+                    var confirm = MessageBox.Show(
+                        "This will reset ALL settings to their default values and restart the application.\n\n" +
+                        "Your current configuration will be lost.\n\nContinue?",
+                        "Reset Settings to Defaults",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+                    if (confirm == DialogResult.Yes)
+                    {
+                        try
+                        {
+                            var defaults = DefaultSettingsGenerator.CreateDefaultSettings();
+                            ConfigManager.SaveConfig(defaults);
+                            MessageBox.Show("Settings have been reset to defaults. The application will now restart.",
+                                "Settings Reset", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            Application.Restart();
+                            Environment.Exit(0);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Failed to reset settings: {ex.Message}",
+                                "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                };
+                btnPanel.Controls.Add(btnResetConfig);
+
+                // ── Clear All Caches button ──
+                var btnClearCache = new Button
+                {
+                    Text = "\ud83d\uddd1 Clear Cache",
+                    Left = 150,
+                    Top = 15,
+                    Width = 120,
+                    Height = 35,
+                    Font = new Font("Segoe UI", 9F),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(230, 126, 34),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+                btnClearCache.FlatAppearance.BorderSize = 0;
+                btnClearCache.Click += (s, e) =>
+                {
+                    try
+                    {
+                        // Calculate cache sizes
+                        long totalSize = 0;
+                        var cacheDirs = new[]
+                        {
+                            Path.Combine(AppContext.BaseDirectory, "MapCache"),
+                            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache"),
+                            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "weather_cache")
+                        };
+
+                        foreach (var dir in cacheDirs)
+                        {
+                            if (Directory.Exists(dir))
+                            {
+                                foreach (var file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                                {
+                                    try { totalSize += new FileInfo(file).Length; } catch { }
+                                }
+                            }
+                        }
+
+                        string sizeStr = totalSize < 1024 * 1024
+                            ? $"{totalSize / 1024.0:F1} KB"
+                            : $"{totalSize / (1024.0 * 1024.0):F1} MB";
+
+                        var confirm = MessageBox.Show(
+                            $"This will clear all cached map tiles and weather data.\n\n" +
+                            $"Total cache size: {sizeStr}\n\nContinue?",
+                            "Clear All Caches",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question);
+
+                        if (confirm == DialogResult.Yes)
+                        {
+                            int filesDeleted = 0;
+                            foreach (var dir in cacheDirs)
+                            {
+                                if (Directory.Exists(dir))
+                                {
+                                    foreach (var file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                                    {
+                                        try { File.Delete(file); filesDeleted++; } catch { }
+                                    }
+                                }
+                            }
+
+                            MessageBox.Show(
+                                $"Cache cleared successfully!\n\n" +
+                                $"Files deleted: {filesDeleted}\n" +
+                                $"Space freed: {sizeStr}",
+                                "Cache Cleared",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Failed to clear cache: {ex.Message}",
+                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+                btnPanel.Controls.Add(btnClearCache);
 
                 var ok = new Button 
                 { 

@@ -76,6 +76,8 @@ namespace WeatherImageGenerator.Forms
 
             InitializeComponents();
             LoadMedia();
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ThemeChanged += _ => ThemeManager.ApplyTo(this);
         }
 
         private void InitializeComponents()

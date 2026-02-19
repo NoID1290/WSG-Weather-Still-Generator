@@ -29,6 +29,16 @@ namespace WeatherImageGenerator.OpenGL
         private string _hudAttributionText = "";
         private string _hudStatusText = "";
 
+        /// <summary>Whether to show the crosshair/aiming dot in the center of the viewport</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool ShowCrosshair { get; set; } = true;
+
+        /// <summary>Whether to show lat/lon coordinates near the crosshair</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool ShowCoordinatesHUD { get; set; } = true;
+
         /// <summary>Attribution text rendered as GL HUD in the bottom-left corner of the viewport</summary>
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -879,7 +889,7 @@ void main() {
             }
 
             // Draw overlay crosshair/marker in NDC with overlay shader (anti-aliased quads)
-            if (_overlayShader != null && _crosshairVertexCount > 0)
+            if (ShowCrosshair && _overlayShader != null && _crosshairVertexCount > 0)
             {
                 _overlayShader.Use();
                 // Pass time for pulse animation
@@ -940,6 +950,73 @@ void main() {
 
                     _uiRenderer.DrawRect(barX, barY, barW, barH, 0.08f, 0.08f, 0.1f, 0.7f);
                     _uiRenderer.DrawText(_hudStatusText, barX + pad, barY + pad, 0.9f, 0.9f, 0.9f, 1f);
+                }
+
+                // Coordinates HUD: show lat/lon near the crosshair (center of viewport)
+                if (ShowCoordinatesHUD && ShowCrosshair)
+                {
+                    string latDir = _centerLat >= 0 ? "N" : "S";
+                    string lonDir = _centerLon >= 0 ? "E" : "W";
+                    string coordText = $"{Math.Abs(_centerLat):F4}\u00b0{latDir}, {Math.Abs(_centerLon):F4}\u00b0{lonDir}";
+                    float coordW = _uiRenderer.MeasureTextWidth(coordText);
+                    float lhc = _uiRenderer.LineHeight;
+                    float padC = 5f;
+                    float coordBarH = lhc + padC * 2;
+                    float coordBarW = coordW + padC * 2;
+                    // Position slightly below and to the right of center
+                    float coordBarX = (Width / 2f) + 20f;
+                    float coordBarY = (Height / 2f) + 15f;
+
+                    _uiRenderer.DrawRect(coordBarX, coordBarY, coordBarW, coordBarH, 0.05f, 0.05f, 0.08f, 0.65f);
+                    _uiRenderer.DrawText(coordText, coordBarX + padC, coordBarY + padC, 0.6f, 1.0f, 0.2f, 0.95f);
+                }
+
+                // Scale bar: rendered at bottom-right of viewport
+                {
+                    // Calculate meters per pixel using Mercator projection
+                    double metersPerPixel = 156543.03392 * Math.Cos(_centerLat * Math.PI / 180.0) / Math.Pow(2.0, _mapZoom);
+
+                    // Choose a round-number distance that fits in ~100-200 pixels
+                    double[] distances = { 5000000, 2000000, 1000000, 500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5 };
+                    double chosenDist = 1000; // default 1km
+                    foreach (var d in distances)
+                    {
+                        double pixels = d / metersPerPixel;
+                        if (pixels >= 60 && pixels <= 250)
+                        {
+                            chosenDist = d;
+                            break;
+                        }
+                    }
+
+                    float barPixels = (float)(chosenDist / metersPerPixel);
+                    string distLabel = chosenDist >= 1000 ? $"{chosenDist / 1000:F0} km" : $"{chosenDist:F0} m";
+
+                    float scaleH = 6f;
+                    float padS = 8f;
+                    float scaleX = Width - barPixels - padS - 20f;
+                    float scaleY = Height - 30f;
+
+                    // Background
+                    float labelW = _uiRenderer.MeasureTextWidth(distLabel);
+                    float bgW = Math.Max(barPixels, labelW) + padS * 2;
+                    float bgH = scaleH + _uiRenderer.LineHeight + padS * 2 + 4f;
+                    float bgX = Width - bgW - 10f;
+                    float bgY = scaleY - _uiRenderer.LineHeight - padS - 4f;
+                    _uiRenderer.DrawRect(bgX, bgY, bgW, bgH, 0f, 0f, 0f, 0.5f);
+
+                    // Scale bar line
+                    float lineX = bgX + (bgW - barPixels) / 2f;
+                    float lineY = scaleY;
+                    _uiRenderer.DrawRect(lineX, lineY, barPixels, scaleH, 1f, 1f, 1f, 0.9f);
+                    // End ticks
+                    _uiRenderer.DrawRect(lineX, lineY - 4f, 2f, scaleH + 8f, 1f, 1f, 1f, 0.9f);
+                    _uiRenderer.DrawRect(lineX + barPixels - 2f, lineY - 4f, 2f, scaleH + 8f, 1f, 1f, 1f, 0.9f);
+
+                    // Distance label centered above bar
+                    float labelX = lineX + (barPixels - labelW) / 2f;
+                    float labelY = lineY - _uiRenderer.LineHeight - 4f;
+                    _uiRenderer.DrawText(distLabel, labelX, labelY, 1f, 1f, 1f, 0.9f);
                 }
 
                 _uiRenderer.EndFrame();

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using WeatherImageGenerator.Services;
 
 namespace WeatherImageGenerator.Forms
 {
@@ -48,6 +49,8 @@ namespace WeatherImageGenerator.Forms
         public TestAlertSelectionForm()
         {
             InitializeComponent();
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ThemeChanged += _ => ThemeManager.ApplyTo(this);
         }
 
         private void InitializeComponent()

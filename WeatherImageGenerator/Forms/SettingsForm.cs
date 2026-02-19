@@ -131,6 +131,8 @@ namespace WeatherImageGenerator.Forms
             InitializeForm();
             BuildUI();
             LoadSettings();
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ThemeChanged += _ => ThemeManager.ApplyTo(this);
         }
 
         private void InitializeForm()

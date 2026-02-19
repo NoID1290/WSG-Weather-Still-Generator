@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 using System.Net.Http;
@@ -53,6 +54,8 @@ namespace WeatherImageGenerator.OpenGL
         private Label _lblSpeed;
         private Button _btnLoadAnimation;
         private CheckBox _chkAnimationFollowMap;
+        private Button _btnLoopToggle;
+        private bool _animationLoop = true;
         private List<byte[]> _animationFrames = new List<byte[]>();
         private List<string> _animationTimestamps = new List<string>();
         private int _currentFrameIndex;
@@ -438,6 +441,84 @@ namespace WeatherImageGenerator.OpenGL
             _controlPanel.Controls.Add(_trackTempOpacity);
             y += 44;
 
+            // Temperature Labels Toggle (show/hide numeric labels while keeping heat signature)
+            var chkTempLabels = new CheckBox
+            {
+                Text = "Show Temp Labels",
+                Location = new Point(10, y),
+                Size = new Size(controlWidth, 22),
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.White,
+                Checked = true
+            };
+            chkTempLabels.CheckedChanged += async (s, e) =>
+            {
+                _overlayManager.ShowTemperatureLabels = chkTempLabels.Checked;
+                // Force refresh of temperature overlay
+                _overlayManager.InvalidateTemperatureCache();
+                await UpdateOverlays();
+            };
+            _controlPanel.Controls.Add(chkTempLabels);
+            y += 24;
+
+            AddSeparator(y); y += 8;
+
+            // ═══ Viewport Options ═══
+            var lblViewport = CreateSectionLabel("🎯 Viewport", y);
+            _controlPanel.Controls.Add(lblViewport);
+            y += 24;
+
+            // Crosshair Toggle
+            var chkCrosshair = new CheckBox
+            {
+                Text = "Show Crosshair",
+                Location = new Point(10, y),
+                Size = new Size(controlWidth, 22),
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.White,
+                Checked = _glControl.ShowCrosshair
+            };
+            chkCrosshair.CheckedChanged += (s, e) =>
+            {
+                _glControl.ShowCrosshair = chkCrosshair.Checked;
+                _glControl.Invalidate();
+                // Save to config
+                try
+                {
+                    var cfg = Services.ConfigManager.LoadConfig();
+                    cfg.ShowCrosshair = chkCrosshair.Checked;
+                    Services.ConfigManager.SaveConfig(cfg, silent: true);
+                }
+                catch { }
+            };
+            _controlPanel.Controls.Add(chkCrosshair);
+            y += 24;
+
+            // Coordinates HUD Toggle
+            var chkCoords = new CheckBox
+            {
+                Text = "Show Coordinates",
+                Location = new Point(10, y),
+                Size = new Size(controlWidth, 22),
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.White,
+                Checked = _glControl.ShowCoordinatesHUD
+            };
+            chkCoords.CheckedChanged += (s, e) =>
+            {
+                _glControl.ShowCoordinatesHUD = chkCoords.Checked;
+                _glControl.Invalidate();
+                try
+                {
+                    var cfg = Services.ConfigManager.LoadConfig();
+                    cfg.ShowCoordinatesHUD = chkCoords.Checked;
+                    Services.ConfigManager.SaveConfig(cfg, silent: true);
+                }
+                catch { }
+            };
+            _controlPanel.Controls.Add(chkCoords);
+            y += 24;
+
             AddSeparator(y); y += 8;
 
             // ═══ Radar Animation ═══
@@ -751,6 +832,29 @@ namespace WeatherImageGenerator.OpenGL
             btnSpeedUp.FlatAppearance.BorderSize = 0;
             btnSpeedUp.Click += (s, e) => AdjustAnimationSpeed(-200);
             _animationPanel.Controls.Add(btnSpeedUp);
+            ax += 30;
+
+            // Loop toggle
+            _btnLoopToggle = new Button
+            {
+                Text = "🔁",
+                Location = new Point(ax, ay + 2),
+                Size = new Size(32, 26),
+                Font = new Font("Segoe UI", 10),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0, 122, 204),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand
+            };
+            _btnLoopToggle.FlatAppearance.BorderSize = 0;
+            _btnLoopToggle.Click += (s, e) =>
+            {
+                _animationLoop = !_animationLoop;
+                _btnLoopToggle.BackColor = _animationLoop
+                    ? Color.FromArgb(0, 122, 204)
+                    : Color.FromArgb(60, 60, 65);
+            };
+            _animationPanel.Controls.Add(_btnLoopToggle);
 
             // Row 2: Frame info
             _lblFrameInfo = new Label
@@ -1021,7 +1125,26 @@ namespace WeatherImageGenerator.OpenGL
 
         private void AnimationTimer_Tick(object? sender, EventArgs e)
         {
-            _currentFrameIndex = (_currentFrameIndex + 1) % _animationFrames.Count;
+            if (_animationFrames.Count == 0) return;
+
+            int nextFrame = _currentFrameIndex + 1;
+            if (nextFrame >= _animationFrames.Count)
+            {
+                if (_animationLoop)
+                {
+                    nextFrame = 0;
+                }
+                else
+                {
+                    // Stop at last frame
+                    _isAnimating = false;
+                    _animationTimer?.Stop();
+                    _btnPlayPause.Text = "▶";
+                    _btnPlayPause.BackColor = Color.FromArgb(0, 122, 204);
+                    return;
+                }
+            }
+            _currentFrameIndex = nextFrame;
             ShowAnimationFrame(_currentFrameIndex);
         }
 
@@ -1247,17 +1370,21 @@ namespace WeatherImageGenerator.OpenGL
             {
                 Text = text,
                 Location = new Point(10, y),
-                Size = new Size(256, 30),
-                Font = new Font("Segoe UI", 9.5f),
+                Size = new Size(256, 32),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(0, 122, 204),
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand,
                 TextAlign = ContentAlignment.MiddleCenter
             };
-            btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.BorderColor = Color.FromArgb(30, 152, 234);
             btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(28, 151, 234);
             btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 90, 158);
+            // Add subtle hover animation  
+            btn.MouseEnter += (s, e) => btn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btn.MouseLeave += (s, e) => btn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             return btn;
         }
 
@@ -1470,6 +1597,17 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     _panelPosition = pos;
                     ApplyPanelPosition();
+                }
+
+                // Viewport display settings
+                if (_glControl != null)
+                {
+                    _glControl.ShowCrosshair = config.ShowCrosshair;
+                    _glControl.ShowCoordinatesHUD = config.ShowCoordinatesHUD;
+                }
+                if (_overlayManager != null)
+                {
+                    _overlayManager.ShowTemperatureLabels = config.ShowTemperatureLabels;
                 }
             }
             catch (Exception ex)

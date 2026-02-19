@@ -196,6 +196,18 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("WeatherMapView")]
         public WeatherMapViewSettings? WeatherMapView { get; set; }
+
+        [JsonPropertyName("FirstBootCompleted")]
+        public bool FirstBootCompleted { get; set; } = false;
+
+        [JsonPropertyName("ShowCrosshair")]
+        public bool ShowCrosshair { get; set; } = true;
+
+        [JsonPropertyName("ShowCoordinatesHUD")]
+        public bool ShowCoordinatesHUD { get; set; } = true;
+
+        [JsonPropertyName("ShowTemperatureLabels")]
+        public bool ShowTemperatureLabels { get; set; } = true;
     }
 
     /// <summary>

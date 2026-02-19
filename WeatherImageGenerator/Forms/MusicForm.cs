@@ -41,6 +41,8 @@ namespace WeatherImageGenerator.Forms
             InitializeComponents();
             _musicTracks = new List<MusicEntry>();
             LoadMusicTracks();
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ThemeChanged += _ => ThemeManager.ApplyTo(this);
         }
 
         private void InitializeComponents()

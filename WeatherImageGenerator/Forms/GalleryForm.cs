@@ -65,8 +65,8 @@ namespace WeatherImageGenerator.Forms
             this.Controls.Add(_topPanel);
 
             // Apply theme
-            var config = ConfigManager.LoadConfig();
-            ApplyTheme(config.Theme);
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ThemeChanged += _ => ThemeManager.ApplyTo(this);
 
             // Load gallery on form load
             this.Load += (s, e) => RefreshGallery();

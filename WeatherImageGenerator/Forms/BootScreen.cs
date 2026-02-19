@@ -14,14 +14,15 @@ namespace WeatherImageGenerator.Forms
 {
     /// <summary>
     /// Splash / boot screen shown at application startup while system checks run.
-    /// Dark-themed, compact, professional look matching the main UI.
+    /// Dark-themed, compact, professional look with animations and expandable detail rows.
     /// </summary>
     public class BootScreen : Form
     {
         // ── Colors (matching MainForm dark theme) ──
-        private static readonly Color BgDark       = Color.FromArgb(25, 32, 45);
-        private static readonly Color BgPanel      = Color.FromArgb(35, 45, 60);
+        private static readonly Color BgDark       = Color.FromArgb(20, 26, 38);
+        private static readonly Color BgPanel      = Color.FromArgb(30, 38, 52);
         private static readonly Color AccentBlue   = Color.FromArgb(41, 128, 185);
+        private static readonly Color AccentGlow   = Color.FromArgb(52, 152, 219);
         private static readonly Color TextPrimary  = Color.FromArgb(220, 225, 235);
         private static readonly Color TextDim      = Color.FromArgb(140, 150, 170);
         private static readonly Color GreenOk      = Color.FromArgb(39, 174, 96);
@@ -29,15 +30,25 @@ namespace WeatherImageGenerator.Forms
         private static readonly Color RedFail      = Color.FromArgb(231, 76, 60);
         private static readonly Color CyanRepair   = Color.FromArgb(52, 152, 219);
         private static readonly Color GraySkip     = Color.FromArgb(127, 140, 141);
+        private static readonly Color RowHover     = Color.FromArgb(35, 45, 62);
+        private static readonly Color RowExpanded  = Color.FromArgb(28, 36, 50);
 
         // ── Controls ──
         private readonly Label _titleLabel;
+        private readonly Label _subtitleLabel;
         private readonly Label _versionLabel;
         private readonly Label _statusLabel;
-        private readonly ProgressBar _progressBar;
+        private readonly Panel _progressPanel;
         private readonly Panel _checkListPanel;
         private readonly Button _continueBtn;
         private readonly List<CheckRow> _checkRows = new();
+        private float _progressValue = 0f;
+        private float _progressTarget = 0f;
+
+        // ── Fade-in animation ──
+        private readonly System.Windows.Forms.Timer _fadeTimer;
+        private readonly System.Windows.Forms.Timer _progressAnimTimer;
+        private double _targetOpacity = 1.0;
 
         // ── State ──
         private BootRunner? _runner;
@@ -60,64 +71,103 @@ namespace WeatherImageGenerator.Forms
             Text = "WSG — Starting Up";
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
-            Size = new Size(520, 620);
+            Size = new Size(560, 680);
             BackColor = BgDark;
             DoubleBuffered = true;
             ShowInTaskbar = true;
             TopMost = true;
+            Opacity = 0;
 
-            // ── Title ──
-            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "";
+            // ── Branded header ──
+            var headerPanel = new Panel
+            {
+                Size = new Size(560, 100),
+                Location = new Point(0, 0),
+                BackColor = Color.Transparent
+            };
+            headerPanel.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                // Draw gradient header background
+                using var headerBrush = new LinearGradientBrush(
+                    new Rectangle(0, 0, headerPanel.Width, headerPanel.Height),
+                    Color.FromArgb(30, 40, 60), BgDark, 90F);
+                g.FillRectangle(headerBrush, 0, 0, headerPanel.Width, headerPanel.Height);
+
+                // Draw accent line at bottom
+                using var accentPen = new Pen(AccentBlue, 2);
+                g.DrawLine(accentPen, 20, headerPanel.Height - 1, headerPanel.Width - 20, headerPanel.Height - 1);
+            };
+
             _titleLabel = new Label
             {
-                Text = "⛅  WSG — Weather Still Generator",
-                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
+                Text = "⛅  Weather Still Generator",
+                Font = new Font("Segoe UI", 18F, FontStyle.Bold),
                 ForeColor = TextPrimary,
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Size = new Size(520, 40),
-                Location = new Point(0, 18)
+                Size = new Size(560, 42),
+                Location = new Point(0, 16),
+                BackColor = Color.Transparent
             };
 
-            _versionLabel = new Label
+            _subtitleLabel = new Label
             {
-                Text = $"v{version}",
-                Font = new Font("Segoe UI", 9F),
+                Text = "WSG — Automated Weather Broadcast System",
+                Font = new Font("Segoe UI", 9F, FontStyle.Italic),
                 ForeColor = TextDim,
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Size = new Size(520, 20),
-                Location = new Point(0, 55)
+                Size = new Size(560, 20),
+                Location = new Point(0, 56),
+                BackColor = Color.Transparent
             };
+
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "";
+            _versionLabel = new Label
+            {
+                Text = $"v{version}",
+                Font = new Font("Segoe UI", 8.5F),
+                ForeColor = Color.FromArgb(100, 115, 140),
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Size = new Size(560, 18),
+                Location = new Point(0, 75),
+                BackColor = Color.Transparent
+            };
+
+            headerPanel.Controls.Add(_titleLabel);
+            headerPanel.Controls.Add(_subtitleLabel);
+            headerPanel.Controls.Add(_versionLabel);
 
             // ── Status label ──
             _statusLabel = new Label
             {
-                Text = "Initializing...",
+                Text = "Initializing system checks...",
                 Font = new Font("Segoe UI", 9F),
                 ForeColor = AccentBlue,
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Size = new Size(490, 22),
-                Location = new Point(15, 85)
+                Size = new Size(510, 22),
+                Location = new Point(25, 110)
             };
 
-            // ── Progress bar ──
-            _progressBar = new ProgressBar
+            // ── Custom progress bar panel (painted manually) ──
+            _progressPanel = new Panel
             {
-                Style = ProgressBarStyle.Continuous,
-                Size = new Size(490, 6),
-                Location = new Point(15, 110),
-                Minimum = 0,
-                Maximum = 100,
-                Value = 0
+                Size = new Size(510, 8),
+                Location = new Point(25, 136),
+                BackColor = Color.FromArgb(40, 50, 68)
             };
+            _progressPanel.Paint += ProgressPanel_Paint;
 
             // ── Check list panel ──
             _checkListPanel = new Panel
             {
-                Location = new Point(15, 125),
-                Size = new Size(490, 415),
+                Location = new Point(15, 155),
+                Size = new Size(530, 445),
                 AutoScroll = true,
                 BackColor = BgDark
             };
@@ -125,33 +175,113 @@ namespace WeatherImageGenerator.Forms
             // ── Continue button (hidden until complete) ──
             _continueBtn = new Button
             {
-                Text = "Continue",
+                Text = "▶  Launch",
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = AccentBlue,
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(140, 36),
-                Location = new Point(190, 560),
+                Size = new Size(160, 40),
+                Location = new Point(200, 620),
                 Visible = false,
                 Cursor = Cursors.Hand
             };
             _continueBtn.FlatAppearance.BorderSize = 0;
+            _continueBtn.FlatAppearance.MouseOverBackColor = AccentGlow;
             _continueBtn.Click += (_, _) =>
             {
                 DialogResult = _hasFailures ? DialogResult.Abort : DialogResult.OK;
                 Close();
             };
 
-            Controls.Add(_titleLabel);
-            Controls.Add(_versionLabel);
+            Controls.Add(headerPanel);
             Controls.Add(_statusLabel);
-            Controls.Add(_progressBar);
+            Controls.Add(_progressPanel);
             Controls.Add(_checkListPanel);
             Controls.Add(_continueBtn);
 
             // Allow dragging the borderless window
             _titleLabel.MouseDown += OnDrag;
+            headerPanel.MouseDown += OnDrag;
             this.MouseDown += OnDrag;
+
+            // ── Fade-in timer ──
+            _fadeTimer = new System.Windows.Forms.Timer { Interval = 16 }; // ~60fps
+            _fadeTimer.Tick += (_, _) =>
+            {
+                if (Opacity < _targetOpacity)
+                {
+                    Opacity = Math.Min(_targetOpacity, Opacity + 0.06);
+                }
+                else
+                {
+                    _fadeTimer.Stop();
+                }
+            };
+
+            // ── Smooth progress animation timer ──
+            _progressAnimTimer = new System.Windows.Forms.Timer { Interval = 16 };
+            _progressAnimTimer.Tick += (_, _) =>
+            {
+                if (Math.Abs(_progressValue - _progressTarget) > 0.5f)
+                {
+                    _progressValue += (_progressTarget - _progressValue) * 0.15f;
+                    _progressPanel.Invalidate();
+                }
+                else
+                {
+                    _progressValue = _progressTarget;
+                    _progressPanel.Invalidate();
+                }
+            };
+            _progressAnimTimer.Start();
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            _fadeTimer.Start();
+        }
+
+        private void ProgressPanel_Paint(object? sender, PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            int w = _progressPanel.Width;
+            int h = _progressPanel.Height;
+
+            // Background track (rounded)
+            using var trackBrush = new SolidBrush(Color.FromArgb(40, 50, 68));
+            using var trackPath = CreateRoundRect(0, 0, w, h, h / 2);
+            g.FillPath(trackBrush, trackPath);
+
+            // Fill bar (gradient, rounded)
+            int fillW = Math.Max(0, (int)(_progressValue / 100f * w));
+            if (fillW > 4)
+            {
+                using var fillPath = CreateRoundRect(0, 0, fillW, h, h / 2);
+                using var fillBrush = new LinearGradientBrush(
+                    new Rectangle(0, 0, fillW, h),
+                    AccentGlow, AccentBlue, 0F);
+                g.FillPath(fillBrush, fillPath);
+
+                // Glow highlight on top half
+                using var glowBrush = new SolidBrush(Color.FromArgb(40, 255, 255, 255));
+                using var glowPath = CreateRoundRect(0, 0, fillW, h / 2, h / 4);
+                g.FillPath(glowBrush, glowPath);
+            }
+        }
+
+        private static GraphicsPath CreateRoundRect(float x, float y, float w, float h, float r)
+        {
+            r = Math.Min(r, Math.Min(w, h) / 2f);
+            var path = new GraphicsPath();
+            if (r <= 0) { path.AddRectangle(new RectangleF(x, y, w, h)); return path; }
+            path.AddArc(x, y, r * 2, r * 2, 180, 90);
+            path.AddArc(x + w - r * 2, y, r * 2, r * 2, 270, 90);
+            path.AddArc(x + w - r * 2, y + h - r * 2, r * 2, r * 2, 0, 90);
+            path.AddArc(x, y + h - r * 2, r * 2, r * 2, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         // ── Dragging support for borderless form ──
@@ -172,17 +302,20 @@ namespace WeatherImageGenerator.Forms
             }
         }
 
-        // ── Rounded window ──
+        // ── Rounded window with shadow ──
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            // Draw a subtle border
-            using var pen = new Pen(Color.FromArgb(60, 75, 95), 1);
-            e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // Draw separator line under title
-            using var sepPen = new Pen(Color.FromArgb(50, 65, 85), 1);
-            e.Graphics.DrawLine(sepPen, 15, 80, Width - 15, 80);
+            // Outer border with subtle glow
+            using var borderPen = new Pen(Color.FromArgb(50, 65, 90), 1);
+            g.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
+
+            // Inner accent line at top
+            using var topAccent = new Pen(AccentBlue, 2);
+            g.DrawLine(topAccent, 0, 0, Width, 0);
         }
 
         /// <summary>
@@ -258,7 +391,7 @@ namespace WeatherImageGenerator.Forms
         private void OnCheckStarted(int idx, int total, string name)
         {
             _statusLabel.Text = $"Checking {name}...";
-            _progressBar.Value = Math.Min(100, (int)((idx / (double)total) * 100));
+            _progressTarget = Math.Min(100, (int)((idx / (double)total) * 100));
 
             if (idx < _checkRows.Count)
             {
@@ -268,7 +401,7 @@ namespace WeatherImageGenerator.Forms
 
         private void OnCheckCompleted(int idx, int total, BootCheckResult result)
         {
-            _progressBar.Value = Math.Min(100, (int)(((idx + 1) / (double)total) * 100));
+            _progressTarget = Math.Min(100, (int)(((idx + 1) / (double)total) * 100));
 
             if (idx < _checkRows.Count)
             {
@@ -283,7 +416,7 @@ namespace WeatherImageGenerator.Forms
         private void OnAllCompleted(List<BootCheckResult> results)
         {
             _completed = true;
-            _progressBar.Value = 100;
+            _progressTarget = 100;
 
             int passed = 0, repaired = 0, warnings = 0, failed = 0, skipped = 0;
             foreach (var r in results)
@@ -344,39 +477,55 @@ namespace WeatherImageGenerator.Forms
         }
 
         // ═══════════════════════════════════════════════════════════════
-        //  Inner class: a single row in the check list
+        //  Inner class: Expandable check row with animations
         // ═══════════════════════════════════════════════════════════════
         private class CheckRow : Panel
         {
             private readonly Label _icon;
             private readonly Label _nameLabel;
             private readonly Label _statusLabel;
+            private readonly Label _expandIcon;
+            private readonly Label _detailLabel;
+            private bool _expanded = false;
+            private bool _hasDetail = false;
+            private string _detailText = "";
+            private readonly int _collapsedHeight = 34;
+            private readonly int _parentWidth;
+            private readonly System.Windows.Forms.Timer _animTimer;
+            private int _targetHeight;
+            private Color _targetBg;
+            private BootCheckStatus _currentStatus = BootCheckStatus.Skipped;
 
             public CheckRow(string name, int width)
             {
-                Size = new Size(width, 30);
+                _parentWidth = width;
+                Size = new Size(width, _collapsedHeight);
                 BackColor = BgDark;
+                Cursor = Cursors.Default;
+                DoubleBuffered = true;
 
                 _icon = new Label
                 {
                     Text = "○",
-                    Font = new Font("Segoe UI", 10F),
+                    Font = new Font("Segoe UI", 11F),
                     ForeColor = TextDim,
                     AutoSize = false,
                     TextAlign = ContentAlignment.MiddleCenter,
-                    Size = new Size(28, 28),
-                    Location = new Point(2, 1)
+                    Size = new Size(30, 30),
+                    Location = new Point(4, 2),
+                    BackColor = Color.Transparent
                 };
 
                 _nameLabel = new Label
                 {
                     Text = name,
-                    Font = new Font("Segoe UI", 9.5F),
+                    Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
                     ForeColor = TextPrimary,
                     AutoSize = false,
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Size = new Size(180, 28),
-                    Location = new Point(32, 1)
+                    Size = new Size(200, 30),
+                    Location = new Point(36, 2),
+                    BackColor = Color.Transparent
                 };
 
                 _statusLabel = new Label
@@ -386,17 +535,142 @@ namespace WeatherImageGenerator.Forms
                     ForeColor = TextDim,
                     AutoSize = false,
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Size = new Size(width - 220, 28),
-                    Location = new Point(215, 1)
+                    Size = new Size(width - 280, 30),
+                    Location = new Point(240, 2),
+                    BackColor = Color.Transparent
+                };
+
+                _expandIcon = new Label
+                {
+                    Text = "",
+                    Font = new Font("Segoe UI", 8F),
+                    ForeColor = TextDim,
+                    AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Size = new Size(24, 30),
+                    Location = new Point(width - 30, 2),
+                    BackColor = Color.Transparent,
+                    Visible = false
+                };
+
+                _detailLabel = new Label
+                {
+                    Text = "",
+                    Font = new Font("Segoe UI", 8.5F),
+                    ForeColor = Color.FromArgb(160, 175, 200),
+                    AutoSize = false,
+                    TextAlign = ContentAlignment.TopLeft,
+                    Size = new Size(width - 60, 0),
+                    Location = new Point(36, _collapsedHeight),
+                    BackColor = Color.Transparent,
+                    Visible = false
                 };
 
                 Controls.Add(_icon);
                 Controls.Add(_nameLabel);
                 Controls.Add(_statusLabel);
+                Controls.Add(_expandIcon);
+                Controls.Add(_detailLabel);
+
+                _targetHeight = _collapsedHeight;
+                _targetBg = BgDark;
+
+                // Smooth height animation
+                _animTimer = new System.Windows.Forms.Timer { Interval = 16 };
+                _animTimer.Tick += (_, _) =>
+                {
+                    bool changed = false;
+                    if (Math.Abs(Height - _targetHeight) > 1)
+                    {
+                        int newH = Height + (int)((_targetHeight - Height) * 0.25);
+                        if (newH == Height) newH = _targetHeight; // snap
+                        Height = newH;
+                        changed = true;
+                    }
+                    else if (Height != _targetHeight)
+                    {
+                        Height = _targetHeight;
+                        changed = true;
+                    }
+
+                    if (changed)
+                    {
+                        // Reflow siblings
+                        var parent = Parent;
+                        if (parent != null)
+                        {
+                            int y = 0;
+                            foreach (Control c in parent.Controls)
+                            {
+                                if (c is CheckRow row)
+                                {
+                                    row.Location = new Point(row.Location.X, y);
+                                    y += row.Height + 2;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _animTimer.Stop();
+                    }
+                };
+
+                // Click to expand/collapse
+                this.Click += OnRowClick;
+                _nameLabel.Click += OnRowClick;
+                _statusLabel.Click += OnRowClick;
+                _icon.Click += OnRowClick;
+                _expandIcon.Click += OnRowClick;
+
+                // Hover highlight
+                void SetHover(bool hover)
+                {
+                    if (_hasDetail && !_expanded)
+                        BackColor = hover ? RowHover : BgDark;
+                }
+                this.MouseEnter += (_, _) => SetHover(true);
+                this.MouseLeave += (_, _) => SetHover(false);
+                _nameLabel.MouseEnter += (_, _) => SetHover(true);
+                _nameLabel.MouseLeave += (_, _) => SetHover(false);
+                _statusLabel.MouseEnter += (_, _) => SetHover(true);
+                _statusLabel.MouseLeave += (_, _) => SetHover(false);
+            }
+
+            private void OnRowClick(object? sender, EventArgs e)
+            {
+                if (!_hasDetail) return;
+
+                _expanded = !_expanded;
+                _expandIcon.Text = _expanded ? "▾" : "▸";
+
+                if (_expanded)
+                {
+                    _detailLabel.Visible = true;
+                    _detailLabel.Text = _detailText;
+                    // Calculate needed height for detail text
+                    using var g = CreateGraphics();
+                    var textSize = g.MeasureString(_detailText, _detailLabel.Font,
+                        _detailLabel.Width);
+                    int detailH = Math.Max(20, (int)textSize.Height + 8);
+                    _detailLabel.Height = detailH;
+                    _targetHeight = _collapsedHeight + detailH + 6;
+                    BackColor = RowExpanded;
+                    Cursor = Cursors.Hand;
+                }
+                else
+                {
+                    _targetHeight = _collapsedHeight;
+                    _detailLabel.Visible = false;
+                    BackColor = BgDark;
+                }
+
+                _animTimer.Start();
             }
 
             public void SetStatus(BootCheckStatus status, string message)
             {
+                _currentStatus = status;
                 var (icon, color) = status switch
                 {
                     BootCheckStatus.Running  => ("⟳", AccentBlue),
@@ -412,11 +686,23 @@ namespace WeatherImageGenerator.Forms
                 _icon.ForeColor = color;
                 _statusLabel.Text = message;
                 _statusLabel.ForeColor = color;
+
+                // Bold name for active/completed checks
+                if (status == BootCheckStatus.Running)
+                    _nameLabel.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+                else if (status != BootCheckStatus.Skipped)
+                    _nameLabel.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             }
 
             public void SetDetail(string detail)
             {
-                // Show detail as tooltip
+                _detailText = detail;
+                _hasDetail = !string.IsNullOrWhiteSpace(detail);
+                _expandIcon.Visible = _hasDetail;
+                _expandIcon.Text = "▸";
+                Cursor = _hasDetail ? Cursors.Hand : Cursors.Default;
+
+                // Also keep tooltip for accessibility
                 var tt = new ToolTip { AutoPopDelay = 10000 };
                 tt.SetToolTip(_statusLabel, detail);
                 tt.SetToolTip(_nameLabel, detail);

@@ -41,6 +41,8 @@ namespace WeatherImageGenerator.Forms
             _client = new OpenMeteoClient();
 
             InitializeComponents();
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ThemeChanged += _ => ThemeManager.ApplyTo(this);
         }
 
         private void InitializeComponents()

@@ -9,6 +9,7 @@ using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 
+
 namespace WeatherImageGenerator.Forms
 {
     /// <summary>
@@ -38,6 +39,8 @@ namespace WeatherImageGenerator.Forms
             InitializeComponents();
             _locations = new List<LocationEntry>();
             LoadLocations();
+            ThemeManager.ApplyTo(this);
+            ThemeManager.ThemeChanged += _ => ThemeManager.ApplyTo(this);
         }
 
         private void InitializeComponents()
