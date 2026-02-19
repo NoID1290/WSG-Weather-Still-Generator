@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0.0219] - 2026-02-19
+
+- Enhance theme management: apply dynamic theming to WeatherMapForm and WeatherMapControl, update control styles for consistency
+- Enhance theme management: apply dark/light title bar chrome, update button styles, and implement owner-drawn tabs
+- Enhance UI and theme management: update form dimensions, improve color handling, and add third-party license information
+- Refactor cache management to use %LOCALAPPDATA%/WSG for tile cache and application data; update related settings and checks
+- Add single instance check to prevent multiple application instances
+- Implement theme management and first-boot disclaimer
+- Update System.Drawing.Common package version to 9.0.13
+- Update OpenTK.Graphics package version to 4.9.4
+- Update TODO list
+- TODO added
+
 ## [1.10.2.0218] - 2026-02-18
 
 - Fix ECCC triggering false emergency alert
