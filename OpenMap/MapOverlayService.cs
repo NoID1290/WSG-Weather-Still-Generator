@@ -348,10 +348,12 @@ public class MapOverlayService
         var pathParts = uri.AbsolutePath.Trim('/').Replace("/", "_");
         var fileName = $"{uri.Host}_{pathParts}";
         
-        var cacheDir = _tileCacheDirectory ?? "MapCache";
+        var cacheDir = _tileCacheDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "tile_cache");
         if (!Path.IsPathRooted(cacheDir))
         {
-            cacheDir = Path.Combine(AppContext.BaseDirectory, cacheDir);
+            cacheDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "tile_cache");
         }
         
         return Path.Combine(cacheDir, fileName);
@@ -718,7 +720,7 @@ public class OpenMapSettings
     public float OverlayOpacity { get; set; } = 0.7f;
     public int TileDownloadTimeoutSeconds { get; set; } = 30;
     public bool EnableTileCache { get; set; } = true;
-    public string? TileCacheDirectory { get; set; } = "MapCache";
+    public string? TileCacheDirectory { get; set; } = null;
     public int CacheDurationHours { get; set; } = 168;
     public bool UseDarkMode { get; set; } = false;
 }

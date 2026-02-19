@@ -4351,24 +4351,28 @@ By using this software, you acknowledge and accept these limitations.";
                 {
                     try
                     {
+                        // All caches live under %LOCALAPPDATA%/WSG
+                        var cacheRoot = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG");
+
+                        // Also include the app-local appsettings.json
+                        var appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+
                         // Calculate cache sizes
                         long totalSize = 0;
-                        var cacheDirs = new[]
-                        {
-                            Path.Combine(AppContext.BaseDirectory, "MapCache"),
-                            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache"),
-                            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "weather_cache")
-                        };
+                        int totalFiles = 0;
 
-                        foreach (var dir in cacheDirs)
+                        if (Directory.Exists(cacheRoot))
                         {
-                            if (Directory.Exists(dir))
+                            foreach (var file in Directory.GetFiles(cacheRoot, "*", SearchOption.AllDirectories))
                             {
-                                foreach (var file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
-                                {
-                                    try { totalSize += new FileInfo(file).Length; } catch { }
-                                }
+                                try { totalSize += new FileInfo(file).Length; totalFiles++; } catch { }
                             }
+                        }
+
+                        if (File.Exists(appSettingsPath))
+                        {
+                            try { totalSize += new FileInfo(appSettingsPath).Length; totalFiles++; } catch { }
                         }
 
                         string sizeStr = totalSize < 1024 * 1024
@@ -4376,31 +4380,57 @@ By using this software, you acknowledge and accept these limitations.";
                             : $"{totalSize / (1024.0 * 1024.0):F1} MB";
 
                         var confirm = MessageBox.Show(
-                            $"This will clear all cached map tiles and weather data.\n\n" +
-                            $"Total cache size: {sizeStr}\n\nContinue?",
-                            "Clear All Caches",
+                            $"This will DELETE all application data:\n\n" +
+                            $"• All cached map tiles, weather data, and precomposed images\n" +
+                            $"• Application settings (appsettings.json)\n" +
+                            $"• FFmpeg cache\n\n" +
+                            $"Location: {cacheRoot}\n" +
+                            $"Total size: {sizeStr} ({totalFiles} files)\n\n" +
+                            $"The application will need to be restarted after clearing.\n\nContinue?",
+                            "Clear All Application Data",
                             MessageBoxButtons.YesNo,
-                            MessageBoxIcon.Question);
+                            MessageBoxIcon.Warning);
 
                         if (confirm == DialogResult.Yes)
                         {
                             int filesDeleted = 0;
-                            foreach (var dir in cacheDirs)
+
+                            // Delete entire WSG appdata folder
+                            if (Directory.Exists(cacheRoot))
                             {
-                                if (Directory.Exists(dir))
+                                try
                                 {
-                                    foreach (var file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+                                    // Delete all files recursively
+                                    foreach (var file in Directory.GetFiles(cacheRoot, "*", SearchOption.AllDirectories))
                                     {
                                         try { File.Delete(file); filesDeleted++; } catch { }
                                     }
+
+                                    // Delete all subdirectories
+                                    foreach (var dir in Directory.GetDirectories(cacheRoot, "*", SearchOption.AllDirectories)
+                                        .OrderByDescending(d => d.Length))
+                                    {
+                                        try { Directory.Delete(dir, false); } catch { }
+                                    }
+
+                                    // Try to delete the root itself
+                                    try { Directory.Delete(cacheRoot, false); } catch { }
                                 }
+                                catch { }
+                            }
+
+                            // Delete appsettings.json
+                            if (File.Exists(appSettingsPath))
+                            {
+                                try { File.Delete(appSettingsPath); filesDeleted++; } catch { }
                             }
 
                             MessageBox.Show(
-                                $"Cache cleared successfully!\n\n" +
+                                $"All application data cleared!\n\n" +
                                 $"Files deleted: {filesDeleted}\n" +
-                                $"Space freed: {sizeStr}",
-                                "Cache Cleared",
+                                $"Space freed: {sizeStr}\n\n" +
+                                $"Please restart the application.",
+                                "Data Cleared",
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Information);
                         }

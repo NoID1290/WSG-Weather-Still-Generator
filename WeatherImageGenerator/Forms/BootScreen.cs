@@ -72,7 +72,7 @@ namespace WeatherImageGenerator.Forms
             Text = "WSG — Starting Up";
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
-            Size = new Size(560, 680);
+            Size = new Size(560, 720);
             BackColor = BgDark;
             DoubleBuffered = true;
             ShowInTaskbar = true;
@@ -167,9 +167,9 @@ namespace WeatherImageGenerator.Forms
             // ── Check list panel ──
             _checkListPanel = new Panel
             {
-                Location = new Point(15, 155),
-                Size = new Size(530, 445),
-                AutoScroll = true,
+                Location = new Point(15, 152),
+                Size = new Size(530, 480),
+                AutoScroll = false,
                 BackColor = BgDark
             };
 
@@ -182,7 +182,7 @@ namespace WeatherImageGenerator.Forms
                 BackColor = AccentBlue,
                 FlatStyle = FlatStyle.Flat,
                 Size = new Size(160, 40),
-                Location = new Point(200, 620),
+                Location = new Point(200, 655),
                 Visible = false,
                 Cursor = Cursors.Hand
             };
@@ -342,10 +342,11 @@ namespace WeatherImageGenerator.Forms
             _runner.Add(new DependencyCheck());
             _runner.Add(new FFmpegCheck());
             _runner.Add(new OutputDirectoriesCheck());
-            _runner.Add(new MapTileCacheCheck());
+            _runner.Add(new CacheCheck());
             _runner.Add(new OpenMeteoCheck());
             _runner.Add(new ECCCCheck());
             _runner.Add(new AlertReadyCheck());
+            _runner.Add(new NwsNoaaCheck());
             _runner.Add(new NaadConnectionCheck());
             _runner.Add(new WebUICheck());
             _runner.Add(new WebUINetworkAccessCheck());
@@ -357,9 +358,9 @@ namespace WeatherImageGenerator.Forms
             var checks = new string[]
             {
                 "Single Instance", "Environment", "App Update", "Configuration", "Dependencies",
-                "FFmpeg", "Output Directories", "Map Tile Cache",
+                "FFmpeg", "Output Directories", "Cache",
                 "Open Meteo API", "ECCC Weather", "Alert Ready (NAAD)",
-                "NAAD Connection", "Web UI", "Web UI Network"
+                "NWS NOAA", "NAAD Connection", "Web UI", "Web UI Network"
             };
             foreach (var name in checks)
             {
@@ -515,7 +516,7 @@ namespace WeatherImageGenerator.Forms
             private bool _expanded = false;
             private bool _hasDetail = false;
             private string _detailText = "";
-            private readonly int _collapsedHeight = 34;
+            private readonly int _collapsedHeight = 28;
             private readonly int _parentWidth;
             private readonly System.Windows.Forms.Timer _animTimer;
             private int _targetHeight;
@@ -533,36 +534,36 @@ namespace WeatherImageGenerator.Forms
                 _icon = new Label
                 {
                     Text = "○",
-                    Font = new Font("Segoe UI", 11F),
+                    Font = new Font("Segoe UI", 10F),
                     ForeColor = TextDim,
                     AutoSize = false,
                     TextAlign = ContentAlignment.MiddleCenter,
-                    Size = new Size(30, 30),
-                    Location = new Point(4, 2),
+                    Size = new Size(26, 26),
+                    Location = new Point(4, 1),
                     BackColor = Color.Transparent
                 };
 
                 _nameLabel = new Label
                 {
                     Text = name,
-                    Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
+                    Font = new Font("Segoe UI", 9F, FontStyle.Regular),
                     ForeColor = TextPrimary,
                     AutoSize = false,
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Size = new Size(200, 30),
-                    Location = new Point(36, 2),
+                    Size = new Size(180, 26),
+                    Location = new Point(32, 1),
                     BackColor = Color.Transparent
                 };
 
                 _statusLabel = new Label
                 {
                     Text = "Pending",
-                    Font = new Font("Segoe UI", 8.5F),
+                    Font = new Font("Segoe UI", 8F),
                     ForeColor = TextDim,
                     AutoSize = false,
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Size = new Size(width - 280, 30),
-                    Location = new Point(240, 2),
+                    Size = new Size(width - 250, 26),
+                    Location = new Point(215, 1),
                     BackColor = Color.Transparent
                 };
 
@@ -573,8 +574,8 @@ namespace WeatherImageGenerator.Forms
                     ForeColor = TextDim,
                     AutoSize = false,
                     TextAlign = ContentAlignment.MiddleCenter,
-                    Size = new Size(24, 30),
-                    Location = new Point(width - 30, 2),
+                    Size = new Size(22, 26),
+                    Location = new Point(width - 28, 1),
                     BackColor = Color.Transparent,
                     Visible = false
                 };
@@ -715,9 +716,9 @@ namespace WeatherImageGenerator.Forms
 
                 // Bold name for active/completed checks
                 if (status == BootCheckStatus.Running)
-                    _nameLabel.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+                    _nameLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
                 else if (status != BootCheckStatus.Skipped)
-                    _nameLabel.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
+                    _nameLabel.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
             }
 
             public void SetDetail(string detail)

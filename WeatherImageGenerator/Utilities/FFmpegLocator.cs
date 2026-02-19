@@ -52,7 +52,7 @@ namespace WeatherImageGenerator.Utilities
         {
             // Store FFmpeg binaries in LocalApplicationData to persist across app updates
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            return Path.Combine(appDataPath, "WeatherImageGenerator", "FFmpeg");
+            return Path.Combine(appDataPath, "WSG", "FFmpeg");
         }
 
         /// <summary>

@@ -868,10 +868,10 @@ namespace WeatherImageGenerator.Services
         public bool EnableTileCache { get; set; } = true;
 
         /// <summary>
-        /// Tile cache directory path (relative to application directory)
+        /// Tile cache directory path. When null or empty, uses %LOCALAPPDATA%/WSG/tile_cache.
         /// </summary>
         [JsonPropertyName("TileCacheDirectory")]
-        public string TileCacheDirectory { get; set; } = "MapCache";
+        public string TileCacheDirectory { get; set; } = "";
 
         /// <summary>
         /// Cache duration in hours (tiles older than this will be re-downloaded)

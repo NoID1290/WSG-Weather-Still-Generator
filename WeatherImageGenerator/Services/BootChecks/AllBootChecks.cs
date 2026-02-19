@@ -177,102 +177,91 @@ namespace WeatherImageGenerator.Services.BootChecks
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    //  3. Map tile cache verification
+    //  3. Cache verification (all app caches in %LOCALAPPDATA%/WSG)
     // ═══════════════════════════════════════════════════════════════════
-    public class MapTileCacheCheck : BootCheck
+    public class CacheCheck : BootCheck
     {
-        public override string Name => "Map Tile Cache";
-        public override string Description => "Verify map tile cache directory exists and is accessible";
+        public override string Name => "Cache";
+        public override string Description => "Verify application cache directories exist and report total usage";
+
+        /// <summary>Root cache path: %LOCALAPPDATA%/WSG</summary>
+        public static string GetCacheRoot() =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG");
 
         public override Task<BootCheckResult> RunAsync(CancellationToken ct)
         {
             try
             {
-                var config = ConfigManager.LoadConfig();
-                var cacheDir = config.OpenMap?.TileCacheDirectory ?? "MapCache";
+                var cacheRoot = GetCacheRoot();
 
-                // Resolve relative paths
-                if (!Path.IsPathRooted(cacheDir))
-                    cacheDir = Path.Combine(Directory.GetCurrentDirectory(), cacheDir);
-
-                if (!Directory.Exists(cacheDir))
+                // Ensure root exists
+                if (!Directory.Exists(cacheRoot))
                 {
-                    Directory.CreateDirectory(cacheDir);
+                    Directory.CreateDirectory(cacheRoot);
                     return Task.FromResult(new BootCheckResult
                     {
                         Name = Name,
                         Status = BootCheckStatus.Repaired,
-                        StatusMessage = "Created map cache directory",
-                        Detail = cacheDir
+                        StatusMessage = "Created cache directory",
+                        Detail = cacheRoot
                     });
                 }
 
-                // Count cached tiles for the configured file-cache (resolved like MapOverlayService)
-                long fileCacheCount = 0;
-                long fileCacheBytes = 0;
+                // Scan all subdirectories for total size
+                long totalFiles = 0;
+                long totalBytes = 0;
+                var subdirs = new List<string>();
 
-                // Resolve relative path the same way MapOverlayService does (AppContext.BaseDirectory)
-                var fileCacheDir = cacheDir;
-                if (!Path.IsPathRooted(fileCacheDir))
-                    fileCacheDir = Path.Combine(AppContext.BaseDirectory, fileCacheDir);
-
-                if (Directory.Exists(fileCacheDir))
-                {
-                    try
-                    {
-                        var files = Directory.GetFiles(fileCacheDir, "*", SearchOption.AllDirectories);
-                        fileCacheCount = files.Length;
-                        foreach (var f in files)
-                        {
-                            try { fileCacheBytes += new FileInfo(f).Length; } catch { }
-                        }
-                    }
-                    catch { /* ignore */ }
-                }
-
-                // Also check the BinaryTileCache used by WeatherMapControl (%LocalAppData%/WSG/map_cache)
-                long binaryCacheCount = 0;
-                long binaryCacheBytes = 0;
                 try
                 {
-                    var localBinaryCache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache");
-                    if (Directory.Exists(localBinaryCache))
+                    foreach (var dir in Directory.GetDirectories(cacheRoot))
                     {
-                        // Use BinaryTileCache stats when available to get an accurate tile count/size
+                        var dirName = Path.GetFileName(dir);
+                        long dirBytes = 0;
+                        long dirFiles = 0;
                         try
                         {
-                            var binCache = new OpenGL.BinaryTileCache(localBinaryCache);
-                            var stats = binCache.GetStats();
-                            binaryCacheCount = stats.TileCount;
-                            binaryCacheBytes = stats.TotalSizeBytes;
-                            binCache.Dispose();
-                        }
-                        catch
-                        {
-                            // Fallback: sum file sizes in the directory
-                            var files = Directory.GetFiles(localBinaryCache, "*", SearchOption.AllDirectories);
+                            var files = Directory.GetFiles(dir, "*", SearchOption.AllDirectories);
+                            dirFiles = files.Length;
                             foreach (var f in files)
                             {
-                                try { binaryCacheBytes += new FileInfo(f).Length; } catch { }
+                                try { dirBytes += new FileInfo(f).Length; } catch { }
                             }
                         }
+                        catch { /* skip inaccessible dirs */ }
+
+                        totalFiles += dirFiles;
+                        totalBytes += dirBytes;
+
+                        if (dirFiles > 0)
+                        {
+                            var sizeMb = (dirBytes / 1024.0 / 1024.0).ToString("F1");
+                            subdirs.Add($"{dirName}: {dirFiles} files ({sizeMb} MB)");
+                        }
                     }
+
+                    // Also count files directly in root
+                    try
+                    {
+                        var rootFiles = Directory.GetFiles(cacheRoot);
+                        totalFiles += rootFiles.Length;
+                        foreach (var f in rootFiles)
+                        {
+                            try { totalBytes += new FileInfo(f).Length; } catch { }
+                        }
+                    }
+                    catch { }
                 }
                 catch { /* ignore */ }
 
-                var totalTiles = (fileCacheCount + binaryCacheCount);
-                var totalBytes = (fileCacheBytes + binaryCacheBytes);
-                var sizeMbStr = (totalBytes / 1024.0 / 1024.0).ToString("F1");
+                var totalSizeMb = (totalBytes / 1024.0 / 1024.0).ToString("F1");
+                var statusMsg = totalFiles > 0
+                    ? $"Cache OK ({totalFiles} files, {totalSizeMb} MB)"
+                    : "Cache OK (empty)";
 
-                var statusMsg = totalTiles > 0
-                    ? $"Cache OK ({totalTiles} tiles, {sizeMbStr} MB)"
-                    : "Cache OK (0 tiles, 0.0 MB)";
-
-                var detail = fileCacheCount > 0
-                    ? fileCacheDir
-                    : (Directory.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache"))
-                        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WSG", "map_cache")
-                        : cacheDir);
+                var detail = subdirs.Count > 0
+                    ? $"{cacheRoot}\n{string.Join("\n", subdirs)}"
+                    : cacheRoot;
 
                 return Task.FromResult(new BootCheckResult
                 {
@@ -459,6 +448,98 @@ namespace WeatherImageGenerator.Services.BootChecks
                     StatusMessage = $"Alert Ready check error: {ex.Message}",
                     Error = ex
                 });
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  6b. NWS NOAA (US National Weather Service) connectivity
+    // ═══════════════════════════════════════════════════════════════════
+    public class NwsNoaaCheck : BootCheck
+    {
+        public override string Name => "NWS NOAA";
+        public override string Description => "Verify NWS (National Weather Service) alert configuration and API connectivity";
+
+        public override async Task<BootCheckResult> RunAsync(CancellationToken ct)
+        {
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                var nws = config.Nws;
+
+                if (nws == null || !nws.Enabled)
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Skipped,
+                        StatusMessage = "NWS alerts disabled in settings"
+                    };
+                }
+
+                // Verify API base URL is configured
+                var apiUrl = nws.ApiBaseUrl;
+                if (string.IsNullOrWhiteSpace(apiUrl))
+                {
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Warning,
+                        StatusMessage = "NWS enabled but no API base URL configured"
+                    };
+                }
+
+                // Try a lightweight connectivity test against the NWS API
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd(nws.UserAgent ?? "WSG/1.0");
+
+                var testUrl = apiUrl.TrimEnd('/') + "/alerts/active?status=actual&limit=1";
+                var response = await http.GetAsync(testUrl, ct);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var detail = new List<string>();
+                    if (nws.States != null && nws.States.Count > 0)
+                        detail.Add($"States: {string.Join(", ", nws.States)}");
+                    if (nws.Zones != null && nws.Zones.Count > 0)
+                        detail.Add($"Zones: {string.Join(", ", nws.Zones)}");
+                    if (!string.IsNullOrEmpty(nws.Point))
+                        detail.Add($"Point: {nws.Point}");
+
+                    return new BootCheckResult
+                    {
+                        Name = Name,
+                        Status = BootCheckStatus.Passed,
+                        StatusMessage = "NWS API is reachable",
+                        Detail = detail.Count > 0 ? string.Join(" | ", detail) : apiUrl
+                    };
+                }
+
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"NWS API responded with HTTP {(int)response.StatusCode}"
+                };
+            }
+            catch (TaskCanceledException)
+            {
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = "NWS API timed out — will retry during cycle"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BootCheckResult
+                {
+                    Name = Name,
+                    Status = BootCheckStatus.Warning,
+                    StatusMessage = $"NWS check error: {ex.Message}",
+                    Error = ex
+                };
             }
         }
     }
