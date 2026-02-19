@@ -250,14 +250,14 @@ namespace WeatherImageGenerator.Forms
                 Width = width,
                 Height = height,
                 BackColor = AccentColor,
-                ForeColor = Color.White,
+                ForeColor = ThemeManager.Current.TextOnAccent,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
             btn.FlatAppearance.BorderSize = 0;
-            btn.MouseEnter += (s, e) => btn.BackColor = AccentColorLight;
-            btn.MouseLeave += (s, e) => btn.BackColor = AccentColor;
+            btn.FlatAppearance.MouseOverBackColor = AccentColorLight;
+            btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(AccentColor, 0.15f);
             return btn;
         }
 
@@ -270,16 +270,16 @@ namespace WeatherImageGenerator.Forms
                 Top = y,
                 Width = width,
                 Height = height,
-                BackColor = Color.FromArgb(233, 236, 239),
-                ForeColor = TextColor,
+                BackColor = ThemeManager.Current.ButtonBackground,
+                ForeColor = ThemeManager.Current.TextOnButton,
                 FlatStyle = FlatStyle.Flat,
                 Font = LabelFont,
                 Cursor = Cursors.Hand
             };
             btn.FlatAppearance.BorderSize = 1;
             btn.FlatAppearance.BorderColor = BorderColor;
-            btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(222, 226, 230);
-            btn.MouseLeave += (s, e) => btn.BackColor = Color.FromArgb(233, 236, 239);
+            btn.FlatAppearance.MouseOverBackColor = ThemeManager.Current.ButtonHover;
+            btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(ThemeManager.Current.ButtonBackground, 0.1f);
             return btn;
         }
 
@@ -293,14 +293,14 @@ namespace WeatherImageGenerator.Forms
                 Width = width,
                 Height = height,
                 BackColor = SuccessColor,
-                ForeColor = Color.White,
+                ForeColor = ThemeManager.Current.TextOnAccent,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
             btn.FlatAppearance.BorderSize = 0;
-            btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(46, 204, 113);
-            btn.MouseLeave += (s, e) => btn.BackColor = SuccessColor;
+            btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(SuccessColor, 0.15f);
+            btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(SuccessColor, 0.15f);
             return btn;
         }
 
@@ -343,7 +343,10 @@ namespace WeatherImageGenerator.Forms
                 Top = y,
                 Width = width,
                 Font = LabelFont,
-                DropDownStyle = ComboBoxStyle.DropDownList
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeManager.Current.InputBackground,
+                ForeColor = ThemeManager.Current.TextPrimary
             };
         }
 

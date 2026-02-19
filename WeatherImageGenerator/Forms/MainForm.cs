@@ -921,6 +921,9 @@ namespace WeatherImageGenerator.Forms
             ThemeManager.SetTheme(themeName);
             var t = ThemeManager.Current;
 
+            // Apply dark/light title bar chrome
+            ThemeManager.ApplyTitleBar(this);
+
             Color primaryColor = t.Primary;
             Color secondaryColor = t.Secondary;
             Color accentColor = t.Accent;
@@ -954,8 +957,8 @@ namespace WeatherImageGenerator.Forms
             // TabControl & Tabs
             if (_tabControl != null)
             {
-                // Note: Standard TabControl doesn't support full coloring without OwnerDraw, 
-                // but we can set the background of the pages.
+                // Owner-draw the tab strip headers with theme colors
+                ThemeManager.ApplyOwnerDrawTabs(_tabControl, t);
                 foreach (TabPage page in _tabControl.TabPages)
                 {
                     page.BackColor = primaryColor;
@@ -4527,6 +4530,9 @@ By using this software, you acknowledge and accept these limitations.";
 
                 this.Controls.Add(tabControl);
                 this.Controls.Add(btnPanel);
+
+                // Apply theme to get dark title bar + owner-drawn tab headers
+                ThemeManager.ApplyTo(this);
 
                 this.KeyPreview = true;
                 this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) this.Close(); };

@@ -1,6 +1,8 @@
 #nullable enable
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WeatherImageGenerator.Services
@@ -203,10 +205,30 @@ namespace WeatherImageGenerator.Services
         //  Helper: recursively apply theme colors to a form and all children
         // ═══════════════════════════════════════════════════════════
 
+        // ── Win32 DWM interop for dark title bar ───────────────
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        /// <summary>
+        /// Applies dark/light title bar chrome to match the active theme.
+        /// </summary>
+        public static void ApplyTitleBar(Form form, ThemeColors? theme = null)
+        {
+            var t = theme ?? _current;
+            try
+            {
+                int useDark = t.IsDark ? 1 : 0;
+                DwmSetWindowAttribute(form.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
+                // Force Windows to repaint the title bar
+                form.Invalidate();
+            }
+            catch { /* DWM call may fail on older Windows versions */ }
+        }
+
         /// <summary>
         /// Applies the current theme's base colors to a form and all its child controls recursively.
-        /// For controls that need special treatment (e.g., buttons with specific semantic colors),
-        /// the form should handle those individually after calling this method.
+        /// Also sets the window title bar to dark mode when using a dark theme.
         /// </summary>
         public static void ApplyTo(Control control, ThemeColors? theme = null)
         {
@@ -214,6 +236,12 @@ namespace WeatherImageGenerator.Services
 
             control.BackColor = t.Surface;
             control.ForeColor = t.TextPrimary;
+
+            // Apply dark/light title bar for Forms
+            if (control is Form form)
+            {
+                ApplyTitleBar(form, t);
+            }
 
             foreach (Control child in control.Controls)
             {
@@ -259,6 +287,7 @@ namespace WeatherImageGenerator.Services
                 case ComboBox cmb:
                     cmb.BackColor = t.InputBackground;
                     cmb.ForeColor = t.TextPrimary;
+                    cmb.FlatStyle = FlatStyle.Flat;
                     break;
 
                 case CheckBox chk:
@@ -286,6 +315,7 @@ namespace WeatherImageGenerator.Services
                     break;
 
                 case TabControl tc:
+                    ApplyOwnerDrawTabs(tc, t);
                     foreach (TabPage page in tc.TabPages)
                     {
                         page.BackColor = t.Surface;
@@ -350,6 +380,8 @@ namespace WeatherImageGenerator.Services
                 case ListView lv:
                     lv.BackColor = t.CardBackground;
                     lv.ForeColor = t.TextPrimary;
+                    lv.OwnerDraw = true;
+                    ApplyOwnerDrawListView(lv, t);
                     break;
 
                 case TrackBar _:
@@ -401,6 +433,244 @@ namespace WeatherImageGenerator.Services
                 "success" => t.Success,
                 _ => t.TextPrimary
             };
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  Owner-drawn ListView for themed column headers
+        // ═══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Applies owner-draw handlers to a ListView so column headers and items
+        /// render with theme colors. Safe to call multiple times.
+        /// </summary>
+        private static void ApplyOwnerDrawListView(ListView lv, ThemeColors t)
+        {
+            // Remove previous handlers stored in Tag
+            if (lv.Tag is (DrawListViewColumnHeaderEventHandler oldCol, DrawListViewItemEventHandler oldItem, DrawListViewSubItemEventHandler oldSub))
+            {
+                lv.DrawColumnHeader -= oldCol;
+                lv.DrawItem -= oldItem;
+                lv.DrawSubItem -= oldSub;
+            }
+
+            var capturedTheme = t;
+
+            DrawListViewColumnHeaderEventHandler colHandler = (sender, e) =>
+            {
+                using var bgBrush = new SolidBrush(capturedTheme.Surface);
+                e.Graphics.FillRectangle(bgBrush, e.Bounds);
+                using var textBrush = new SolidBrush(capturedTheme.TextPrimary);
+                var font = new Font(e.Font ?? SystemFonts.DefaultFont, FontStyle.Bold);
+                var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap };
+                var textRect = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
+                e.Graphics.DrawString(e.Header?.Text ?? "", font, textBrush, textRect, sf);
+                font.Dispose();
+                // Bottom separator
+                using var sepPen = new Pen(capturedTheme.Border, 1f);
+                e.Graphics.DrawLine(sepPen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+            };
+
+            DrawListViewItemEventHandler itemHandler = (sender, e) =>
+            {
+                e.DrawDefault = true;
+            };
+
+            DrawListViewSubItemEventHandler subHandler = (sender, e) =>
+            {
+                e.DrawDefault = true;
+            };
+
+            lv.DrawColumnHeader += colHandler;
+            lv.DrawItem += itemHandler;
+            lv.DrawSubItem += subHandler;
+            lv.Tag = (colHandler, itemHandler, subHandler);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  Owner-drawn TabControl for themed tab headers
+        // ═══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Holds the themed painting state attached to a TabControl via its Tag property.
+        /// </summary>
+        private sealed class TabThemeState
+        {
+            public DrawItemEventHandler? DrawHandler;
+            public PaintEventHandler? PaintHandler;
+            public ThemedTabPainter? Painter;
+        }
+
+        /// <summary>
+        /// NativeWindow subclass that intercepts low-level paint messages for a TabControl
+        /// to eliminate all white border artifacts drawn by the native SysTabControl32.
+        /// </summary>
+        private sealed class ThemedTabPainter : NativeWindow
+        {
+            public ThemeColors Theme { get; set; } = _current;
+
+            protected override void WndProc(ref Message m)
+            {
+                const int WM_ERASEBKGND = 0x0014;
+                const int WM_PAINT = 0x000F;
+
+                if (m.Msg == WM_ERASEBKGND)
+                {
+                    // Fill the entire background with the theme color BEFORE
+                    // the native control draws its borders.  This ensures no
+                    // white pixel survives as a base layer.
+                    try
+                    {
+                        using var g = Graphics.FromHdc(m.WParam);
+                        using var brush = new SolidBrush(Theme.Background);
+                        var tc = Control.FromHandle(Handle) as TabControl;
+                        if (tc != null)
+                            g.FillRectangle(brush, tc.ClientRectangle);
+                    }
+                    catch { /* ignore – fallback to normal erase */ }
+                    m.Result = (IntPtr)1; // we handled it
+                    return;
+                }
+
+                // Let the native control do its normal painting (DrawItem fires here)
+                base.WndProc(ref m);
+
+                if (m.Msg == WM_PAINT)
+                {
+                    // AFTER the native control + DrawItem have painted, paint over
+                    // any remaining border artifacts that WM_ERASEBKGND couldn't prevent.
+                    try
+                    {
+                        var tc = Control.FromHandle(Handle) as TabControl;
+                        if (tc == null || tc.TabCount == 0) return;
+
+                        using var g = Graphics.FromHwnd(Handle);
+                        using var bgBrush = new SolidBrush(Theme.Background);
+
+                        var firstTab = tc.GetTabRect(0);
+                        var lastTab = tc.GetTabRect(tc.TabCount - 1);
+                        int stripBottom = lastTab.Bottom;
+
+                        // Above tab headers (top border line)
+                        if (firstTab.Top > 0)
+                            g.FillRectangle(bgBrush, 0, 0, tc.Width, firstTab.Top);
+
+                        // Left of first tab
+                        if (firstTab.Left > 0)
+                            g.FillRectangle(bgBrush, 0, firstTab.Top, firstTab.Left, stripBottom - firstTab.Top);
+
+                        // Right of last tab
+                        if (lastTab.Right < tc.Width)
+                            g.FillRectangle(bgBrush, lastTab.Right, 0, tc.Width - lastTab.Right, stripBottom);
+
+                        // Gap between tab strip and page content + page borders
+                        if (tc.SelectedTab != null)
+                        {
+                            var pr = tc.SelectedTab.Bounds;
+                            // Below tab strip to page top
+                            g.FillRectangle(bgBrush, 0, stripBottom, tc.Width, pr.Top - stripBottom);
+                            // Left border
+                            g.FillRectangle(bgBrush, 0, pr.Top - 2, pr.Left + 2, pr.Height + 4);
+                            // Right border
+                            g.FillRectangle(bgBrush, pr.Right - 1, pr.Top - 2, tc.Width - pr.Right + 2, pr.Height + 4);
+                            // Bottom border
+                            g.FillRectangle(bgBrush, 0, pr.Bottom - 1, tc.Width, tc.Height - pr.Bottom + 2);
+                        }
+
+                        // Subtle separator line below tabs
+                        using var sepPen = new Pen(Theme.Border, 1f);
+                        g.DrawLine(sepPen, 0, stripBottom, tc.Width, stripBottom);
+                    }
+                    catch { /* ignore paint errors */ }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Converts a TabControl to owner-draw mode so tab headers and the strip
+        /// background render with theme colors instead of the default white.
+        /// Safe to call multiple times — re-wires the DrawItem handler each time
+        /// so it captures the latest theme colors.
+        /// </summary>
+        public static void ApplyOwnerDrawTabs(TabControl tc, ThemeColors? theme = null)
+        {
+            var t = theme ?? _current;
+            tc.DrawMode = TabDrawMode.OwnerDrawFixed;
+            tc.BackColor = t.Background;
+
+            // Retrieve or create the theme state
+            var state = tc.Tag as TabThemeState ?? new TabThemeState();
+
+            // Remove previous event handlers
+            if (state.DrawHandler != null) tc.DrawItem -= state.DrawHandler;
+            if (state.PaintHandler != null) tc.Paint -= state.PaintHandler;
+
+            // Attach or update the NativeWindow painter
+            if (state.Painter == null)
+            {
+                state.Painter = new ThemedTabPainter { Theme = t };
+                state.Painter.AssignHandle(tc.Handle);
+            }
+            else
+            {
+                state.Painter.Theme = t;
+            }
+
+            // Capture current theme in closure
+            var capturedTheme = t;
+
+            DrawItemEventHandler drawHandler = (sender, e) =>
+            {
+                if (sender is not TabControl tabs) return;
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                var bounds = e.Bounds;
+                bool isSelected = (e.Index == tabs.SelectedIndex);
+
+                // Background fill
+                Color bgColor = isSelected ? capturedTheme.Surface : capturedTheme.Background;
+                using (var bgBrush = new SolidBrush(bgColor))
+                    g.FillRectangle(bgBrush, bounds);
+
+                // Subtle bottom accent line on selected tab
+                if (isSelected)
+                {
+                    using var accentPen = new Pen(capturedTheme.Accent, 2.5f);
+                    g.DrawLine(accentPen, bounds.Left + 4, bounds.Bottom - 1, bounds.Right - 4, bounds.Bottom - 1);
+                }
+
+                // Text
+                string text = tabs.TabPages[e.Index].Text;
+                Color textColor = isSelected ? capturedTheme.TextPrimary : capturedTheme.TextDim;
+                var font = isSelected
+                    ? new Font(tabs.Font, FontStyle.Bold)
+                    : tabs.Font;
+
+                using (var textBrush = new SolidBrush(textColor))
+                {
+                    var sf = new StringFormat
+                    {
+                        Alignment = StringAlignment.Center,
+                        LineAlignment = StringAlignment.Center
+                    };
+                    g.DrawString(text, font, textBrush, bounds, sf);
+                }
+
+                if (isSelected) font.Dispose();
+            };
+
+            // Keep a lightweight Paint handler only for the separator line
+            PaintEventHandler paintHandler = (sender, e) => { /* handled by NativeWindow */ };
+
+            tc.DrawItem += drawHandler;
+            tc.Paint += paintHandler;
+
+            state.DrawHandler = drawHandler;
+            state.PaintHandler = paintHandler;
+            tc.Tag = state;
+
+            tc.Invalidate();
         }
     }
 }
