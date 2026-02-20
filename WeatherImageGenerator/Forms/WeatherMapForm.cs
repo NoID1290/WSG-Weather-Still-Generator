@@ -34,6 +34,8 @@ namespace WeatherImageGenerator.Forms
             this.Text = "Weather Interactive Map";
             this.Size = new System.Drawing.Size(1400, 1050);
             this.StartPosition = FormStartPosition.CenterScreen;
+            try { this.Icon = new System.Drawing.Icon(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WSG.ico")); }
+            catch { }
         }
 
         private void LoadWeatherMap()

@@ -29,6 +29,18 @@ namespace WeatherImageGenerator.OpenGL
         private string _hudAttributionText = "";
         private string _hudStatusText = "";
 
+        // Interactive HUD overlay system — all map controls rendered in-viewport
+        private GLHudSystem? _hudSystem;
+
+        /// <summary>The interactive HUD overlay system for in-viewport controls</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public GLHudSystem? HudSystem
+        {
+            get => _hudSystem;
+            set { _hudSystem = value; Invalidate(); }
+        }
+
         /// <summary>Whether to show the crosshair/aiming dot in the center of the viewport</summary>
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -1022,6 +1034,18 @@ void main() {
                 _uiRenderer.EndFrame();
             }
 
+            // --- Interactive HUD overlay system (map controls) ---
+            if (_hudSystem != null && _uiRenderer != null && _uiRenderer.IsInitialized)
+            {
+                GL.Enable(EnableCap.Blend);
+                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                GL.Disable(EnableCap.DepthTest);
+
+                _uiRenderer.BeginFrame(Width, Height);
+                _hudSystem.Render(_uiRenderer, Width, Height);
+                _uiRenderer.EndFrame();
+            }
+
             // Check for any accumulated GL errors at end of frame
             {
                 ErrorCode err = GL.GetError();
@@ -1039,6 +1063,13 @@ void main() {
 
         private void GLRadarControl_MouseWheel(object? sender, MouseEventArgs e)
         {
+            // Let HUD consume the event first (e.g., slider adjustments, panel scrolling)
+            if (_hudSystem != null && _hudSystem.ProcessMouseWheel(e.X, e.Y, e.Delta))
+            {
+                Invalidate();
+                return;
+            }
+
             // Smooth GL zoom with cursor-centered pan adjustment
             var oldZoom = _zoom;
             var delta = e.Delta > 0 ? 1.15f : 1f / 1.15f;
@@ -1102,6 +1133,13 @@ void main() {
 
         private void GLRadarControl_MouseDown(object? sender, MouseEventArgs e)
         {
+            // Let HUD consume click first (buttons, checkboxes, dropdowns, sliders)
+            if (e.Button == MouseButtons.Left && _hudSystem != null && _hudSystem.ProcessMouseDown(e.X, e.Y))
+            {
+                Invalidate();
+                return;
+            }
+
             if (e.Button == MouseButtons.Left)
             {
                 _dragging = true;
@@ -1112,6 +1150,23 @@ void main() {
 
         private void GLRadarControl_MouseMove(object? sender, MouseEventArgs e)
         {
+            // Let HUD process move (hover highlights, slider dragging)
+            if (_hudSystem != null)
+            {
+                bool overHud = _hudSystem.ProcessMouseMove(e.X, e.Y);
+                if (overHud && !_dragging)
+                {
+                    this.Cursor = Cursors.Hand;
+                    Invalidate();
+                    return;
+                }
+                else if (!_dragging && !overHud)
+                {
+                    this.Cursor = Cursors.Hand;
+                }
+                if (overHud) Invalidate();
+            }
+
             if (!_dragging) return;
             var dx = e.X - _lastMousePos.X;
             var dy = e.Y - _lastMousePos.Y;
@@ -1142,6 +1197,13 @@ void main() {
 
         private void GLRadarControl_MouseUp(object? sender, MouseEventArgs e)
         {
+            // Let HUD process mouse-up (end slider drag, etc.)
+            if (_hudSystem != null && _hudSystem.ProcessMouseUp(e.X, e.Y))
+            {
+                Invalidate();
+                // Don't return — also need to end map drag if it was active
+            }
+
             if (e.Button == MouseButtons.Left)
             {
                 _dragging = false;

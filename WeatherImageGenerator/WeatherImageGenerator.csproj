@@ -16,6 +16,7 @@
     <AssemblyProduct>Weather Image Generator</AssemblyProduct>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>WSG.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
@@ -38,6 +39,10 @@
     </Content>
     <!-- Embed icons into the binary -->
     <EmbeddedResource Include="WeatherImages\Icons\*.png" />
+    <!-- Copy application icon to output for WinForms use -->
+    <Content Include="WSG.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Music\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

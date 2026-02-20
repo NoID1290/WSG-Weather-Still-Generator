@@ -23,7 +23,13 @@ namespace EAS.NWS
     {
         private readonly HttpClient _httpClient;
         private readonly NwsOptions _options;
-        private readonly HashSet<string> _seenIdentifiers = new();
+        /// <summary>
+        /// Tracks previously-seen alert identifiers with their first-seen timestamp.
+        /// Evicts entries older than MaxAgeHours to prevent unbounded memory growth
+        /// during long-running polling sessions.
+        /// </summary>
+        private readonly Dictionary<string, DateTimeOffset> _seenIdentifiers = new();
+        private const int MaxSeenIdentifiers = 5000;
         private readonly object _lockObj = new();
 
         public Action<string>? Log { get; set; }
@@ -48,6 +54,9 @@ namespace EAS.NWS
                 LogMessage("NWS provider disabled; skipping.");
                 return results;
             }
+
+            // Evict stale identifiers to prevent unbounded memory growth
+            EvictStaleIdentifiers();
 
             var filters = NormalizeList(filterAreas);
 
@@ -105,11 +114,40 @@ namespace EAS.NWS
             // nothing to dispose
         }
 
+        /// <summary>
+        /// Removes stale entries from the seen-identifiers cache to prevent unbounded growth.
+        /// Called before each fetch cycle.
+        /// </summary>
+        private void EvictStaleIdentifiers()
+        {
+            lock (_lockObj)
+            {
+                if (_seenIdentifiers.Count <= MaxSeenIdentifiers) return;
+
+                var cutoff = DateTimeOffset.UtcNow.AddHours(-Math.Max(_options.MaxAgeHours, 24));
+                var stale = _seenIdentifiers.Where(kv => kv.Value < cutoff).Select(kv => kv.Key).ToList();
+                foreach (var key in stale)
+                    _seenIdentifiers.Remove(key);
+
+                // If still over limit after TTL eviction, remove oldest entries
+                if (_seenIdentifiers.Count > MaxSeenIdentifiers)
+                {
+                    var oldest = _seenIdentifiers.OrderBy(kv => kv.Value).Take(_seenIdentifiers.Count - MaxSeenIdentifiers).Select(kv => kv.Key).ToList();
+                    foreach (var key in oldest)
+                        _seenIdentifiers.Remove(key);
+                }
+
+                LogMessage($"Evicted stale identifiers; cache now has {_seenIdentifiers.Count} entries.");
+            }
+        }
+
         // ─── Modern api.weather.gov JSON API ───────────────────────────────
 
         /// <summary>
         /// Fetches active alerts from api.weather.gov/alerts/active.
         /// Constructs query parameters from configured States, Zones, and Point filters.
+        /// Note: The API path does not filter by scope because api.weather.gov only returns
+        /// public alerts. The CAP XML path explicitly checks scope == "Public" for safety.
         /// </summary>
         private async Task<List<AlertEntry>> FetchFromApiAsync(List<string> filters)
         {
@@ -232,8 +270,12 @@ namespace EAS.NWS
             var id = GetJsonString(props, "id");
             lock (_lockObj)
             {
-                if (!string.IsNullOrWhiteSpace(id) && !_seenIdentifiers.Add(id))
-                    return null;
+                if (!string.IsNullOrWhiteSpace(id))
+                {
+                    if (_seenIdentifiers.ContainsKey(id))
+                        return null;
+                    _seenIdentifiers[id] = DateTimeOffset.UtcNow;
+                }
             }
 
             // Check expiry
@@ -389,8 +431,12 @@ namespace EAS.NWS
             var identifier = GetXmlValue(alertElement, "identifier");
             lock (_lockObj)
             {
-                if (!string.IsNullOrWhiteSpace(identifier) && !_seenIdentifiers.Add(identifier))
-                    return null;
+                if (!string.IsNullOrWhiteSpace(identifier))
+                {
+                    if (_seenIdentifiers.ContainsKey(identifier))
+                        return null;
+                    _seenIdentifiers[identifier] = DateTimeOffset.UtcNow;
+                }
             }
 
             // Check age
@@ -451,6 +497,9 @@ namespace EAS.NWS
             if (!string.IsNullOrWhiteSpace(expiresStr) && DateTimeOffset.TryParse(expiresStr, null, DateTimeStyles.AssumeUniversal, out var expParsed))
                 expiresAtFinal = expParsed;
 
+            // Extract detail URL from CAP <web> element if available
+            var webUrl = GetXmlValue(info, "web");
+
             var alert = new AlertEntry
             {
                 City = areaDesc,
@@ -467,6 +516,7 @@ namespace EAS.NWS
                 ExpiresAt = expiresAtFinal,
                 Description = description,
                 Instructions = instruction,
+                DetailUrl = !string.IsNullOrWhiteSpace(webUrl) ? webUrl : null,
                 Region = areaDesc
             };
 

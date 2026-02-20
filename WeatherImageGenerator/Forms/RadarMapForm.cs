@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using System.Threading.Tasks;
 using System.Net.Http;
@@ -63,7 +64,8 @@ namespace WeatherImageGenerator.Forms
             this.Size = new Size(1200, 800);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(45, 45, 48);
-            this.Icon = SystemIcons.Application;
+            try { this.Icon = new Icon(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WSG.ico")); }
+            catch { this.Icon = SystemIcons.Application; }
         }
 
         private void SetupUI()

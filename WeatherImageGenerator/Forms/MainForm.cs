@@ -199,6 +199,10 @@ namespace WeatherImageGenerator.Forms
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
 
+            // Set application icon
+            try { this.Icon = new Icon(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WSG.ico")); }
+            catch { }
+
             _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(4) };
             // Note: RichTextBox with Dock=Fill doesn't support Region properly, so we skip rounding for it
             // Force tight paragraph spacing so log lines aren't spread apart
