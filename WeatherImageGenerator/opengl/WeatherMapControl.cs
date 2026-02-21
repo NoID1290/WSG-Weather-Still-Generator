@@ -48,6 +48,9 @@ namespace WeatherImageGenerator.OpenGL
         private int _animationSpeedMs = 500;
         private System.Threading.Timer? _animationRefreshDebounce;
         private bool _animationRefreshInProgress = false;
+
+        // Periodic status bar refresh timer (updates FPS, VRAM, cache stats even when idle)
+        private Timer _statusUpdateTimer;
         private System.Threading.Timer? _hudClearTimer;
         private (double MinLat, double MinLon, double MaxLat, double MaxLon)? _animationBBox;
         private bool _animationLoop = true;
@@ -193,6 +196,11 @@ namespace WeatherImageGenerator.OpenGL
             // Initialize animation timer
             _animationTimer = new Timer { Interval = _animationSpeedMs };
             _animationTimer.Tick += AnimationTimer_Tick;
+
+            // Periodic status bar refresh (FPS, VRAM, cache stats update even when map is idle)
+            _statusUpdateTimer = new Timer { Interval = 500 };
+            _statusUpdateTimer.Tick += (s, ev) => UpdateStatusLabels();
+            _statusUpdateTimer.Start();
         }
 
         private void BuildHudPanels()
@@ -1616,6 +1624,8 @@ namespace WeatherImageGenerator.OpenGL
                 _updateTimer?.Dispose();
                 _animationTimer?.Stop();
                 _animationTimer?.Dispose();
+                _statusUpdateTimer?.Stop();
+                _statusUpdateTimer?.Dispose();
                 _animationRefreshDebounce?.Dispose();
                 _tileCache?.Dispose();
                 _overlayManager?.Dispose();
