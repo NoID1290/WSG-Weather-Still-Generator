@@ -226,19 +226,20 @@ namespace WeatherImageGenerator.OpenGL
                 Collapsed = true
             };
 
-            var chkCrosshair = new HudCheckbox
+            var chkCrosshairMouse = new HudCheckbox
             {
-                Id = "crosshair",
-                Text = "Show Crosshair",
-                Checked = _glControl.ShowCrosshair,
+                Id = "crosshairMouse",
+                Text = "Use crosshair as mouse",
+                Checked = _glControl.UseCrosshairAsMouse,
                 OnChanged = on =>
                 {
+                    _glControl.UseCrosshairAsMouse = on;
                     _glControl.ShowCrosshair = on;
                     _glControl.Invalidate();
                     try { var cfg = ConfigManager.LoadConfig(); cfg.ShowCrosshair = on; ConfigManager.SaveConfig(cfg, silent: true); } catch { }
                 }
             };
-            viewportPanel.Elements.Add(chkCrosshair);
+            viewportPanel.Elements.Add(chkCrosshairMouse);
 
             var chkCoords = new HudCheckbox
             {
@@ -443,13 +444,6 @@ namespace WeatherImageGenerator.OpenGL
                 Text = "Radar Glow",
                 Checked = true,
                 OnChanged = v => { _glControl.EnableRadarGlow = v; _glControl.Invalidate(); }
-            });
-            shadersPanel.Elements.Add(new HudCheckbox
-            {
-                Id = "shaderPulse",
-                Text = "Crosshair Pulse",
-                Checked = true,
-                OnChanged = v => { _glControl.EnableCrosshairPulse = v; _glControl.Invalidate(); }
             });
             _hudSystem.AddPanel(shadersPanel);
 
@@ -973,6 +967,7 @@ namespace WeatherImageGenerator.OpenGL
                 if (_glControl != null)
                 {
                     _glControl.ShowCrosshair = config.ShowCrosshair;
+                    _glControl.UseCrosshairAsMouse = config.ShowCrosshair;
                     _glControl.ShowCoordinatesHUD = config.ShowCoordinatesHUD;
                 }
                 if (_overlayManager != null)
@@ -1388,6 +1383,17 @@ namespace WeatherImageGenerator.OpenGL
                 _lblPosition.Text = $"Lat: {_currentLat:F2}, Lon: {_currentLon:F2}";
             
             UpdateCacheStats();
+
+            // Pipe compact single-row status to GL status bar
+            if (_glControl != null)
+            {
+                int vramCount = _glControl.VramTextureCount;
+                long vramBytes = 0;
+                try { vramBytes = _glControl.VramEstimatedBytes; } catch { }
+                string vramMB = $"{vramBytes / 1024.0 / 1024.0:F1}MB";
+                _glControl.HudStatusBarText = $"Z:{_currentZoom}  Lat:{_currentLat:F2}  Lon:{_currentLon:F2}  VRAM:{vramCount} ({vramMB})";
+            }
+
             _glControl?.Invalidate();
         }
 

@@ -47,10 +47,43 @@ namespace WeatherImageGenerator.OpenGL
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool ShowCrosshair { get; set; } = true;
 
+        /// <summary>When true, hides system cursor and renders green crosshair at mouse position with lat/lon tooltip</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool UseCrosshairAsMouse { get; set; } = true;
+
         /// <summary>Whether to show lat/lon coordinates near the crosshair</summary>
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool ShowCoordinatesHUD { get; set; } = true;
+
+        // Current mouse screen position for crosshair-as-mouse rendering
+        private System.Drawing.Point _mouseScreenPos = new System.Drawing.Point(-1, -1);
+        private bool _mouseInside = false;
+
+        // Zoom velocity tracking for motion blur
+        private float _prevZoom = 1.0f;
+        private float _zoomVelocity = 0.0f;
+
+        // Invisible cursor for crosshair-as-mouse mode
+        private static readonly Cursor _blankCursor = CreateBlankCursor();
+        private static Cursor CreateBlankCursor()
+        {
+            var bmp = new System.Drawing.Bitmap(1, 1);
+            bmp.SetPixel(0, 0, System.Drawing.Color.Transparent);
+            return new Cursor(bmp.GetHicon());
+        }
+
+        // Always-visible status bar text (single row, bottom-right)
+        private string _hudStatusBarText = "";
+        /// <summary>Single-row status bar text rendered at bottom-right (always visible)</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string HudStatusBarText
+        {
+            get => _hudStatusBarText;
+            set { _hudStatusBarText = value ?? ""; Invalidate(); }
+        }
 
         /// <summary>Attribution text rendered as GL HUD in the bottom-left corner of the viewport</summary>
         [System.ComponentModel.Browsable(false)]
@@ -109,7 +142,7 @@ namespace WeatherImageGenerator.OpenGL
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), long> _tileLastUsed = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), long>();
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime> _blockedTiles = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime>();
         /// <summary>Limits concurrent tile HTTP requests to avoid hammering the server.</summary>
-        private static readonly System.Threading.SemaphoreSlim _tileSemaphore = new System.Threading.SemaphoreSlim(8, 8);
+        private static readonly System.Threading.SemaphoreSlim _tileSemaphore = new System.Threading.SemaphoreSlim(14, 14);
         /// <summary>Blocked-tile TTL – re-attempt after this interval.</summary>
         private static readonly TimeSpan BlockedTileTtl = TimeSpan.FromMinutes(2);
         private HttpClient _tileHttpClient = new HttpClient();
@@ -182,7 +215,7 @@ namespace WeatherImageGenerator.OpenGL
         // Keeping more tiles in VRAM eliminates re-uploads when panning/zooming back to previously viewed areas.
         private const int MAX_TILE_TEXTURES = 2000;
 
-        private const int PREFETCH_RADIUS = 1;
+        private const int PREFETCH_RADIUS = 3;
 
         // Dedicated overlay shader for weather data (no saturation/contrast/vignette)
         private Shader? _weatherOverlayShader;
@@ -208,6 +241,10 @@ namespace WeatherImageGenerator.OpenGL
         private int _overlayShaderColorLoc = -1;
         private int _overlayShaderAlphaLoc = -1;
         private int _overlayShaderTimeLoc = -1;
+        private int _overlayShaderOffsetLoc = -1;
+
+        // Tile shader zoom blur uniform
+        private int _tileShaderZoomBlurLoc = -1;
 
         // Weather overlay shader cached uniforms
         private int _woShaderTransformLoc = -1;
@@ -284,6 +321,8 @@ void main() {
             this.MouseDown += GLRadarControl_MouseDown;
             this.MouseMove += GLRadarControl_MouseMove;
             this.MouseUp += GLRadarControl_MouseUp;
+            this.MouseEnter += (s, e) => { _mouseInside = true; UpdateCursorStyle(); };
+            this.MouseLeave += (s, e) => { _mouseInside = false; this.Cursor = Cursors.Default; Invalidate(); };
         }
 
         private void GLRadarControl_Load(object? sender, EventArgs e)
@@ -445,11 +484,15 @@ void main() {
             _overlayShaderColorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
             _overlayShaderAlphaLoc = GL.GetUniformLocation(_overlayShader.Handle, "uAlpha");
             _overlayShaderTimeLoc = GL.GetUniformLocation(_overlayShader.Handle, "uTime");
+            _overlayShaderOffsetLoc = GL.GetUniformLocation(_overlayShader.Handle, "uOffset");
 
             // Cache weather overlay shader uniforms
             _woShaderTransformLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTransform");
             _woShaderOpacityLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uOpacity");
             _woShaderTimeLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTime");
+
+            // Cache tile shader zoom blur uniform
+            _tileShaderZoomBlurLoc = GL.GetUniformLocation(_tileShader.Handle, "uZoomBlur");
 
             // Cache shader toggle uniform locations
             _tileShaderSaturationLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableSaturation");
@@ -655,6 +698,13 @@ void main() {
                 float zoomNorm = Math.Clamp(_mapZoom / 20.0f, 0f, 1f);
                 if (_tileShaderZoomNormLoc >= 0)
                     GL.Uniform1(_tileShaderZoomNormLoc, zoomNorm);
+
+                // Compute and pass zoom motion blur strength
+                _zoomVelocity = Math.Abs(_zoom - _prevZoom);
+                _prevZoom = _zoom;
+                float zoomBlur = Math.Clamp(_zoomVelocity * 8f, 0f, 0.3f); // scale up for visibility
+                if (_tileShaderZoomBlurLoc >= 0)
+                    GL.Uniform1(_tileShaderZoomBlurLoc, zoomBlur);
 
                 // Pass shader toggle uniforms
                 if (_tileShaderSaturationLoc >= 0)
@@ -951,31 +1001,52 @@ void main() {
             }
 
             // Draw overlay crosshair/marker in NDC with overlay shader (anti-aliased quads)
+            // When UseCrosshairAsMouse=true, draw at mouse position; otherwise draw at center
             if (ShowCrosshair && _overlayShader != null && _crosshairVertexCount > 0)
             {
-                _overlayShader.Use();
-                // Pass time for pulse animation
-                if (_overlayShaderTimeLoc >= 0)
-                    GL.Uniform1(_overlayShaderTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
-                // Pass pulse toggle
-                if (_overlayShaderPulseLoc >= 0)
-                    GL.Uniform1(_overlayShaderPulseLoc, EnableCrosshairPulse ? 1 : 0);
-                if (_overlayShaderAlphaLoc >= 0)
-                    GL.Uniform1(_overlayShaderAlphaLoc, 1.0f);
-                else
-                    _overlayShader.SetFloat("uAlpha", 1.0f);
-                // draw crosshair in green
-                if (_overlayShaderColorLoc >= 0)
-                    GL.Uniform3(_overlayShaderColorLoc, 0.6f, 1.0f, 0.2f);
-                else
+                bool drawAtMouse = UseCrosshairAsMouse && _mouseInside && _mouseScreenPos.X >= 0;
+                // Only draw if we have a valid position
+                if (!UseCrosshairAsMouse || drawAtMouse)
                 {
-                    var colorLoc2 = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
-                    GL.Uniform3(colorLoc2, 0.6f, 1.0f, 0.2f);
-                }
+                    _overlayShader.Use();
+                    // Pass time for pulse animation
+                    if (_overlayShaderTimeLoc >= 0)
+                        GL.Uniform1(_overlayShaderTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
+                    // Pass pulse toggle (always pulse when crosshair-as-mouse)
+                    if (_overlayShaderPulseLoc >= 0)
+                        GL.Uniform1(_overlayShaderPulseLoc, (UseCrosshairAsMouse || EnableCrosshairPulse) ? 1 : 0);
+                    if (_overlayShaderAlphaLoc >= 0)
+                        GL.Uniform1(_overlayShaderAlphaLoc, 1.0f);
+                    else
+                        _overlayShader.SetFloat("uAlpha", 1.0f);
+                    // draw crosshair in green
+                    if (_overlayShaderColorLoc >= 0)
+                        GL.Uniform3(_overlayShaderColorLoc, 0.6f, 1.0f, 0.2f);
+                    else
+                    {
+                        var colorLoc2 = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
+                        GL.Uniform3(colorLoc2, 0.6f, 1.0f, 0.2f);
+                    }
 
-                GL.BindVertexArray(_overlayVao);
-                GL.DrawArrays(PrimitiveType.Triangles, 0, _crosshairVertexCount);
-                GL.BindVertexArray(0);
+                    // Compute NDC offset for crosshair-as-mouse mode
+                    if (drawAtMouse && Width > 0 && Height > 0)
+                    {
+                        float ndcX = (2f * _mouseScreenPos.X / Width) - 1f;
+                        float ndcY = 1f - (2f * _mouseScreenPos.Y / Height);
+                        if (_overlayShaderOffsetLoc >= 0)
+                            GL.Uniform2(_overlayShaderOffsetLoc, ndcX, ndcY);
+                    }
+                    else
+                    {
+                        // Center of screen (no offset)
+                        if (_overlayShaderOffsetLoc >= 0)
+                            GL.Uniform2(_overlayShaderOffsetLoc, 0f, 0f);
+                    }
+
+                    GL.BindVertexArray(_overlayVao);
+                    GL.DrawArrays(PrimitiveType.Triangles, 0, _crosshairVertexCount);
+                    GL.BindVertexArray(0);
+                }
             }
 
             // --- GL HUD rendering (attribution + status) ---
@@ -1002,6 +1073,21 @@ void main() {
                     _uiRenderer.DrawText(_hudAttributionText, barX + pad, barY + pad, 0.82f, 0.82f, 0.82f, 0.85f);
                 }
 
+                // Always-visible single-row status bar at bottom-right
+                if (!string.IsNullOrEmpty(_hudStatusBarText))
+                {
+                    float textW = _uiRenderer.MeasureTextWidth(_hudStatusBarText);
+                    float lh = _uiRenderer.LineHeight;
+                    float pad = 6f;
+                    float barH = lh + pad * 2;
+                    float barW = textW + pad * 2;
+                    float barX = Width - barW;
+                    float barY = Height - barH;
+
+                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0f, 0f, 0f, 0.55f);
+                    _uiRenderer.DrawText(_hudStatusBarText, barX + pad, barY + pad, 0.75f, 0.90f, 0.75f, 0.90f);
+                }
+
                 // Status / frame info: centered near bottom
                 if (!string.IsNullOrEmpty(_hudStatusText))
                 {
@@ -1017,20 +1103,48 @@ void main() {
                     _uiRenderer.DrawText(_hudStatusText, barX + pad, barY + pad, 1.0f, 1.0f, 1.0f, 1f);
                 }
 
-                // Coordinates HUD: show lat/lon near the crosshair (center of viewport)
+                // Coordinates HUD: show lat/lon near the crosshair
+                // In crosshair-as-mouse mode, show lat/lon under mouse cursor; otherwise show center
                 if (ShowCoordinatesHUD && ShowCrosshair)
                 {
-                    string latDir = _centerLat >= 0 ? "N" : "S";
-                    string lonDir = _centerLon >= 0 ? "E" : "W";
-                    string coordText = $"{Math.Abs(_centerLat):F4}\u00b0{latDir}, {Math.Abs(_centerLon):F4}\u00b0{lonDir}";
+                    double coordLat, coordLon;
+                    float anchorX, anchorY;
+                    bool drawAtMouse2 = UseCrosshairAsMouse && _mouseInside && _mouseScreenPos.X >= 0;
+
+                    if (drawAtMouse2 && Width > 0 && Height > 0)
+                    {
+                        // Compute lat/lon under mouse position
+                        double cx2 = LonToPixelX(_centerLon, _mapZoom);
+                        double cy2 = LatToPixelY(_centerLat, _mapZoom);
+                        double mousePxX = cx2 + (_mouseScreenPos.X - Width / 2.0);
+                        double mousePxY = cy2 + (_mouseScreenPos.Y - Height / 2.0);
+                        coordLat = PixelYToLat(mousePxY, _mapZoom);
+                        coordLon = PixelXToLon(mousePxX, _mapZoom);
+                        anchorX = _mouseScreenPos.X + 20f;
+                        anchorY = _mouseScreenPos.Y + 20f;
+                    }
+                    else
+                    {
+                        coordLat = _centerLat;
+                        coordLon = _centerLon;
+                        anchorX = (Width / 2f) + 20f;
+                        anchorY = (Height / 2f) + 15f;
+                    }
+
+                    string latDir = coordLat >= 0 ? "N" : "S";
+                    string lonDir = coordLon >= 0 ? "E" : "W";
+                    string coordText = $"{Math.Abs(coordLat):F4}\u00b0{latDir}, {Math.Abs(coordLon):F4}\u00b0{lonDir}";
                     float coordW = _uiRenderer.MeasureTextWidth(coordText);
                     float lhc = _uiRenderer.LineHeight;
                     float padC = 5f;
                     float coordBarH = lhc + padC * 2;
                     float coordBarW = coordW + padC * 2;
-                    // Position slightly below and to the right of center
-                    float coordBarX = (Width / 2f) + 20f;
-                    float coordBarY = (Height / 2f) + 15f;
+                    float coordBarX = anchorX;
+                    float coordBarY = anchorY;
+
+                    // Keep on screen
+                    if (coordBarX + coordBarW > Width - 5f) coordBarX = Width - coordBarW - 5f;
+                    if (coordBarY + coordBarH > Height - 5f) coordBarY = Height - coordBarH - 5f;
 
                     _uiRenderer.DrawRect(coordBarX, coordBarY, coordBarW, coordBarH, 0.05f, 0.05f, 0.08f, 0.65f);
                     _uiRenderer.DrawText(coordText, coordBarX + padC, coordBarY + padC, 0.6f, 1.0f, 0.2f, 0.95f);
@@ -1199,28 +1313,37 @@ void main() {
             {
                 _dragging = true;
                 _lastMousePos = e.Location;
-                this.Cursor = Cursors.SizeAll;
+                // Show SizeAll during drag, even in crosshair-as-mouse mode
+                this.Cursor = UseCrosshairAsMouse ? _blankCursor : Cursors.SizeAll;
             }
         }
 
         private void GLRadarControl_MouseMove(object? sender, MouseEventArgs e)
         {
+            // Always track mouse position for crosshair rendering
+            _mouseScreenPos = e.Location;
+
             // Let HUD process move (hover highlights, slider dragging)
             if (_hudSystem != null)
             {
                 bool overHud = _hudSystem.ProcessMouseMove(e.X, e.Y);
                 if (overHud && !_dragging)
                 {
+                    // Over HUD: show pointer cursor even in crosshair mode
                     this.Cursor = Cursors.Hand;
                     Invalidate();
                     return;
                 }
                 else if (!_dragging && !overHud)
                 {
-                    this.Cursor = Cursors.Hand;
+                    UpdateCursorStyle();
                 }
                 if (overHud) Invalidate();
             }
+
+            // Repaint for crosshair tracking even when not dragging
+            if (UseCrosshairAsMouse && ShowCrosshair && !_dragging)
+                Invalidate();
 
             if (!_dragging) return;
             var dx = e.X - _lastMousePos.X;
@@ -1262,7 +1385,7 @@ void main() {
             if (e.Button == MouseButtons.Left)
             {
                 _dragging = false;
-                this.Cursor = Cursors.Hand;
+                UpdateCursorStyle();
 
                 // After dragging ends, refresh tiles for the new position
                 UpdateTiles();
@@ -1270,6 +1393,15 @@ void main() {
                 // Notify listeners that map center changed (triggers overlay refresh)
                 try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
             }
+        }
+
+        /// <summary>Set cursor style based on UseCrosshairAsMouse mode</summary>
+        private void UpdateCursorStyle()
+        {
+            if (UseCrosshairAsMouse && ShowCrosshair && _mouseInside)
+                this.Cursor = _blankCursor;
+            else
+                this.Cursor = Cursors.Hand;
         }
 
         // Backwards-compatible single-arg API - delegates to the metadata-aware variant with null metadata.
@@ -1992,13 +2124,37 @@ void main() {
                 }
                 if (status == TileFetchStatus.NotFound || status == TileFetchStatus.Error || bytes == null)
                 {
-                    // mark as temporarily blocked to avoid spamming
                     _blockedTiles[key] = DateTime.UtcNow;
                     NotifyTileStatus("Tiles: Missing", System.Drawing.Color.Gray);
                     return;
                 }
 
-                // upload texture on UI/GL thread
+                // Decode PNG to raw BGRA pixel data on background thread (avoids UI thread stall)
+                var decoded = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    using var ms = new System.IO.MemoryStream(bytes);
+                    using var bmp = new System.Drawing.Bitmap(ms);
+                    int w = bmp.Width;
+                    int h = bmp.Height;
+                    var rect = new System.Drawing.Rectangle(0, 0, w, h);
+                    var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    try
+                    {
+                        int rowBytes = w * 4;
+                        byte[] pixels = new byte[w * h * 4];
+                        for (int row = 0; row < h; row++)
+                        {
+                            Marshal.Copy(data.Scan0 + row * data.Stride, pixels, row * rowBytes, rowBytes);
+                        }
+                        return (Pixels: pixels, Width: w, Height: h);
+                    }
+                    finally
+                    {
+                        bmp.UnlockBits(data);
+                    }
+                });
+
+                // Upload texture on UI/GL thread (only the GL call, no decoding)
                 this.BeginInvoke(new Action(() =>
                 {
                     try
@@ -2011,59 +2167,47 @@ void main() {
                         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
                         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
 
-                        using var ms = new System.IO.MemoryStream(bytes);
-                        using var bmp = new System.Drawing.Bitmap(ms);
-                        var rect = new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height);
-                        var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                        try
-                        {
-                            int pixelBytes = bmp.Width * bmp.Height * 4;
+                        int pixelByteCount = decoded.Width * decoded.Height * 4;
 
-                            // Use PBO for async DMA upload when available and tile fits
-                            if (_usePboUploads && _pboId != 0 && pixelBytes <= PBO_BUFFER_SIZE)
+                        // Use PBO for async DMA upload when available and tile fits
+                        if (_usePboUploads && _pboId != 0 && pixelByteCount <= PBO_BUFFER_SIZE)
+                        {
+                            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, _pboId);
+                            GL.BufferData(BufferTarget.PixelUnpackBuffer, pixelByteCount, IntPtr.Zero, BufferUsageHint.StreamDraw);
+                            IntPtr pboPtr = GL.MapBuffer(BufferTarget.PixelUnpackBuffer, BufferAccess.WriteOnly);
+                            if (pboPtr != IntPtr.Zero)
                             {
-                                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, _pboId);
-                                // Orphan the old buffer (driver can DMA from it while we fill the new one)
-                                GL.BufferData(BufferTarget.PixelUnpackBuffer, pixelBytes, IntPtr.Zero, BufferUsageHint.StreamDraw);
-                                // Map the PBO and copy pixel data into it
-                                IntPtr pboPtr = GL.MapBuffer(BufferTarget.PixelUnpackBuffer, BufferAccess.WriteOnly);
-                                if (pboPtr != IntPtr.Zero)
-                                {
-                                    // Copy from bitmap scanlines to PBO via Marshal (safe, no /unsafe needed)
-                                    int stride = Math.Abs(data.Stride);
-                                    int rowBytes = bmp.Width * 4;
-                                    byte[] rowBuffer = new byte[rowBytes];
-                                    for (int row = 0; row < bmp.Height; row++)
-                                    {
-                                        Marshal.Copy(data.Scan0 + row * data.Stride, rowBuffer, 0, rowBytes);
-                                        Marshal.Copy(rowBuffer, 0, pboPtr + row * rowBytes, rowBytes);
-                                    }
-                                    GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer);
-                                    // Upload from PBO (IntPtr.Zero = read from bound PBO)
-                                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 
-                                        bmp.Width, bmp.Height, 0, 
-                                        OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
-                                }
-                                else
-                                {
-                                    // PBO map failed — fallback to direct upload
-                                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 
-                                        bmp.Width, bmp.Height, 0, 
-                                        OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
-                                }
-                                GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+                                Marshal.Copy(decoded.Pixels, 0, pboPtr, pixelByteCount);
+                                GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer);
+                                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba,
+                                    decoded.Width, decoded.Height, 0,
+                                    OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, IntPtr.Zero);
                             }
                             else
                             {
-                                // Direct upload (no PBO)
-                                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 
-                                    bmp.Width, bmp.Height, 0, 
-                                    OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+                                // PBO map failed — direct upload from managed array
+                                var handle = System.Runtime.InteropServices.GCHandle.Alloc(decoded.Pixels, System.Runtime.InteropServices.GCHandleType.Pinned);
+                                try
+                                {
+                                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba,
+                                        decoded.Width, decoded.Height, 0,
+                                        OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, handle.AddrOfPinnedObject());
+                                }
+                                finally { handle.Free(); }
                             }
+                            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
                         }
-                        finally
+                        else
                         {
-                            bmp.UnlockBits(data);
+                            // Direct upload from managed array
+                            var handle = System.Runtime.InteropServices.GCHandle.Alloc(decoded.Pixels, System.Runtime.InteropServices.GCHandleType.Pinned);
+                            try
+                            {
+                                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba,
+                                    decoded.Width, decoded.Height, 0,
+                                    OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, handle.AddrOfPinnedObject());
+                            }
+                            finally { handle.Free(); }
                         }
 
                         GL.BindTexture(TextureTarget.Texture2D, 0);
@@ -2096,8 +2240,8 @@ void main() {
                 int centerTileX = (int)Math.Floor(cx / 256.0);
                 int centerTileY = (int)Math.Floor(cy / 256.0);
 
-                int tilesWide = (int)Math.Ceiling((double)Width / 256.0) + 2;
-                int tilesHigh = (int)Math.Ceiling((double)Height / 256.0) + 2;
+                int tilesWide = (int)Math.Ceiling((double)Width / 256.0) + 2 + PREFETCH_RADIUS * 2;
+                int tilesHigh = (int)Math.Ceiling((double)Height / 256.0) + 2 + PREFETCH_RADIUS * 2;
 
                 for (int dx = -tilesWide/2; dx <= tilesWide/2; dx++)
                 {
