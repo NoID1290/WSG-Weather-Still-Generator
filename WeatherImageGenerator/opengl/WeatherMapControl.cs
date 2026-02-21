@@ -512,27 +512,6 @@ namespace WeatherImageGenerator.OpenGL
 
             _hudSystem.AddPanel(animPanel);
 
-            // ═══ Status Panel (bottom-right, always visible compact bar) ═══
-            var statusPanel = new HudPanel
-            {
-                Id = "status",
-                Title = "Status",
-                Anchor = HudAnchor.BottomRight,
-                Width = 420f,
-                MarginX = 10, MarginY = 10,
-                Collapsible = true,
-                Collapsed = false
-            };
-
-            _lblStatusBar = new HudLabel { Id = "statusBar", Text = "Loading...", IsDim = true };
-            statusPanel.Elements.Add(_lblStatusBar);
-            _lblPosition = new HudLabel { Id = "position", Text = $"Lat: {_currentLat:F2}, Lon: {_currentLon:F2}", IsDim = true };
-            statusPanel.Elements.Add(_lblPosition);
-            _lblCacheStats = new HudLabel { Id = "cacheStats", Text = "Cache: Loading...", IsDim = true };
-            statusPanel.Elements.Add(_lblCacheStats);
-
-            _hudSystem.AddPanel(statusPanel);
-
             UpdateStatusLabels();
         }
 
@@ -1497,80 +1476,54 @@ namespace WeatherImageGenerator.OpenGL
 
         private void UpdateStatusLabels()
         {
-            if (_lblZoom != null)
-                _lblZoom.Text = $"Z: {_currentZoom}";
-            
-            if (_lblPosition != null)
-                _lblPosition.Text = $"Lat: {_currentLat:F2}, Lon: {_currentLon:F2}";
-            
-            UpdateCacheStats();
-
-            // Build enriched status bar text for the HUD Status panel
             if (_glControl != null)
             {
-                int vramCount = _glControl.VramTextureCount;
+                // Coordinate
+                string coord = $"{_currentLat:F2}°,{_currentLon:F2}°";
+
+                // Zoom
+                string zoom = $"Z:{_currentZoom}";
+
+                // Cache (disk) size
+                long cacheBytes = 0;
+                var tpStats = _glControl.ActiveTileProvider?.GetAggregateStats();
+                if (tpStats != null) cacheBytes = tpStats.TotalSizeBytes;
+                string cache = FormatBytes(cacheBytes);
+
+                // RAM (tile RAM cache)
+                long ramBytes = 0;
+                if (tpStats != null) ramBytes = tpStats.RamCacheBytes;
+                string ram = FormatBytes(ramBytes);
+
+                // VRAM
                 long vramBytes = 0;
                 try { vramBytes = _glControl.VramEstimatedBytes; } catch { }
-                string vramMB = $"{vramBytes / 1024.0 / 1024.0:F1}MB";
+                string vram = FormatBytes(vramBytes);
 
-                // Map style name
-                string styleName = GetCurrentMapStyle().ToString();
-
-                // Active overlays
-                var overlays = new List<string>();
-                if (_chkRadar?.Checked == true) overlays.Add("Radar");
-                if (_chkTemperature?.Checked == true) overlays.Add("Temp");
-                string overlayStr = overlays.Count > 0 ? string.Join("+", overlays) : "None";
-
-                // Tile cache count
-                int tileCount = 0;
-                var tpStats = _glControl.ActiveTileProvider?.GetAggregateStats();
-                if (tpStats != null) tileCount = tpStats.TileCount;
+                // Viewport resolution
+                string res = $"{_glControl.Width}x{_glControl.Height}";
 
                 // FPS
                 int fps = (int)Math.Round(_glControl.CurrentFps);
 
-                // Animation frame info
-                string animStr = "";
-                if (_isAnimating && _animationFrames.Count > 0)
-                    animStr = $" | Frame {_currentFrameIndex + 1}/{_animationFrames.Count}";
+                string statusText = $"{coord} | {zoom} | Cache:{cache} | RAM:{ram} | VRAM:{vram} | {res} | {fps}fps";
 
-                // Compact status line for the HUD label
-                string statusText = $"Z:{_currentZoom} | {_currentLat:F2}°, {_currentLon:F2}° | {styleName} | {overlayStr} | Cache:{tileCount} | VRAM:{vramCount} ({vramMB}) | {fps}fps{animStr}";
-                
-                if (_lblStatusBar != null)
-                    _lblStatusBar.Text = statusText;
-
-                // Keep old property updated for compatibility
                 _glControl.HudStatusBarText = statusText;
             }
 
             _glControl?.Invalidate();
         }
 
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes >= 1024L * 1024 * 1024)
+                return $"{bytes / 1024.0 / 1024.0 / 1024.0:F2}GB";
+            return $"{bytes / 1024.0 / 1024.0:F1}MB";
+        }
+
         private void UpdateCacheStats()
         {
-            if (_lblCacheStats != null)
-            {
-                // Always include VRAM stats from the GL control
-                int vramCount = _glControl?.VramTextureCount ?? 0;
-                long vramBytes = 0;
-                try { vramBytes = _glControl?.VramEstimatedBytes ?? 0; } catch { }
-                string vramMB = $"{vramBytes / 1024.0 / 1024.0:F1} MB";
-
-                // Show stats from the TileProvider's active caches (these are the ones actually used)
-                var tpStats = _glControl?.ActiveTileProvider?.GetAggregateStats();
-                if (tpStats != null && tpStats.TileCount > 0)
-                {
-                    _lblCacheStats.Text = $"Cache: {tpStats.TileCount} tiles, {tpStats.TotalSizeMB}\nRAM: {tpStats.RamCacheEntries} | VRAM: {vramCount} (~{vramMB})";
-                }
-                else
-                {
-                    // Fallback to prefetch/map_cache stats
-                    var stats = _tileCache.GetStats();
-                    _lblCacheStats.Text = $"Cache: {stats.TileCount} tiles, {stats.TotalSizeMB}\nVRAM: {vramCount} (~{vramMB})";
-                }
-            }
+            // No-op: stats are now part of the single-row status bar
         }
 
         private async void UpdateTimer_Tick(object? sender, EventArgs e)

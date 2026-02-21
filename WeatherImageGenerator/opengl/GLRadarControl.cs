@@ -1144,7 +1144,22 @@ void main() {
                     _uiRenderer.DrawText(_hudAttributionText, barX + pad, barY + pad, 0.82f, 0.82f, 0.82f, 0.85f);
                 }
 
-                // (Old single-row status bar removed — data is now in the HUD Status panel)
+                // Status bar: single-row at bottom-right (mirrors attribution style)
+                if (!string.IsNullOrEmpty(_hudStatusBarText))
+                {
+                    float textW = _uiRenderer.MeasureTextWidth(_hudStatusBarText);
+                    float lh = _uiRenderer.LineHeight;
+                    float pad = 6f;
+                    float barH = lh + pad * 2;
+                    float barW = textW + pad * 2;
+                    float barX = Width - barW;
+                    float barY = Height - barH;
+
+                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0f, 0f, 0f, 0.55f);
+                    _uiRenderer.DrawText(_hudStatusBarText, barX + pad, barY + pad, 0.82f, 0.82f, 0.82f, 0.85f);
+                }
+
+                // (Old single-row status bar removed)
 
                 // Status / frame info: centered near bottom
                 if (!string.IsNullOrEmpty(_hudStatusText))
