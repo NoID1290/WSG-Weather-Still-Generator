@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -14,6 +15,10 @@ namespace WeatherImageGenerator.Forms
     public partial class WeatherMapForm : Form
     {
         private WeatherMapControl _weatherMap;
+        private bool _isFullscreen = false;
+        private FormBorderStyle _savedBorderStyle;
+        private FormWindowState _savedWindowState;
+        private Rectangle _savedBounds;
 
         public WeatherMapForm()
         {
@@ -129,6 +134,19 @@ namespace WeatherImageGenerator.Forms
             this.KeyDown += WeatherMapForm_KeyDown;
         }
 
+        /// <summary>
+        /// Override ProcessCmdKey to catch F11 before child controls (GLControl) swallow it.
+        /// </summary>
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.F11)
+            {
+                ToggleFullscreen();
+                return true; // handled
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         private void WeatherMapForm_KeyDown(object? sender, KeyEventArgs e)
         {
             switch (e.KeyCode)
@@ -195,6 +213,33 @@ namespace WeatherImageGenerator.Forms
                     _weatherMap.SetMapStyleByIndex(3); // Satellite
                     e.Handled = true;
                     break;
+                case Keys.F11:
+                    ToggleFullscreen();
+                    e.Handled = true;
+                    break;
+            }
+        }
+
+        private void ToggleFullscreen()
+        {
+            if (!_isFullscreen)
+            {
+                _savedBorderStyle = this.FormBorderStyle;
+                _savedWindowState = this.WindowState;
+                _savedBounds = this.Bounds;
+
+                this.WindowState = FormWindowState.Normal; // Reset first to avoid sizing issues
+                this.FormBorderStyle = FormBorderStyle.None;
+                this.WindowState = FormWindowState.Maximized;
+                _isFullscreen = true;
+            }
+            else
+            {
+                this.FormBorderStyle = _savedBorderStyle;
+                this.WindowState = FormWindowState.Normal;
+                this.Bounds = _savedBounds;
+                this.WindowState = _savedWindowState;
+                _isFullscreen = false;
             }
         }
 

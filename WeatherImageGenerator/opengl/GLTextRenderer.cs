@@ -54,7 +54,7 @@ namespace WeatherImageGenerator.OpenGL
             if (IsInitialized) return;
             try
             {
-                BuildFontAtlas("Segoe UI", 14f);
+                BuildFontAtlas("Segoe UI", 13f);
                 LoadShader();
                 SetupBuffers();
                 IsInitialized = true;
@@ -81,10 +81,22 @@ namespace WeatherImageGenerator.OpenGL
             charList.Add('·'); // U+00B7 middle dot
             charList.Add('é'); // U+00E9 e-acute
             charList.Add('è'); // U+00E8 e-grave
+            // HUD UI symbols (prevents '?' fallback)
+            charList.Add('\u25B6'); // ▶ play
+            charList.Add('\u25BC'); // ▼ down arrow
+            charList.Add('\u25B2'); // ▲ up arrow
+            charList.Add('\u25CE'); // ◎ center
+            charList.Add('\u23EE'); // ⏮ skip back
+            charList.Add('\u23ED'); // ⏭ skip forward
+            charList.Add('\u23F8'); // ⏸ pause
+            charList.Add('\u2212'); // − minus sign
+            charList.Add('\u2026'); // … ellipsis
+            charList.Add('\u25A0'); // ■ filled square
+            charList.Add('\u25CB'); // ○ circle
 
             int totalChars = charList.Count;
-            int cellW = (int)(fontSize * 1.4f);
-            int cellH = (int)(fontSize * 1.8f);
+            int cellW = (int)(fontSize * 1.5f);
+            int cellH = (int)(fontSize * 1.9f);
             int cols = 16;
             int rows = (int)Math.Ceiling(totalChars / (double)cols);
             _atlasWidth = cols * cellW;

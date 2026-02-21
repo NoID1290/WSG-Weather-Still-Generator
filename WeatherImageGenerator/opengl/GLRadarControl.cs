@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -216,6 +217,28 @@ namespace WeatherImageGenerator.OpenGL
         // Elapsed time for shader animations (crosshair pulse, overlay effects)
         private System.Diagnostics.Stopwatch _elapsedTimer = System.Diagnostics.Stopwatch.StartNew();
 
+        // ═══ Shader toggle properties (controlled from HUD Shaders panel) ═══
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableTileSaturation { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableTileContrast { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableTileVignette { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableTileAtmosphere { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableRadarGlow { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableCrosshairPulse { get; set; } = true;
+
+        // Cached uniform locations for shader toggles
+        private int _tileShaderSaturationLoc = -1;
+        private int _tileShaderContrastLoc = -1;
+        private int _tileShaderVignetteLoc = -1;
+        private int _tileShaderAtmosphereLoc = -1;
+        private int _woShaderGlowLoc = -1;
+        private int _overlayShaderPulseLoc = -1;
+
         // Tile loading deduplication
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task> _pendingLoads 
             = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task>();
@@ -428,6 +451,14 @@ void main() {
             _woShaderOpacityLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uOpacity");
             _woShaderTimeLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTime");
 
+            // Cache shader toggle uniform locations
+            _tileShaderSaturationLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableSaturation");
+            _tileShaderContrastLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableContrast");
+            _tileShaderVignetteLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableVignette");
+            _tileShaderAtmosphereLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableAtmosphere");
+            _woShaderGlowLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uEnableGlow");
+            _overlayShaderPulseLoc = GL.GetUniformLocation(_overlayShader.Handle, "uEnablePulse");
+
             // Setup overlay buffers (we'll fill data on resize)\n            // Format: [x, y, lineEdge] per vertex — lineEdge is 0 at center, 1 at edge (for AA)
             _overlayVao = GL.GenVertexArray();
             _overlayVbo = GL.GenBuffer();
@@ -475,7 +506,7 @@ void main() {
                 }
             }
 
-            // Animation refresh timer — triggers repaints at ~30fps for crosshair pulse
+            // Animation refresh timer — triggers repaints at ~60fps for crosshair pulse
             // and shader time-based effects. Low overhead (just Invalidate, no work until Paint).
             _animRefreshTimer = new System.Threading.Timer(_ =>
             {
@@ -485,7 +516,7 @@ void main() {
                         this.BeginInvoke(new Action(() => Invalidate()));
                 }
                 catch { }
-            }, null, 33, 33); // ~30fps
+            }, null, 16, 16); // ~60fps
         }
 
         private void GLRadarControl_Resize(object? sender, EventArgs e)
@@ -625,6 +656,16 @@ void main() {
                 if (_tileShaderZoomNormLoc >= 0)
                     GL.Uniform1(_tileShaderZoomNormLoc, zoomNorm);
 
+                // Pass shader toggle uniforms
+                if (_tileShaderSaturationLoc >= 0)
+                    GL.Uniform1(_tileShaderSaturationLoc, EnableTileSaturation ? 1 : 0);
+                if (_tileShaderContrastLoc >= 0)
+                    GL.Uniform1(_tileShaderContrastLoc, EnableTileContrast ? 1 : 0);
+                if (_tileShaderVignetteLoc >= 0)
+                    GL.Uniform1(_tileShaderVignetteLoc, EnableTileVignette ? 1 : 0);
+                if (_tileShaderAtmosphereLoc >= 0)
+                    GL.Uniform1(_tileShaderAtmosphereLoc, EnableTileAtmosphere ? 1 : 0);
+
                 // Compute world/pixel metrics
                 int z = _mapZoom;
                 double n = Math.Pow(2.0, z);
@@ -721,6 +762,9 @@ void main() {
                     GL.Uniform1(ovOpacityLoc, _overlayOpacity);
                 if (ovTimeLoc >= 0)
                     GL.Uniform1(ovTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
+                // Pass glow toggle to weather overlay shader
+                if (_woShaderGlowLoc >= 0)
+                    GL.Uniform1(_woShaderGlowLoc, EnableRadarGlow ? 1 : 0);
                 GL.ActiveTexture(TextureUnit.Texture0);
 
                 int z = _mapZoom;
@@ -820,6 +864,9 @@ void main() {
                     GL.Uniform1(ov2OpacityLoc, _overlay2Opacity);
                 if (ov2TimeLoc >= 0)
                     GL.Uniform1(ov2TimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
+                // Pass glow toggle to overlay 2 shader
+                if (_woShaderGlowLoc >= 0)
+                    GL.Uniform1(_woShaderGlowLoc, EnableRadarGlow ? 1 : 0);
                 GL.ActiveTexture(TextureUnit.Texture0);
 
                 int z2 = _mapZoom;
@@ -875,6 +922,9 @@ void main() {
                 int rfTimeLoc = _woShaderTimeLoc >= 0 ? _woShaderTimeLoc : GL.GetUniformLocation(rfShader.Handle, "uTime");
                 if (rfTimeLoc >= 0)
                     GL.Uniform1(rfTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
+                // Pass glow toggle to radar frames shader
+                if (_woShaderGlowLoc >= 0)
+                    GL.Uniform1(_woShaderGlowLoc, EnableRadarGlow ? 1 : 0);
                 for (int i = 0; i < _radarFrames.Count; i++)
                 {
                     int tex = _radarFrames[i];
@@ -907,6 +957,9 @@ void main() {
                 // Pass time for pulse animation
                 if (_overlayShaderTimeLoc >= 0)
                     GL.Uniform1(_overlayShaderTimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
+                // Pass pulse toggle
+                if (_overlayShaderPulseLoc >= 0)
+                    GL.Uniform1(_overlayShaderPulseLoc, EnableCrosshairPulse ? 1 : 0);
                 if (_overlayShaderAlphaLoc >= 0)
                     GL.Uniform1(_overlayShaderAlphaLoc, 1.0f);
                 else
@@ -960,8 +1013,8 @@ void main() {
                     float barX = (Width - barW) / 2f;
                     float barY = Height - barH - 4f;
 
-                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0.08f, 0.08f, 0.1f, 0.7f);
-                    _uiRenderer.DrawText(_hudStatusText, barX + pad, barY + pad, 0.9f, 0.9f, 0.9f, 1f);
+                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0.05f, 0.05f, 0.08f, 0.85f);
+                    _uiRenderer.DrawText(_hudStatusText, barX + pad, barY + pad, 1.0f, 1.0f, 1.0f, 1f);
                 }
 
                 // Coordinates HUD: show lat/lon near the crosshair (center of viewport)
@@ -1006,14 +1059,16 @@ void main() {
 
                     float scaleH = 6f;
                     float padS = 8f;
-                    float scaleX = Width - barPixels - padS - 20f;
-                    float scaleY = Height - 30f;
+
+                    // Position scale bar at bottom-left, above the attribution bar
+                    float attrBarH = _uiRenderer.LineHeight + 12f; // attribution bar height
+                    float scaleY = Height - attrBarH - 16f;
 
                     // Background
                     float labelW = _uiRenderer.MeasureTextWidth(distLabel);
                     float bgW = Math.Max(barPixels, labelW) + padS * 2;
                     float bgH = scaleH + _uiRenderer.LineHeight + padS * 2 + 4f;
-                    float bgX = Width - bgW - 10f;
+                    float bgX = 10f;
                     float bgY = scaleY - _uiRenderer.LineHeight - padS - 4f;
                     _uiRenderer.DrawRect(bgX, bgY, bgW, bgH, 0f, 0f, 0f, 0.5f);
 

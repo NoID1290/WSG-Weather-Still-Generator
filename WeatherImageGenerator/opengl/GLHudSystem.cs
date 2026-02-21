@@ -22,7 +22,7 @@ namespace WeatherImageGenerator.OpenGL
         private static readonly HudColor DangerColor = new(200, 60, 50, 1.0f);
         private static readonly HudColor TextPrimary = new(240, 240, 240, 0.95f);
         private static readonly HudColor TextSecondary = new(170, 170, 180, 0.75f);
-        private static readonly HudColor TextDim = new(120, 120, 130, 0.55f);
+        private static readonly HudColor TextDim = new(165, 165, 175, 0.80f);
         private static readonly HudColor SliderTrack = new(80, 80, 100, 0.6f);
         private static readonly HudColor SliderThumb = new(40, 120, 255, 1.0f);
         private static readonly HudColor SeparatorColor = new(80, 80, 100, 0.35f);
@@ -63,10 +63,43 @@ namespace WeatherImageGenerator.OpenGL
             if (renderer == null || !renderer.IsInitialized) return;
 
             // First pass: layout panels that use anchored positioning
+            // Compute heights first, then auto-stack panels sharing the same anchor
             foreach (var panel in _panels)
             {
                 if (!panel.Visible) continue;
-                LayoutPanel(panel, viewportW, viewportH);
+                panel.ComputedHeight = CalculatePanelHeight(panel);
+            }
+
+            // Auto-stack: accumulate Y offset for panels sharing the same anchor
+            var anchorOffsets = new Dictionary<HudAnchor, float>();
+            foreach (var panel in _panels)
+            {
+                if (!panel.Visible) continue;
+
+                float w = panel.Width;
+                float h = panel.ComputedHeight;
+                var anchor = panel.Anchor;
+
+                // For stackable anchors (TopLeft, TopRight), use accumulated offset
+                if (anchor == HudAnchor.TopLeft || anchor == HudAnchor.TopRight)
+                {
+                    if (!anchorOffsets.ContainsKey(anchor))
+                        anchorOffsets[anchor] = panel.MarginY;
+
+                    float y = anchorOffsets[anchor];
+                    panel.Y = y;
+
+                    if (anchor == HudAnchor.TopLeft)
+                        panel.X = panel.MarginX;
+                    else
+                        panel.X = viewportW - w - panel.MarginX;
+
+                    anchorOffsets[anchor] = y + h + 6f; // 6px gap between stacked panels
+                }
+                else
+                {
+                    LayoutPanel(panel, viewportW, viewportH);
+                }
             }
 
             // Second pass: render panels
@@ -145,7 +178,7 @@ namespace WeatherImageGenerator.OpenGL
             HudCheckbox => CheckboxHeight,
             HudSlider s => SliderHeight + (s.ShowLabel ? 14f : 0f),
             HudDropdown => DropdownHeight,
-            HudLabel l => l.IsSection ? 22f : 16f,
+            HudLabel l => l.IsSection ? 22f : 16f * Math.Max(1, l.Text.Split('\n').Length),
             HudSeparator => 6f,
             HudButtonGroup g => ButtonHeight,
             _ => 20f
