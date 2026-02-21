@@ -29,6 +29,8 @@ namespace WeatherImageGenerator.OpenGL
         private static readonly HudColor CheckActive = new(50, 200, 120, 1.0f);
 
         private readonly List<HudPanel> _panels = new();
+        private GLTextRenderer? _currentRenderer = null;
+        private float _currentPanelContentWidth = 400f;
         private HudElement? _hoveredElement = null;
         private HudElement? _pressedElement = null;
         private HudDropdown? _openDropdown = null;
@@ -62,11 +64,14 @@ namespace WeatherImageGenerator.OpenGL
         {
             if (renderer == null || !renderer.IsInitialized) return;
 
+            _currentRenderer = renderer;
+
             // First pass: layout panels that use anchored positioning
             // Compute heights first, then auto-stack panels sharing the same anchor
             foreach (var panel in _panels)
             {
                 if (!panel.Visible) continue;
+                _currentPanelContentWidth = panel.Width - Padding * 2;
                 panel.ComputedHeight = CalculatePanelHeight(panel);
             }
 
@@ -178,7 +183,7 @@ namespace WeatherImageGenerator.OpenGL
             HudCheckbox => CheckboxHeight,
             HudSlider s => SliderHeight + (s.ShowLabel ? 14f : 0f),
             HudDropdown => DropdownHeight,
-            HudLabel l => l.IsSection ? 22f : 16f * Math.Max(1, l.Text.Split('\n').Length),
+            HudLabel l => l.IsSection ? 22f : 16f * Math.Max(1, CountWrappedLines(l.Text, _currentPanelContentWidth)),
             HudSeparator => 6f,
             HudButtonGroup g => ButtonHeight,
             _ => 20f
@@ -213,6 +218,7 @@ namespace WeatherImageGenerator.OpenGL
             float ey = py + PanelTitleHeight + ItemSpacing;
             float contentX = px + Padding;
             float contentW = pw - Padding * 2;
+            _currentPanelContentWidth = contentW;
 
             foreach (var el in panel.Elements)
             {
@@ -383,17 +389,104 @@ namespace WeatherImageGenerator.OpenGL
         private void RenderLabel(GLTextRenderer r, HudLabel lbl, float x, float y, float w, float h)
         {
             var color = lbl.IsSection ? AccentColor : lbl.IsDim ? TextDim : TextSecondary;
-            float ty = y + (h - r.LineHeight) / 2f;
 
             if (lbl.IsSection)
             {
-                // Section header with icon
+                float ty = y + (h - r.LineHeight) / 2f;
                 r.DrawText(lbl.Text, x, ty, color.R, color.G, color.B, color.A);
             }
             else
             {
-                r.DrawText(lbl.Text, x, ty, color.R, color.G, color.B, color.A);
+                // Word-wrap label text within the available width
+                string wrapped = WrapText(lbl.Text, w, r);
+                float lineH = r.LineHeight;
+                int lineCount = CountNewlines(wrapped) + 1;
+                float totalTextH = lineH * lineCount;
+                float ty = y + (h - totalTextH) / 2f;
+                r.DrawText(wrapped, x, ty, color.R, color.G, color.B, color.A);
             }
+        }
+
+        /// <summary>
+        /// Counts wrapped lines for a label, using the renderer if available for accurate measurement.
+        /// </summary>
+        private int CountWrappedLines(string text, float maxWidth)
+        {
+            if (_currentRenderer == null || maxWidth <= 0)
+                return Math.Max(1, text.Split('\n').Length);
+
+            string wrapped = WrapText(text, maxWidth, _currentRenderer);
+            return CountNewlines(wrapped) + 1;
+        }
+
+        private static int CountNewlines(string s)
+        {
+            int count = 0;
+            foreach (char c in s)
+                if (c == '\n') count++;
+            return count;
+        }
+
+        /// <summary>
+        /// Word-wrap text to fit within maxWidth pixels, breaking at ' ' and '|' characters.
+        /// </summary>
+        private static string WrapText(string text, float maxWidth, GLTextRenderer r)
+        {
+            if (string.IsNullOrEmpty(text) || maxWidth <= 0) return text;
+            if (r.MeasureTextWidth(text) <= maxWidth) return text;
+
+            var result = new System.Text.StringBuilder();
+            float lineWidth = 0f;
+            int lastBreak = -1;
+            int lineStart = 0;
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == '\n')
+                {
+                    result.Append(text, lineStart, i - lineStart + 1);
+                    lineStart = i + 1;
+                    lineWidth = 0f;
+                    lastBreak = -1;
+                    continue;
+                }
+
+                float charW = r.MeasureTextWidth(c.ToString());
+                lineWidth += charW;
+
+                if (c == ' ' || c == '|')
+                    lastBreak = i;
+
+                if (lineWidth > maxWidth && i > lineStart)
+                {
+                    if (lastBreak > lineStart)
+                    {
+                        result.Append(text, lineStart, lastBreak - lineStart + 1);
+                        result.Append('\n');
+                        lineStart = lastBreak + 1;
+                        // Recalculate width from new line start
+                        lineWidth = 0f;
+                        for (int j = lineStart; j <= i; j++)
+                            lineWidth += r.MeasureTextWidth(text[j].ToString());
+                        lastBreak = -1;
+                    }
+                    else
+                    {
+                        // No break point found, force break at current position
+                        result.Append(text, lineStart, i - lineStart);
+                        result.Append('\n');
+                        lineStart = i;
+                        lineWidth = charW;
+                        lastBreak = -1;
+                    }
+                }
+            }
+
+            if (lineStart < text.Length)
+                result.Append(text, lineStart, text.Length - lineStart);
+
+            return result.ToString();
         }
 
         private void RenderButtonGroup(GLTextRenderer r, HudButtonGroup grp, float x, float y, float w, float h, bool hover)

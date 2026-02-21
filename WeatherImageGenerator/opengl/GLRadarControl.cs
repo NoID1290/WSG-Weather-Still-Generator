@@ -61,9 +61,27 @@ namespace WeatherImageGenerator.OpenGL
         private System.Drawing.Point _mouseScreenPos = new System.Drawing.Point(-1, -1);
         private bool _mouseInside = false;
 
-        // Zoom velocity tracking for motion blur
-        private float _prevZoom = 1.0f;
-        private float _zoomVelocity = 0.0f;
+        // Loading state — shown until first map tiles are rendered
+        private bool _mapLoading = true;
+
+        // User location marker
+        private double _userMarkerLat = 0;
+        private double _userMarkerLon = 0;
+        private bool _showUserMarker = false;
+
+        /// <summary>Latitude of user location marker</summary>
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public double UserMarkerLat { get => _userMarkerLat; set { _userMarkerLat = value; Invalidate(); } }
+
+        /// <summary>Longitude of user location marker</summary>
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public double UserMarkerLon { get => _userMarkerLon; set { _userMarkerLon = value; Invalidate(); } }
+
+        /// <summary>Whether to show the blue user location marker on the map</summary>
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool ShowUserMarker { get => _showUserMarker; set { _showUserMarker = value; Invalidate(); } }
+
+
 
         // Invisible cursor for crosshair-as-mouse mode
         private static readonly Cursor _blankCursor = CreateBlankCursor();
@@ -229,6 +247,8 @@ namespace WeatherImageGenerator.OpenGL
 
         // Debounce timer for snapping tile zoom after smooth GL zoom
         private System.Threading.Timer? _zoomSnapTimer;
+        /// <summary>True while smooth zoom is in progress (between mouse wheel and SnapTileZoom)</summary>
+        public bool IsSmoothZooming { get; private set; } = false;
 #pragma warning disable CS0414 // assigned but not yet read — reserved for future tile-snap logic
         private int _baseMapZoom = 4; // tile zoom before smooth zoom offset
 #pragma warning restore CS0414
@@ -253,6 +273,15 @@ namespace WeatherImageGenerator.OpenGL
 
         // Elapsed time for shader animations (crosshair pulse, overlay effects)
         private System.Diagnostics.Stopwatch _elapsedTimer = System.Diagnostics.Stopwatch.StartNew();
+
+        // FPS tracking
+        private int _frameCount = 0;
+        private float _currentFps = 0f;
+        private System.Diagnostics.Stopwatch _fpsTimer = System.Diagnostics.Stopwatch.StartNew();
+
+        /// <summary>Current frames per second (updated every ~0.5 seconds)</summary>
+        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public float CurrentFps => _currentFps;
 
         // ═══ Shader toggle properties (controlled from HUD Shaders panel) ═══
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -576,9 +605,9 @@ void main() {
         {
             // Build anti-aliased crosshair using quad-strip lines.
             // Each line segment is a screen-aligned quad with lineEdge = 0 at center, ±1 at edges.
-            // The fragment shader uses lineEdge for smooth anti-aliasing.
-            int lenPx = 18;
-            float halfW = 1.5f; // half-width of the line in pixels
+            // The fragment shader uses lineEdge for smooth anti-aliasing + black outline.
+            int lenPx = 20;
+            float halfW = 3.5f; // half-width of the line in pixels (wider for smooth anti-aliased black outline)
             float hx = (lenPx * 2f) / Math.Max(1, Width);
             float hy = (lenPx * 2f) / Math.Max(1, Height);
             float wx = halfW * 2f / Math.Max(1, Width);  // line width in NDC X
@@ -627,6 +656,16 @@ void main() {
         {
             if (DesignMode) return;
             MakeCurrent();
+
+            // FPS tracking
+            _frameCount++;
+            double elapsed = _fpsTimer.Elapsed.TotalSeconds;
+            if (elapsed >= 0.5)
+            {
+                _currentFps = (float)(_frameCount / elapsed);
+                _frameCount = 0;
+                _fpsTimer.Restart();
+            }
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
@@ -698,13 +737,6 @@ void main() {
                 float zoomNorm = Math.Clamp(_mapZoom / 20.0f, 0f, 1f);
                 if (_tileShaderZoomNormLoc >= 0)
                     GL.Uniform1(_tileShaderZoomNormLoc, zoomNorm);
-
-                // Compute and pass zoom motion blur strength
-                _zoomVelocity = Math.Abs(_zoom - _prevZoom);
-                _prevZoom = _zoom;
-                float zoomBlur = Math.Clamp(_zoomVelocity * 8f, 0f, 0.3f); // scale up for visibility
-                if (_tileShaderZoomBlurLoc >= 0)
-                    GL.Uniform1(_tileShaderZoomBlurLoc, zoomBlur);
 
                 // Pass shader toggle uniforms
                 if (_tileShaderSaturationLoc >= 0)
@@ -797,6 +829,10 @@ void main() {
                     }
                 }
             }
+
+            // Mark loading complete once we have at least one real tile texture
+            if (_mapLoading && _tileTextures.Count > 0)
+                _mapLoading = false;
 
             // Draw positioned overlay (anchored to geographic bbox) if present
             if (_hasPositionedOverlay && _overlayTexture != 0)
@@ -1049,6 +1085,41 @@ void main() {
                 }
             }
 
+            // --- User location marker (blue square with border) ---
+            if (_showUserMarker && _uiRenderer != null && _uiRenderer.IsInitialized && Width > 0 && Height > 0)
+            {
+                int z = _mapZoom;
+                double cx = LonToPixelX(_centerLon, z);
+                double cy = LatToPixelY(_centerLat, z);
+                double markerPx = LonToPixelX(_userMarkerLon, z);
+                double markerPy = LatToPixelY(_userMarkerLat, z);
+
+                // Screen-space position with smooth zoom and pan
+                double screenX = (markerPx - cx) * _zoom + Width / 2.0 + _pan.X * Width / 2.0;
+                double screenY = (markerPy - cy) * _zoom + Height / 2.0 - _pan.Y * Height / 2.0;
+
+                // Only draw if on screen
+                if (screenX >= -20 && screenX <= Width + 20 && screenY >= -20 && screenY <= Height + 20)
+                {
+                    GL.Enable(EnableCap.Blend);
+                    GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                    GL.Disable(EnableCap.DepthTest);
+
+                    _uiRenderer.BeginFrame(Width, Height);
+                    float mx = (float)screenX;
+                    float my = (float)screenY;
+                    float markerSize = 10f;
+                    float half = markerSize / 2f;
+                    // Black border (slightly larger)
+                    _uiRenderer.DrawRect(mx - half - 2f, my - half - 2f, markerSize + 4f, markerSize + 4f, 0f, 0f, 0f, 0.9f);
+                    // Blue fill
+                    _uiRenderer.DrawRect(mx - half, my - half, markerSize, markerSize, 0.2f, 0.45f, 1.0f, 0.9f);
+                    // Small white center dot
+                    _uiRenderer.DrawRect(mx - 1.5f, my - 1.5f, 3f, 3f, 1f, 1f, 1f, 0.9f);
+                    _uiRenderer.EndFrame();
+                }
+            }
+
             // --- GL HUD rendering (attribution + status) ---
             if (_uiRenderer != null && _uiRenderer.IsInitialized)
             {
@@ -1073,20 +1144,7 @@ void main() {
                     _uiRenderer.DrawText(_hudAttributionText, barX + pad, barY + pad, 0.82f, 0.82f, 0.82f, 0.85f);
                 }
 
-                // Always-visible single-row status bar at bottom-right
-                if (!string.IsNullOrEmpty(_hudStatusBarText))
-                {
-                    float textW = _uiRenderer.MeasureTextWidth(_hudStatusBarText);
-                    float lh = _uiRenderer.LineHeight;
-                    float pad = 6f;
-                    float barH = lh + pad * 2;
-                    float barW = textW + pad * 2;
-                    float barX = Width - barW;
-                    float barY = Height - barH;
-
-                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0f, 0f, 0f, 0.55f);
-                    _uiRenderer.DrawText(_hudStatusBarText, barX + pad, barY + pad, 0.75f, 0.90f, 0.75f, 0.90f);
-                }
+                // (Old single-row status bar removed — data is now in the HUD Status panel)
 
                 // Status / frame info: centered near bottom
                 if (!string.IsNullOrEmpty(_hudStatusText))
@@ -1215,6 +1273,40 @@ void main() {
                 _uiRenderer.EndFrame();
             }
 
+            // --- Loading screen overlay (shown until first tiles render) ---
+            if (_mapLoading && _uiRenderer != null && _uiRenderer.IsInitialized)
+            {
+                GL.Enable(EnableCap.Blend);
+                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                GL.Disable(EnableCap.DepthTest);
+
+                _uiRenderer.BeginFrame(Width, Height);
+
+                // Semi-transparent dark overlay
+                _uiRenderer.DrawRect(0, 0, Width, Height, 0.06f, 0.06f, 0.09f, 0.92f);
+
+                // Animated loading text with pulsing dots
+                float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+                int dotCount = ((int)(t * 2.5f)) % 4;
+                string dots = new string('.', dotCount);
+                string loadingText = $"Loading Map{dots}";
+                float textW = _uiRenderer.MeasureTextWidth(loadingText);
+                float lh = _uiRenderer.LineHeight;
+                float textX = (Width - textW) / 2f;
+                float textY = (Height - lh) / 2f;
+
+                // Subtle pulse on the text alpha
+                float pulse = 0.7f + 0.3f * (float)Math.Sin(t * 2.0);
+                _uiRenderer.DrawText(loadingText, textX, textY, 0.75f, 0.82f, 0.95f, pulse);
+
+                // Small subtitle
+                string sub = "Fetching tiles...";
+                float subW = _uiRenderer.MeasureTextWidth(sub);
+                _uiRenderer.DrawText(sub, (Width - subW) / 2f, textY + lh + 8f, 0.5f, 0.5f, 0.6f, 0.6f);
+
+                _uiRenderer.EndFrame();
+            }
+
             // Check for any accumulated GL errors at end of frame
             {
                 ErrorCode err = GL.GetError();
@@ -1256,6 +1348,9 @@ void main() {
 
             Invalidate();
 
+            // Mark smooth zoom in progress
+            IsSmoothZooming = true;
+
             // Debounced tile zoom snap after 300ms of no scrolling
             _zoomSnapTimer?.Dispose();
             _zoomSnapTimer = new System.Threading.Timer(_ =>
@@ -1280,6 +1375,7 @@ void main() {
                 // Already at correct tile zoom, just reset smooth zoom
                 _zoom = 1.0f;
                 _pan = Vector2.Zero;
+                IsSmoothZooming = false;
                 Invalidate();
                 return;
             }
@@ -1289,6 +1385,7 @@ void main() {
             // Reset smooth zoom
             _zoom = 1.0f;
             _pan = Vector2.Zero;
+            IsSmoothZooming = false;
             
             if (targetZoom != _mapZoom)
             {

@@ -36,6 +36,7 @@ namespace WeatherImageGenerator.OpenGL
         private HudLabel _lblPosition;
         private HudLabel _lblCacheStats;
         private HudLabel _lblFrameInfo;
+        private HudLabel _lblStatusBar;
         private HudCheckbox _chkAnimFollowMap;
 
         // Animation controls
@@ -56,6 +57,11 @@ namespace WeatherImageGenerator.OpenGL
         private double _currentLon = -106.3468;
         private int _currentZoom = 4;
         private bool _suppressOverlayUpdates = false;
+
+        // User location (cached from IP geolocation)
+        private double? _userLat = null;
+        private double? _userLon = null;
+        private bool _showUserMarker = false;
 
         public WeatherMapControl()
         {
@@ -163,7 +169,8 @@ namespace WeatherImageGenerator.OpenGL
             {
                 _currentZoom = zoom;
                 UpdateStatusLabels();
-                if (!_suppressOverlayUpdates)
+                // Only re-fetch overlays after smooth zoom completes (not during intermediate steps)
+                if (!_suppressOverlayUpdates && !_glControl.IsSmoothZooming)
                     _ = UpdateOverlays();
                 ScheduleAnimationRefresh();
             };
@@ -263,7 +270,7 @@ namespace WeatherImageGenerator.OpenGL
                 Id = "zoom",
                 Title = "Zoom",
                 Anchor = HudAnchor.RightCenter,
-                Width = 80f,
+                Width = 110f,
                 MarginX = 10, MarginY = 0,
                 Collapsible = false
             };
@@ -273,6 +280,15 @@ namespace WeatherImageGenerator.OpenGL
             zoomPanel.Elements.Add(_lblZoom);
             zoomPanel.Elements.Add(new HudSeparator());
             zoomPanel.Elements.Add(new HudButton { Id = "center", Text = "◎", OnClick = () => CenterMap() });
+            zoomPanel.Elements.Add(new HudButton { Id = "myLocation", Text = "⌖ My Loc", OnClick = () => GoToMyLocation() });
+            var chkShowLoc = new HudCheckbox
+            {
+                Id = "showMyLoc",
+                Text = "Show Loc",
+                Checked = false,
+                OnChanged = on => ToggleUserMarker(on)
+            };
+            zoomPanel.Elements.Add(chkShowLoc);
             _hudSystem.AddPanel(zoomPanel);
 
             // ═══ Overlays Panel (top-right, collapsible) ═══
@@ -488,18 +504,20 @@ namespace WeatherImageGenerator.OpenGL
 
             _hudSystem.AddPanel(animPanel);
 
-            // ═══ Status Panel (bottom-right) ═══
+            // ═══ Status Panel (bottom-right, always visible compact bar) ═══
             var statusPanel = new HudPanel
             {
                 Id = "status",
                 Title = "Status",
                 Anchor = HudAnchor.BottomRight,
-                Width = 310f,
+                Width = 420f,
                 MarginX = 10, MarginY = 10,
                 Collapsible = true,
-                Collapsed = true
+                Collapsed = false
             };
 
+            _lblStatusBar = new HudLabel { Id = "statusBar", Text = "Loading...", IsDim = true };
+            statusPanel.Elements.Add(_lblStatusBar);
             _lblPosition = new HudLabel { Id = "position", Text = $"Lat: {_currentLat:F2}, Lon: {_currentLon:F2}", IsDim = true };
             statusPanel.Elements.Add(_lblPosition);
             _lblCacheStats = new HudLabel { Id = "cacheStats", Text = "Cache: Loading...", IsDim = true };
@@ -1055,6 +1073,101 @@ namespace WeatherImageGenerator.OpenGL
             SetLocation(56.1304, -106.3468); // Canada
         }
 
+        private async void GoToMyLocation()
+        {
+            _glControl.HudStatusText = "Locating...";
+            _glControl.Invalidate();
+
+            var loc = await GetUserLocationAsync();
+            if (loc.HasValue)
+            {
+                _userLat = loc.Value.lat;
+                _userLon = loc.Value.lon;
+                SetLocationAndZoom(loc.Value.lat, loc.Value.lon, 10);
+                _ = UpdateOverlays();
+                _glControl.HudStatusText = $"Located: {loc.Value.lat:F2}, {loc.Value.lon:F2}";
+
+                // Update marker if visible
+                if (_showUserMarker)
+                {
+                    _glControl.UserMarkerLat = _userLat.Value;
+                    _glControl.UserMarkerLon = _userLon.Value;
+                    _glControl.ShowUserMarker = true;
+                }
+            }
+            else
+            {
+                _glControl.HudStatusText = "Location unavailable";
+            }
+            _glControl.Invalidate();
+
+            // Auto-clear status after 3 seconds
+            _hudClearTimer?.Dispose();
+            _hudClearTimer = new System.Threading.Timer(_ =>
+            {
+                try { if (_glControl.IsHandleCreated) _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); } catch { }
+            }, null, 3000, System.Threading.Timeout.Infinite);
+        }
+
+        private async void ToggleUserMarker(bool on)
+        {
+            _showUserMarker = on;
+            if (on)
+            {
+                if (_userLat == null || _userLon == null)
+                {
+                    _glControl.HudStatusText = "Fetching location...";
+                    _glControl.Invalidate();
+                    var loc = await GetUserLocationAsync();
+                    if (loc.HasValue)
+                    {
+                        _userLat = loc.Value.lat;
+                        _userLon = loc.Value.lon;
+                    }
+                    else
+                    {
+                        _glControl.HudStatusText = "Location unavailable";
+                        _glControl.Invalidate();
+                        _hudClearTimer?.Dispose();
+                        _hudClearTimer = new System.Threading.Timer(_ =>
+                        {
+                            try { if (_glControl.IsHandleCreated) _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); } catch { }
+                        }, null, 3000, System.Threading.Timeout.Infinite);
+                        return;
+                    }
+                }
+                _glControl.UserMarkerLat = _userLat.Value;
+                _glControl.UserMarkerLon = _userLon.Value;
+                _glControl.ShowUserMarker = true;
+                _glControl.HudStatusText = "";
+            }
+            else
+            {
+                _glControl.ShowUserMarker = false;
+            }
+            _glControl.Invalidate();
+        }
+
+        /// <summary>Fetch user's approximate location via IP geolocation (ip-api.com)</summary>
+        private static async Task<(double lat, double lon)?> GetUserLocationAsync()
+        {
+            try
+            {
+                using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(5);
+                var response = await client.GetStringAsync("http://ip-api.com/json/?fields=lat,lon,status");
+                using var doc = System.Text.Json.JsonDocument.Parse(response);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("status", out var status) && status.GetString() == "success")
+                {
+                    if (root.TryGetProperty("lat", out var lat) && root.TryGetProperty("lon", out var lon))
+                        return (lat.GetDouble(), lon.GetDouble());
+                }
+            }
+            catch { }
+            return null;
+        }
+
         private bool _overlayUpdateInProgress = false;
 
         private async Task UpdateOverlays()
@@ -1384,14 +1497,44 @@ namespace WeatherImageGenerator.OpenGL
             
             UpdateCacheStats();
 
-            // Pipe compact single-row status to GL status bar
+            // Build enriched status bar text for the HUD Status panel
             if (_glControl != null)
             {
                 int vramCount = _glControl.VramTextureCount;
                 long vramBytes = 0;
                 try { vramBytes = _glControl.VramEstimatedBytes; } catch { }
                 string vramMB = $"{vramBytes / 1024.0 / 1024.0:F1}MB";
-                _glControl.HudStatusBarText = $"Z:{_currentZoom}  Lat:{_currentLat:F2}  Lon:{_currentLon:F2}  VRAM:{vramCount} ({vramMB})";
+
+                // Map style name
+                string styleName = GetCurrentMapStyle().ToString();
+
+                // Active overlays
+                var overlays = new List<string>();
+                if (_chkRadar?.Checked == true) overlays.Add("Radar");
+                if (_chkTemperature?.Checked == true) overlays.Add("Temp");
+                string overlayStr = overlays.Count > 0 ? string.Join("+", overlays) : "None";
+
+                // Tile cache count
+                int tileCount = 0;
+                var tpStats = _glControl.ActiveTileProvider?.GetAggregateStats();
+                if (tpStats != null) tileCount = tpStats.TileCount;
+
+                // FPS
+                int fps = (int)Math.Round(_glControl.CurrentFps);
+
+                // Animation frame info
+                string animStr = "";
+                if (_isAnimating && _animationFrames.Count > 0)
+                    animStr = $" | Frame {_currentFrameIndex + 1}/{_animationFrames.Count}";
+
+                // Compact status line for the HUD label
+                string statusText = $"Z:{_currentZoom} | {_currentLat:F2}°, {_currentLon:F2}° | {styleName} | {overlayStr} | Cache:{tileCount} | VRAM:{vramCount} ({vramMB}) | {fps}fps{animStr}";
+                
+                if (_lblStatusBar != null)
+                    _lblStatusBar.Text = statusText;
+
+                // Keep old property updated for compatibility
+                _glControl.HudStatusBarText = statusText;
             }
 
             _glControl?.Invalidate();
