@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -9,19 +9,20 @@ using System.Net.Http;
 using System.Linq;
 using OpenTK.WinForms;
 using OpenTK.Graphics.OpenGL4;
+using WeatherImageGenerator.Rendering.Common;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.OpenGL
 {
-    public class GLRadarControl : GLControl
+    public class GLRadarControl : GLControl, IMapRenderer
     {
         private int _vao;
         private int _vbo;
         private int _ebo;
         private int _texture = 0;
-        private Shader? _shader;
+        private GLShader? _shader;
 
         // Overlay resources (crosshair, markers)
-        private Shader? _overlayShader;
+        private GLShader? _overlayShader;
         private int _overlayVao = 0;
         private int _overlayVbo = 0;
 
@@ -30,13 +31,21 @@ namespace WeatherImageGenerator.OpenGL
         private string _hudAttributionText = "";
         private string _hudStatusText = "";
 
-        // Interactive HUD overlay system — all map controls rendered in-viewport
-        private GLHudSystem? _hudSystem;
+        // Interactive HUD overlay system â€” all map controls rendered in-viewport
+        private HudSystem? _hudSystem;
+
+        // ═══ IMapRenderer implementation ═══
+
+        /// <summary>The WinForms Control that hosts the OpenGL viewport.</summary>
+        public Control HostControl => this;
+
+        /// <summary>Request a repaint of the viewport.</summary>
+        public void InvalidateView() => Invalidate();
 
         /// <summary>The interactive HUD overlay system for in-viewport controls</summary>
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-        public GLHudSystem? HudSystem
+        public HudSystem? HudSystem
         {
             get => _hudSystem;
             set { _hudSystem = value; Invalidate(); }
@@ -61,7 +70,7 @@ namespace WeatherImageGenerator.OpenGL
         private System.Drawing.Point _mouseScreenPos = new System.Drawing.Point(-1, -1);
         private bool _mouseInside = false;
 
-        // Loading state — shown until first map tiles are rendered
+        // Loading state â€” shown until first map tiles are rendered
         private bool _mapLoading = true;
 
         // User location marker
@@ -161,7 +170,7 @@ namespace WeatherImageGenerator.OpenGL
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime> _blockedTiles = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), DateTime>();
         /// <summary>Limits concurrent tile HTTP requests to avoid hammering the server.</summary>
         private static readonly System.Threading.SemaphoreSlim _tileSemaphore = new System.Threading.SemaphoreSlim(14, 14);
-        /// <summary>Blocked-tile TTL – re-attempt after this interval.</summary>
+        /// <summary>Blocked-tile TTL â€“ re-attempt after this interval.</summary>
         private static readonly TimeSpan BlockedTileTtl = TimeSpan.FromMinutes(2);
         private HttpClient _tileHttpClient = new HttpClient();
         private int _mapZoom = 4; // tile zoom (default to show Canada)
@@ -186,7 +195,7 @@ namespace WeatherImageGenerator.OpenGL
         private bool _hasPositionedOverlay = false;
 
         // Second overlay slot for GPU-side compositing (e.g. temperature on top of radar)
-        // Each overlay has its own GL texture, bbox, opacity — composited via alpha blending on GPU
+        // Each overlay has its own GL texture, bbox, opacity â€” composited via alpha blending on GPU
         private int _overlay2Texture = 0;
         private double _overlay2MinLat = 0.0;
         private double _overlay2MinLon = 0.0;
@@ -196,7 +205,7 @@ namespace WeatherImageGenerator.OpenGL
         private bool _hasPositionedOverlay2 = false;
         private float _overlay2Opacity = 0.6f;
 
-        /// <summary>Opacity for the second positioned overlay (0.0–1.0)</summary>
+        /// <summary>Opacity for the second positioned overlay (0.0â€“1.0)</summary>
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public float Overlay2Opacity
@@ -205,11 +214,11 @@ namespace WeatherImageGenerator.OpenGL
             set { _overlay2Opacity = Math.Max(0f, Math.Min(1f, value)); Invalidate(); }
         }
 
-        // PBO pool for async texture uploads — avoids CPU stall during glTexImage2D
+        // PBO pool for async texture uploads â€” avoids CPU stall during glTexImage2D
         private int _pboId = 0;
         private const int PBO_BUFFER_SIZE = 256 * 256 * 4; // one 256x256 RGBA tile
 
-        // Render batching timer — coalesces rapid Invalidate() calls from tile loads
+        // Render batching timer â€” coalesces rapid Invalidate() calls from tile loads
         private System.Threading.Timer? _renderBatchTimer;
         private volatile bool _renderPending = false;
 
@@ -217,7 +226,7 @@ namespace WeatherImageGenerator.OpenGL
         private System.Threading.Timer? _animRefreshTimer;
 
         // Use Pixel Buffer Objects (PBO) for async texture uploads when available.
-        // Enabled by default — can be toggled for diagnostics.
+        // Enabled by default â€” can be toggled for diagnostics.
         private bool _usePboUploads = true;
         // Debug: draw overlay bounding box to help diagnose positioned overlay rendering
         private bool _debugOverlayBounds = false;
@@ -228,15 +237,15 @@ namespace WeatherImageGenerator.OpenGL
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool UsePboUploads { get => _usePboUploads; set => _usePboUploads = value; }
 
-        // VRAM tile texture cache — modern GPUs can hold thousands of 256×256 RGBA textures
-        // (~256 KB each). 2000 textures ≈ ~512 MB VRAM which is safe for mid-range GPUs.
+        // VRAM tile texture cache â€” modern GPUs can hold thousands of 256Ã—256 RGBA textures
+        // (~256 KB each). 2000 textures â‰ˆ ~512 MB VRAM which is safe for mid-range GPUs.
         // Keeping more tiles in VRAM eliminates re-uploads when panning/zooming back to previously viewed areas.
         private const int MAX_TILE_TEXTURES = 2000;
 
         private const int PREFETCH_RADIUS = 3;
 
         // Dedicated overlay shader for weather data (no saturation/contrast/vignette)
-        private Shader? _weatherOverlayShader;
+        private GLShader? _weatherOverlayShader;
 
         // Radar frame buffer for ghosting/animation
         private readonly System.Collections.Generic.List<int> _radarFrames = new System.Collections.Generic.List<int>();
@@ -249,7 +258,7 @@ namespace WeatherImageGenerator.OpenGL
         private System.Threading.Timer? _zoomSnapTimer;
         /// <summary>True while smooth zoom is in progress (between mouse wheel and SnapTileZoom)</summary>
         public bool IsSmoothZooming { get; private set; } = false;
-#pragma warning disable CS0414 // assigned but not yet read — reserved for future tile-snap logic
+#pragma warning disable CS0414 // assigned but not yet read â€” reserved for future tile-snap logic
         private int _baseMapZoom = 4; // tile zoom before smooth zoom offset
 #pragma warning restore CS0414
 
@@ -283,7 +292,7 @@ namespace WeatherImageGenerator.OpenGL
         [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public float CurrentFps => _currentFps;
 
-        // ═══ Shader toggle properties (controlled from HUD Shaders panel) ═══
+        // â•â•â• Shader toggle properties (controlled from HUD Shaders panel) â•â•â•
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool EnableTileSaturation { get; set; } = true;
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -387,20 +396,20 @@ void main() {
 
             // Load shader from disk with fallback
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var vPath = Path.Combine(baseDir, "opengl", "shaders", "vertex.glsl");
-            var fPath = Path.Combine(baseDir, "opengl", "shaders", "fragment.glsl");
+            var vPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "vertex.glsl");
+            var fPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "fragment.glsl");
             string vSrc, fSrc;
             try { vSrc = File.ReadAllText(vPath); } catch { vSrc = _vertexSourceFallback; }
             try { fSrc = File.ReadAllText(fPath); } catch { fSrc = _fragmentSourceFallback; }
 
             try
             {
-                _shader = new Shader(vSrc, fSrc);
+                _shader = new GLShader(vSrc, fSrc);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[GLRadarControl] Primary shader compile failed: {ex.Message} — using fallback");
-                _shader = new Shader(_vertexSourceFallback, _fragmentSourceFallback);
+                Console.WriteLine($"[GLRadarControl] Primary shader compile failed: {ex.Message} â€” using fallback");
+                _shader = new GLShader(_vertexSourceFallback, _fragmentSourceFallback);
             }
             _shader.Use();
             _shader.SetInt("uTexture", 0);
@@ -410,19 +419,19 @@ void main() {
             _fallbackTexture = CreateFallbackTexture(256, 256);
 
             // Tile shader (simple texture copy) - load from disk if present
-            var tileVPath = Path.Combine(baseDir, "opengl", "shaders", "tile.vert.glsl");
-            var tileFPath = Path.Combine(baseDir, "opengl", "shaders", "tile.frag.glsl");
+            var tileVPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "tile.vert.glsl");
+            var tileFPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "tile.frag.glsl");
             string tileV, tileF;
             try { tileV = File.ReadAllText(tileVPath); } catch { tileV = _vertexSourceFallback; }
             try { tileF = File.ReadAllText(tileFPath); } catch { tileF = "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }"; }
             try
             {
-                _tileShader = new Shader(tileV, tileF);
+                _tileShader = new GLShader(tileV, tileF);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[GLRadarControl] Tile shader compile failed: {ex.Message} — using fallback");
-                _tileShader = new Shader(_vertexSourceFallback, "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }");
+                Console.WriteLine($"[GLRadarControl] Tile shader compile failed: {ex.Message} â€” using fallback");
+                _tileShader = new GLShader(_vertexSourceFallback, "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }");
             }
 
             // Enable alpha blending for radar overlays
@@ -430,20 +439,20 @@ void main() {
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
             // Prepare overlay (crosshair/markers)
-            var overlayVPath = Path.Combine(baseDir, "opengl", "shaders", "overlay.vert.glsl");
-            var overlayFPath = Path.Combine(baseDir, "opengl", "shaders", "overlay.frag.glsl");
+            var overlayVPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "overlay.vert.glsl");
+            var overlayFPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "overlay.frag.glsl");
             string ovSrcV, ovSrcF;
             try { ovSrcV = File.ReadAllText(overlayVPath); } catch { ovSrcV = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }"; }
             try { ovSrcF = File.ReadAllText(overlayFPath); } catch { ovSrcF = "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }"; }
 
             try
             {
-                _overlayShader = new Shader(ovSrcV, ovSrcF);
+                _overlayShader = new GLShader(ovSrcV, ovSrcF);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[GLRadarControl] Overlay shader compile failed: {ex.Message} — using fallback");
-                _overlayShader = new Shader(
+                Console.WriteLine($"[GLRadarControl] Overlay shader compile failed: {ex.Message} â€” using fallback");
+                _overlayShader = new GLShader(
                     "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }",
                     "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }");
             }
@@ -460,8 +469,8 @@ void main() {
             _tileShader!.SetFloat("uOpacity", 1.0f);
 
             // Build dedicated weather overlay shader (pass-through, no tile effects)
-            var overlayTexVPath = Path.Combine(baseDir, "opengl", "shaders", "weather_overlay.vert.glsl");
-            var overlayTexFPath = Path.Combine(baseDir, "opengl", "shaders", "weather_overlay.frag.glsl");
+            var overlayTexVPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "weather_overlay.vert.glsl");
+            var overlayTexFPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "weather_overlay.frag.glsl");
             string woV, woF;
             try { woV = File.ReadAllText(overlayTexVPath); } catch { woV = _vertexSourceFallback; }
             try { woF = File.ReadAllText(overlayTexFPath); } catch {
@@ -483,12 +492,12 @@ void main() {
             }
             try
             {
-                _weatherOverlayShader = new Shader(woV, woF);
+                _weatherOverlayShader = new GLShader(woV, woF);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[GLRadarControl] Weather overlay shader compile failed: {ex.Message} — using fallback");
-                _weatherOverlayShader = new Shader(_vertexSourceFallback, @"#version 330 core
+                Console.WriteLine($"[GLRadarControl] Weather overlay shader compile failed: {ex.Message} â€” using fallback");
+                _weatherOverlayShader = new GLShader(_vertexSourceFallback, @"#version 330 core
 in vec2 vTex;
 out vec4 FragColor;
 uniform sampler2D uTexture;
@@ -531,7 +540,7 @@ void main() {
             _woShaderGlowLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uEnableGlow");
             _overlayShaderPulseLoc = GL.GetUniformLocation(_overlayShader.Handle, "uEnablePulse");
 
-            // Setup overlay buffers (we'll fill data on resize)\n            // Format: [x, y, lineEdge] per vertex — lineEdge is 0 at center, 1 at edge (for AA)
+            // Setup overlay buffers (we'll fill data on resize)\n            // Format: [x, y, lineEdge] per vertex â€” lineEdge is 0 at center, 1 at edge (for AA)
             _overlayVao = GL.GenVertexArray();
             _overlayVbo = GL.GenBuffer();
             GL.BindVertexArray(_overlayVao);
@@ -578,7 +587,7 @@ void main() {
                 }
             }
 
-            // Animation refresh timer — triggers repaints at ~60fps for crosshair pulse
+            // Animation refresh timer â€” triggers repaints at ~60fps for crosshair pulse
             // and shader time-based effects. Low overhead (just Invalidate, no work until Paint).
             _animRefreshTimer = new System.Threading.Timer(_ =>
             {
@@ -604,7 +613,7 @@ void main() {
         private void UpdateOverlayVertices()
         {
             // Build anti-aliased crosshair using quad-strip lines.
-            // Each line segment is a screen-aligned quad with lineEdge = 0 at center, ±1 at edges.
+            // Each line segment is a screen-aligned quad with lineEdge = 0 at center, Â±1 at edges.
             // The fragment shader uses lineEdge for smooth anti-aliasing + black outline.
             int lenPx = 20;
             float halfW = 3.5f; // half-width of the line in pixels (wider for smooth anti-aliased black outline)
@@ -680,7 +689,7 @@ void main() {
 
             // Draw map tiles using tile shader.
             // If a pre-composited background (`_texture`) is present, draw it full-screen instead
-            // of iterating map tiles — the background was produced by RadarImageService and
+            // of iterating map tiles â€” the background was produced by RadarImageService and
             // should not be recoloured by the radar palette shader.
             if (_texture != 0 && _hasBackgroundTexture && _bgSourceZoom != 0)
             {
@@ -733,7 +742,7 @@ void main() {
                 GL.ActiveTexture(TextureUnit.Texture0);
 
                 // Pass zoom normalization to tile shader for atmospheric effects
-                // Normalize: zoom 0-20 → 0.0-1.0
+                // Normalize: zoom 0-20 â†’ 0.0-1.0
                 float zoomNorm = Math.Clamp(_mapZoom / 20.0f, 0f, 1f);
                 if (_tileShaderZoomNormLoc >= 0)
                     GL.Uniform1(_tileShaderZoomNormLoc, zoomNorm);
@@ -937,7 +946,7 @@ void main() {
                 }
             } // positioned overlay
 
-            // Draw second positioned overlay (e.g. temperature) — GPU compositing via alpha blend
+            // Draw second positioned overlay (e.g. temperature) â€” GPU compositing via alpha blend
             if (_hasPositionedOverlay2 && _overlay2Texture != 0)
             {
                 GL.Enable(EnableCap.Blend);
@@ -1335,7 +1344,7 @@ void main() {
         private bool _dragging = false;
         private System.Drawing.Point _lastMousePos;
 
-        private Shader? _tileShader;
+        private GLShader? _tileShader;
 
         private void GLRadarControl_MouseWheel(object? sender, MouseEventArgs e)
         {
@@ -1491,7 +1500,7 @@ void main() {
             if (_hudSystem != null && _hudSystem.ProcessMouseUp(e.X, e.Y))
             {
                 Invalidate();
-                // Don't return — also need to end map drag if it was active
+                // Don't return â€” also need to end map drag if it was active
             }
 
             if (e.Button == MouseButtons.Left)
@@ -1522,7 +1531,7 @@ void main() {
             SetImageBytes(data, null, null, null);
         }
 
-        // Metadata-aware overload — sourceCenter/zoom tell the control how to anchor the composite image
+        // Metadata-aware overload â€” sourceCenter/zoom tell the control how to anchor the composite image
         public void SetImageBytes(byte[] data, double? sourceCenterLat, double? sourceCenterLon, int? sourceZoom)
         {
             if (InvokeRequired)
@@ -1536,7 +1545,7 @@ void main() {
             ProcessIncomingBitmap(bmp, sourceCenterLat, sourceCenterLon, sourceZoom);
         }
         
-        // Bounding-box-aware overload — bbox defines geographic extent of overlay
+        // Bounding-box-aware overload â€” bbox defines geographic extent of overlay
         public void SetImageBytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom)
         {
             if (InvokeRequired)
@@ -1996,7 +2005,7 @@ void main() {
         public event Action<bool>? BackgroundTextureChanged;
         private bool _hasBackgroundTexture = false;
 
-        // Overlay opacity (0.0–1.0) set by host UI sliders
+        // Overlay opacity (0.0â€“1.0) set by host UI sliders
         private float _overlayOpacity = 0.75f;
 
         /// <summary>Opacity for the positioned weather overlay (0.0 = transparent, 1.0 = opaque)</summary>
@@ -2297,7 +2306,7 @@ void main() {
                             }
                             else
                             {
-                                // PBO map failed — direct upload from managed array
+                                // PBO map failed â€” direct upload from managed array
                                 var handle = System.Runtime.InteropServices.GCHandle.Alloc(decoded.Pixels, System.Runtime.InteropServices.GCHandleType.Pinned);
                                 try
                                 {

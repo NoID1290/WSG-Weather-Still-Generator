@@ -1,18 +1,18 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.Common
 {
     /// <summary>
     /// GPU-rendered HUD overlay system for the weather map viewport.
-    /// All controls (buttons, checkboxes, dropdowns, sliders) are rendered via GLTextRenderer
-    /// as semi-transparent floating panels directly in the OpenGL viewport.
+    /// All controls (buttons, checkboxes, dropdowns, sliders) are rendered via IHudRenderer
+    /// as semi-transparent floating panels directly in the GPU viewport.
     /// </summary>
-    public class GLHudSystem
+    public class HudSystem
     {
-        // ═══ Color constants ═══
+        // â•â•â• Color constants â•â•â•
         private static readonly HudColor PanelBg = new(15, 15, 20, 0.75f);
         private static readonly HudColor PanelBgLight = new(25, 25, 35, 0.80f);
         private static readonly HudColor ButtonBg = new(45, 45, 60, 0.85f);
@@ -29,7 +29,7 @@ namespace WeatherImageGenerator.OpenGL
         private static readonly HudColor CheckActive = new(50, 200, 120, 1.0f);
 
         private readonly List<HudPanel> _panels = new();
-        private GLTextRenderer? _currentRenderer = null;
+        private IHudRenderer? _currentRenderer = null;
         private float _currentPanelContentWidth = 400f;
         private HudElement? _hoveredElement = null;
         private HudElement? _pressedElement = null;
@@ -50,7 +50,7 @@ namespace WeatherImageGenerator.OpenGL
         private const float PanelTitleHeight = 28f;
         private const float PanelCornerRadius = 6f;
 
-        public GLHudSystem() { }
+        public HudSystem() { }
 
         public void AddPanel(HudPanel panel) => _panels.Add(panel);
         public HudPanel? GetPanel(string id) => _panels.FirstOrDefault(p => p.Id == id);
@@ -60,7 +60,7 @@ namespace WeatherImageGenerator.OpenGL
         /// Render all HUD panels and their child elements.
         /// Call within the GL paint loop after map rendering, with blend enabled.
         /// </summary>
-        public void Render(GLTextRenderer renderer, int viewportW, int viewportH)
+        public void Render(IHudRenderer renderer, int viewportW, int viewportH)
         {
             if (renderer == null || !renderer.IsInitialized) return;
 
@@ -189,7 +189,7 @@ namespace WeatherImageGenerator.OpenGL
             _ => 20f
         };
 
-        private void RenderPanel(GLTextRenderer r, HudPanel panel, int vw, int vh)
+        private void RenderPanel(IHudRenderer r, HudPanel panel, int vw, int vh)
         {
             float px = panel.X, py = panel.Y;
             float pw = panel.Width, ph = panel.ComputedHeight;
@@ -205,7 +205,7 @@ namespace WeatherImageGenerator.OpenGL
             float ty = py + 6f;
 
             // Collapse indicator
-            string collapseIcon = panel.Collapsed ? "▶" : "▼";
+            string collapseIcon = panel.Collapsed ? "â–¶" : "â–¼";
             r.DrawText(collapseIcon, tx, ty, TextDim.R, TextDim.G, TextDim.B, TextDim.A);
             tx += 16f;
 
@@ -259,7 +259,7 @@ namespace WeatherImageGenerator.OpenGL
             }
         }
 
-        private void RenderButton(GLTextRenderer r, HudButton btn, float x, float y, float w, float h, bool hover, bool pressed)
+        private void RenderButton(IHudRenderer r, HudButton btn, float x, float y, float w, float h, bool hover, bool pressed)
         {
             var bg = pressed ? AccentColor : hover ? ButtonHover : btn.IsAccent ? ButtonActive : ButtonBg;
             r.DrawRect(x, y, w, h, bg.R, bg.G, bg.B, bg.A);
@@ -270,7 +270,7 @@ namespace WeatherImageGenerator.OpenGL
             r.DrawText(btn.Text, tx, ty2, fg.R, fg.G, fg.B, fg.A);
         }
 
-        private void RenderCheckbox(GLTextRenderer r, HudCheckbox chk, float x, float y, float w, float h, bool hover)
+        private void RenderCheckbox(IHudRenderer r, HudCheckbox chk, float x, float y, float w, float h, bool hover)
         {
             // Checkbox box
             float boxSize = 14f;
@@ -293,7 +293,7 @@ namespace WeatherImageGenerator.OpenGL
             r.DrawText(chk.Text, tx, ty, fg.R, fg.G, fg.B, fg.A);
         }
 
-        private void RenderSlider(GLTextRenderer r, HudSlider sld, float x, float y, float w, float h, bool hover)
+        private void RenderSlider(IHudRenderer r, HudSlider sld, float x, float y, float w, float h, bool hover)
         {
             float labelY = y;
             float sliderY = y;
@@ -327,7 +327,7 @@ namespace WeatherImageGenerator.OpenGL
             sld.TrackBounds = new RectangleF(x, trackY - 4f, w, trackH + 8f);
         }
 
-        private void RenderDropdown(GLTextRenderer r, HudDropdown dd, float x, float y, float w, float h, bool hover)
+        private void RenderDropdown(IHudRenderer r, HudDropdown dd, float x, float y, float w, float h, bool hover)
         {
             var bg = hover ? ButtonHover : ButtonBg;
             r.DrawRect(x, y, w, h, bg.R, bg.G, bg.B, bg.A);
@@ -340,12 +340,12 @@ namespace WeatherImageGenerator.OpenGL
             r.DrawText(text, tx, ty, TextPrimary.R, TextPrimary.G, TextPrimary.B, TextPrimary.A);
 
             // Dropdown arrow
-            string arrow = dd.IsOpen ? "▲" : "▼";
+            string arrow = dd.IsOpen ? "â–²" : "â–¼";
             float aw = r.MeasureTextWidth(arrow);
             r.DrawText(arrow, x + w - aw - 8f, ty, TextDim.R, TextDim.G, TextDim.B, TextDim.A);
         }
 
-        private void RenderDropdownOverlay(GLTextRenderer r, HudDropdown dd, int vw, int vh)
+        private void RenderDropdownOverlay(IHudRenderer r, HudDropdown dd, int vw, int vh)
         {
             if (dd.ComputedBounds == RectangleF.Empty) return;
 
@@ -386,7 +386,7 @@ namespace WeatherImageGenerator.OpenGL
             }
         }
 
-        private void RenderLabel(GLTextRenderer r, HudLabel lbl, float x, float y, float w, float h)
+        private void RenderLabel(IHudRenderer r, HudLabel lbl, float x, float y, float w, float h)
         {
             var color = lbl.IsSection ? AccentColor : lbl.IsDim ? TextDim : TextSecondary;
 
@@ -430,7 +430,7 @@ namespace WeatherImageGenerator.OpenGL
         /// <summary>
         /// Word-wrap text to fit within maxWidth pixels, breaking at ' ' and '|' characters.
         /// </summary>
-        private static string WrapText(string text, float maxWidth, GLTextRenderer r)
+        private static string WrapText(string text, float maxWidth, IHudRenderer r)
         {
             if (string.IsNullOrEmpty(text) || maxWidth <= 0) return text;
             if (r.MeasureTextWidth(text) <= maxWidth) return text;
@@ -489,7 +489,7 @@ namespace WeatherImageGenerator.OpenGL
             return result.ToString();
         }
 
-        private void RenderButtonGroup(GLTextRenderer r, HudButtonGroup grp, float x, float y, float w, float h, bool hover)
+        private void RenderButtonGroup(IHudRenderer r, HudButtonGroup grp, float x, float y, float w, float h, bool hover)
         {
             if (grp.Options.Count == 0) return;
             float btnW = (w - (grp.Options.Count - 1) * 2f) / grp.Options.Count;
@@ -519,7 +519,7 @@ namespace WeatherImageGenerator.OpenGL
             }
         }
 
-        // ═══ Mouse event processing ═══
+        // â•â•â• Mouse event processing â•â•â•
 
         /// <summary>
         /// Process a mouse click. Returns true if the HUD consumed the event (suppress map interaction).
@@ -540,10 +540,10 @@ namespace WeatherImageGenerator.OpenGL
                         return true;
                     }
                 }
-                // Clicked outside dropdown → close it
+                // Clicked outside dropdown â†’ close it
                 _openDropdown.IsOpen = false;
                 _openDropdown = null;
-                // Don't consume — let it fall through to panel check
+                // Don't consume â€” let it fall through to panel check
             }
 
             // Check panels (reverse order = topmost first)
@@ -555,7 +555,7 @@ namespace WeatherImageGenerator.OpenGL
                 var panelBounds = new RectangleF(panel.X, panel.Y, panel.Width, panel.ComputedHeight);
                 if (!panelBounds.Contains(mx, my)) continue;
 
-                // Title bar click → toggle collapse
+                // Title bar click â†’ toggle collapse
                 if (my < panel.Y + PanelTitleHeight)
                 {
                     if (panel.Collapsible)
@@ -618,7 +618,7 @@ namespace WeatherImageGenerator.OpenGL
                     return true;
                 }
 
-                // Clicked inside panel but not on any element — still consume
+                // Clicked inside panel but not on any element â€” still consume
                 return true;
             }
 
@@ -791,7 +791,7 @@ namespace WeatherImageGenerator.OpenGL
         }
     }
 
-    // ═══ HUD Element Types ═══
+    // â•â•â• HUD Element Types â•â•â•
 
     public struct HudColor
     {

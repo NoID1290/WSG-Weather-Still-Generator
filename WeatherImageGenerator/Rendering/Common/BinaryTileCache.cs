@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.Common
 {
     /// <summary>
     /// High-performance binary tile cache with index for fast lookups.

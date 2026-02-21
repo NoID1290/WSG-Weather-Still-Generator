@@ -3,7 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.Common
 {
     public enum TileFetchStatus { Ok, NotFound, Blocked, Error }
 

@@ -7,7 +7,8 @@ using System.Net.Http;
 using ECCC.Services;
 using WeatherImageGenerator.Utilities;
 using OpenTK.WinForms;
-using WeatherImageGenerator.OpenGL;
+using WeatherImageGenerator.Rendering.Common;
+using WeatherImageGenerator.Rendering.OpenGL;
 
 namespace WeatherImageGenerator.Forms
 {

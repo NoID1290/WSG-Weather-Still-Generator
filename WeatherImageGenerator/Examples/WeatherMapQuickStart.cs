@@ -3,7 +3,7 @@
 
 using System;
 using System.Windows.Forms;
-using WeatherImageGenerator.OpenGL;
+using WeatherImageGenerator.Rendering.Common;
 
 namespace WeatherImageGenerator.Examples
 {

@@ -122,6 +122,7 @@ namespace WeatherImageGenerator.Forms
         Label lblLocalIP;
         Label lblPublicIP;
         CheckBox chkMapUseDarkMode;
+        ComboBox cmbRenderApi;
         CheckBox chkSkipDetailedWeatherOnAlert;
         NumericUpDown numPlayRadarAnimationCountOnAlert;
         NumericUpDown numAlertDisplayDurationSeconds;
@@ -1065,6 +1066,13 @@ namespace WeatherImageGenerator.Forms
 
             chkMapUseDarkMode = CreateCheckBox("🌙 Use Dark Mode (for Terrain style)", labelX, y, 350);
             var lblDarkHelp = CreateHelpLabel("Best for night weather displays", labelX + 360, y + 3, 200);
+            y += rowHeight;
+
+            var lblRenderApi = CreateLabel("Rendering API:", labelX, y);
+            cmbRenderApi = CreateComboBox(fieldX, y - 2, 200);
+            cmbRenderApi.Items.AddRange(new object[] { "OpenGL (Default)", "Vulkan (Coming Soon)", "DirectX 11 (Coming Soon)" });
+            cmbRenderApi.SelectedIndex = 0;
+            var lblRenderApiHelp = CreateHelpLabel("⚠ Requires restart", fieldX + 210, y + 2, 150);
             y += rowHeight + 10;
 
             var divider1 = CreateDivider(labelX, y, 700);
@@ -1134,7 +1142,8 @@ namespace WeatherImageGenerator.Forms
                 lblBasic, lblMapStyle, cmbMapStyle, lblMapZoom, numMapZoomLevel, lblZoomHelp,
                 lblMapBgColor, txtMapBackgroundColor, lblBgHelp,
                 lblMapOpacity, numMapOverlayOpacity, lblOpacityUnit,
-                chkMapUseDarkMode, lblDarkHelp, divider1,
+                chkMapUseDarkMode, lblDarkHelp,
+                lblRenderApi, cmbRenderApi, lblRenderApiHelp, divider1,
                 lblPerf, lblMapTimeout, numMapTileTimeout, lblTimeoutUnit,
                 chkMapEnableCache, lblCacheDir, txtMapCacheDirectory,
                 lblCacheDuration, numMapCacheDuration, lblCacheHelp, divider2,
@@ -2115,6 +2124,14 @@ namespace WeatherImageGenerator.Forms
                 txtMapCacheDirectory.Enabled = openMap.EnableTileCache;
                 numMapCacheDuration.Value = openMap.CacheDurationHours;
                 chkMapUseDarkMode.Checked = openMap.UseDarkMode;
+                var renderApi = (openMap.RenderingApi ?? "OpenGL").ToLowerInvariant();
+                cmbRenderApi.SelectedIndex = renderApi switch
+                {
+                    "opengl" => 0,
+                    "vulkan" => 1,
+                    "directx11" => 2,
+                    _ => 0
+                };
 
                 // Web UI Tab
                 var webUI = cfg.WebUI ?? new WebUISettings();
@@ -2379,6 +2396,13 @@ namespace WeatherImageGenerator.Forms
                 openMap.TileCacheDirectory = txtMapCacheDirectory.Text;
                 openMap.CacheDurationHours = (int)numMapCacheDuration.Value;
                 openMap.UseDarkMode = chkMapUseDarkMode.Checked;
+                openMap.RenderingApi = cmbRenderApi.SelectedIndex switch
+                {
+                    0 => "OpenGL",
+                    1 => "Vulkan",
+                    2 => "DirectX11",
+                    _ => "OpenGL"
+                };
                 cfg.OpenMap = openMap;
 
                 var webUI = cfg.WebUI ?? new WebUISettings();

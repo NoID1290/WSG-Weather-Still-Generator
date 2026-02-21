@@ -4,7 +4,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using WeatherImageGenerator.OpenGL;
+using WeatherImageGenerator.Rendering.Common;
 using WeatherImageGenerator.Services;
 
 namespace WeatherImageGenerator.Forms

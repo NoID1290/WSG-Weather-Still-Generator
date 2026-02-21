@@ -886,6 +886,12 @@ namespace WeatherImageGenerator.Services
         public bool UseDarkMode { get; set; } = false;
 
         /// <summary>
+        /// Rendering API for the Weather Interactive Map: OpenGL, Vulkan, or DirectX11
+        /// </summary>
+        [JsonPropertyName("RenderingApi")]
+        public string RenderingApi { get; set; } = "OpenGL";
+
+        /// <summary>
         /// Map style presets for different visualization types
         /// </summary>
         [JsonPropertyName("StylePresets")]

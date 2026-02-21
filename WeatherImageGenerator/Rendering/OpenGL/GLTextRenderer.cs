@@ -6,20 +6,21 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
+using WeatherImageGenerator.Rendering.Common;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.OpenGL
 {
     /// <summary>
     /// GPU-accelerated text and rectangle renderer for in-viewport HUD elements.
     /// Builds a font texture atlas from GDI+ at startup, then renders glyphs and
     /// rectangles via a dedicated UI shader using an orthographic projection.
     /// </summary>
-    public class GLTextRenderer : IDisposable
+    public class GLTextRenderer : IHudRenderer
     {
         private int _atlasTexture;
         private int _vao;
         private int _vbo;
-        private Shader? _shader;
+        private GLShader? _shader;
         private int _projectionLoc;
         private int _colorLoc;
         private int _modeLoc;
@@ -185,8 +186,8 @@ namespace WeatherImageGenerator.OpenGL
         private void LoadShader()
         {
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var vPath = Path.Combine(baseDir, "opengl", "shaders", "ui.vert.glsl");
-            var fPath = Path.Combine(baseDir, "opengl", "shaders", "ui.frag.glsl");
+            var vPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "ui.vert.glsl");
+            var fPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "ui.frag.glsl");
 
             string vSrc, fSrc;
             try { vSrc = File.ReadAllText(vPath); }
@@ -224,7 +225,7 @@ void main() {
 
             try
             {
-                _shader = new Shader(vSrc, fSrc);
+                _shader = new GLShader(vSrc, fSrc);
             }
             catch (Exception ex)
             {

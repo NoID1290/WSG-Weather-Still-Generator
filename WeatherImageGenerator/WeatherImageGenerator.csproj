@@ -34,7 +34,13 @@
     <Content Include="wwwroot\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="opengl\shaders\**\*.*">
+    <Content Include="Rendering\OpenGL\shaders\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Rendering\Vulkan\shaders\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Rendering\DirectX\shaders\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- Embed icons into the binary -->
@@ -55,6 +61,11 @@
     <PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
     <PackageReference Include="OpenTK.WinForms" Version="4.0.0-pre.8" />
     <PackageReference Include="OpenTK.Graphics" Version="4.9.4" />
+    <PackageReference Include="Silk.NET.Vulkan" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Direct3D11" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.DXGI" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Direct3D.Compilers" Version="2.22.0" />
   </ItemGroup>
   <!-- Copy the updater executable to the output directory -->
   <Target Name="CopyUpdater" AfterTargets="Build">

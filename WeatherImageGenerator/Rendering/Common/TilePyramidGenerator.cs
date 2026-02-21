@@ -3,10 +3,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using WeatherImageGenerator.OpenGL;
 using OpenMap;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.Common
 {
     /// <summary>
     /// Generates a tile pyramid for a geographic bounding box and stores tiles in

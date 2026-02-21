@@ -1,14 +1,15 @@
 using System;
 using System.IO;
 using OpenTK.Graphics.OpenGL4;
+using WeatherImageGenerator.Rendering.Common;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.OpenGL
 {
-    public class Shader : IDisposable
+    public class GLShader : IShader
     {
         public int Handle { get; private set; }
 
-        public Shader(string vertexSource, string fragmentSource)
+        public GLShader(string vertexSource, string fragmentSource)
         {
             var vertex = CompileShader(ShaderType.VertexShader, vertexSource);
             var fragment = CompileShader(ShaderType.FragmentShader, fragmentSource);

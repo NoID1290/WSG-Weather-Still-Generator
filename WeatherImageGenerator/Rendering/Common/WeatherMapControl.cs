@@ -7,22 +7,22 @@ using System.Threading.Tasks;
 using OpenMap;
 using WeatherImageGenerator.Services;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.Common
 {
     /// <summary>
     /// Professional Weather Interactive Map Control with full UI
     /// Features: Radar, Temperature overlays, Zoom controls, Layer toggles
-    /// All controls are rendered as floating semi-transparent panels in the OpenGL viewport.
+    /// All controls are rendered as floating semi-transparent panels in the GPU viewport.
     /// </summary>
     public class WeatherMapControl : UserControl
     {
-        private GLRadarControl _glControl;
+        private IMapRenderer _glControl;
         private WeatherOverlayManager _overlayManager;
         private BinaryTileCache _tileCache;
         private Timer _updateTimer;
         
         // GL HUD system replaces WinForms sidebar
-        private GLHudSystem _hudSystem;
+        private HudSystem _hudSystem;
 
         // HUD element references (for reading state in callbacks)
         private HudCheckbox _chkRadar;
@@ -83,27 +83,30 @@ namespace WeatherImageGenerator.OpenGL
             _updateTimer.Start();
 
             // Initial overlay is triggered by SetLocation/SetZoom from the host form,
-            // NOT here — avoids race with location detection.
+            // NOT here â€” avoids race with location detection.
         }
 
         private void InitializeComponents()
         {
             this.Size = new Size(1200, 800);
             this.BackColor = ThemeManager.Current.Background;
-            // No WinForms sidebar — all controls are rendered via GL HUD
+            // No WinForms sidebar â€” all controls are rendered via GL HUD
         }
 
         private void InitializeMapControl()
         {
-            _glControl = new GLRadarControl
-            {
-                Dock = DockStyle.Fill,
-                BackColor = ThemeManager.Current.Background
-            };
-            this.Controls.Add(_glControl);
+            // Read the configured rendering API (defaults to OpenGL)
+            var config = ConfigManager.LoadConfig();
+            var apiString = config.OpenMap?.RenderingApi ?? "OpenGL";
+            var api = RenderingFactory.ParseFromString(apiString);
 
-            // Create the HUD system and attach to GL control
-            _hudSystem = new GLHudSystem();
+            _glControl = RenderingFactory.CreateMapRenderer(api);
+            _glControl.HostControl.Dock = DockStyle.Fill;
+            _glControl.HostControl.BackColor = ThemeManager.Current.Background;
+            this.Controls.Add(_glControl.HostControl);
+
+            // Create the HUD system and attach to the renderer
+            _hudSystem = new HudSystem();
             _glControl.HudSystem = _hudSystem;
         }
 
@@ -135,10 +138,10 @@ namespace WeatherImageGenerator.OpenGL
 
                 if (string.IsNullOrEmpty(msg))
                 {
-                    // Data is now available — clear HUD immediately
-                    if (_glControl.IsHandleCreated)
+                    // Data is now available â€” clear HUD immediately
+                    if (_glControl.HostControl.IsHandleCreated)
                     {
-                        try { _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); }
+                        try { _glControl.HostControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); }
                         catch { }
                     }
                 }
@@ -150,8 +153,8 @@ namespace WeatherImageGenerator.OpenGL
                     {
                         try
                         {
-                            if (_glControl.IsHandleCreated)
-                                _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = ""));
+                            if (_glControl.HostControl.IsHandleCreated)
+                                _glControl.HostControl.BeginInvoke(new Action(() => _glControl.HudStatusText = ""));
                         }
                         catch { }
                     }, null, 5000, System.Threading.Timeout.Infinite);
@@ -205,7 +208,7 @@ namespace WeatherImageGenerator.OpenGL
 
         private void BuildHudPanels()
         {
-            // ═══ Actions Panel (top-left, tab 1) ═══
+            // â•â•â• Actions Panel (top-left, tab 1) â•â•â•
             var actionsPanel = new HudPanel
             {
                 Id = "actions",
@@ -229,7 +232,7 @@ namespace WeatherImageGenerator.OpenGL
 
             _hudSystem.AddPanel(actionsPanel);
 
-            // ═══ Viewport Panel (top-left, tab 2 — auto-stacked below Actions) ═══
+            // â•â•â• Viewport Panel (top-left, tab 2 â€” auto-stacked below Actions) â•â•â•
             var viewportPanel = new HudPanel
             {
                 Id = "viewport",
@@ -250,7 +253,7 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     _glControl.UseCrosshairAsMouse = on;
                     _glControl.ShowCrosshair = on;
-                    _glControl.Invalidate();
+                    _glControl.InvalidateView();
                     try { var cfg = ConfigManager.LoadConfig(); cfg.ShowCrosshair = on; ConfigManager.SaveConfig(cfg, silent: true); } catch { }
                 }
             };
@@ -264,7 +267,7 @@ namespace WeatherImageGenerator.OpenGL
                 OnChanged = on =>
                 {
                     _glControl.ShowCoordinatesHUD = on;
-                    _glControl.Invalidate();
+                    _glControl.InvalidateView();
                     try { var cfg = ConfigManager.LoadConfig(); cfg.ShowCoordinatesHUD = on; ConfigManager.SaveConfig(cfg, silent: true); } catch { }
                 }
             };
@@ -272,7 +275,7 @@ namespace WeatherImageGenerator.OpenGL
 
             _hudSystem.AddPanel(viewportPanel);
 
-            // ═══ Zoom Panel (right-center) ═══
+            // â•â•â• Zoom Panel (right-center) â•â•â•
             var zoomPanel = new HudPanel
             {
                 Id = "zoom",
@@ -283,12 +286,12 @@ namespace WeatherImageGenerator.OpenGL
                 Collapsible = false
             };
             zoomPanel.Elements.Add(new HudButton { Id = "zoomIn", Text = "+", OnClick = () => ZoomIn() });
-            zoomPanel.Elements.Add(new HudButton { Id = "zoomOut", Text = "−", OnClick = () => ZoomOut() });
+            zoomPanel.Elements.Add(new HudButton { Id = "zoomOut", Text = "âˆ’", OnClick = () => ZoomOut() });
             _lblZoom = new HudLabel { Id = "zoomLevel", Text = $"Z: {_currentZoom}", IsDim = true };
             zoomPanel.Elements.Add(_lblZoom);
             zoomPanel.Elements.Add(new HudSeparator());
-            zoomPanel.Elements.Add(new HudButton { Id = "center", Text = "◎", OnClick = () => CenterMap() });
-            zoomPanel.Elements.Add(new HudButton { Id = "myLocation", Text = "⌖ My Loc", OnClick = () => GoToMyLocation() });
+            zoomPanel.Elements.Add(new HudButton { Id = "center", Text = "â—Ž", OnClick = () => CenterMap() });
+            zoomPanel.Elements.Add(new HudButton { Id = "myLocation", Text = "âŒ– My Loc", OnClick = () => GoToMyLocation() });
             var chkShowLoc = new HudCheckbox
             {
                 Id = "showMyLoc",
@@ -299,7 +302,7 @@ namespace WeatherImageGenerator.OpenGL
             zoomPanel.Elements.Add(chkShowLoc);
             _hudSystem.AddPanel(zoomPanel);
 
-            // ═══ Overlays Panel (top-right, collapsible) ═══
+            // â•â•â• Overlays Panel (top-right, collapsible) â•â•â•
             var overlayPanel = new HudPanel
             {
                 Id = "overlays",
@@ -354,7 +357,7 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     _overlayManager.RadarOpacity = val / 100f;
                     _glControl.OverlayOpacity = val / 100f;
-                    _glControl.Invalidate();
+                    _glControl.InvalidateView();
                 }
             };
             overlayPanel.Elements.Add(_sldRadarOpacity);
@@ -381,7 +384,7 @@ namespace WeatherImageGenerator.OpenGL
                 {
                     _overlayManager.TemperatureOpacity = val / 100f;
                     _glControl.Overlay2Opacity = val / 100f;
-                    _glControl.Invalidate();
+                    _glControl.InvalidateView();
                 }
             };
             overlayPanel.Elements.Add(_sldTempOpacity);
@@ -403,7 +406,7 @@ namespace WeatherImageGenerator.OpenGL
 
             _hudSystem.AddPanel(overlayPanel);
 
-            // ═══ Map Style Panel (top-right, auto-stacked below Overlays) ═══
+            // â•â•â• Map Style Panel (top-right, auto-stacked below Overlays) â•â•â•
             var mapStylePanel = new HudPanel
             {
                 Id = "mapStyle",
@@ -423,7 +426,7 @@ namespace WeatherImageGenerator.OpenGL
             mapStylePanel.Elements.Add(_grpMapStyle);
             _hudSystem.AddPanel(mapStylePanel);
 
-            // ═══ Shaders Panel (top-right, auto-stacks below MapStyle) ═══
+            // â•â•â• Shaders Panel (top-right, auto-stacks below MapStyle) â•â•â•
             var shadersPanel = new HudPanel
             {
                 Id = "shaders",
@@ -439,39 +442,39 @@ namespace WeatherImageGenerator.OpenGL
                 Id = "shaderSaturation",
                 Text = "Saturation Boost",
                 Checked = true,
-                OnChanged = v => { _glControl.EnableTileSaturation = v; _glControl.Invalidate(); }
+                OnChanged = v => { _glControl.EnableTileSaturation = v; _glControl.InvalidateView(); }
             });
             shadersPanel.Elements.Add(new HudCheckbox
             {
                 Id = "shaderContrast",
                 Text = "Contrast Curve",
                 Checked = true,
-                OnChanged = v => { _glControl.EnableTileContrast = v; _glControl.Invalidate(); }
+                OnChanged = v => { _glControl.EnableTileContrast = v; _glControl.InvalidateView(); }
             });
             shadersPanel.Elements.Add(new HudCheckbox
             {
                 Id = "shaderVignette",
                 Text = "Vignette",
                 Checked = true,
-                OnChanged = v => { _glControl.EnableTileVignette = v; _glControl.Invalidate(); }
+                OnChanged = v => { _glControl.EnableTileVignette = v; _glControl.InvalidateView(); }
             });
             shadersPanel.Elements.Add(new HudCheckbox
             {
                 Id = "shaderAtmosphere",
                 Text = "Atmospheric Tint",
                 Checked = true,
-                OnChanged = v => { _glControl.EnableTileAtmosphere = v; _glControl.Invalidate(); }
+                OnChanged = v => { _glControl.EnableTileAtmosphere = v; _glControl.InvalidateView(); }
             });
             shadersPanel.Elements.Add(new HudCheckbox
             {
                 Id = "shaderGlow",
                 Text = "Radar Glow",
                 Checked = true,
-                OnChanged = v => { _glControl.EnableRadarGlow = v; _glControl.Invalidate(); }
+                OnChanged = v => { _glControl.EnableRadarGlow = v; _glControl.InvalidateView(); }
             });
             _hudSystem.AddPanel(shadersPanel);
 
-            // ═══ Animation Panel (bottom-center, initially hidden) ═══
+            // â•â•â• Animation Panel (bottom-center, initially hidden) â•â•â•
             var animPanel = new HudPanel
             {
                 Id = "animation",
@@ -483,10 +486,10 @@ namespace WeatherImageGenerator.OpenGL
                 Collapsible = false
             };
 
-            animPanel.Elements.Add(new HudButton { Id = "animStepBack", Text = "⏮", OnClick = () => StepAnimationBackward() });
-            animPanel.Elements.Add(new HudButton { Id = "animPlayPause", Text = "▶", IsAccent = true, OnClick = () => PlayPauseAnimation() });
-            animPanel.Elements.Add(new HudButton { Id = "animStepFwd", Text = "⏭", OnClick = () => StepAnimationForward() });
-            animPanel.Elements.Add(new HudButton { Id = "animSpeedDown", Text = "Speed−", OnClick = () => AdjustAnimationSpeed(200) });
+            animPanel.Elements.Add(new HudButton { Id = "animStepBack", Text = "â®", OnClick = () => StepAnimationBackward() });
+            animPanel.Elements.Add(new HudButton { Id = "animPlayPause", Text = "â–¶", IsAccent = true, OnClick = () => PlayPauseAnimation() });
+            animPanel.Elements.Add(new HudButton { Id = "animStepFwd", Text = "â­", OnClick = () => StepAnimationForward() });
+            animPanel.Elements.Add(new HudButton { Id = "animSpeedDown", Text = "Speedâˆ’", OnClick = () => AdjustAnimationSpeed(200) });
             animPanel.Elements.Add(new HudButton { Id = "animSpeedUp", Text = "Speed+", OnClick = () => AdjustAnimationSpeed(-200) });
             animPanel.Elements.Add(new HudButton
             {
@@ -502,7 +505,7 @@ namespace WeatherImageGenerator.OpenGL
                         loopBtn.Text = _animationLoop ? "Loop: ON" : "Loop: OFF";
                         loopBtn.IsAccent = _animationLoop;
                     }
-                    _glControl?.Invalidate();
+                    _glControl?.InvalidateView();
                 }
             });
             animPanel.Elements.Add(new HudSeparator());
@@ -523,7 +526,7 @@ namespace WeatherImageGenerator.OpenGL
             return null;
         }
 
-        // ═══ Attribution ═══
+        // â•â•â• Attribution â•â•â•
 
         private MapStyle GetCurrentMapStyle()
         {
@@ -556,13 +559,13 @@ namespace WeatherImageGenerator.OpenGL
                 _glControl.HudAttributionText = text;
         }
 
-        // ═══ Animation Logic ═══
+        // â•â•â• Animation Logic â•â•â•
 
         private async Task LoadRadarAnimation()
         {
             var loadBtn = FindHudElement<HudButton>("loadAnim");
             if (loadBtn != null) loadBtn.Text = "Loading...";
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
 
             try
             {
@@ -576,7 +579,7 @@ namespace WeatherImageGenerator.OpenGL
 
                 // Fetch frames
                 var (frames, validTimestamps) = await _overlayManager.FetchMultipleRadarFramesAsync(
-                    _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom, timestamps);
+                    _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom, timestamps);
 
                 if (frames.Count == 0)
                 {
@@ -596,8 +599,8 @@ namespace WeatherImageGenerator.OpenGL
                 // Show first frame
                 ShowAnimationFrame(0);
 
-                _lblFrameInfo.Text = $"Frame 1/{_animationFrames.Count} — {FormatTimestamp(_animationTimestamps[0])}";
-                _glControl?.Invalidate();
+                _lblFrameInfo.Text = $"Frame 1/{_animationFrames.Count} â€” {FormatTimestamp(_animationTimestamps[0])}";
+                _glControl?.InvalidateView();
             }
             catch (Exception ex)
             {
@@ -606,7 +609,7 @@ namespace WeatherImageGenerator.OpenGL
             finally
             {
                 if (loadBtn != null) loadBtn.Text = "Load Animation";
-                _glControl?.Invalidate();
+                _glControl?.InvalidateView();
             }
         }
 
@@ -619,16 +622,16 @@ namespace WeatherImageGenerator.OpenGL
             var ppBtn = FindHudElement<HudButton>("animPlayPause");
             if (_isAnimating)
             {
-                if (ppBtn != null) { ppBtn.Text = "⏸"; ppBtn.IsAccent = false; }
+                if (ppBtn != null) { ppBtn.Text = "â¸"; ppBtn.IsAccent = false; }
                 _animationTimer.Interval = _animationSpeedMs;
                 _animationTimer.Start();
             }
             else
             {
-                if (ppBtn != null) { ppBtn.Text = "▶"; ppBtn.IsAccent = true; }
+                if (ppBtn != null) { ppBtn.Text = "â–¶"; ppBtn.IsAccent = true; }
                 _animationTimer.Stop();
             }
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
         }
 
         private void StepAnimationForward()
@@ -669,8 +672,8 @@ namespace WeatherImageGenerator.OpenGL
             }
 
             var ts = index < _animationTimestamps.Count ? FormatTimestamp(_animationTimestamps[index]) : "";
-            _lblFrameInfo.Text = $"Frame {index + 1}/{_animationFrames.Count} — {ts}";
-            _glControl?.Invalidate();
+            _lblFrameInfo.Text = $"Frame {index + 1}/{_animationFrames.Count} â€” {ts}";
+            _glControl?.InvalidateView();
         }
 
         private void AnimationTimer_Tick(object? sender, EventArgs e)
@@ -690,8 +693,8 @@ namespace WeatherImageGenerator.OpenGL
                     _isAnimating = false;
                     _animationTimer?.Stop();
                     var ppb = FindHudElement<HudButton>("animPlayPause");
-                    if (ppb != null) { ppb.Text = "▶"; ppb.IsAccent = true; }
-                    _glControl?.Invalidate();
+                    if (ppb != null) { ppb.Text = "â–¶"; ppb.IsAccent = true; }
+                    _glControl?.InvalidateView();
                     return;
                 }
             }
@@ -748,7 +751,7 @@ namespace WeatherImageGenerator.OpenGL
             try
             {
                 var (frames, validTimestamps) = await _overlayManager.FetchMultipleRadarFramesAsync(
-                    _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom, _animationTimestamps);
+                    _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom, _animationTimestamps);
 
                 if (frames.Count > 0)
                 {
@@ -790,7 +793,7 @@ namespace WeatherImageGenerator.OpenGL
             return isoTimestamp;
         }
 
-        // ═══ Map Style / Radar Config Handlers ═══
+        // â•â•â• Map Style / Radar Config Handlers â•â•â•
 
         private void OnMapStyleChanged()
         {
@@ -833,7 +836,7 @@ namespace WeatherImageGenerator.OpenGL
             _ = UpdateOverlays();
         }
 
-        // ═══ Public API for external control (keyboard shortcuts) ═══
+        // â•â•â• Public API for external control (keyboard shortcuts) â•â•â•
 
         public void ToggleAnimation()
         {
@@ -849,7 +852,7 @@ namespace WeatherImageGenerator.OpenGL
             if (_grpMapStyle == null) return;
             _grpMapStyle.SelectedIndex = (_grpMapStyle.SelectedIndex + 1) % _grpMapStyle.Options.Count;
             OnMapStyleChanged();
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
         }
 
         public void SetMapStyleByIndex(int index)
@@ -857,7 +860,7 @@ namespace WeatherImageGenerator.OpenGL
             if (_grpMapStyle == null || index < 0 || index >= _grpMapStyle.Options.Count) return;
             _grpMapStyle.SelectedIndex = index;
             OnMapStyleChanged();
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
         }
 
         private void CloseRadarAnimation()
@@ -868,7 +871,7 @@ namespace WeatherImageGenerator.OpenGL
                 _isAnimating = false;
                 _animationTimer?.Stop();
                 var ppBtn = FindHudElement<HudButton>("animPlayPause");
-                if (ppBtn != null) { ppBtn.Text = "▶"; ppBtn.IsAccent = true; }
+                if (ppBtn != null) { ppBtn.Text = "â–¶"; ppBtn.IsAccent = true; }
             }
 
             // Clear frames
@@ -885,7 +888,7 @@ namespace WeatherImageGenerator.OpenGL
             _glControl.ClearPositionedOverlay();
 
             _lblFrameInfo.Text = "No animation loaded";
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
         }
 
         private void SaveMapSettings()
@@ -993,7 +996,7 @@ namespace WeatherImageGenerator.OpenGL
         {
             this.BackColor = ThemeManager.Current.Background;
             if (_glControl != null)
-                _glControl.BackColor = ThemeManager.Current.Background;
+                _glControl.HostControl.BackColor = ThemeManager.Current.Background;
         }
 
         // Public API
@@ -1005,7 +1008,7 @@ namespace WeatherImageGenerator.OpenGL
             _currentLon = lon;
             _glControl.SetCenterLatLon(lat, lon);
             UpdateStatusLabels();
-            // Don't call UpdateOverlays here — MapPositionChanged handler does it,
+            // Don't call UpdateOverlays here â€” MapPositionChanged handler does it,
             // and if SetZoom follows immediately, we'd fetch at the wrong zoom.
         }
 
@@ -1063,7 +1066,7 @@ namespace WeatherImageGenerator.OpenGL
         private async void GoToMyLocation()
         {
             _glControl.HudStatusText = "Locating...";
-            _glControl.Invalidate();
+            _glControl.InvalidateView();
 
             var loc = await GetUserLocationAsync();
             if (loc.HasValue)
@@ -1086,13 +1089,13 @@ namespace WeatherImageGenerator.OpenGL
             {
                 _glControl.HudStatusText = "Location unavailable";
             }
-            _glControl.Invalidate();
+            _glControl.InvalidateView();
 
             // Auto-clear status after 3 seconds
             _hudClearTimer?.Dispose();
             _hudClearTimer = new System.Threading.Timer(_ =>
             {
-                try { if (_glControl.IsHandleCreated) _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); } catch { }
+                try { if (_glControl.HostControl.IsHandleCreated) _glControl.HostControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); } catch { }
             }, null, 3000, System.Threading.Timeout.Infinite);
         }
 
@@ -1104,7 +1107,7 @@ namespace WeatherImageGenerator.OpenGL
                 if (_userLat == null || _userLon == null)
                 {
                     _glControl.HudStatusText = "Fetching location...";
-                    _glControl.Invalidate();
+                    _glControl.InvalidateView();
                     var loc = await GetUserLocationAsync();
                     if (loc.HasValue)
                     {
@@ -1114,11 +1117,11 @@ namespace WeatherImageGenerator.OpenGL
                     else
                     {
                         _glControl.HudStatusText = "Location unavailable";
-                        _glControl.Invalidate();
+                        _glControl.InvalidateView();
                         _hudClearTimer?.Dispose();
                         _hudClearTimer = new System.Threading.Timer(_ =>
                         {
-                            try { if (_glControl.IsHandleCreated) _glControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); } catch { }
+                            try { if (_glControl.HostControl.IsHandleCreated) _glControl.HostControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); } catch { }
                         }, null, 3000, System.Threading.Timeout.Infinite);
                         return;
                     }
@@ -1132,7 +1135,7 @@ namespace WeatherImageGenerator.OpenGL
             {
                 _glControl.ShowUserMarker = false;
             }
-            _glControl.Invalidate();
+            _glControl.InvalidateView();
         }
 
         /// <summary>Fetch user's approximate location via IP geolocation (ip-api.com)</summary>
@@ -1174,11 +1177,11 @@ namespace WeatherImageGenerator.OpenGL
                     return;
                 }
 
-                Console.WriteLine($"[WeatherMap] UpdateOverlays: pos=({_currentLat:F2},{_currentLon:F2}), size={_glControl.Width}x{_glControl.Height}, zoom={_currentZoom}");
+                Console.WriteLine($"[WeatherMap] UpdateOverlays: pos=({_currentLat:F2},{_currentLon:F2}), size={_glControl.HostControl.Width}x{_glControl.HostControl.Height}, zoom={_currentZoom}");
 
-                // ── GPU compositing: upload radar and temperature as separate GL textures ──
+                // â”€â”€ GPU compositing: upload radar and temperature as separate GL textures â”€â”€
                 // Each overlay gets its own texture slot with independent opacity.
-                // Alpha blending on the GPU composites them — no CPU-side GDI+ CompositeOverlays needed.
+                // Alpha blending on the GPU composites them â€” no CPU-side GDI+ CompositeOverlays needed.
 
                 byte[]? radarData = null;
                 byte[]? tempData = null;
@@ -1186,13 +1189,13 @@ namespace WeatherImageGenerator.OpenGL
                 if (_overlayManager.RadarEnabled)
                 {
                     radarData = await _overlayManager.UpdateRadarOverlayAsync(
-                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
+                        _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
                 }
 
                 if (_overlayManager.TemperatureEnabled)
                 {
                     tempData = await _overlayManager.UpdateTemperatureOverlayAsync(
-                        _currentLat, _currentLon, _glControl.Width, _glControl.Height, _currentZoom);
+                        _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
                 }
 
                 Console.WriteLine($"[WeatherMap] Radar: {(radarData != null ? $"{radarData.Length} bytes" : "null")}, Temp: {(tempData != null ? $"{tempData.Length} bytes" : "null")}");
@@ -1263,7 +1266,7 @@ namespace WeatherImageGenerator.OpenGL
         {
             var btn = FindHudElement<HudButton>("refresh");
             if (btn != null) btn.Text = "Refreshing...";
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
             
             try
             {
@@ -1273,7 +1276,7 @@ namespace WeatherImageGenerator.OpenGL
             finally
             {
                 if (btn != null) btn.Text = "Refresh Weather";
-                _glControl?.Invalidate();
+                _glControl?.InvalidateView();
             }
         }
 
@@ -1296,7 +1299,7 @@ namespace WeatherImageGenerator.OpenGL
         private async Task PrefetchMapTiles()
         {
             var confirm = MessageBox.Show(
-                "This will download map tiles for Canada/USA (zoom 3–7) into your local cache.\n\nPlease ensure you comply with tile provider usage policies. Continue?",
+                "This will download map tiles for Canada/USA (zoom 3â€“7) into your local cache.\n\nPlease ensure you comply with tile provider usage policies. Continue?",
                 "Prefetch Map Tiles",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
@@ -1304,7 +1307,7 @@ namespace WeatherImageGenerator.OpenGL
             if (confirm != DialogResult.Yes) return;
 
             _lblCacheStats.Text = "Prefetching tiles...";
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
 
             try
             {
@@ -1325,7 +1328,7 @@ namespace WeatherImageGenerator.OpenGL
                 var progress = new Progress<TilePyramidGenerator.ProgressState>(s =>
                 {
                     _lblCacheStats.Text = $"Prefetch: {s.Completed}/{s.Total} (fetched={s.Fetched})";
-                    _glControl?.Invalidate();
+                    _glControl?.InvalidateView();
                 });
 
                 var state = await TilePyramidGenerator.GenerateAsync(
@@ -1345,7 +1348,7 @@ namespace WeatherImageGenerator.OpenGL
                 _glControl.SetLocalTilesFolder(localTilesRoot);
                 UpdateCacheStats();
 
-                MessageBox.Show($"Prefetch complete — fetched {state.Fetched} tiles (processed {state.Completed} total).\nLocal tiles: {localTilesRoot}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Prefetch complete â€” fetched {state.Fetched} tiles (processed {state.Completed} total).\nLocal tiles: {localTilesRoot}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -1360,7 +1363,7 @@ namespace WeatherImageGenerator.OpenGL
         private async Task PrefetchRadarTiles()
         {
             var confirm = MessageBox.Show(
-                "This will download ECCC radar tiles (latest frame) for Canada/USA (zoom 3–7) into your local map cache.\n\nPlease ensure you comply with ECCC usage policies. Continue?",
+                "This will download ECCC radar tiles (latest frame) for Canada/USA (zoom 3â€“7) into your local map cache.\n\nPlease ensure you comply with ECCC usage policies. Continue?",
                 "Prefetch Radar Tiles",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
@@ -1368,7 +1371,7 @@ namespace WeatherImageGenerator.OpenGL
             if (confirm != DialogResult.Yes) return;
 
             _lblCacheStats.Text = "Radar: Prefetching tiles...";
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
 
             try
             {
@@ -1384,7 +1387,7 @@ namespace WeatherImageGenerator.OpenGL
                 var progress = new Progress<TilePyramidGenerator.ProgressState>(s =>
                 {
                     _lblCacheStats.Text = $"Radar Prefetch: {s.Completed}/{s.Total} (fetched={s.Fetched})";
-                    _glControl?.Invalidate();
+                    _glControl?.InvalidateView();
                 });
 
                 var state = await TilePyramidGenerator.GenerateRadarTilesAsync(
@@ -1403,7 +1406,7 @@ namespace WeatherImageGenerator.OpenGL
                     progress: progress);
 
                 UpdateCacheStats();
-                MessageBox.Show($"Radar tile prefetch complete — fetched {state.Fetched} tiles (processed {state.Completed}).\nCache: {mapCacheDir}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Radar tile prefetch complete â€” fetched {state.Fetched} tiles (processed {state.Completed}).\nCache: {mapCacheDir}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -1426,7 +1429,7 @@ namespace WeatherImageGenerator.OpenGL
             if (confirm != DialogResult.Yes) return;
 
             _lblCacheStats.Text = "Generating composites...";
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
 
             try
             {
@@ -1443,7 +1446,7 @@ namespace WeatherImageGenerator.OpenGL
                 for (int z = minZoom; z <= maxZoom; z++)
                 {
                     _lblCacheStats.Text = $"Generating composite z={z}...";
-                    _glControl?.Invalidate();
+                    _glControl?.InvalidateView();
                     var bytes = await radarSvc.FetchRadarImageAsync((MinLat: minLat, MinLon: minLon, MaxLat: maxLat, MaxLon: maxLon), width, height, z);
                     if (bytes != null && bytes.Length > 0)
                     {
@@ -1479,7 +1482,7 @@ namespace WeatherImageGenerator.OpenGL
             if (_glControl != null)
             {
                 // Coordinate
-                string coord = $"{_currentLat:F2}°,{_currentLon:F2}°";
+                string coord = $"{_currentLat:F2}Â°,{_currentLon:F2}Â°";
 
                 // Zoom
                 string zoom = $"Z:{_currentZoom}";
@@ -1501,7 +1504,7 @@ namespace WeatherImageGenerator.OpenGL
                 string vram = FormatBytes(vramBytes);
 
                 // Viewport resolution
-                string res = $"{_glControl.Width}x{_glControl.Height}";
+                string res = $"{_glControl.HostControl.Width}x{_glControl.HostControl.Height}";
 
                 // FPS
                 int fps = (int)Math.Round(_glControl.CurrentFps);
@@ -1511,7 +1514,7 @@ namespace WeatherImageGenerator.OpenGL
                 _glControl.HudStatusBarText = statusText;
             }
 
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
         }
 
         private static string FormatBytes(long bytes)
@@ -1542,7 +1545,7 @@ namespace WeatherImageGenerator.OpenGL
         {
             _chkRadar.Checked = !_chkRadar.Checked;
             _chkRadar.OnChanged?.Invoke(_chkRadar.Checked);
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
         }
 
         /// <summary>Toggle temperature checkbox from external code (keyboard shortcut)</summary>
@@ -1550,14 +1553,14 @@ namespace WeatherImageGenerator.OpenGL
         {
             _chkTemperature.Checked = !_chkTemperature.Checked;
             _chkTemperature.OnChanged?.Invoke(_chkTemperature.Checked);
-            _glControl?.Invalidate();
+            _glControl?.InvalidateView();
         }
 
         /// <summary>Toggle debug overlay bounding box</summary>
         public void ToggleDebugOverlay()
         {
             _glControl.DebugOverlayBounds = !_glControl.DebugOverlayBounds;
-            _glControl.Invalidate();
+            _glControl.InvalidateView();
         }
 
         /// <summary>Force refresh all overlays</summary>

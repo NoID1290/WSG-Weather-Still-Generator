@@ -12,7 +12,7 @@ using ECCC.Services;
 using OpenMap;
 using OpenMeteo;
 
-namespace WeatherImageGenerator.OpenGL
+namespace WeatherImageGenerator.Rendering.Common
 {
     /// <summary>
     /// Manages dynamic weather overlays (radar, temperature, wind, etc.)
