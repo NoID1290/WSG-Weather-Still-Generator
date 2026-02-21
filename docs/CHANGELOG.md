@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0.0221] - 2026-02-21
+
+- Update WSG.ico
+- update status text formatting for clarity.
+- Add periodic status bar refresh timer to update FPS and cache stats
+- Add user location marker and loading status; enhance HUD status bar with detailed information
+- Enhance crosshair functionality and HUD status bar; implement zoom motion blur in shaders
+- Refactor license information in MainForm to improve clarity and organization
+- Implement fullscreen toggle and enhance HUD controls with shader options
+- Add GPU-rendered HUD overlay system for weather map viewport
+- Remove obsolete test files and TODO list to clean up the repository
+- Update CHANGELOG with new features and enhancements
+
 ## [1.11.0.0219] - 2026-02-19
 
 - Enhance theme management: apply dynamic theming to WeatherMapForm and WeatherMapControl, update control styles for consistency
