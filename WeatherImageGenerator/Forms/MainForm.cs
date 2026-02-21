@@ -4249,46 +4249,398 @@ SOFTWARE.
                     THIRD-PARTY LICENSES
 ════════════════════════════════════════════════════════════════════
 
-This application uses the following third-party software:
+This application uses the following third-party software.
+Full license texts are reproduced below.
 
-  SkiaSharp ........................ MIT License
-    https://github.com/mono/SkiaSharp
 
-  OpenTK (WinForms + Graphics) .... MIT License
-    https://github.com/opentk/opentk
+────────────────────────────────────────────────────────────────────
+  SkiaSharp
+  https://github.com/mono/SkiaSharp
+────────────────────────────────────────────────────────────────────
 
-  open-meteo-dotnet ............... MIT License
-    https://github.com/AlienDwarf/open-meteo-dotnet
+MIT License
 
-  Xabe.FFmpeg.Downloader .......... MIT License
-    https://github.com/tomaszzmuda/Xabe.FFmpeg
+Copyright (c) 2015-2016 Xamarin, Inc.
+Copyright (c) 2017-2018 Microsoft Corporation.
 
-  System.Drawing.Common ........... MIT License (.NET Foundation)
-    https://www.nuget.org/packages/System.Drawing.Common
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-  FFmpeg ........................... LGPL v2.1+ / GPL v2+
-    https://ffmpeg.org/legal.html
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
-  Piper TTS ....................... MIT License
-    https://github.com/rhasspy/piper
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
-  OpenStreetMap ................... Open Database License (ODbL) 1.0
-    https://www.openstreetmap.org/copyright
 
-  OpenTopoMap ..................... CC BY-SA (style), ODbL (data)
-    https://opentopomap.org/
+────────────────────────────────────────────────────────────────────
+  OpenTK (WinForms + Graphics)
+  https://github.com/opentk/opentk
+────────────────────────────────────────────────────────────────────
 
-  Open-Meteo API .................. CC BY 4.0
-    https://open-meteo.com/
+MIT License
 
-  ECCC Weather Data ............... Open Government Licence - Canada
-    https://weather.gc.ca/
+Copyright (c) 2006-2020 Stefanos Apostolopoulos for the Open Toolkit Project
 
-  NWS Weather Data ................ Public Domain (U.S. Government)
-    https://www.weather.gov/
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-  Kevin MacLeod Music ............. CC BY 3.0
-    https://incompetech.com/
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────
+  open-meteo-dotnet
+  https://github.com/AlienDwarf/open-meteo-dotnet
+────────────────────────────────────────────────────────────────────
+
+MIT License
+
+Copyright (c) 2022 AlienDwarf
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────
+  Xabe.FFmpeg.Downloader
+  https://github.com/tomaszzmuda/Xabe.FFmpeg
+────────────────────────────────────────────────────────────────────
+
+MIT License
+
+Copyright (c) 2017 Tomasz Zmuda
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────
+  System.Drawing.Common
+  https://www.nuget.org/packages/System.Drawing.Common
+────────────────────────────────────────────────────────────────────
+
+The MIT License (MIT)
+
+Copyright (c) .NET Foundation and Contributors
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────
+  FFmpeg
+  https://ffmpeg.org/legal.html
+────────────────────────────────────────────────────────────────────
+
+GNU LESSER GENERAL PUBLIC LICENSE
+Version 2.1, February 1999
+
+Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
+
+[This is the first released version of the Lesser GPL. It also counts
+ as the successor of the GNU Library Public License, version 2, hence
+ the version number 2.1.]
+
+                            Preamble
+
+  The licenses for most software are designed to take away your
+freedom to share and change it. By contrast, the GNU General Public
+Licenses are intended to guarantee your freedom to share and change
+free software--to make sure the software is free for all its users.
+
+  This license, the Lesser General Public License, applies to some
+specially designated software packages--typically libraries--of the
+Free Software Foundation and other authors who decide to use it. You
+can use it too, but we suggest you first think carefully about whether
+this license or the ordinary General Public License is the better
+strategy to use in any particular case, based on the explanations below.
+
+  When we speak of free software, we are referring to freedom of use,
+not price. Our General Public Licenses are designed to make sure that
+you have the freedom to distribute copies of free software (and charge
+for this service if you wish); that you receive source code or can get
+it if you want it; that you can change the software and use pieces of
+it in new free programs; and that you are informed that you can do
+these things.
+
+  To protect your rights, we need to make restrictions that forbid
+distributors to deny you these rights or to ask you to surrender these
+rights. These restrictions translate to certain responsibilities for
+you if you distribute copies of the library or if you modify it.
+
+  For the full text of the LGPL v2.1, please visit:
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg
+project. This software uses FFmpeg libraries under the LGPL.
+
+
+────────────────────────────────────────────────────────────────────
+  Piper TTS
+  https://github.com/rhasspy/piper
+────────────────────────────────────────────────────────────────────
+
+MIT License
+
+Copyright (c) 2023 Michael Hansen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────
+  OpenStreetMap
+  https://www.openstreetmap.org/copyright
+────────────────────────────────────────────────────────────────────
+
+Open Data Commons Open Database License (ODbL) v1.0
+
+Copyright (c) OpenStreetMap contributors
+
+This is a human-readable summary of the ODbL 1.0 license. Please
+see https://opendatacommons.org/licenses/odbl/1-0/ for the full text.
+
+You are free:
+  - To share: To copy, distribute and use the database.
+  - To create: To produce works from the database.
+  - To adapt: To modify, transform and build upon the database.
+
+As long as you:
+  - Attribute: You must attribute any public use of the database,
+    or works produced from the database, in the manner specified
+    in the ODbL. For any use or redistribution of the database,
+    or works produced from it, you must make clear to others the
+    license of the database and keep intact any notices on the
+    original database.
+  - Share-Alike: If you publicly use any adapted version of this
+    database, or works produced from an adapted database, you must
+    also offer that adapted database under the ODbL.
+  - Keep open: If you redistribute the database, or an adapted
+    version of it, then you may use technological measures that
+    restrict the work (such as DRM) as long as you also
+    redistribute a version without such measures.
+
+Full license: https://opendatacommons.org/licenses/odbl/1-0/
+
+
+────────────────────────────────────────────────────────────────────
+  OpenTopoMap
+  https://opentopomap.org/
+────────────────────────────────────────────────────────────────────
+
+Map data: (c) OpenStreetMap contributors, SRTM
+  Licensed under the Open Data Commons Open Database License (ODbL)
+  See OpenStreetMap license section above.
+
+Map style/rendering: (c) OpenTopoMap
+  Licensed under Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA 3.0)
+
+You are free to:
+  - Share: copy and redistribute the material in any medium or format.
+  - Adapt: remix, transform, and build upon the material for any
+    purpose, even commercially.
+
+Under the following terms:
+  - Attribution: You must give appropriate credit, provide a link to
+    the license, and indicate if changes were made.
+  - ShareAlike: If you remix, transform, or build upon the material,
+    you must distribute your contributions under the same license as
+    the original.
+
+Full license: https://creativecommons.org/licenses/by-sa/3.0/legalcode
+
+
+────────────────────────────────────────────────────────────────────
+  Open-Meteo API
+  https://open-meteo.com/
+────────────────────────────────────────────────────────────────────
+
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) Open-Meteo.com
+
+You are free to:
+  - Share: copy and redistribute the material in any medium or format
+    for any purpose, even commercially.
+  - Adapt: remix, transform, and build upon the material for any
+    purpose, even commercially.
+
+Under the following terms:
+  - Attribution: You must give appropriate credit, provide a link to
+    the license, and indicate if changes were made. You may do so in
+    any reasonable manner, but not in any way that suggests the
+    licensor endorses you or your use.
+  - No additional restrictions: You may not apply legal terms or
+    technological measures that legally restrict others from doing
+    anything the license permits.
+
+Full license: https://creativecommons.org/licenses/by/4.0/legalcode
+
+
+────────────────────────────────────────────────────────────────────
+  Environment and Climate Change Canada (ECCC) Weather Data
+  https://weather.gc.ca/
+────────────────────────────────────────────────────────────────────
+
+Open Government Licence - Canada
+
+You are encouraged to use the Information that is available under
+this licence with only a few conditions.
+
+Using Information under this licence:
+  - You are free to copy, modify, publish, translate, adapt,
+    distribute or otherwise use the Information in any medium,
+    mode or format for any lawful purpose.
+
+You must, where you do any of the above:
+  - Acknowledge the source of the Information by including any
+    attribution statement specified by the Information Provider(s)
+    and, where possible, provide a link to this licence.
+
+  - If the Information Provider does not provide a specific
+    attribution statement, or if you are using Information from
+    several Information Providers and multiple attributions are not
+    practical for your product or application, you must use the
+    following attribution statement:
+    ""Contains information licensed under the Open Government
+    Licence - Canada.""
+
+Full license: https://open.canada.ca/en/open-government-licence-canada
+
+
+────────────────────────────────────────────────────────────────────
+  National Weather Service (NWS) Data
+  https://www.weather.gov/
+────────────────────────────────────────────────────────────────────
+
+Public Domain - United States Government Work
+
+NWS information is in the public domain and is not subject to
+copyright protection. It may be freely distributed and copied.
+However, it is requested that in any subsequent use of NWS data,
+the NWS be acknowledged as the source of the data.
+
+Use of the NWS name (""National Weather Service"") and/or NWS logo
+is not an endorsement of any product, service, or activity, and
+should not be used in ways that imply such endorsement.
+
+
+────────────────────────────────────────────────────────────────────
+  Background Music - Kevin MacLeod (incompetech.com)
+  https://incompetech.com/
+────────────────────────────────────────────────────────────────────
+
+Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+
+Copyright (c) Kevin MacLeod (incompetech.com)
+
+You are free to:
+  - Share: copy and redistribute the material in any medium or format
+    for any purpose, even commercially.
+  - Adapt: remix, transform, and build upon the material for any
+    purpose, even commercially.
+
+Under the following terms:
+  - Attribution: You must give appropriate credit, provide a link to
+    the license, and indicate if changes were made. You may do so in
+    any reasonable manner, but not in any way that suggests the
+    licensor endorses you or your use.
+  - No additional restrictions: You may not apply legal terms or
+    technological measures that legally restrict others from doing
+    anything the license permits.
+
+Required attribution: ""Music by Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 3.0""
+
+Full license: https://creativecommons.org/licenses/by/3.0/legalcode
 ";
                 tabLicense.Controls.Add(txtLicense);
 
