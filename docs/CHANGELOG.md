@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.12.1.0221] - 2026-02-21
 
-- `Added CultureInfo.InvariantCulture usage to ensure decimal separators are periods in all locales`
+- Fixed a bug when fetching data on French windows installation cause an error of parameter not be valid.
 
 ## [1.12.0.0221] - 2026-02-21
 
