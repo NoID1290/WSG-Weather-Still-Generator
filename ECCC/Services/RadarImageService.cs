@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -121,8 +122,30 @@ namespace ECCC.Services
                 var response = await _httpClient.GetAsync(radarUrl);
                 if (response.IsSuccessStatusCode)
                 {
+                    // Check content type — WMS may return XML service exceptions with 200 OK
+                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+                    if (contentType.Contains("xml") || contentType.Contains("html"))
+                    {
+                        var body = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine($"[RadarImageService] WMS returned non-image response ({contentType}): {body.Substring(0, Math.Min(200, body.Length))}");
+                        return null;
+                    }
+
                     var data = await response.Content.ReadAsByteArrayAsync();
-                    Console.WriteLine($"[RadarImageService] Radar overlay fetched: {data?.Length ?? 0} bytes");
+                    if (data == null || data.Length == 0)
+                    {
+                        Console.WriteLine("[RadarImageService] Radar overlay response was empty");
+                        return null;
+                    }
+
+                    // Validate the data is actually a decodable image
+                    if (!IsValidImageData(data))
+                    {
+                        Console.WriteLine($"[RadarImageService] Radar overlay data ({data.Length} bytes) is not a valid image");
+                        return null;
+                    }
+
+                    Console.WriteLine($"[RadarImageService] Radar overlay fetched: {data.Length} bytes");
                     return data;
                 }
 
@@ -133,6 +156,25 @@ namespace ECCC.Services
             {
                 Console.WriteLine($"[RadarImageService] Error fetching radar overlay: {ex.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Validates that a byte array contains decodable image data.
+        /// </summary>
+        private static bool IsValidImageData(byte[] data)
+        {
+            try
+            {
+                using var ms = new MemoryStream(data);
+                using var bmp = new Bitmap(ms);
+                // Accessing Width forces full header decode
+                _ = bmp.Width;
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -380,13 +422,14 @@ namespace ECCC.Services
             string? wmsStyle = "RADARURPPRECIPR14-LINEAR",
             string? time = null)
         {
+            var bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon);
             var url = $"{ECCC_GEOMET_WMS}?" +
                    $"SERVICE=WMS&" +
                    $"VERSION=1.3.0&" +
                    $"REQUEST=GetMap&" +
                    $"LAYERS={Uri.EscapeDataString(radarLayer)}&" +
                    $"CRS=EPSG:4326&" +
-                   $"BBOX={bbox.MinLat},{bbox.MinLon},{bbox.MaxLat},{bbox.MaxLon}&" +
+                   $"BBOX={bboxStr}&" +
                    $"WIDTH={width}&" +
                    $"HEIGHT={height}&" +
                    $"FORMAT=image/png&" +

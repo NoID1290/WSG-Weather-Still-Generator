@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -278,7 +279,33 @@ namespace WeatherImageGenerator.Services
                 
                 if (response.IsSuccessStatusCode)
                 {
-                    return await response.Content.ReadAsByteArrayAsync();
+                    // Check content type — WMS may return XML service exceptions with 200 OK
+                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+                    if (contentType.Contains("xml") || contentType.Contains("html"))
+                    {
+                        var body = await response.Content.ReadAsStringAsync();
+                        Logger.Log($"[RadarAnimation] WMS returned non-image response ({contentType}): {body.Substring(0, Math.Min(200, body.Length))}", ConsoleColor.Yellow);
+                        return null;
+                    }
+
+                    var data = await response.Content.ReadAsByteArrayAsync();
+                    if (data == null || data.Length == 0)
+                        return null;
+
+                    // Validate the data is actually a decodable image
+                    try
+                    {
+                        using var ms = new MemoryStream(data);
+                        using var testBmp = new Bitmap(ms);
+                        _ = testBmp.Width;
+                    }
+                    catch
+                    {
+                        Logger.Log($"[RadarAnimation] Radar response ({data.Length} bytes) is not valid image data", ConsoleColor.Yellow);
+                        return null;
+                    }
+
+                    return data;
                 }
                 else
                 {
@@ -304,7 +331,8 @@ namespace WeatherImageGenerator.Services
             string time)
         {
             // WMS 1.3.0 uses lat,lon order for EPSG:4326
-            var bboxStr = $"{bbox.MinLat},{bbox.MinLon},{bbox.MaxLat},{bbox.MaxLon}";
+            // Use InvariantCulture to ensure periods as decimal separators in all locales
+            var bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon);
             
             return $"{ECCC_GEOMET_WMS}?" +
                    $"SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap" +

@@ -62,7 +62,7 @@ namespace WeatherImageGenerator.Services
         /// <param name="language">Language code: "e" for English, "f" for French</param>
         /// <returns>The constructed alerts RSS feed URL</returns>
         public static string BuildAlertsUrl(double latitude, double longitude, string language = "f")
-            => $"{BaseWeatherUrl}/rss/alerts/{latitude:F3}_{longitude:F3}_{language}.xml";
+            => string.Format(CultureInfo.InvariantCulture, "{0}/rss/alerts/{1:F3}_{2:F3}_{3}.xml", BaseWeatherUrl, latitude, longitude, language);
         
         /// <summary>
         /// Builds a dynamic WMS URL for any GeoMet layer.
@@ -84,10 +84,11 @@ namespace WeatherImageGenerator.Services
             string? time = null,
             string crs = "EPSG:4326")
         {
+            var bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon);
             var url = $"{BaseGeoMetUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap" +
                       $"&LAYERS={Uri.EscapeDataString(layer)}" +
                       $"&CRS={crs}" +
-                      $"&BBOX={bbox.MinLat},{bbox.MinLon},{bbox.MaxLat},{bbox.MaxLon}" +
+                      $"&BBOX={bboxStr}" +
                       $"&WIDTH={width}&HEIGHT={height}" +
                       $"&FORMAT={Uri.EscapeDataString(format)}";
             
