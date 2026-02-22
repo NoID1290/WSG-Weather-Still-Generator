@@ -56,6 +56,12 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             GL.Uniform1(loc, value);
         }
 
+        public void SetBool(string name, bool value)
+        {
+            var loc = GL.GetUniformLocation(Handle, name);
+            GL.Uniform1(loc, value ? 1 : 0);
+        }
+
         public void SetMatrix3(string name, float[] mat3)
         {
             var loc = GL.GetUniformLocation(Handle, name);
@@ -66,6 +72,30 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         {
             var loc = GL.GetUniformLocation(Handle, name);
             GL.Uniform1(loc, value);
+        }
+
+        public void SetVec2(string name, float x, float y)
+        {
+            var loc = GL.GetUniformLocation(Handle, name);
+            GL.Uniform2(loc, x, y);
+        }
+
+        public void SetVec3(string name, float x, float y, float z)
+        {
+            var loc = GL.GetUniformLocation(Handle, name);
+            GL.Uniform3(loc, x, y, z);
+        }
+
+        public void SetVec4(string name, float x, float y, float z, float w)
+        {
+            var loc = GL.GetUniformLocation(Handle, name);
+            GL.Uniform4(loc, x, y, z, w);
+        }
+
+        public void SetMatrix4(string name, float[] mat4)
+        {
+            var loc = GL.GetUniformLocation(Handle, name);
+            GL.UniformMatrix4(loc, 1, false, mat4);
         }
 
         public void Dispose()

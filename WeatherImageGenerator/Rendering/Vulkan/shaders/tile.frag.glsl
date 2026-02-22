@@ -5,44 +5,47 @@ layout(location=1) in vec2 vScreenPos;
 
 layout(location=0) out vec4 FragColor;
 
-layout(set=0, binding=1) uniform sampler2D uTexture;
-layout(set=0, binding=2) uniform TileParams {
+layout(set=0, binding=0) uniform sampler2D uTexture;
+
+layout(push_constant) uniform PC {
+    vec4 row0;
+    vec4 row1;
+    vec4 row2;
     float uOpacity;
     float uZoomNorm;
-    bool uEnableSaturation;
-    bool uEnableContrast;
-    bool uEnableVignette;
-    bool uEnableAtmosphere;
-};
+    float uEnableSaturation;
+    float uEnableContrast;
+    float uEnableVignette;
+    float uEnableAtmosphere;
+} pc;
 
 void main() {
     vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
     vec4 c = texture(uTexture, uv);
-    float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
-
+    float opacity = pc.uOpacity > 0.0 ? pc.uOpacity : 1.0;
     vec3 result = c.rgb;
 
     // --- Saturation boost (12%) ---
-    if (uEnableSaturation) {
+    if (pc.uEnableSaturation > 0.5) {
         float luma = dot(result, vec3(0.2126, 0.7152, 0.0722));
         result = mix(vec3(luma), result, 1.12);
     }
 
     // --- Mild contrast curve ---
-    if (uEnableContrast) {
+    if (pc.uEnableContrast > 0.5) {
         result = smoothstep(vec3(-0.01), vec3(1.01), result);
     }
 
     // --- Screen-space vignette ---
-    if (uEnableVignette) {
+    if (pc.uEnableVignette > 0.5) {
         float dist = length(vScreenPos);
         float vignette = smoothstep(1.6, 0.4, dist);
         result *= mix(0.55, 1.0, vignette);
     }
 
     // --- Atmospheric tint at low zoom ---
-    if (uEnableAtmosphere) {
-        float atmoFactor = smoothstep(0.0, 1.0, 1.0 - clamp(uZoomNorm, 0.0, 1.0)) * 0.10;
+    if (pc.uEnableAtmosphere > 0.5) {
+        float atmoFactor = smoothstep(0.0, 1.0, 1.0 - clamp(pc.uZoomNorm, 0.0, 1.0)) * 0.10;
         result = mix(result, vec3(0.30, 0.40, 0.55), atmoFactor);
     }
 

@@ -5,17 +5,21 @@ layout(location=1) in vec2 vScreenPos;
 
 layout(location=0) out vec4 FragColor;
 
-layout(set=0, binding=1) uniform sampler2D uTexture;
-layout(set=0, binding=2) uniform WeatherOverlayParams {
+layout(set=0, binding=0) uniform sampler2D uTexture;
+
+layout(push_constant) uniform PC {
+    vec4 row0;
+    vec4 row1;
+    vec4 row2;
     float uOpacity;
     float uTime;
-    bool uEnableGlow;
-};
+    float uEnableGlow;
+} pc;
 
 void main() {
     vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
     vec4 c = texture(uTexture, uv);
-    float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
+    float opacity = pc.uOpacity > 0.0 ? pc.uOpacity : 1.0;
 
     // --- Smooth alpha edge blend ---
     float edgeFade = 1.0;
@@ -25,7 +29,7 @@ void main() {
 
     vec3 finalColor = c.rgb;
 
-    if (uEnableGlow) {
+    if (pc.uEnableGlow > 0.5) {
         vec2 texelSize = 1.0 / vec2(textureSize(uTexture, 0));
         float bloomScale = 2.5;
         float selfIntensity = dot(c.rgb, vec3(0.299, 0.587, 0.114));
@@ -41,9 +45,7 @@ void main() {
         finalColor = mix(c.rgb, glowTint, step(0.05, selfIntensity));
     }
 
-    // --- sRGB gamma-correct output ---
     finalColor = pow(finalColor, vec3(1.0 / 1.05));
-
     float finalAlpha = c.a * opacity * edgeFade;
     FragColor = vec4(finalColor, finalAlpha);
 }

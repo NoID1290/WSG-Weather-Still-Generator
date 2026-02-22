@@ -4,10 +4,14 @@ layout(location=0) in vec2 vTex;
 
 layout(location=0) out vec4 FragColor;
 
-layout(set=0, binding=1) uniform sampler2D uTexture;
-layout(set=0, binding=2) uniform FragParams {
+layout(set=0, binding=0) uniform sampler2D uTexture;
+
+layout(push_constant) uniform PC {
+    vec4 row0;
+    vec4 row1;
+    vec4 row2;
     float uOpacity;
-};
+} pc;
 
 // Enhanced 6-stop radar palette
 vec3 palette(float t) {
@@ -24,7 +28,7 @@ void main() {
     vec4 tex = texture(uTexture, uv);
 
     float intensity = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
-    float alpha = tex.a * uOpacity * smoothstep(0.015, 0.06, intensity);
+    float alpha = tex.a * pc.uOpacity * smoothstep(0.015, 0.06, intensity);
 
     vec3 color = palette(intensity);
 
@@ -46,6 +50,5 @@ void main() {
     color = mix(color, color + glowColor * glowFactor, step(0.04, intensity));
 
     color = pow(color, vec3(0.95));
-
     FragColor = vec4(color, alpha);
 }

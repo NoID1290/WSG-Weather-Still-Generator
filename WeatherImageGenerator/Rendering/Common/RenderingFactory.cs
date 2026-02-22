@@ -15,15 +15,11 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <exception cref="NotSupportedException">Thrown if the backend is not yet implemented.</exception>
         public static IMapRenderer CreateMapRenderer(RenderingApi api)
         {
-            if (api == RenderingApi.Vulkan || api == RenderingApi.DirectX11)
-            {
-                Console.WriteLine($"[RenderingFactory] {api} backend is not yet implemented. Falling back to OpenGL.");
-                return CreateOpenGLRenderer();
-            }
-
             return api switch
             {
                 RenderingApi.OpenGL => CreateOpenGLRenderer(),
+                RenderingApi.Vulkan => CreateVulkanRenderer(),
+                RenderingApi.DirectX11 => CreateDirectXRenderer(),
                 _ => throw new NotSupportedException($"Unknown rendering API: {api}")
             };
         }
@@ -33,15 +29,11 @@ namespace WeatherImageGenerator.Rendering.Common
         /// </summary>
         public static IHudRenderer CreateHudRenderer(RenderingApi api)
         {
-            if (api == RenderingApi.Vulkan || api == RenderingApi.DirectX11)
-            {
-                Console.WriteLine($"[RenderingFactory] {api} HUD renderer is not yet implemented. Falling back to OpenGL.");
-                return CreateOpenGLHudRenderer();
-            }
-
             return api switch
             {
                 RenderingApi.OpenGL => CreateOpenGLHudRenderer(),
+                RenderingApi.Vulkan => CreateVulkanHudRenderer(),
+                RenderingApi.DirectX11 => CreateDirectXHudRenderer(),
                 _ => throw new NotSupportedException($"Unknown rendering API: {api}")
             };
         }
@@ -128,14 +120,54 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private static bool CheckVulkanAvailability()
         {
-            // Vulkan backend is not yet implemented
-            return false;
+            try
+            {
+                var vk = Silk.NET.Vulkan.Vk.GetApi();
+                uint count = 0;
+                unsafe { vk.EnumeratePhysicalDevices(default, &count, null); }
+                vk.Dispose();
+                // If we got here without throwing, the Vulkan loader is present.
+                // count==0 means no GPU, but that's checked at init time.
+                return count > 0;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
-        private static bool CheckDirectXAvailability()
+        private static unsafe bool CheckDirectXAvailability()
         {
-            // DirectX 11 backend is not yet implemented
-            return false;
+            try
+            {
+                // Probe for D3D11 device creation to verify driver support
+                var d3d11 = Silk.NET.Direct3D11.D3D11.GetApi();
+                Silk.NET.Core.Native.D3DFeatureLevel level;
+                var levels = new[] { Silk.NET.Core.Native.D3DFeatureLevel.Level110 };
+                Silk.NET.Direct3D11.ID3D11Device* pDevice = null;
+                Silk.NET.Direct3D11.ID3D11DeviceContext* pCtx = null;
+                fixed (Silk.NET.Core.Native.D3DFeatureLevel* pLevels = levels)
+                {
+                    int hr = d3d11.CreateDevice(
+                        (Silk.NET.DXGI.IDXGIAdapter*)null,
+                        Silk.NET.Core.Native.D3DDriverType.Hardware,
+                        0, 0,
+                        pLevels, 1,
+                        Silk.NET.Direct3D11.D3D11.SdkVersion,
+                        &pDevice, &level, &pCtx);
+                    if (hr >= 0)
+                    {
+                        if (pCtx != null) pCtx->Release();
+                        if (pDevice != null) pDevice->Release();
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }
