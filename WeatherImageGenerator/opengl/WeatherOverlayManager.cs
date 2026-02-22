@@ -803,6 +803,19 @@ namespace WeatherImageGenerator.OpenGL
 
                     if (data != null && data.Length > 0)
                     {
+                        // Validate that the data is a decodable image before adding
+                        try
+                        {
+                            using var ms = new MemoryStream(data);
+                            using var testBmp = new Bitmap(ms);
+                            _ = testBmp.Width; // Force header decode
+                        }
+                        catch
+                        {
+                            Console.WriteLine($"[WeatherOverlay] Frame for {time} contains invalid image data ({data.Length} bytes), skipping");
+                            continue;
+                        }
+
                         frames.Add(data);
                         validTimestamps.Add(time);
                         Console.WriteLine($"[WeatherOverlay] Frame {frames.Count}/{timestamps.Count}: {time} ({data.Length} bytes)");

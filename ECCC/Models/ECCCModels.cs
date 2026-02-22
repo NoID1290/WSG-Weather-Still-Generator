@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace ECCC.Models
 {
@@ -141,7 +142,7 @@ namespace ECCC.Models
         
         /// <summary>Gets the ECCC alerts feed URL based on coordinates</summary>
         public string GetAlertsFeedUrl(string language = "f") 
-            => $"https://weather.gc.ca/rss/alerts/{Latitude:F3}_{Longitude:F3}_{language}.xml";
+            => string.Format(CultureInfo.InvariantCulture, "https://weather.gc.ca/rss/alerts/{0:F3}_{1:F3}_{2}.xml", Latitude, Longitude, language);
         
         /// <summary>Indicates if this city uses coordinate-based feed only (no city-specific RSS)</summary>
         public bool IsCoordinateBased => CityCode == "coord" || string.IsNullOrEmpty(CityCode);

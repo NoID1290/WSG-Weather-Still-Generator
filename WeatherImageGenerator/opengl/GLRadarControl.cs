@@ -1531,9 +1531,16 @@ void main() {
                 return;
             }
 
-            using var ms = new MemoryStream(data);
-            using var bmp = new Bitmap(ms);
-            ProcessIncomingBitmap(bmp, sourceCenterLat, sourceCenterLon, sourceZoom);
+            try
+            {
+                using var ms = new MemoryStream(data);
+                using var bmp = new Bitmap(ms);
+                ProcessIncomingBitmap(bmp, sourceCenterLat, sourceCenterLon, sourceZoom);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Invalid image data ({data?.Length ?? 0} bytes): {ex.Message}");
+            }
         }
         
         // Bounding-box-aware overload — bbox defines geographic extent of overlay
@@ -1545,9 +1552,16 @@ void main() {
                 return;
             }
 
-            using var ms = new MemoryStream(data);
-            using var bmp = new Bitmap(ms);
-            ProcessIncomingBitmapWithBBox(bmp, minLat, minLon, maxLat, maxLon, sourceZoom);
+            try
+            {
+                using var ms = new MemoryStream(data);
+                using var bmp = new Bitmap(ms);
+                ProcessIncomingBitmapWithBBox(bmp, minLat, minLon, maxLat, maxLon, sourceZoom);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Invalid image data ({data?.Length ?? 0} bytes): {ex.Message}");
+            }
         }
 
 
