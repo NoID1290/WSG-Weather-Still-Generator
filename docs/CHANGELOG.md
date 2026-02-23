@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0.0223] - 2026-02-23
+
+- Added DirectX11 API, Settings forms refractor
+- Refactor Settings Forms
+- Fix HUD text symbol
+- Fix DirectX rendering overlay
+- Implement DirectX and Vulkan rendering pipeline DirectX show his first output Vulkan still no output
+- Update CHANGELOG.md
+- Rendering API Abstraction with Vulkan & DirectX Backends
+
 ## [1.12.1.0221] - 2026-02-21
 
 - Fixed a bug when fetching data on French windows installation cause an error of parameter not be valid.
