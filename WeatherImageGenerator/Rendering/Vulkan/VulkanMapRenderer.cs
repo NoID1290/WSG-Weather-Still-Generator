@@ -185,6 +185,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         // IMapRenderer properties
         // ═══════════════════════════════════════════════════════════════════
         public Control HostControl => _hostPanel;
+        public RenderingApi ActiveApi => RenderingApi.Vulkan;
         public HudSystem? HudSystem { get; set; }
         public string HudStatusBarText { get; set; } = "";
         public string HudAttributionText { get; set; } = "";

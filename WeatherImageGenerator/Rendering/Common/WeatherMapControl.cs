@@ -1509,7 +1509,8 @@ namespace WeatherImageGenerator.Rendering.Common
                 // FPS
                 int fps = (int)Math.Round(_glControl.CurrentFps);
 
-                string statusText = $"{coord} | {zoom} | Cache:{cache} | RAM:{ram} | VRAM:{vram} | {res} | {fps}fps";
+                string apiName = RenderingFactory.ToConfigString(_glControl.ActiveApi);
+                string statusText = $"{coord} | {zoom} | Cache:{cache} | RAM:{ram} | VRAM:{vram} | {res} | {fps}fps | {apiName}";
 
                 _glControl.HudStatusBarText = statusText;
             }

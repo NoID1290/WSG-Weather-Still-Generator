@@ -139,6 +139,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
         // IMapRenderer properties
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         public Control HostControl => _hostPanel;
+        public RenderingApi ActiveApi => RenderingApi.DirectX11;
         public HudSystem? HudSystem { get; set; }
         public string HudStatusBarText { get; set; } = "";
         public string HudAttributionText { get; set; } = "";

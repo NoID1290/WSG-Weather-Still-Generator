@@ -25,6 +25,9 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <summary>The WinForms Control that hosts the rendered viewport.</summary>
         Control HostControl { get; }
 
+        /// <summary>The rendering API backend used by this renderer.</summary>
+        RenderingApi ActiveApi { get; }
+
         // ═══════════════════════════════════════════════════════════════════
         // HUD system
         // ═══════════════════════════════════════════════════════════════════

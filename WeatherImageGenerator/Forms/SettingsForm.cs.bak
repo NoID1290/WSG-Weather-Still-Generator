@@ -2,11 +2,9 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using WeatherImageGenerator.Models;
-using WeatherImageGenerator.Rendering.Common;
 using WeatherImageGenerator.Services;
 using WeatherImageGenerator.Utilities;
 
@@ -15,9 +13,7 @@ namespace WeatherImageGenerator.Forms
     public class SettingsForm : Form
     {
         private bool _isLoadingSettings = false;
-        private int _previousRenderApiIndex = 0;
-        private bool _dx11Available = false;
-
+        
         // UI Style — delegates to ThemeManager so every usage is theme-aware
         private static Color AccentColor => ThemeManager.Current.Accent;
         private static Color AccentColorLight => ControlPaint.Light(ThemeManager.Current.Accent, 0.15f);
@@ -34,72 +30,42 @@ namespace WeatherImageGenerator.Forms
         private static readonly Font LabelFont = new Font("Segoe UI", 9.5F);
         private static readonly Font SmallFont = new Font("Segoe UI", 8.5F);
         private static readonly Font HelpFont = new Font("Segoe UI", 8F, FontStyle.Italic);
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — General
-        // ═══════════════════════════════════════════════════════════════════
+        
+        // Controls
         TextBox txtImageOutputDir;
         TextBox txtVideoOutputDir;
+        NumericUpDown numStatic;
+        NumericUpDown numFade;
+        CheckBox chkFade;
+        CheckBox chkUseTotalDuration;
+        NumericUpDown numTotalDuration;
         NumericUpDown numRefresh;
         ComboBox cmbTheme;
-        ComboBox cmbDefaultWeatherApi;
-        CheckBox chkMinimizeToTray;
-        CheckBox chkMinimizeToTrayOnClose;
-        CheckBox chkAutoStartCycle;
-        CheckBox chkStartWithWindows;
-        CheckBox chkStartMinimizedToTray;
-
-        // Controls — Version & Updates
-        Label lblCurrentVersion;
-        Label lblLatestVersion;
-        Label lblUpdateStatus;
-        Button btnCheckForUpdates;
-        Button btnDownloadUpdate;
-        ProgressBar _updateProgressBar;
-        Label lblUpdateProgress;
-        CheckBox chkAutoUpdate;
-        string _pendingDownloadUrl;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — Image
-        // ═══════════════════════════════════════════════════════════════════
         NumericUpDown numImgWidth;
         NumericUpDown numImgHeight;
         ComboBox cmbImgFormat;
-        ComboBox cmbFontFamily;
+        ComboBox cmbResolution;
         CheckBox chkEnableProvinceRadar;
         CheckBox chkEnableWeatherMaps;
+        ComboBox cmbFontFamily;
         PictureBox _alertPreviewPanel;
         PictureBox _weatherPreviewPanel;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — Video
-        // ═══════════════════════════════════════════════════════════════════
-        CheckBox chkVideoGeneration;
-        CheckBox chkSkipDetailedWeatherOnAlert;
-        NumericUpDown numPlayRadarAnimationCountOnAlert;
-        NumericUpDown numAlertDisplayDurationSeconds;
-        ComboBox cmbQualityPreset;
-        ComboBox cmbResolution;
-        ComboBox cmbContainer;
-        NumericUpDown numFps;
-        NumericUpDown numStatic;
-        NumericUpDown numTotalDuration;
-        CheckBox chkUseTotalDuration;
-        NumericUpDown numFade;
-        CheckBox chkFade;
         ComboBox cmbCodec;
         ComboBox cmbBitrate;
-        CheckBox chkEnableHardwareEncoding;
-        Label lblHwStatus;
-        Button btnCheckHw;
+        ComboBox cmbQualityPreset;
+        NumericUpDown numFps;
+        ComboBox cmbContainer;
+        CheckBox chkVideoGeneration;
         CheckBox chkVerbose;
         CheckBox chkShowFfmpeg;
+        CheckBox chkEnableHardwareEncoding;
         CheckBox chkEnableExperimental;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — FFmpeg
-        // ═══════════════════════════════════════════════════════════════════
+        TabPage tabExperimental;
+        CheckBox chkUseCrfEncoding;
+        NumericUpDown numCrf;
+        ComboBox cmbEncoderPreset;
+        TextBox txtMaxBitrate;
+        TextBox txtBufferSize;
         ComboBox cmbFfmpegSource;
         TextBox txtFfmpegCustomPath;
         Button btnBrowseFfmpegPath;
@@ -107,20 +73,14 @@ namespace WeatherImageGenerator.Forms
         Button btnValidateFfmpeg;
         Button btnClearFfmpegCache;
         Button btnDownloadBundled;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — Advanced Encoding (Experimental)
-        // ═══════════════════════════════════════════════════════════════════
-        Panel _experimentalSection;
-        CheckBox chkUseCrfEncoding;
-        NumericUpDown numCrf;
-        ComboBox cmbEncoderPreset;
-        TextBox txtMaxBitrate;
-        TextBox txtBufferSize;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — EAS / TTS
-        // ═══════════════════════════════════════════════════════════════════
+        CheckBox chkMinimizeToTray;
+        CheckBox chkMinimizeToTrayOnClose;
+        CheckBox chkAutoStartCycle;
+        CheckBox chkStartWithWindows;
+        CheckBox chkStartMinimizedToTray;
+        ComboBox cmbDefaultWeatherApi;
+        Label lblHwStatus;
+        Button btnCheckHw;
         CheckBox chkAlertReadyEnabled;
         TextBox txtAlertReadyFeedUrls;
         CheckBox chkAlertReadyIncludeTests;
@@ -139,18 +99,12 @@ namespace WeatherImageGenerator.Forms
         TextBox txtNwsSeverityFilter;
         TextBox txtNwsUserAgent;
         NumericUpDown numNwsPollingInterval;
-        ComboBox cmbTtsEngine;
         ComboBox cmbTtsVoice;
         TextBox txtTtsRate;
         TextBox txtTtsPitch;
+        ComboBox cmbTtsEngine;
         ComboBox cmbPiperVoice;
         NumericUpDown numPiperLengthScale;
-        Control[] _edgeTtsControls;
-        Control[] _piperTtsControls;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — Map / OpenMap
-        // ═══════════════════════════════════════════════════════════════════
         ComboBox cmbMapStyle;
         NumericUpDown numMapZoomLevel;
         TextBox txtMapBackgroundColor;
@@ -159,12 +113,6 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkMapEnableCache;
         TextBox txtMapCacheDirectory;
         NumericUpDown numMapCacheDuration;
-        CheckBox chkMapUseDarkMode;
-        ComboBox cmbRenderApi;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Controls — Web UI / Network
-        // ═══════════════════════════════════════════════════════════════════
         CheckBox chkWebUIEnabled;
         NumericUpDown numWebUIPort;
         CheckBox chkWebUIAllowRemote;
@@ -173,10 +121,11 @@ namespace WeatherImageGenerator.Forms
         TextBox txtWebUIUrl;
         Label lblLocalIP;
         Label lblPublicIP;
-
-        // ═══════════════════════════════════════════════════════════════════
-        // Constructor
-        // ═══════════════════════════════════════════════════════════════════
+        CheckBox chkMapUseDarkMode;
+        ComboBox cmbRenderApi;
+        CheckBox chkSkipDetailedWeatherOnAlert;
+        NumericUpDown numPlayRadarAnimationCountOnAlert;
+        NumericUpDown numAlertDisplayDurationSeconds;
 
         public SettingsForm()
         {
@@ -192,7 +141,6 @@ namespace WeatherImageGenerator.Forms
             this.Text = "⚙ Settings";
             this.Width = 1024;
             this.Height = 850;
-            this.MinimumSize = new Size(900, 700);
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = false;
             this.MinimizeBox = true;
@@ -203,7 +151,7 @@ namespace WeatherImageGenerator.Forms
         }
 
         #region UI Helper Methods
-
+        
         private Panel CreateCard(int x, int y, int width, int height)
         {
             return new Panel
@@ -430,10 +378,6 @@ namespace WeatherImageGenerator.Forms
 
         #endregion
 
-        // ═══════════════════════════════════════════════════════════════════
-        // Build UI — 5 consolidated tabs
-        // ═══════════════════════════════════════════════════════════════════
-
         private void BuildUI()
         {
             var tabControl = new TabControl
@@ -444,17 +388,22 @@ namespace WeatherImageGenerator.Forms
                 Padding = new Point(12, 6)
             };
 
+            // Build all tabs
             var tabGeneral = BuildGeneralTab();
-            var tabOutput = BuildOutputTab();
-            var tabMap = BuildMapTab();
-            var tabAlerts = BuildAlertsTab();
-            var tabNetwork = BuildNetworkTab();
+            var tabImage = BuildImageTab();
+            var tabVideo = BuildVideoTab();
+            var tabFfmpeg = BuildFfmpegTab();
+            var tabOpenMap = BuildOpenMapTab();
+            var tabEas = BuildEasTab();
+            var tabWebUI = BuildWebUITab();
+            tabExperimental = BuildExperimentalTab();
 
-            tabControl.TabPages.AddRange(new TabPage[] {
-                tabGeneral, tabOutput, tabMap, tabAlerts, tabNetwork
+            tabControl.TabPages.AddRange(new TabPage[] { 
+                tabGeneral, tabImage, tabVideo, tabFfmpeg, 
+                tabOpenMap, tabEas, tabWebUI, tabExperimental 
             });
 
-            // Footer buttons
+            // Footer buttons — anchored to bottom-right of form
             var btnSave = CreateSuccessButton("✔ Save Settings", 650, 735, 150, 40);
             btnSave.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             btnSave.Click += (s, e) => SaveClicked();
@@ -468,8 +417,7 @@ namespace WeatherImageGenerator.Forms
             this.Controls.Add(btnCancel);
 
             // Position form relative to owner
-            this.Shown += (s, e) =>
-            {
+            this.Shown += (s, e) => {
                 if (this.Owner != null)
                 {
                     this.Location = new Point(
@@ -482,19 +430,15 @@ namespace WeatherImageGenerator.Forms
 
         #region Tab Builders
 
-        // ═══════════════════════════════════════════════════════════════════
-        // Tab 1: General (+ Version & Updates)
-        // ═══════════════════════════════════════════════════════════════════
-
         private TabPage BuildGeneralTab()
         {
-            var tab = new TabPage("General") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            var tab = new TabPage("⚙ General") { BackColor = BackgroundColor, Padding = new Padding(20) };
             int y = 15;
             int labelX = 20;
             int fieldX = 200;
             int rowHeight = 38;
 
-            // ── Application Settings ──
+            // Application Settings Section
             var lblAppSettings = CreateSectionHeader("Application Settings", labelX, y, "🔧");
             y += 35;
 
@@ -516,10 +460,11 @@ namespace WeatherImageGenerator.Forms
             var lblDefaultApiHelp = CreateHelpLabel("Default API for all locations", fieldX + 190, y + 2, 220);
             y += rowHeight;
 
+            // Divider
             var divider1 = CreateDivider(labelX, y + 5, 700);
             y += 25;
 
-            // ── Output Directories ──
+            // Output Directories Section
             var lblOutputDirs = CreateSectionHeader("Output Directories", labelX, y, "📁");
             y += 35;
 
@@ -535,10 +480,11 @@ namespace WeatherImageGenerator.Forms
             btnBrowseVid.Click += (s, e) => BrowseClicked(txtVideoOutputDir);
             y += rowHeight;
 
+            // Divider
             var divider2 = CreateDivider(labelX, y + 5, 700);
             y += 25;
 
-            // ── System Tray & Startup ──
+            // System Tray Section
             var lblTraySettings = CreateSectionHeader("System Tray & Startup", labelX, y, "💻");
             y += 35;
 
@@ -558,75 +504,12 @@ namespace WeatherImageGenerator.Forms
             chkStartMinimizedToTray.ForeColor = TextMutedColor;
             chkStartMinimizedToTray.Tag = "muted";
             chkStartMinimizedToTray.Enabled = false;
-
-            chkStartWithWindows.CheckedChanged += (s, e) =>
-            {
+            
+            chkStartWithWindows.CheckedChanged += (s, e) => {
                 chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked;
                 chkStartMinimizedToTray.ForeColor = chkStartWithWindows.Checked ? TextColor : TextMutedColor;
                 chkStartMinimizedToTray.Tag = chkStartWithWindows.Checked ? null : "muted";
             };
-            y += 40;
-
-            var divider3 = CreateDivider(labelX, y + 5, 700);
-            y += 25;
-
-            // ── Version & Updates ──
-            var lblUpdateSection = CreateSectionHeader("Version & Updates", labelX, y, "🔄");
-            y += 35;
-
-            var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-            var currentVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                                 ?? asm.GetName().Version?.ToString() ?? "Unknown";
-
-            lblCurrentVersion = new Label
-            {
-                Text = $"Current Version:  {currentVersion}",
-                Left = labelX, Top = y, Width = 500, Height = 24,
-                Font = SubHeaderFont, ForeColor = TextColor, AutoSize = false
-            };
-            y += 30;
-
-            lblLatestVersion = new Label
-            {
-                Text = "Latest Version:  Checking...",
-                Left = labelX, Top = y, Width = 500, Height = 24,
-                Font = LabelFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
-            };
-            y += 28;
-
-            lblUpdateStatus = new Label
-            {
-                Text = "",
-                Left = labelX, Top = y, Width = 500, Height = 24,
-                Font = new Font("Segoe UI", 9F, FontStyle.Italic),
-                ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
-            };
-            y += 35;
-
-            btnCheckForUpdates = CreatePrimaryButton("🔍 Check for Updates", labelX, y, 175, 32);
-            btnCheckForUpdates.Click += async (s, e) => await CheckForUpdatesInSettingsAsync();
-
-            btnDownloadUpdate = CreateSuccessButton("⬇ Download & Install", labelX + 190, y, 175, 32);
-            btnDownloadUpdate.Visible = false;
-            btnDownloadUpdate.Enabled = false;
-            btnDownloadUpdate.Click += async (s, e) => await DownloadAndInstallFromSettingsAsync();
-
-            _updateProgressBar = new ProgressBar
-            {
-                Left = labelX, Top = y + 40, Width = 365, Height = 18,
-                Visible = false, Style = ProgressBarStyle.Continuous
-            };
-
-            lblUpdateProgress = new Label
-            {
-                Text = "", Left = labelX, Top = y + 62, Width = 365, Height = 20,
-                Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted",
-                Visible = false, AutoSize = false
-            };
-            y += 38;
-
-            chkAutoUpdate = CreateCheckBox("Check for updates on startup", labelX, y, 300);
-            y += 30;
 
             tab.Controls.AddRange(new Control[] {
                 lblAppSettings, lblRefresh, numRefresh, lblRefreshUnit,
@@ -636,32 +519,22 @@ namespace WeatherImageGenerator.Forms
                 lblOutputDirs, lblOutImg, txtImageOutputDir, btnBrowseImg,
                 lblOutVid, txtVideoOutputDir, btnBrowseVid, divider2,
                 lblTraySettings, chkMinimizeToTray, chkMinimizeToTrayOnClose,
-                chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray,
-                divider3,
-                lblUpdateSection, lblCurrentVersion, lblLatestVersion, lblUpdateStatus,
-                btnCheckForUpdates, btnDownloadUpdate, _updateProgressBar, lblUpdateProgress,
-                chkAutoUpdate
+                chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray
             });
 
             return tab;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // Tab 2: Output (Image + Video + FFmpeg + Advanced Encoding)
-        // ═══════════════════════════════════════════════════════════════════
-
-        private TabPage BuildOutputTab()
+        private TabPage BuildImageTab()
         {
-            var tab = new TabPage("Output") { BackColor = BackgroundColor, Padding = new Padding(15), AutoScroll = true };
-            int y = 10;
+            var tab = new TabPage("🖼 Image") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            int y = 15;
             int labelX = 20;
             int fieldX = 200;
             int rowHeight = 38;
 
-            // ═════════════════════════════════════════════
-            // IMAGE GENERATION
-            // ═════════════════════════════════════════════
-            var lblImgSettings = CreateSectionHeader("Image Generation", labelX, y, "🎨");
+            // Image Settings Section
+            var lblImgSettings = CreateSectionHeader("Image Generation Settings", labelX, y, "🎨");
             y += 35;
 
             var lblImgSize = CreateLabel("Resolution (W × H):", labelX, y);
@@ -695,82 +568,109 @@ namespace WeatherImageGenerator.Forms
             }
             y += rowHeight;
 
+            // Divider
+            var divider1 = CreateDivider(labelX, y + 5, 700);
+            y += 25;
+
+            // Features Section
+            var lblFeatures = CreateSectionHeader("Image Features", labelX, y, "✨");
+            y += 35;
+
             chkEnableProvinceRadar = CreateCheckBox("Enable Province Radar Animation", labelX, y, 300);
-            y += 28;
+            y += 30;
 
             chkEnableWeatherMaps = CreateCheckBox("Enable Weather Maps Generation", labelX, y, 300);
-            y += 32;
+            y += 35;
 
-            var btnRegenIcons = CreateSecondaryButton("🔄 Regenerate Icons", labelX, y, 160, 28);
+            var btnRegenIcons = CreateSecondaryButton("🔄 Regenerate Icons", labelX, y, 160, 30);
             btnRegenIcons.Click += (s, e) => RegenerateIcons(btnRegenIcons);
-            y += 38;
+            y += 45;
 
-            // Font preview
+            // Divider
+            var divider2 = CreateDivider(labelX, y + 5, 700);
+            y += 25;
+
+            // Font Preview Section
             var lblPreview = CreateSectionHeader("Font Preview", labelX, y, "👁");
-            y += 30;
+            y += 35;
 
             _alertPreviewPanel = new PictureBox
             {
-                Left = labelX, Top = y, Width = 700, Height = 110,
-                BorderStyle = BorderStyle.None, BackColor = CardColor,
-                SizeMode = PictureBoxSizeMode.CenterImage
-            };
-            y += 115;
-
-            _weatherPreviewPanel = new PictureBox
-            {
-                Left = labelX, Top = y, Width = 700, Height = 110,
-                BorderStyle = BorderStyle.None, BackColor = CardColor,
+                Left = labelX,
+                Top = y,
+                Width = 700,
+                Height = 110,
+                BorderStyle = BorderStyle.None,
+                BackColor = CardColor,
                 SizeMode = PictureBoxSizeMode.CenterImage
             };
             y += 120;
 
+            _weatherPreviewPanel = new PictureBox
+            {
+                Left = labelX,
+                Top = y,
+                Width = 700,
+                Height = 110,
+                BorderStyle = BorderStyle.None,
+                BackColor = CardColor,
+                SizeMode = PictureBoxSizeMode.CenterImage
+            };
+
             cmbFontFamily.SelectedIndexChanged += (s, e) => UpdateFontPreview();
             UpdateFontPreview();
 
-            var imgDivider = CreateDivider(labelX, y, 700);
-            y += 20;
+            tab.Controls.AddRange(new Control[] {
+                lblImgSettings, lblImgSize, numImgWidth, lblX, numImgHeight, lblPixels,
+                lblFormat, cmbImgFormat, lblFormatHelp,
+                lblFontFamily, cmbFontFamily, divider1,
+                lblFeatures, chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons, divider2,
+                lblPreview, _alertPreviewPanel, _weatherPreviewPanel
+            });
 
-            // ═════════════════════════════════════════════
-            // VIDEO GENERATION
-            // ═════════════════════════════════════════════
-            var lblVideoHeader = CreateSectionHeader("Video Generation", labelX, y, "🎥");
-            y += 35;
+            return tab;
+        }
 
-            chkVideoGeneration = CreateCheckBox("  Enable Video Generation", labelX, y, 280);
-            chkVideoGeneration.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-            chkVideoGeneration.ForeColor = AccentColor;
-            chkVideoGeneration.Tag = "accent";
-            y += 38;
-
-            // Dual-column group boxes
-            int leftCol = labelX;
+        private TabPage BuildVideoTab()
+        {
+            var tab = new TabPage("🎥 Video") { BackColor = BackgroundColor, Padding = new Padding(15), AutoScroll = true };
+            int y = 10;
+            int leftCol = 15;
             int rightCol = 380;
             int colWidth = 345;
             int grpHeight = 130;
             int innerPad = 15;
 
-            // Row 1: Alert Behavior & Output Format
+            // Main Toggle
+            chkVideoGeneration = CreateCheckBox("  Enable Video Generation", leftCol, y, 280);
+            chkVideoGeneration.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            chkVideoGeneration.ForeColor = AccentColor;
+            chkVideoGeneration.Tag = "accent";
+            y += 40;
+
+            // Row 1: Alert Settings & Output Format
             var grpAlerts = CreateGroupBox("🚨 Alert Behavior", leftCol, y, colWidth, grpHeight);
             int aY = 25;
-
+            
             chkSkipDetailedWeatherOnAlert = CreateCheckBox("Skip detailed weather during alerts", innerPad, aY, 280);
             chkSkipDetailedWeatherOnAlert.Font = SmallFont;
             aY += 28;
-
+            
             var lblRadarCount = CreateLabel("Radar replays:", innerPad, aY);
-            lblRadarCount.Width = 95; lblRadarCount.Font = SmallFont;
+            lblRadarCount.Width = 95;
+            lblRadarCount.Font = SmallFont;
             numPlayRadarAnimationCountOnAlert = CreateNumericUpDown(innerPad + 100, aY - 2, 55, 1, 10, 1);
             var lblRadarHelp = CreateHelpLabel("times during alert", innerPad + 160, aY);
             aY += 30;
-
+            
             var lblAlertDur = CreateLabel("Alert duration:", innerPad, aY);
-            lblAlertDur.Width = 95; lblAlertDur.Font = SmallFont;
+            lblAlertDur.Width = 95;
+            lblAlertDur.Font = SmallFont;
             numAlertDisplayDurationSeconds = CreateNumericUpDown(innerPad + 100, aY - 2, 55, 1, 120, 6);
             numAlertDisplayDurationSeconds.DecimalPlaces = 1;
             numAlertDisplayDurationSeconds.Increment = 0.5M;
             var lblAlertDurHelp = CreateHelpLabel("seconds", innerPad + 160, aY);
-
+            
             grpAlerts.Controls.AddRange(new Control[] {
                 chkSkipDetailedWeatherOnAlert, lblRadarCount, numPlayRadarAnimationCountOnAlert, lblRadarHelp,
                 lblAlertDur, numAlertDisplayDurationSeconds, lblAlertDurHelp
@@ -778,31 +678,35 @@ namespace WeatherImageGenerator.Forms
 
             var grpFormat = CreateGroupBox("📹 Output Format", rightCol, y, colWidth, grpHeight);
             int fY = 25;
-
+            
             var lblQualityPreset = CreateLabel("Quality Preset:", innerPad, fY);
-            lblQualityPreset.Width = 100; lblQualityPreset.Font = SmallFont;
+            lblQualityPreset.Width = 100;
+            lblQualityPreset.Font = SmallFont;
             cmbQualityPreset = CreateComboBox(innerPad + 105, fY - 2, 180);
             cmbQualityPreset.Items.AddRange(new object[] { "Ultra (Best Quality)", "High Quality", "Balanced", "Web Optimized", "Low Bandwidth", "Custom" });
             cmbQualityPreset.SelectedIndex = 2;
             fY += 30;
-
+            
             var lblResPreset = CreateLabel("Resolution:", innerPad, fY);
-            lblResPreset.Width = 100; lblResPreset.Font = SmallFont;
+            lblResPreset.Width = 100;
+            lblResPreset.Font = SmallFont;
             cmbResolution = CreateComboBox(innerPad + 105, fY - 2, 180);
             cmbResolution.Items.AddRange(new object[] { "3840x2160 (4K/UHD)", "2560x1440 (2K/QHD)", "1920x1080 (Full HD)", "1600x900 (HD+)", "1280x720 (HD)", "960x540 (qHD)", "854x480 (FWVGA)", "640x480 (VGA)" });
             cmbResolution.SelectedIndex = 2;
             fY += 30;
-
+            
             var lblContainer = CreateLabel("Container:", innerPad, fY);
-            lblContainer.Width = 100; lblContainer.Font = SmallFont;
+            lblContainer.Width = 100;
+            lblContainer.Font = SmallFont;
             cmbContainer = CreateComboBox(innerPad + 105, fY - 2, 80);
             cmbContainer.Items.AddRange(new object[] { "mp4", "mkv", "mov", "avi", "webm" });
             cmbContainer.SelectedIndex = 0;
-
+            
             var lblFps = CreateLabel("FPS:", innerPad + 195, fY);
-            lblFps.Width = 35; lblFps.Font = SmallFont;
+            lblFps.Width = 35;
+            lblFps.Font = SmallFont;
             numFps = CreateNumericUpDown(innerPad + 235, fY - 2, 55, 1, 240, 30);
-
+            
             grpFormat.Controls.AddRange(new Control[] {
                 lblQualityPreset, cmbQualityPreset, lblResPreset, cmbResolution,
                 lblContainer, cmbContainer, lblFps, numFps
@@ -813,41 +717,48 @@ namespace WeatherImageGenerator.Forms
             // Row 2: Timing & Encoding
             var grpTiming = CreateGroupBox("⏱ Timing", leftCol, y, colWidth, 155);
             int tY = 25;
-
+            
             var lblStatic = CreateLabel("Slide Duration:", innerPad, tY);
-            lblStatic.Width = 100; lblStatic.Font = SmallFont;
+            lblStatic.Width = 100;
+            lblStatic.Font = SmallFont;
             numStatic = CreateNumericUpDown(innerPad + 105, tY - 2, 70, 1, 60, 8);
             numStatic.DecimalPlaces = 1;
             var lblStaticHelp = CreateHelpLabel("seconds per slide", innerPad + 180, tY);
             tY += 30;
-
+            
             var lblTotal = CreateLabel("Total Duration:", innerPad, tY);
-            lblTotal.Width = 100; lblTotal.Font = SmallFont;
+            lblTotal.Width = 100;
+            lblTotal.Font = SmallFont;
             numTotalDuration = CreateNumericUpDown(innerPad + 105, tY - 2, 70, 1, 86400, 60);
             numTotalDuration.DecimalPlaces = 1;
             numTotalDuration.Enabled = false;
             var lblTotalHelp = CreateHelpLabel("seconds total", innerPad + 180, tY);
             tY += 28;
-
+            
             chkUseTotalDuration = CreateCheckBox("Use total duration mode", innerPad, tY, 220);
             chkUseTotalDuration.Font = SmallFont;
-            chkUseTotalDuration.CheckedChanged += (s, e) =>
-            {
+            chkUseTotalDuration.CheckedChanged += (s, e) => {
                 numTotalDuration.Enabled = chkUseTotalDuration.Checked;
                 numStatic.Enabled = !chkUseTotalDuration.Checked;
             };
             tY += 32;
-
+            
             var lblFade = CreateLabel("Fade Duration:", innerPad, tY);
-            lblFade.Width = 100; lblFade.Font = SmallFont;
-            lblFade.ForeColor = TextMutedColor; lblFade.Tag = "muted";
+            lblFade.Width = 100;
+            lblFade.Font = SmallFont;
+            lblFade.ForeColor = TextMutedColor;
+            lblFade.Tag = "muted";
             numFade = CreateNumericUpDown(innerPad + 105, tY - 2, 70, 0, 10, 0.5M);
-            numFade.DecimalPlaces = 2; numFade.Increment = 0.1M; numFade.Enabled = false;
-
+            numFade.DecimalPlaces = 2;
+            numFade.Increment = 0.1M;
+            numFade.Enabled = false;
+            
             chkFade = CreateCheckBox("Enable", innerPad + 180, tY, 80);
-            chkFade.Font = SmallFont; chkFade.Enabled = false;
-            chkFade.ForeColor = TextMutedColor; chkFade.Tag = "muted";
-
+            chkFade.Font = SmallFont;
+            chkFade.Enabled = false;
+            chkFade.ForeColor = TextMutedColor;
+            chkFade.Tag = "muted";
+            
             grpTiming.Controls.AddRange(new Control[] {
                 lblStatic, numStatic, lblStaticHelp,
                 lblTotal, numTotalDuration, lblTotalHelp,
@@ -856,29 +767,31 @@ namespace WeatherImageGenerator.Forms
 
             var grpEncoding = CreateGroupBox("🎬 Encoding", rightCol, y, colWidth, 155);
             int eY = 25;
-
+            
             var lblCodec = CreateLabel("Codec:", innerPad, eY);
-            lblCodec.Width = 80; lblCodec.Font = SmallFont;
+            lblCodec.Width = 80;
+            lblCodec.Font = SmallFont;
             cmbCodec = CreateComboBox(innerPad + 85, eY - 2, 200);
             cmbCodec.Items.AddRange(new object[] { "libx264 (H.264)", "libx265 (H.265/HEVC)", "libvpx-vp9 (VP9)", "libaom-av1 (AV1)", "mpeg4", "msmpeg4" });
             cmbCodec.SelectedIndex = 0;
             eY += 30;
-
+            
             var lblBitrate = CreateLabel("Bitrate:", innerPad, eY);
-            lblBitrate.Width = 80; lblBitrate.Font = SmallFont;
+            lblBitrate.Width = 80;
+            lblBitrate.Font = SmallFont;
             cmbBitrate = CreateComboBox(innerPad + 85, eY - 2, 200);
             cmbBitrate.Items.AddRange(new object[] { "1M (Low)", "2M (Medium-Low)", "4M (Medium)", "6M (Medium-High)", "8M (High)", "12M (Very High)", "16M (Ultra)" });
             cmbBitrate.SelectedIndex = 2;
             eY += 30;
-
+            
             chkEnableHardwareEncoding = CreateCheckBox("⚡ Hardware Encoding (NVENC)", innerPad, eY, 220);
             chkEnableHardwareEncoding.Font = SmallFont;
             btnCheckHw = CreateSecondaryButton("Check", innerPad + 225, eY - 3, 60, 24);
             btnCheckHw.Font = SmallFont;
             eY += 28;
-
+            
             lblHwStatus = CreateHelpLabel("Click Check to verify GPU support", innerPad + 20, eY, 280);
-
+            
             grpEncoding.Controls.AddRange(new Control[] {
                 lblCodec, cmbCodec, lblBitrate, cmbBitrate,
                 chkEnableHardwareEncoding, btnCheckHw, lblHwStatus
@@ -886,62 +799,150 @@ namespace WeatherImageGenerator.Forms
 
             y += 165;
 
-            // Row 3: Debug & Advanced
+            // Row 3: Debug Options
             var grpDebug = CreateGroupBox("🔧 Debug & Advanced", leftCol, y, colWidth * 2 + 20, 85);
             int dY = 25;
-
+            
             chkVerbose = CreateCheckBox("Verbose FFmpeg Output", innerPad, dY, 200);
             chkVerbose.Font = SmallFont;
-
+            
             chkShowFfmpeg = CreateCheckBox("Show FFmpeg Console", innerPad + 210, dY, 200);
             chkShowFfmpeg.Font = SmallFont;
-
+            
             chkEnableExperimental = CreateCheckBox("⚠ Enable Experimental Features", innerPad + 440, dY, 240);
             chkEnableExperimental.Font = SmallFont;
             chkEnableExperimental.ForeColor = WarningColor;
             chkEnableExperimental.Tag = "warning";
-            chkEnableExperimental.CheckedChanged += (s, e) =>
-            {
-                if (_experimentalSection != null) _experimentalSection.Enabled = chkEnableExperimental.Checked;
+            chkEnableExperimental.CheckedChanged += (s, e) => {
+                if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked;
             };
             dY += 30;
-
-            var lblDebugTip = CreateHelpLabel("💡 Enable Debug options for troubleshooting. Experimental unlocks advanced encoder settings below.", innerPad, dY, 680);
-
+            
+            var lblDebugTip = CreateHelpLabel("💡 Enable Debug options for troubleshooting. Experimental tab unlocks advanced encoder settings.", innerPad, dY, 680);
+            
             grpDebug.Controls.AddRange(new Control[] {
                 chkVerbose, chkShowFfmpeg, chkEnableExperimental, lblDebugTip
             });
 
-            y += 95;
-
-            // Wire up video event handlers
+            // Setup event handlers
             SetupVideoTabEventHandlers();
 
-            var videoDivider = CreateDivider(labelX, y, 700);
-            y += 20;
+            tab.Controls.AddRange(new Control[] {
+                chkVideoGeneration, grpAlerts, grpFormat, grpTiming, grpEncoding, grpDebug
+            });
 
-            // ═════════════════════════════════════════════
-            // FFMPEG SOURCE
-            // ═════════════════════════════════════════════
-            var lblFfmpegHeader = CreateSectionHeader("FFmpeg Source", labelX, y, "🎬");
+            return tab;
+        }
+
+        private void SetupVideoTabEventHandlers()
+        {
+            // Quality preset handler
+            cmbQualityPreset.SelectedIndexChanged += (s, e) => {
+                if (_isLoadingSettings || cmbQualityPreset.SelectedIndex == 5) return;
+                
+                _isLoadingSettings = true;
+                switch (cmbQualityPreset.SelectedIndex)
+                {
+                    case 0: // Ultra
+                        cmbResolution.SelectedIndex = 0;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 6;
+                        numFps.Value = 60;
+                        break;
+                    case 1: // High Quality
+                        cmbResolution.SelectedIndex = 2;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 4;
+                        numFps.Value = 30;
+                        break;
+                    case 2: // Balanced
+                        cmbResolution.SelectedIndex = 2;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 2;
+                        numFps.Value = 30;
+                        break;
+                    case 3: // Web Optimized
+                        cmbResolution.SelectedIndex = 4;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 1;
+                        numFps.Value = 30;
+                        break;
+                    case 4: // Low Bandwidth
+                        cmbResolution.SelectedIndex = 6;
+                        cmbCodec.SelectedIndex = 0;
+                        cmbBitrate.SelectedIndex = 0;
+                        numFps.Value = 24;
+                        break;
+                }
+                _isLoadingSettings = false;
+            };
+
+            // Mark as custom when user changes
+            EventHandler markCustom = (s, e) => {
+                if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5)
+                    cmbQualityPreset.SelectedIndex = 5;
+            };
+            cmbResolution.SelectedIndexChanged += markCustom;
+            cmbCodec.SelectedIndexChanged += markCustom;
+            cmbBitrate.SelectedIndexChanged += markCustom;
+            numFps.ValueChanged += markCustom;
+
+            // Sync alert duration
+            numStatic.ValueChanged += (s, e) => {
+                if (!_isLoadingSettings)
+                    numAlertDisplayDurationSeconds.Value = numStatic.Value;
+            };
+
+            // Hardware check
+            btnCheckHw.Click += (s, e) => {
+                btnCheckHw.Enabled = false;
+                lblHwStatus.Text = "Checking...";
+                Task.Run(() => {
+                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
+                    this.Invoke((Action)(() => {
+                        lblHwStatus.Text = msg;
+                        lblHwStatus.ForeColor = ok ? SuccessColor : DangerColor;
+                        btnCheckHw.Enabled = true;
+                        if (!ok)
+                        {
+                            chkEnableHardwareEncoding.Checked = false;
+                            chkEnableHardwareEncoding.Enabled = false;
+                        }
+                        else
+                        {
+                            chkEnableHardwareEncoding.Enabled = true;
+                        }
+                    }));
+                });
+            };
+        }
+
+        private TabPage BuildFfmpegTab()
+        {
+            var tab = new TabPage("🎬 FFmpeg") { BackColor = BackgroundColor, Padding = new Padding(20) };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 180;
+
+            // Source Section
+            var lblSource = CreateSectionHeader("FFmpeg Source Configuration", labelX, y, "📦");
             y += 35;
 
-            var lblFfmpegDesc = CreateHelpLabel("Choose where to get FFmpeg binaries from:", labelX, y, 400);
-            y += 28;
+            var lblDesc = CreateHelpLabel("Choose where to get FFmpeg binaries from:", labelX, y, 400);
+            y += 30;
 
             var lblSourceLabel = CreateLabel("Source:", labelX, y, 100);
             cmbFfmpegSource = CreateComboBox(fieldX, y - 2, 220);
             cmbFfmpegSource.Items.AddRange(new object[] { "Bundled (Auto-download)", "System PATH", "Custom Path" });
             cmbFfmpegSource.SelectedIndex = 0;
-            y += 38;
+            y += 40;
 
             var lblCustomPath = CreateLabel("Custom Path:", labelX, y, 150);
             txtFfmpegCustomPath = CreateTextBox(fieldX, y - 2, 380);
             txtFfmpegCustomPath.Enabled = false;
             btnBrowseFfmpegPath = CreateSecondaryButton("...", fieldX + 390, y - 3, 40, 26);
             btnBrowseFfmpegPath.Enabled = false;
-            btnBrowseFfmpegPath.Click += (s, e) =>
-            {
+            btnBrowseFfmpegPath.Click += (s, e) => {
                 using (var dlg = new FolderBrowserDialog())
                 {
                     dlg.Description = "Select FFmpeg directory (containing ffmpeg.exe)";
@@ -950,21 +951,33 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
-            cmbFfmpegSource.SelectedIndexChanged += (s, e) =>
-            {
+            cmbFfmpegSource.SelectedIndexChanged += (s, e) => {
                 bool isCustom = cmbFfmpegSource.SelectedIndex == 2;
                 txtFfmpegCustomPath.Enabled = isCustom;
                 btnBrowseFfmpegPath.Enabled = isCustom;
             };
-            y += 45;
+
+            y += 55;
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 30;
+
+            // Status Section
+            var lblStatusHeader = CreateSectionHeader("Status", labelX, y, "📋");
+            y += 32;
 
             lblFfmpegStatus = new Label
             {
                 Text = "Not validated",
-                Left = labelX, Top = y, Width = 600, Height = 28,
-                Font = LabelFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 28,
+                Font = LabelFont,
+                ForeColor = TextMutedColor,
+                Tag = "muted",
+                AutoSize = false
             };
-            y += 35;
+            y += 40;
 
             btnValidateFfmpeg = CreatePrimaryButton("✓ Validate", labelX, y, 110, 32);
             btnValidateFfmpeg.Click += (s, e) => ValidateFfmpegConfiguration();
@@ -973,8 +986,7 @@ namespace WeatherImageGenerator.Forms
             btnDownloadBundled.Click += async (s, e) => await DownloadFfmpegAsync();
 
             btnClearFfmpegCache = CreateSecondaryButton("🗑 Clear Cache", labelX + 240, y, 120, 32);
-            btnClearFfmpegCache.Click += (s, e) =>
-            {
+            btnClearFfmpegCache.Click += (s, e) => {
                 var result = MessageBox.Show(
                     "This will delete the downloaded FFmpeg binaries. They will be re-downloaded when needed.\n\nContinue?",
                     "Clear FFmpeg Cache", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
@@ -985,137 +997,49 @@ namespace WeatherImageGenerator.Forms
                     lblFfmpegStatus.ForeColor = WarningColor;
                 }
             };
-            y += 45;
 
-            var ffmpegDivider = CreateDivider(labelX, y, 700);
-            y += 20;
+            y += 55;
+            var divider2 = CreateDivider(labelX, y, 700);
+            y += 30;
 
-            // ═════════════════════════════════════════════
-            // ADVANCED ENCODING (Experimental — gated)
-            // ═════════════════════════════════════════════
-            _experimentalSection = new Panel
-            {
-                Left = labelX, Top = y, Width = 720, AutoSize = true,
-                BackColor = Color.Transparent, Enabled = false
-            };
-            int ey = 0;
+            // Help Section
+            var lblHelpHeader = CreateSectionHeader("Help", labelX, y, "ℹ");
+            y += 32;
 
-            // Warning banner
-            var warningPanel = new Panel
+            var helpText = new Label
             {
-                Left = 0, Top = ey, Width = 700, Height = 45,
-                BackColor = ThemeManager.Current.IsDark ? Color.FromArgb(60, 50, 20) : Color.FromArgb(255, 243, 205)
-            };
-            var lblWarning = new Label
-            {
-                Text = "⚠ EXPERIMENTAL — These settings affect video quality and encoding. Enable via the checkbox above.",
-                Left = 15, Top = 8, Width = 670, Height = 30,
+                Text = "• Bundled: Automatically downloads FFmpeg to AppData (recommended)\n" +
+                       "• System PATH: Uses FFmpeg installed on your system (must be in PATH)\n" +
+                       "• Custom Path: Specify a folder containing ffmpeg.exe",
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 65,
                 Font = LabelFont,
-                ForeColor = ThemeManager.Current.IsDark ? WarningColor : Color.FromArgb(133, 100, 4),
+                ForeColor = TextColor,
                 AutoSize = false
             };
-            warningPanel.Controls.Add(lblWarning);
-            ey += 55;
 
-            var lblCrfSection = CreateSectionHeader("Quality-Based Encoding (CRF)", 0, ey, "🎯");
-            ey += 35;
-
-            chkUseCrfEncoding = CreateCheckBox("Use CRF encoding (quality-based)", 0, ey, 280);
-            ey += 35;
-
-            var lblCrf = CreateLabel("CRF Value:", 0, ey);
-            numCrf = CreateNumericUpDown(fieldX - labelX, ey - 2, 80, 0, 51, 23);
-            var lblCrfHelp = CreateHelpLabel("Lower = better quality (18-28 typical)", fieldX - labelX + 90, ey + 2, 250);
-            ey += rowHeight + 5;
-
-            var expDivider = CreateDivider(0, ey, 700);
-            ey += 20;
-
-            var lblEncoderSection = CreateSectionHeader("Encoder Settings", 0, ey, "⚙");
-            ey += 35;
-
-            var lblPreset = CreateLabel("Encoder Preset:", 0, ey);
-            cmbEncoderPreset = CreateComboBox(fieldX - labelX, ey - 2, 150);
-            cmbEncoderPreset.Items.AddRange(new object[] { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow" });
-            cmbEncoderPreset.SelectedIndex = 5;
-            var lblPresetHelp = CreateHelpLabel("Slower = smaller file, better quality", fieldX - labelX + 160, ey + 2, 250);
-            ey += rowHeight;
-
-            var lblMaxBr = CreateLabel("Max Bitrate:", 0, ey);
-            txtMaxBitrate = CreateTextBox(fieldX - labelX, ey - 2, 100);
-            var lblMaxBrHelp = CreateHelpLabel("e.g., 8M, 12M (optional)", fieldX - labelX + 110, ey + 2);
-            ey += rowHeight;
-
-            var lblBuffer = CreateLabel("Buffer Size:", 0, ey);
-            txtBufferSize = CreateTextBox(fieldX - labelX, ey - 2, 100);
-            var lblBufferHelp = CreateHelpLabel("e.g., 16M (optional)", fieldX - labelX + 110, ey + 2);
-            ey += rowHeight + 5;
-
-            var lblTips = new Label
-            {
-                Text = "💡 Tips:\n• CRF mode provides consistent quality but variable file size\n• Use 'slow' or 'slower' for best quality when time isn't critical\n• Set Max Bitrate to limit file size while using CRF",
-                Left = 0, Top = ey, Width = 600, Height = 70,
-                Font = SmallFont, ForeColor = TextColor, AutoSize = false
-            };
-
-            // Mark quality as custom when experimental settings change
-            EventHandler markCustom = (s, e) =>
-            {
-                if (!_isLoadingSettings && cmbQualityPreset != null && cmbQualityPreset.SelectedIndex != 5)
-                    cmbQualityPreset.SelectedIndex = 5;
-            };
-            cmbEncoderPreset.SelectedIndexChanged += markCustom;
-            txtMaxBitrate.TextChanged += markCustom;
-            txtBufferSize.TextChanged += markCustom;
-            chkUseCrfEncoding.CheckedChanged += markCustom;
-            numCrf.ValueChanged += markCustom;
-
-            _experimentalSection.Controls.AddRange(new Control[] {
-                warningPanel, lblCrfSection, chkUseCrfEncoding, lblCrf, numCrf, lblCrfHelp, expDivider,
-                lblEncoderSection, lblPreset, cmbEncoderPreset, lblPresetHelp,
-                lblMaxBr, txtMaxBitrate, lblMaxBrHelp,
-                lblBuffer, txtBufferSize, lblBufferHelp, lblTips
-            });
-
-            // Add all controls to the tab
             tab.Controls.AddRange(new Control[] {
-                // Image
-                lblImgSettings, lblImgSize, numImgWidth, lblX, numImgHeight, lblPixels,
-                lblFormat, cmbImgFormat, lblFormatHelp,
-                lblFontFamily, cmbFontFamily,
-                chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons,
-                lblPreview, _alertPreviewPanel, _weatherPreviewPanel,
-                imgDivider,
-                // Video
-                lblVideoHeader, chkVideoGeneration,
-                grpAlerts, grpFormat, grpTiming, grpEncoding, grpDebug,
-                videoDivider,
-                // FFmpeg
-                lblFfmpegHeader, lblFfmpegDesc, lblSourceLabel, cmbFfmpegSource,
-                lblCustomPath, txtFfmpegCustomPath, btnBrowseFfmpegPath,
-                lblFfmpegStatus, btnValidateFfmpeg, btnDownloadBundled, btnClearFfmpegCache,
-                ffmpegDivider,
-                // Advanced Encoding
-                _experimentalSection
+                lblSource, lblDesc, lblSourceLabel, cmbFfmpegSource,
+                lblCustomPath, txtFfmpegCustomPath, btnBrowseFfmpegPath, divider1,
+                lblStatusHeader, lblFfmpegStatus, btnValidateFfmpeg, btnDownloadBundled, btnClearFfmpegCache, divider2,
+                lblHelpHeader, helpText
             });
 
             return tab;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // Tab 3: Map (Map settings + separate Rendering Engine section)
-        // ═══════════════════════════════════════════════════════════════════
-
-        private TabPage BuildMapTab()
+        private TabPage BuildOpenMapTab()
         {
-            var tab = new TabPage("Map") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            var tab = new TabPage("🗺 OpenMap") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
             int y = 15;
             int labelX = 20;
             int fieldX = 230;
             int rowHeight = 38;
 
-            // ── Map Style & Display ──
-            var lblBasic = CreateSectionHeader("Map Style & Display", labelX, y, "🗺");
+            // Basic Settings
+            var lblBasic = CreateSectionHeader("Basic Map Settings", labelX, y, "🗺");
             y += 35;
 
             var lblMapStyle = CreateLabel("Default Map Style:", labelX, y);
@@ -1142,12 +1066,19 @@ namespace WeatherImageGenerator.Forms
 
             chkMapUseDarkMode = CreateCheckBox("🌙 Use Dark Mode (for Terrain style)", labelX, y, 350);
             var lblDarkHelp = CreateHelpLabel("Best for night weather displays", labelX + 360, y + 3, 200);
+            y += rowHeight;
+
+            var lblRenderApi = CreateLabel("Rendering API:", labelX, y);
+            cmbRenderApi = CreateComboBox(fieldX, y - 2, 200);
+            cmbRenderApi.Items.AddRange(new object[] { "OpenGL (Default)", "Vulkan (Coming Soon)", "DirectX 11 (Coming Soon)" });
+            cmbRenderApi.SelectedIndex = 0;
+            var lblRenderApiHelp = CreateHelpLabel("⚠ Requires restart", fieldX + 210, y + 2, 150);
             y += rowHeight + 10;
 
             var divider1 = CreateDivider(labelX, y, 700);
             y += 25;
 
-            // ── Performance & Caching ──
+            // Performance Settings
             var lblPerf = CreateSectionHeader("Performance & Caching", labelX, y, "⚡");
             y += 35;
 
@@ -1174,84 +1105,7 @@ namespace WeatherImageGenerator.Forms
             var divider2 = CreateDivider(labelX, y, 700);
             y += 25;
 
-            // ── Rendering Engine (separate from map settings) ──
-            var lblRenderSection = CreateSectionHeader("Rendering Engine", labelX, y, "🖥");
-            y += 35;
-
-            var lblRenderApi = CreateLabel("Rendering API:", labelX, y);
-            cmbRenderApi = new ComboBox
-            {
-                Left = fieldX, Top = y - 2, Width = 220,
-                Font = LabelFont,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                DrawMode = DrawMode.OwnerDrawFixed,
-                BackColor = ThemeManager.Current.InputBackground,
-                ForeColor = ThemeManager.Current.TextPrimary
-            };
-
-            // Check DirectX 11 availability at runtime
-            try { _dx11Available = RenderingFactory.IsAvailable(RenderingApi.DirectX11); } catch { _dx11Available = false; }
-
-            cmbRenderApi.Items.AddRange(new object[] {
-                "OpenGL (Default)",
-                "Vulkan (Not Ready)",
-                _dx11Available ? "DirectX 11" : "DirectX 11 (Unavailable)"
-            });
-            cmbRenderApi.SelectedIndex = 0;
-            _previousRenderApiIndex = 0;
-
-            // Owner-draw to gray out unavailable items
-            cmbRenderApi.DrawItem += (s, e) =>
-            {
-                if (e.Index < 0) return;
-                e.DrawBackground();
-                string text = cmbRenderApi.Items[e.Index]?.ToString() ?? "";
-                bool isDisabled = (e.Index == 1) || (e.Index == 2 && !_dx11Available);
-                Color textCol;
-                if (isDisabled)
-                    textCol = TextMutedColor;
-                else if ((e.State & DrawItemState.Selected) != 0)
-                    textCol = ThemeManager.Current.TextOnAccent;
-                else
-                    textCol = TextColor;
-                using (var brush = new SolidBrush(textCol))
-                    e.Graphics.DrawString(text, e.Font ?? LabelFont, brush, e.Bounds.Left + 2, e.Bounds.Top + 2);
-                e.DrawFocusRectangle();
-            };
-
-            // Prevent selecting disabled items
-            cmbRenderApi.SelectedIndexChanged += (s, e) =>
-            {
-                if (_isLoadingSettings) return;
-                int idx = cmbRenderApi.SelectedIndex;
-                bool isDisabled = (idx == 1) || (idx == 2 && !_dx11Available);
-                if (isDisabled)
-                {
-                    _isLoadingSettings = true;
-                    cmbRenderApi.SelectedIndex = _previousRenderApiIndex;
-                    _isLoadingSettings = false;
-                    return;
-                }
-                _previousRenderApiIndex = idx;
-            };
-
-            var lblRenderApiHelp = CreateHelpLabel("⚠ Requires application restart", fieldX + 230, y + 2, 180);
-            y += rowHeight + 5;
-
-            var lblRenderNote = new Label
-            {
-                Text = "• OpenGL: Most compatible (default). Works on all GPUs.\n" +
-                       "• DirectX 11: Windows-native, hardware-accelerated.\n" +
-                       "• Vulkan: High-performance (coming soon).",
-                Left = labelX, Top = y, Width = 600, Height = 55,
-                Font = SmallFont, ForeColor = TextColor, AutoSize = false
-            };
-            y += 65;
-
-            var divider3 = CreateDivider(labelX, y, 700);
-            y += 25;
-
-            // ── Map Style Reference ──
+            // Style Guide
             var lblStyleGuide = CreateSectionHeader("Map Style Reference", labelX, y, "📖");
             y += 35;
 
@@ -1261,46 +1115,53 @@ namespace WeatherImageGenerator.Forms
                        "• Minimal: Clean, simplified style (HOT)\n" +
                        "• Terrain: Topographic with elevation contours\n" +
                        "• Satellite: High-resolution imagery (Esri)",
-                Left = labelX, Top = y, Width = 600, Height = 90,
-                Font = LabelFont, ForeColor = TextColor, AutoSize = false
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 90,
+                Font = LabelFont,
+                ForeColor = TextColor,
+                AutoSize = false
             };
             y += 100;
 
             var lblAttribution = new Label
             {
                 Text = "⚠ Legal: Generated maps automatically include required attribution per OSM usage policy.",
-                Left = labelX, Top = y, Width = 650, Height = 25,
-                Font = HelpFont, ForeColor = DangerColor, Tag = "danger", AutoSize = false
+                Left = labelX,
+                Top = y,
+                Width = 650,
+                Height = 25,
+                Font = HelpFont,
+                ForeColor = DangerColor,
+                Tag = "danger",
+                AutoSize = false
             };
 
             tab.Controls.AddRange(new Control[] {
                 lblBasic, lblMapStyle, cmbMapStyle, lblMapZoom, numMapZoomLevel, lblZoomHelp,
                 lblMapBgColor, txtMapBackgroundColor, lblBgHelp,
                 lblMapOpacity, numMapOverlayOpacity, lblOpacityUnit,
-                chkMapUseDarkMode, lblDarkHelp, divider1,
+                chkMapUseDarkMode, lblDarkHelp,
+                lblRenderApi, cmbRenderApi, lblRenderApiHelp, divider1,
                 lblPerf, lblMapTimeout, numMapTileTimeout, lblTimeoutUnit,
                 chkMapEnableCache, lblCacheDir, txtMapCacheDirectory,
                 lblCacheDuration, numMapCacheDuration, lblCacheHelp, divider2,
-                lblRenderSection, lblRenderApi, cmbRenderApi, lblRenderApiHelp, lblRenderNote, divider3,
                 lblStyleGuide, styleGuide, lblAttribution
             });
 
             return tab;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // Tab 4: Alerts & TTS
-        // ═══════════════════════════════════════════════════════════════════
-
-        private TabPage BuildAlertsTab()
+        private TabPage BuildEasTab()
         {
-            var tab = new TabPage("Alerts & TTS") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            var tab = new TabPage("🚨 EAS & TTS") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
             int y = 15;
             int labelX = 20;
             int fieldX = 230;
             int rowHeight = 35;
 
-            // ── Alert Ready (NAAD) ──
+            // Alert Ready Section
             var lblAlertReady = CreateSectionHeader("Alert Ready (NAAD)", labelX, y, "🚨");
             y += 35;
 
@@ -1311,8 +1172,13 @@ namespace WeatherImageGenerator.Forms
             y += 25;
             txtAlertReadyFeedUrls = new TextBox
             {
-                Left = labelX, Top = y, Width = 500, Height = 55,
-                Font = SmallFont, Multiline = true, ScrollBars = ScrollBars.Vertical
+                Left = labelX,
+                Top = y,
+                Width = 500,
+                Height = 55,
+                Font = SmallFont,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical
             };
             y += 65;
 
@@ -1350,7 +1216,7 @@ namespace WeatherImageGenerator.Forms
             var divider1 = CreateDivider(labelX, y, 700);
             y += 25;
 
-            // ── NWS (USA) ──
+            // NWS (USA) Section
             var lblNws = CreateSectionHeader("NWS (USA) — National Weather Service", labelX, y, "🇺🇸");
             y += 35;
 
@@ -1394,10 +1260,10 @@ namespace WeatherImageGenerator.Forms
             txtNwsUserAgent = CreateTextBox(fieldX, y - 2, 320);
             y += 40;
 
-            var divider2 = CreateDivider(labelX, y, 700);
+            var divider = CreateDivider(labelX, y, 700);
             y += 25;
 
-            // ── Text-to-Speech ──
+            // TTS Section
             var lblTts = CreateSectionHeader("Text-to-Speech Settings", labelX, y, "🎤");
             y += 35;
 
@@ -1410,7 +1276,7 @@ namespace WeatherImageGenerator.Forms
             cmbTtsEngine.SelectedIndexChanged += (s, e) => UpdateTtsEngineVisibility();
             y += rowHeight;
 
-            // EdgeTTS controls
+            // EdgeTTS Settings
             var lblVoice = CreateLabel("EdgeTTS Voice:", labelX, y);
             cmbTtsVoice = CreateComboBox(fieldX, y - 2, 220);
             cmbTtsVoice.Items.AddRange(new object[] {
@@ -1438,7 +1304,7 @@ namespace WeatherImageGenerator.Forms
             btnDownloadVoices.Click += (s, e) => DownloadWindowsVoices();
             y += 45;
 
-            // Piper controls
+            // Piper Settings
             var lblPiperVoice = CreateLabel("Piper Voice:", labelX, y);
             cmbPiperVoice = CreateComboBox(fieldX, y - 2, 340);
             cmbPiperVoice.Items.AddRange(new object[] {
@@ -1457,9 +1323,15 @@ namespace WeatherImageGenerator.Forms
             var lblPiperSpeed = CreateLabel("Speech Speed:", labelX, y);
             numPiperLengthScale = new NumericUpDown
             {
-                Left = fieldX, Top = y - 2, Width = 100,
-                Minimum = 0.5m, Maximum = 2.0m, DecimalPlaces = 1,
-                Increment = 0.1m, Value = 1.0m, Font = LabelFont
+                Left = fieldX,
+                Top = y - 2,
+                Width = 100,
+                Minimum = 0.5m,
+                Maximum = 2.0m,
+                DecimalPlaces = 1,
+                Increment = 0.1m,
+                Value = 1.0m,
+                Font = LabelFont
             };
             var lblPiperSpeedHelp = CreateHelpLabel("0.5=faster, 1.0=normal, 2.0=slower", fieldX + 110, y + 2);
             y += rowHeight + 5;
@@ -1468,15 +1340,17 @@ namespace WeatherImageGenerator.Forms
             btnInstallPiper.Click += (s, e) => InstallPiperTts();
             y += 45;
 
-            // TTS visibility arrays for clean toggling
-            _edgeTtsControls = new Control[] { lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp, lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices };
-            _piperTtsControls = new Control[] { lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, btnInstallPiper };
-
             var lblTtsNote = new Label
             {
                 Text = "💡 Piper TTS: Open-source, offline, high-quality neural TTS (requires download).\n   EdgeTTS: Online Microsoft service, works immediately without installation.\n   Piper is recommended for privacy and offline usage.",
-                Left = labelX, Top = y, Width = 550, Height = 55,
-                Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
+                Left = labelX,
+                Top = y,
+                Width = 550,
+                Height = 55,
+                Font = SmallFont,
+                ForeColor = TextMutedColor,
+                Tag = "muted",
+                AutoSize = false
             };
 
             tab.Controls.AddRange(new Control[] {
@@ -1491,37 +1365,38 @@ namespace WeatherImageGenerator.Forms
                 lblNwsMaxAge, numNwsMaxAgeHours, lblNwsMaxAgeUnit,
                 lblNwsPolling, numNwsPollingInterval, lblNwsPollingUnit,
                 chkNwsHighRiskOnly, lblNwsSeverity, txtNwsSeverityFilter, lblNwsSeverityHelp,
-                lblNwsUserAgent, txtNwsUserAgent, divider2,
-                lblTts, lblEngine, cmbTtsEngine,
-                lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp,
+                lblNwsUserAgent, txtNwsUserAgent, divider,
+                lblTts, lblEngine, cmbTtsEngine, lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp,
                 lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices,
-                lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, btnInstallPiper,
-                lblTtsNote
+                lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, btnInstallPiper, lblTtsNote
             });
 
             return tab;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // Tab 5: Network (Web UI)
-        // ═══════════════════════════════════════════════════════════════════
-
-        private TabPage BuildNetworkTab()
+        private TabPage BuildWebUITab()
         {
-            var tab = new TabPage("Network") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            var tab = new TabPage("🌐 Web UI") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
             int y = 15;
             int labelX = 20;
             int fieldX = 200;
             int rowHeight = 38;
 
+            // Header
             var lblHeader = CreateSectionHeader("Remote Web Interface", labelX, y, "🌐");
             y += 35;
 
             var lblDesc = new Label
             {
                 Text = "Enable a web interface to access your weather display from any browser on your network.",
-                Left = labelX, Top = y, Width = 600, Height = 25,
-                Font = LabelFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 25,
+                Font = LabelFont,
+                ForeColor = TextMutedColor,
+                Tag = "muted",
+                AutoSize = false
             };
             y += 40;
 
@@ -1532,6 +1407,7 @@ namespace WeatherImageGenerator.Forms
             var divider1 = CreateDivider(labelX, y, 700);
             y += 25;
 
+            // Configuration
             var lblConfig = CreateSubHeader("Configuration", labelX, y);
             y += 30;
 
@@ -1549,31 +1425,52 @@ namespace WeatherImageGenerator.Forms
             txtWebUIUrl.BackColor = ThemeManager.Current.InputBackground;
             y += rowHeight;
 
+            // IP Address Information (shown when AllowRemoteAccess is checked)
             lblLocalIP = new Label
             {
-                Left = labelX, Top = y, Width = 520, Height = 25,
-                Font = LabelFont, ForeColor = AccentColor, Tag = "accent",
-                Text = "Local IP: Checking...", AutoSize = false, Visible = false
+                Left = labelX,
+                Top = y,
+                Width = 520,
+                Height = 25,
+                Font = LabelFont,
+                ForeColor = AccentColor,
+                Tag = "accent",
+                Text = "Local IP: Checking...",
+                AutoSize = false,
+                Visible = false
             };
             y += 28;
 
             lblPublicIP = new Label
             {
-                Left = labelX, Top = y, Width = 520, Height = 25,
-                Font = LabelFont, ForeColor = AccentColor, Tag = "accent",
-                Text = "Public IP: Checking...", AutoSize = false, Visible = false
+                Left = labelX,
+                Top = y,
+                Width = 520,
+                Height = 25,
+                Font = LabelFont,
+                ForeColor = AccentColor,
+                Tag = "accent",
+                Text = "Public IP: Checking...",
+                AutoSize = false,
+                Visible = false
             };
             y += rowHeight;
 
             lblWebUIStatus = new Label
             {
-                Left = labelX, Top = y, Width = 450, Height = 25,
+                Left = labelX,
+                Top = y,
+                Width = 450,
+                Height = 25,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                ForeColor = TextMutedColor, Tag = "muted",
-                Text = "Status: Not running", AutoSize = false
+                ForeColor = TextMutedColor,
+                Tag = "muted",
+                Text = "Status: Not running",
+                AutoSize = false
             };
             y += 40;
 
+            // Buttons
             btnTestWebUI = CreateSecondaryButton("🔗 Test Connection", labelX, y, 150, 34);
             btnTestWebUI.Click += (s, e) => TestWebUIConnection();
 
@@ -1584,6 +1481,7 @@ namespace WeatherImageGenerator.Forms
             var divider2 = CreateDivider(labelX, y, 700);
             y += 25;
 
+            // Security Notice
             var lblSecurityHeader = CreateSubHeader("⚠ Security Notice", labelX, y);
             lblSecurityHeader.ForeColor = WarningColor;
             lblSecurityHeader.Tag = "warning";
@@ -1594,22 +1492,28 @@ namespace WeatherImageGenerator.Forms
                 Text = "When 'Allow Remote Access' is enabled, any device on your local network can access the web interface.\n" +
                        "If you want to access from the internet, you'll need to configure port forwarding on your router.\n" +
                        "Consider using a VPN or reverse proxy with authentication for internet access.",
-                Left = labelX, Top = y, Width = 680, Height = 60,
-                Font = SmallFont, ForeColor = TextColor, AutoSize = false
+                Left = labelX,
+                Top = y,
+                Width = 680,
+                Height = 60,
+                Font = SmallFont,
+                ForeColor = TextColor,
+                AutoSize = false
             };
 
             // Event handlers
             chkWebUIEnabled.CheckedChanged += (s, e) => { if (!_isLoadingSettings) OnWebUIEnabledChanged(); };
-            numWebUIPort.ValueChanged += (s, e) =>
-            {
+            numWebUIPort.ValueChanged += (s, e) => {
                 if (!_isLoadingSettings)
                 {
                     UpdateWebUIUrl();
-                    if (chkWebUIAllowRemote.Checked) UpdateIPAddressDisplay();
+                    if (chkWebUIAllowRemote.Checked)
+                    {
+                        UpdateIPAddressDisplay();
+                    }
                 }
             };
-            chkWebUIAllowRemote.CheckedChanged += (s, e) =>
-            {
+            chkWebUIAllowRemote.CheckedChanged += (s, e) => {
                 if (!_isLoadingSettings)
                 {
                     UpdateWebUIUrl();
@@ -1628,97 +1532,111 @@ namespace WeatherImageGenerator.Forms
             return tab;
         }
 
-        #endregion
-
-        #region Event Handlers
-
-        private void SetupVideoTabEventHandlers()
+        private TabPage BuildExperimentalTab()
         {
-            // Quality preset handler
-            cmbQualityPreset.SelectedIndexChanged += (s, e) =>
-            {
-                if (_isLoadingSettings || cmbQualityPreset.SelectedIndex == 5) return;
+            var tab = new TabPage("⚠ Experimental") { BackColor = BackgroundColor, Padding = new Padding(20) };
+            tab.Enabled = false;
+            
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 200;
+            int rowHeight = 38;
 
-                _isLoadingSettings = true;
-                switch (cmbQualityPreset.SelectedIndex)
-                {
-                    case 0: // Ultra
-                        cmbResolution.SelectedIndex = 0;
-                        cmbCodec.SelectedIndex = 0;
-                        cmbBitrate.SelectedIndex = 6;
-                        numFps.Value = 60;
-                        break;
-                    case 1: // High Quality
-                        cmbResolution.SelectedIndex = 2;
-                        cmbCodec.SelectedIndex = 0;
-                        cmbBitrate.SelectedIndex = 4;
-                        numFps.Value = 30;
-                        break;
-                    case 2: // Balanced
-                        cmbResolution.SelectedIndex = 2;
-                        cmbCodec.SelectedIndex = 0;
-                        cmbBitrate.SelectedIndex = 2;
-                        numFps.Value = 30;
-                        break;
-                    case 3: // Web Optimized
-                        cmbResolution.SelectedIndex = 4;
-                        cmbCodec.SelectedIndex = 0;
-                        cmbBitrate.SelectedIndex = 1;
-                        numFps.Value = 30;
-                        break;
-                    case 4: // Low Bandwidth
-                        cmbResolution.SelectedIndex = 6;
-                        cmbCodec.SelectedIndex = 0;
-                        cmbBitrate.SelectedIndex = 0;
-                        numFps.Value = 24;
-                        break;
-                }
-                _isLoadingSettings = false;
+            // Warning Banner
+            var warningPanel = new Panel
+            {
+                Left = labelX,
+                Top = y,
+                Width = 700,
+                Height = 50,
+                BackColor = ThemeManager.Current.IsDark ? Color.FromArgb(60, 50, 20) : Color.FromArgb(255, 243, 205)
+            };
+            var lblWarning = new Label
+            {
+                Text = "⚠ EXPERIMENTAL FEATURES - These settings can affect video quality and encoding performance.\n   Use with caution. Enable from the Video tab's Debug section.",
+                Left = 15,
+                Top = 8,
+                Width = 670,
+                Height = 35,
+                Font = LabelFont,
+                ForeColor = ThemeManager.Current.IsDark ? WarningColor : Color.FromArgb(133, 100, 4),
+                AutoSize = false
+            };
+            warningPanel.Controls.Add(lblWarning);
+            y += 70;
+
+            // CRF Encoding
+            var lblCrfSection = CreateSectionHeader("Quality-Based Encoding (CRF)", labelX, y, "🎯");
+            y += 35;
+
+            chkUseCrfEncoding = CreateCheckBox("Use CRF encoding (quality-based)", labelX, y, 280);
+            y += 35;
+
+            var lblCrf = CreateLabel("CRF Value:", labelX, y);
+            numCrf = CreateNumericUpDown(fieldX, y - 2, 80, 0, 51, 23);
+            var lblCrfHelp = CreateHelpLabel("Lower = better quality (18-28 typical)", fieldX + 90, y + 2, 250);
+            y += rowHeight + 5;
+
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // Encoder Settings
+            var lblEncoderSection = CreateSectionHeader("Encoder Settings", labelX, y, "⚙");
+            y += 35;
+
+            var lblPreset = CreateLabel("Encoder Preset:", labelX, y);
+            cmbEncoderPreset = CreateComboBox(fieldX, y - 2, 150);
+            cmbEncoderPreset.Items.AddRange(new object[] { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow" });
+            cmbEncoderPreset.SelectedIndex = 5;
+            var lblPresetHelp = CreateHelpLabel("Slower = smaller file, better quality", fieldX + 160, y + 2, 250);
+            y += rowHeight;
+
+            var lblMaxBitrate = CreateLabel("Max Bitrate:", labelX, y);
+            txtMaxBitrate = CreateTextBox(fieldX, y - 2, 100);
+            var lblMaxBrHelp = CreateHelpLabel("e.g., 8M, 12M (optional)", fieldX + 110, y + 2);
+            y += rowHeight;
+
+            var lblBuffer = CreateLabel("Buffer Size:", labelX, y);
+            txtBufferSize = CreateTextBox(fieldX, y - 2, 100);
+            var lblBufferHelp = CreateHelpLabel("e.g., 16M (optional)", fieldX + 110, y + 2);
+            y += rowHeight + 10;
+
+            // Tips
+            var lblTips = new Label
+            {
+                Text = "💡 Tips:\n" +
+                       "• CRF mode provides consistent quality but variable file size\n" +
+                       "• Use 'slow' or 'slower' preset for best quality when time isn't critical\n" +
+                       "• Set Max Bitrate to limit file size while using CRF mode\n" +
+                       "• Leave optional fields empty to use defaults",
+                Left = labelX,
+                Top = y,
+                Width = 600,
+                Height = 90,
+                Font = SmallFont,
+                ForeColor = TextColor,
+                AutoSize = false
             };
 
-            // Mark as custom when user changes individual settings
-            EventHandler markCustom = (s, e) =>
-            {
-                if (!_isLoadingSettings && cmbQualityPreset.SelectedIndex != 5)
+            // Mark custom on change
+            EventHandler markCustom = (s, e) => {
+                if (!_isLoadingSettings && cmbQualityPreset != null && cmbQualityPreset.SelectedIndex != 5)
                     cmbQualityPreset.SelectedIndex = 5;
             };
-            cmbResolution.SelectedIndexChanged += markCustom;
-            cmbCodec.SelectedIndexChanged += markCustom;
-            cmbBitrate.SelectedIndexChanged += markCustom;
-            numFps.ValueChanged += markCustom;
+            cmbEncoderPreset.SelectedIndexChanged += markCustom;
+            txtMaxBitrate.TextChanged += markCustom;
+            txtBufferSize.TextChanged += markCustom;
+            chkUseCrfEncoding.CheckedChanged += markCustom;
+            numCrf.ValueChanged += markCustom;
 
-            // Sync alert duration with slide duration
-            numStatic.ValueChanged += (s, e) =>
-            {
-                if (!_isLoadingSettings)
-                    numAlertDisplayDurationSeconds.Value = numStatic.Value;
-            };
+            tab.Controls.AddRange(new Control[] {
+                warningPanel, lblCrfSection, chkUseCrfEncoding, lblCrf, numCrf, lblCrfHelp, divider1,
+                lblEncoderSection, lblPreset, cmbEncoderPreset, lblPresetHelp,
+                lblMaxBitrate, txtMaxBitrate, lblMaxBrHelp,
+                lblBuffer, txtBufferSize, lblBufferHelp, lblTips
+            });
 
-            // Hardware encoding check
-            btnCheckHw.Click += (s, e) =>
-            {
-                btnCheckHw.Enabled = false;
-                lblHwStatus.Text = "Checking...";
-                Task.Run(() =>
-                {
-                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
-                    this.Invoke((Action)(() =>
-                    {
-                        lblHwStatus.Text = msg;
-                        lblHwStatus.ForeColor = ok ? SuccessColor : DangerColor;
-                        btnCheckHw.Enabled = true;
-                        if (!ok)
-                        {
-                            chkEnableHardwareEncoding.Checked = false;
-                            chkEnableHardwareEncoding.Enabled = false;
-                        }
-                        else
-                        {
-                            chkEnableHardwareEncoding.Enabled = true;
-                        }
-                    }));
-                });
-            };
+            return tab;
         }
 
         #endregion
@@ -1788,10 +1706,42 @@ namespace WeatherImageGenerator.Forms
         private void UpdateTtsEngineVisibility()
         {
             bool isEdge = cmbTtsEngine.SelectedIndex == 1;
-            if (_edgeTtsControls != null)
-                foreach (var c in _edgeTtsControls) c.Visible = isEdge;
-            if (_piperTtsControls != null)
-                foreach (var c in _piperTtsControls) c.Visible = !isEdge;
+            
+            // Find controls by iterating through tab pages
+            foreach (TabPage tab in this.Controls.OfType<TabControl>().FirstOrDefault()?.TabPages ?? new TabControl.TabPageCollection(new TabControl()))
+            {
+                if (tab.Text.Contains("Emergency") || tab.Text.Contains("EAS"))
+                {
+                    foreach (Control ctrl in tab.Controls)
+                    {
+                        if (ctrl.Text?.Contains("EdgeTTS Voice") == true ||
+                            (ctrl is ComboBox && ctrl == cmbTtsVoice) ||
+                            ctrl.Text?.Contains("Speech Rate") == true ||
+                            (ctrl is TextBox && (ctrl == txtTtsRate || ctrl == txtTtsPitch)) ||
+                            ctrl.Text?.Contains("Pitch:") == true ||
+                            ctrl.Text?.Contains("Download Windows") == true)
+                        {
+                            ctrl.Visible = isEdge;
+                        }
+                        else if (ctrl.Text?.Contains("Piper Voice") == true ||
+                                 (ctrl is ComboBox && ctrl == cmbPiperVoice) ||
+                                 ctrl.Text?.Contains("Speech Speed") == true ||
+                                 (ctrl is NumericUpDown && ctrl == numPiperLengthScale) ||
+                                 ctrl.Text?.Contains("Install Piper") == true)
+                        {
+                            ctrl.Visible = !isEdge;
+                        }
+                        // Also handle help labels
+                        if (ctrl is Label lbl)
+                        {
+                            if (lbl.Text.Contains("e.g., +0%") || lbl.Text.Contains("e.g., +0Hz"))
+                                lbl.Visible = isEdge;
+                            else if (lbl.Text.Contains("0.5=faster"))
+                                lbl.Visible = !isEdge;
+                        }
+                    }
+                }
+            }
         }
 
         private async void InstallPiperTts()
@@ -1811,16 +1761,21 @@ namespace WeatherImageGenerator.Forms
             var progressForm = new Form
             {
                 Text = "Installing Piper TTS",
-                Width = 400, Height = 150,
+                Width = 400,
+                Height = 150,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
                 StartPosition = FormStartPosition.CenterParent,
-                MaximizeBox = false, MinimizeBox = false
+                MaximizeBox = false,
+                MinimizeBox = false
             };
 
             var lblStatus = new Label
             {
                 Text = "Downloading Piper TTS...",
-                Left = 20, Top = 20, Width = 350, Height = 60,
+                Left = 20,
+                Top = 20,
+                Width = 350,
+                Height = 60,
                 Font = new Font("Segoe UI", 10F)
             };
 
@@ -1830,14 +1785,17 @@ namespace WeatherImageGenerator.Forms
             try
             {
                 using var client = new EAS.PiperTtsClient();
-
+                
                 var progress = new Progress<string>(msg =>
                 {
                     if (progressForm.IsHandleCreated)
+                    {
                         progressForm.Invoke((Action)(() => lblStatus.Text = msg));
+                    }
                 });
 
                 bool success = await client.InstallPiperAsync(progress);
+
                 progressForm.Close();
 
                 if (success)
@@ -1845,20 +1803,28 @@ namespace WeatherImageGenerator.Forms
                     MessageBox.Show(this,
                         "Piper TTS has been installed successfully!\n\n" +
                         "Voice models will be downloaded automatically when you generate audio.",
-                        "Installation Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        "Installation Complete",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
                 }
                 else
                 {
                     MessageBox.Show(this,
-                        "Failed to install Piper TTS.\n\nPlease check your internet connection and try again.",
-                        "Installation Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        "Failed to install Piper TTS.\n\n" +
+                        "Please check your internet connection and try again.",
+                        "Installation Failed",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
             {
                 progressForm.Close();
-                MessageBox.Show(this, $"Error installing Piper TTS:\n\n{ex.Message}",
-                    "Installation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this,
+                    $"Error installing Piper TTS:\n\n{ex.Message}",
+                    "Installation Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
@@ -1915,27 +1881,28 @@ namespace WeatherImageGenerator.Forms
             try
             {
                 var cfg = ConfigManager.LoadConfig();
-
-                // ── General Tab ──
+                
+                // General Tab
                 txtImageOutputDir.Text = Path.Combine(Directory.GetCurrentDirectory(), cfg.ImageGeneration?.OutputDirectory ?? "WeatherImages");
                 txtVideoOutputDir.Text = Path.Combine(Directory.GetCurrentDirectory(), cfg.Video?.OutputDirectory ?? cfg.ImageGeneration?.OutputDirectory ?? "WeatherImages");
                 numRefresh.Value = cfg.RefreshTimeMinutes;
-
+                
                 var theme = cfg.Theme ?? "Blue";
                 if (cmbTheme.Items.Contains(theme)) cmbTheme.SelectedItem = theme;
                 else cmbTheme.SelectedItem = "Blue";
 
+                // Default Weather API
                 cmbDefaultWeatherApi.SelectedIndex = cfg.DefaultWeatherApi switch
                 {
                     Models.WeatherApiType.ECCC => 1,
                     Models.WeatherApiType.Hybrid => 2,
-                    _ => 0
+                    _ => 0  // OpenMeteo
                 };
 
                 chkMinimizeToTray.Checked = cfg.MinimizeToTray;
                 chkMinimizeToTrayOnClose.Checked = cfg.MinimizeToTrayOnClose;
                 chkAutoStartCycle.Checked = cfg.AutoStartCycle;
-
+                
                 try
                 {
                     chkStartWithWindows.Checked = WindowsStartupManager.IsStartupEnabled();
@@ -1947,32 +1914,29 @@ namespace WeatherImageGenerator.Forms
                     Logger.Log($"Failed to check Windows startup status: {ex.Message}", Logger.LogLevel.Warning);
                     chkStartWithWindows.Checked = cfg.StartWithWindows;
                 }
-
+                
                 chkStartMinimizedToTray.Checked = cfg.StartMinimizedToTray;
                 chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked;
 
-                // Version & Updates
-                chkAutoUpdate.Checked = cfg.CheckForUpdatesOnStartup;
-
-                // ── Image (Output Tab) ──
+                // Image Tab
                 numImgWidth.Value = cfg.ImageGeneration?.ImageWidth ?? 1920;
                 numImgHeight.Value = cfg.ImageGeneration?.ImageHeight ?? 1080;
                 var fmt = (cfg.ImageGeneration?.ImageFormat ?? "png").ToLowerInvariant();
                 if (cmbImgFormat.Items.Contains(fmt)) cmbImgFormat.SelectedItem = fmt;
-
+                
                 var fontFamily = cfg.ImageGeneration?.FontFamily ?? "Arial";
                 if (cmbFontFamily.Items.Contains(fontFamily)) cmbFontFamily.SelectedItem = fontFamily;
                 else cmbFontFamily.SelectedIndex = 0;
-
+                
                 chkEnableProvinceRadar.Checked = cfg.ECCC?.EnableProvinceRadar ?? true;
                 chkEnableWeatherMaps.Checked = cfg.ImageGeneration?.EnableWeatherMaps ?? true;
 
-                // ── Video (Output Tab) ──
+                // Video Tab
                 chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
                 chkSkipDetailedWeatherOnAlert.Checked = cfg.Video?.SkipDetailedWeatherOnAlert ?? false;
                 numPlayRadarAnimationCountOnAlert.Value = cfg.Video?.PlayRadarAnimationCountOnAlert ?? 1;
                 numAlertDisplayDurationSeconds.Value = (decimal)(cfg.Video?.AlertDisplayDurationSeconds ?? 10);
-
+                
                 numStatic.Value = (decimal)(cfg.Video?.StaticDurationSeconds ?? 8);
                 numFade.Value = (decimal)(cfg.Video?.FadeDurationSeconds ?? 0.5);
                 chkFade.Checked = cfg.Video?.EnableFadeTransitions ?? false;
@@ -1980,7 +1944,7 @@ namespace WeatherImageGenerator.Forms
                 numTotalDuration.Value = (decimal)(cfg.Video?.TotalDurationSeconds ?? 60);
                 numTotalDuration.Enabled = chkUseTotalDuration.Checked;
                 numStatic.Enabled = !chkUseTotalDuration.Checked;
-
+                
                 var resMode = cfg.Video?.ResolutionMode ?? "Mode1080p";
                 var resDisplay = resMode switch
                 {
@@ -1996,9 +1960,9 @@ namespace WeatherImageGenerator.Forms
                 };
                 if (cmbResolution.Items.Contains(resDisplay)) cmbResolution.SelectedItem = resDisplay;
                 else cmbResolution.SelectedIndex = 2;
-
+                
                 numFps.Value = cfg.Video?.FrameRate ?? 30;
-
+                
                 var codec = cfg.Video?.VideoCodec ?? "libx264";
                 var codecDisplay = codec switch
                 {
@@ -2012,7 +1976,7 @@ namespace WeatherImageGenerator.Forms
                 };
                 if (cmbCodec.Items.Contains(codecDisplay)) cmbCodec.SelectedItem = codecDisplay;
                 else cmbCodec.SelectedIndex = 0;
-
+                
                 var bitrate = cfg.Video?.VideoBitrate ?? "4M";
                 var bitrateDisplay = bitrate.ToUpper() switch
                 {
@@ -2027,16 +1991,16 @@ namespace WeatherImageGenerator.Forms
                 };
                 if (cmbBitrate.Items.Contains(bitrateDisplay)) cmbBitrate.SelectedItem = bitrateDisplay;
                 else cmbBitrate.SelectedIndex = 2;
-
+                
                 var container = (cfg.Video?.Container ?? "mp4").ToLowerInvariant();
                 if (cmbContainer.Items.Contains(container)) cmbContainer.SelectedItem = container;
-
+                
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
                 chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
                 chkEnableExperimental.Checked = cfg.Video?.ExperimentalEnabled ?? false;
-                if (_experimentalSection != null) _experimentalSection.Enabled = chkEnableExperimental.Checked;
-
+                if (tabExperimental != null) tabExperimental.Enabled = chkEnableExperimental.Checked;
+                
                 var qualityPreset = cfg.Video?.QualityPreset ?? "Balanced";
                 var presetDisplay = qualityPreset switch
                 {
@@ -2051,7 +2015,7 @@ namespace WeatherImageGenerator.Forms
                 if (cmbQualityPreset.Items.Contains(presetDisplay)) cmbQualityPreset.SelectedItem = presetDisplay;
                 else cmbQualityPreset.SelectedIndex = 2;
 
-                // ── Experimental (Output Tab) ──
+                // Experimental Tab
                 chkUseCrfEncoding.Checked = cfg.Video?.UseCrfEncoding ?? true;
                 numCrf.Value = cfg.Video?.CrfValue ?? 23;
                 txtMaxBitrate.Text = cfg.Video?.MaxBitrate ?? string.Empty;
@@ -2060,7 +2024,7 @@ namespace WeatherImageGenerator.Forms
                 if (cmbEncoderPreset.Items.Contains(preset)) cmbEncoderPreset.SelectedItem = preset;
                 else cmbEncoderPreset.SelectedIndex = 5;
 
-                // ── FFmpeg (Output Tab) ──
+                // FFmpeg Tab
                 var ffmpegSource = cfg.FFmpeg?.Source?.ToLowerInvariant() ?? "bundled";
                 cmbFfmpegSource.SelectedIndex = ffmpegSource switch
                 {
@@ -2073,7 +2037,7 @@ namespace WeatherImageGenerator.Forms
                 txtFfmpegCustomPath.Enabled = cmbFfmpegSource.SelectedIndex == 2;
                 btnBrowseFfmpegPath.Enabled = cmbFfmpegSource.SelectedIndex == 2;
 
-                // ── Alerts & TTS Tab ──
+                // EAS Tab
                 var alertReady = cfg.AlertReady ?? new EAS.AlertReady.AlertReadyOptions();
                 chkAlertReadyEnabled.Checked = alertReady.Enabled;
                 txtAlertReadyFeedUrls.Text = alertReady.FeedUrls != null ? string.Join(Environment.NewLine, alertReady.FeedUrls) : "";
@@ -2085,6 +2049,7 @@ namespace WeatherImageGenerator.Forms
                 chkAlertReadyHighRiskOnly.Checked = alertReady.HighRiskOnly;
                 chkAlertReadyExcludeWeather.Checked = alertReady.ExcludeWeatherAlerts;
 
+                // NWS (USA) settings
                 var nws = cfg.Nws ?? new EAS.NWS.NwsOptions();
                 chkNwsEnabled.Checked = nws.Enabled;
                 txtNwsStates.Text = nws.States != null ? string.Join(", ", nws.States) : "";
@@ -2095,11 +2060,14 @@ namespace WeatherImageGenerator.Forms
                 chkNwsHighRiskOnly.Checked = nws.HighRiskOnly;
                 txtNwsSeverityFilter.Text = nws.SeverityFilter != null ? string.Join(", ", nws.SeverityFilter) : "";
                 txtNwsUserAgent.Text = nws.UserAgent;
-
+                
                 var tts = cfg.TTS ?? new TTSSettings();
+                
+                // TTS Engine
                 cmbTtsEngine.SelectedIndex = (tts.Engine?.ToLowerInvariant() == "edge") ? 1 : 0;
-
-                var voiceDisplay2 = tts.Voice switch
+                
+                // EdgeTTS settings
+                var voiceDisplay = tts.Voice switch
                 {
                     "fr-CA-SylvieNeural" => "fr-CA-SylvieNeural (Female)",
                     "fr-CA-JeanNeural" => "fr-CA-JeanNeural (Male)",
@@ -2111,11 +2079,12 @@ namespace WeatherImageGenerator.Forms
                     "en-US-GuyNeural" => "en-US-GuyNeural (Male)",
                     _ => "fr-CA-SylvieNeural (Female)"
                 };
-                if (cmbTtsVoice.Items.Contains(voiceDisplay2)) cmbTtsVoice.SelectedItem = voiceDisplay2;
+                if (cmbTtsVoice.Items.Contains(voiceDisplay)) cmbTtsVoice.SelectedItem = voiceDisplay;
                 else cmbTtsVoice.SelectedIndex = 0;
                 txtTtsRate.Text = tts.Rate;
                 txtTtsPitch.Text = tts.Pitch;
-
+                
+                // Piper settings
                 string piperVoice = tts.PiperVoice ?? "fr_FR-siwis-medium";
                 var piperVoiceDisplay = piperVoice switch
                 {
@@ -2132,10 +2101,10 @@ namespace WeatherImageGenerator.Forms
                 if (cmbPiperVoice.Items.Contains(piperVoiceDisplay)) cmbPiperVoice.SelectedItem = piperVoiceDisplay;
                 else cmbPiperVoice.SelectedIndex = 0;
                 numPiperLengthScale.Value = (decimal)(tts.PiperLengthScale ?? 1.0f);
-
+                
                 UpdateTtsEngineVisibility();
 
-                // ── Map Tab ──
+                // OpenMap Tab
                 var openMap = cfg.OpenMap ?? new OpenMapSettings();
                 var mapStyle = openMap.DefaultMapStyle?.ToLowerInvariant() ?? "standard";
                 cmbMapStyle.SelectedIndex = mapStyle switch
@@ -2155,22 +2124,16 @@ namespace WeatherImageGenerator.Forms
                 txtMapCacheDirectory.Enabled = openMap.EnableTileCache;
                 numMapCacheDuration.Value = openMap.CacheDurationHours;
                 chkMapUseDarkMode.Checked = openMap.UseDarkMode;
-
                 var renderApi = (openMap.RenderingApi ?? "OpenGL").ToLowerInvariant();
-                int renderIdx = renderApi switch
+                cmbRenderApi.SelectedIndex = renderApi switch
                 {
                     "opengl" => 0,
                     "vulkan" => 1,
                     "directx11" => 2,
                     _ => 0
                 };
-                // If the saved API is disabled, fall back to OpenGL
-                if (renderIdx == 1 || (renderIdx == 2 && !_dx11Available))
-                    renderIdx = 0;
-                cmbRenderApi.SelectedIndex = renderIdx;
-                _previousRenderApiIndex = renderIdx;
 
-                // ── Network Tab ──
+                // Web UI Tab
                 var webUI = cfg.WebUI ?? new WebUISettings();
                 chkWebUIEnabled.Checked = webUI.Enabled;
                 numWebUIPort.Value = webUI.Port;
@@ -2211,17 +2174,6 @@ namespace WeatherImageGenerator.Forms
                         }));
                     }
                 });
-
-                // Deferred update check
-                if (cfg.CheckForUpdatesOnStartup)
-                {
-                    Task.Run(async () =>
-                    {
-                        await Task.Delay(1500);
-                        if (this.IsHandleCreated)
-                            this.Invoke((Action)(async () => await CheckForUpdatesInSettingsAsync()));
-                    });
-                }
             }
             catch (Exception ex)
             {
@@ -2277,6 +2229,7 @@ namespace WeatherImageGenerator.Forms
                 alertReady.ExcludeWeatherAlerts = chkAlertReadyExcludeWeather.Checked;
                 cfg.AlertReady = alertReady;
 
+                // NWS (USA) settings
                 var nwsOpt = cfg.Nws ?? new EAS.NWS.NwsOptions();
                 nwsOpt.Enabled = chkNwsEnabled.Checked;
                 nwsOpt.States = txtNwsStates.Text
@@ -2298,20 +2251,27 @@ namespace WeatherImageGenerator.Forms
                     .Select(s => s.Trim())
                     .Where(s => !string.IsNullOrWhiteSpace(s))
                     .ToList();
-                nwsOpt.UserAgent = string.IsNullOrWhiteSpace(txtNwsUserAgent.Text)
-                    ? "WSG-Weather-Still-Generator/1.0"
+                nwsOpt.UserAgent = string.IsNullOrWhiteSpace(txtNwsUserAgent.Text) 
+                    ? "WSG-Weather-Still-Generator/1.0" 
                     : txtNwsUserAgent.Text.Trim();
                 cfg.Nws = nwsOpt;
 
                 var tts = cfg.TTS ?? new TTSSettings();
+                
+                // Save TTS engine
                 tts.Engine = cmbTtsEngine.SelectedIndex == 1 ? "edge" : "piper";
+                
+                // Save EdgeTTS settings
                 var voiceDisplay = cmbTtsVoice.SelectedItem?.ToString() ?? "fr-CA-SylvieNeural (Female)";
                 tts.Voice = voiceDisplay.Split(' ')[0];
                 tts.Rate = txtTtsRate.Text.Trim();
                 tts.Pitch = txtTtsPitch.Text.Trim();
+                
+                // Save Piper settings
                 var piperVoiceDisplay = cmbPiperVoice.SelectedItem?.ToString() ?? "fr_FR-siwis-medium (French Female)";
                 tts.PiperVoice = piperVoiceDisplay.Split(' ')[0];
                 tts.PiperLengthScale = (float)numPiperLengthScale.Value;
+                
                 cfg.TTS = tts;
 
                 var v = cfg.Video ?? new VideoSettings();
@@ -2321,8 +2281,8 @@ namespace WeatherImageGenerator.Forms
                 v.UseTotalDuration = chkUseTotalDuration.Checked;
                 v.TotalDurationSeconds = (double)numTotalDuration.Value;
 
-                var resDisplay2 = cmbResolution.SelectedItem?.ToString() ?? "1920x1080 (Full HD)";
-                v.ResolutionMode = resDisplay2 switch
+                var resDisplay = cmbResolution.SelectedItem?.ToString() ?? "1920x1080 (Full HD)";
+                v.ResolutionMode = resDisplay switch
                 {
                     "3840x2160 (4K/UHD)" => "Mode4K",
                     "2560x1440 (2K/QHD)" => "Mode1440p",
@@ -2337,8 +2297,8 @@ namespace WeatherImageGenerator.Forms
 
                 v.FrameRate = (int)numFps.Value;
 
-                var codecDisplay2 = cmbCodec.SelectedItem?.ToString() ?? "libx264 (H.264)";
-                v.VideoCodec = codecDisplay2 switch
+                var codecDisplay = cmbCodec.SelectedItem?.ToString() ?? "libx264 (H.264)";
+                v.VideoCodec = codecDisplay switch
                 {
                     "libx264 (H.264)" => "libx264",
                     "libx265 (H.265/HEVC)" => "libx265",
@@ -2349,8 +2309,8 @@ namespace WeatherImageGenerator.Forms
                     _ => "libx264"
                 };
 
-                var bitrateDisplay2 = cmbBitrate.SelectedItem?.ToString() ?? "4M (Medium)";
-                v.VideoBitrate = bitrateDisplay2.Split(' ')[0];
+                var bitrateDisplay = cmbBitrate.SelectedItem?.ToString() ?? "4M (Medium)";
+                v.VideoBitrate = bitrateDisplay.Split(' ')[0];
 
                 v.Container = cmbContainer.SelectedItem?.ToString() ?? "mp4";
                 v.OutputDirectory = ToRelative(txtVideoOutputDir.Text, imageGen.OutputDirectory ?? "WeatherImages");
@@ -2405,7 +2365,6 @@ namespace WeatherImageGenerator.Forms
                 cfg.AutoStartCycle = chkAutoStartCycle.Checked;
                 cfg.StartWithWindows = chkStartWithWindows.Checked;
                 cfg.StartMinimizedToTray = chkStartMinimizedToTray.Checked;
-                cfg.CheckForUpdatesOnStartup = chkAutoUpdate.Checked;
 
                 try
                 {
@@ -2463,11 +2422,14 @@ namespace WeatherImageGenerator.Forms
                     StartWebUIService();
                 }
 
+                // Warn user that a restart is needed when Remote Access is newly enabled
                 if (chkWebUIAllowRemote.Checked && !wasRemoteAccessEnabled)
                 {
                     MessageBox.Show(this,
                         "Remote Access has been enabled. Please restart the application so the boot check service can activate the firewall rule and URL ACL (UAC elevation will be required).",
-                        "Restart Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        "Restart Required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                 }
 
                 var ffmpeg = cfg.FFmpeg ?? new FFmpegSettings();
@@ -2553,6 +2515,7 @@ namespace WeatherImageGenerator.Forms
             {
                 string fontName = cmbFontFamily.SelectedItem?.ToString() ?? "Arial";
 
+                // Alert Preview
                 var alertBmp = new Bitmap(700, 110);
                 using (var g = Graphics.FromImage(alertBmp))
                 {
@@ -2574,6 +2537,7 @@ namespace WeatherImageGenerator.Forms
                     }
                 }
 
+                // Weather Preview
                 var weatherBmp = new Bitmap(700, 110);
                 using (var g = Graphics.FromImage(weatherBmp))
                 {
@@ -2703,6 +2667,7 @@ namespace WeatherImageGenerator.Forms
                 lblLocalIP.Visible = true;
                 lblPublicIP.Visible = true;
 
+                // Update IP addresses asynchronously
                 Task.Run(async () =>
                 {
                     string localIP = Utilities.NetworkHelper.GetLocalIPAddress();
@@ -2777,120 +2742,6 @@ namespace WeatherImageGenerator.Forms
             catch (Exception ex)
             {
                 MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        #endregion
-
-        #region Update Methods
-
-        private async Task CheckForUpdatesInSettingsAsync()
-        {
-            btnCheckForUpdates.Enabled = false;
-            btnCheckForUpdates.Text = "Checking...";
-            lblUpdateStatus.Text = "";
-            btnDownloadUpdate.Visible = false;
-
-            try
-            {
-                var updateInfo = await UpdateService.CheckForUpdatesAsync();
-
-                if (!string.IsNullOrEmpty(updateInfo.Error))
-                {
-                    lblLatestVersion.Text = "Latest Version:  Unknown";
-                    lblLatestVersion.ForeColor = DangerColor;
-                    lblUpdateStatus.Text = updateInfo.Error;
-                    lblUpdateStatus.ForeColor = DangerColor;
-                }
-                else
-                {
-                    lblLatestVersion.Text = $"Latest Version:  {updateInfo.LatestVersion}";
-                    lblLatestVersion.ForeColor = TextColor;
-
-                    if (updateInfo.IsUpdateAvailable)
-                    {
-                        lblUpdateStatus.Text = $"🎉 New version available! ({updateInfo.PublishedAt?.ToString("MMM dd, yyyy") ?? "Recent"})";
-                        lblUpdateStatus.ForeColor = SuccessColor;
-                        _pendingDownloadUrl = updateInfo.DownloadUrl;
-                        btnDownloadUpdate.Visible = true;
-                        btnDownloadUpdate.Enabled = !string.IsNullOrEmpty(_pendingDownloadUrl);
-                    }
-                    else
-                    {
-                        lblUpdateStatus.Text = "✓ You are running the latest version";
-                        lblUpdateStatus.ForeColor = SuccessColor;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                lblUpdateStatus.Text = $"Error: {ex.Message}";
-                lblUpdateStatus.ForeColor = DangerColor;
-            }
-            finally
-            {
-                btnCheckForUpdates.Enabled = true;
-                btnCheckForUpdates.Text = "🔍 Check for Updates";
-            }
-        }
-
-        private async Task DownloadAndInstallFromSettingsAsync()
-        {
-            if (string.IsNullOrEmpty(_pendingDownloadUrl))
-            {
-                MessageBox.Show("No download URL available. Please check for updates first.",
-                    "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var confirm = MessageBox.Show(
-                "This will download and install the latest version.\n\n" +
-                "The application will need to restart after the update.\n" +
-                "Your settings will be preserved.\n\nContinue?",
-                "Confirm Update", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            if (confirm != DialogResult.Yes) return;
-
-            btnDownloadUpdate.Enabled = false;
-            btnCheckForUpdates.Enabled = false;
-            _updateProgressBar.Visible = true;
-            lblUpdateProgress.Visible = true;
-            _updateProgressBar.Value = 0;
-
-            var progress = new Progress<(int Percent, string Status)>(p =>
-            {
-                _updateProgressBar.Value = Math.Min(100, p.Percent);
-                lblUpdateProgress.Text = p.Status;
-            });
-
-            try
-            {
-                var (success, message) = await UpdateService.DownloadAndInstallUpdateAsync(_pendingDownloadUrl, progress);
-
-                if (success)
-                {
-                    var restart = MessageBox.Show(
-                        message + "\n\nRestart now?",
-                        "Update Complete", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-
-                    if (restart == DialogResult.Yes)
-                        UpdateService.RestartApplication();
-                }
-                else
-                {
-                    MessageBox.Show(message, "Update Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Update failed: {ex.Message}", "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                _updateProgressBar.Visible = false;
-                lblUpdateProgress.Visible = false;
-                btnCheckForUpdates.Enabled = true;
-                btnDownloadUpdate.Enabled = true;
             }
         }
 

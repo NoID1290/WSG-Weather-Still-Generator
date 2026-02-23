@@ -298,7 +298,7 @@ namespace WeatherImageGenerator.Services
                     }
                     else
                     {
-                        chk.ForeColor = t.TextSecondary;
+                        chk.ForeColor = t.TextPrimary;
                     }
                     break;
 
@@ -328,6 +328,12 @@ namespace WeatherImageGenerator.Services
                 case FlowLayoutPanel flp:
                     flp.BackColor = t.Surface;
                     foreach (Control c in flp.Controls)
+                        ApplyToControl(c, t);
+                    break;
+
+                case TableLayoutPanel tlp:
+                    tlp.BackColor = t.Surface;
+                    foreach (Control c in tlp.Controls)
                         ApplyToControl(c, t);
                     break;
 
@@ -642,7 +648,7 @@ namespace WeatherImageGenerator.Services
 
                 // Text
                 string text = tabs.TabPages[e.Index].Text;
-                Color textColor = isSelected ? capturedTheme.TextPrimary : capturedTheme.TextDim;
+                Color textColor = isSelected ? capturedTheme.TextPrimary : capturedTheme.TextSecondary;
                 var font = isSelected
                     ? new Font(tabs.Font, FontStyle.Bold)
                     : tabs.Font;

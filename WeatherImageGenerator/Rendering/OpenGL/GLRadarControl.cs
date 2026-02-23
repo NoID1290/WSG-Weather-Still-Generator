@@ -39,6 +39,9 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         /// <summary>The WinForms Control that hosts the OpenGL viewport.</summary>
         public Control HostControl => this;
 
+        /// <summary>The rendering API backend.</summary>
+        public RenderingApi ActiveApi => RenderingApi.OpenGL;
+
         /// <summary>Request a repaint of the viewport.</summary>
         public void InvalidateView() => Invalidate();
 
