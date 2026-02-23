@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.13.0.0223] - 2026-02-23
 
-- Added DirectX11 API, Settings forms refractor
 - Refactor Settings Forms
 - Fix HUD text symbol
 - Fix DirectX rendering overlay
