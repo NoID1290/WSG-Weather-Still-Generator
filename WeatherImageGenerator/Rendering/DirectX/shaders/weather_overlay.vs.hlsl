@@ -2,7 +2,7 @@
 
 cbuffer TransformCB : register(b0)
 {
-    float3x3 uTransform;
+    row_major float3x3 uTransform;
 };
 
 struct VS_INPUT

@@ -3,7 +3,7 @@
 
 cbuffer ProjectionCB : register(b0)
 {
-    float4x4 uProjection;
+    row_major float4x4 uProjection;
 };
 
 struct VSInput

@@ -471,7 +471,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
         }
 
         private static string GetFallbackUIVS() => @"
-cbuffer ProjectionCB : register(b0) { float4x4 uProjection; };
+cbuffer ProjectionCB : register(b0) { row_major float4x4 uProjection; };
 struct VS_INPUT { float2 aPos : POSITION; float2 aTex : TEXCOORD0; };
 struct VS_OUTPUT { float4 Position : SV_POSITION; float2 vTex : TEXCOORD0; };
 VS_OUTPUT main(VS_INPUT input) {

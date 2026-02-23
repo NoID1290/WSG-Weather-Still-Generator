@@ -333,6 +333,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
                     catch { }
                 }, null, 16, 16);
 
+                UpdateOverlayVertices();
                 _initialized = true;
                 Console.WriteLine($"[DXMapRenderer] Initialized: D3D11 Feature Level {actualLevel}");
             }
