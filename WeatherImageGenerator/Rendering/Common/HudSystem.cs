@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -205,7 +205,7 @@ namespace WeatherImageGenerator.Rendering.Common
             float ty = py + 6f;
 
             // Collapse indicator
-            string collapseIcon = panel.Collapsed ? "â–¶" : "â–¼";
+            string collapseIcon = panel.Collapsed ? "▶" : "▼";
             r.DrawText(collapseIcon, tx, ty, TextDim.R, TextDim.G, TextDim.B, TextDim.A);
             tx += 16f;
 
@@ -340,7 +340,7 @@ namespace WeatherImageGenerator.Rendering.Common
             r.DrawText(text, tx, ty, TextPrimary.R, TextPrimary.G, TextPrimary.B, TextPrimary.A);
 
             // Dropdown arrow
-            string arrow = dd.IsOpen ? "â–²" : "â–¼";
+            string arrow = dd.IsOpen ? "▲" : "▼";
             float aw = r.MeasureTextWidth(arrow);
             r.DrawText(arrow, x + w - aw - 8f, ty, TextDim.R, TextDim.G, TextDim.B, TextDim.A);
         }
@@ -540,10 +540,10 @@ namespace WeatherImageGenerator.Rendering.Common
                         return true;
                     }
                 }
-                // Clicked outside dropdown â†’ close it
+                // Clicked outside dropdown → close it
                 _openDropdown.IsOpen = false;
                 _openDropdown = null;
-                // Don't consume â€” let it fall through to panel check
+                // Don't consume — let it fall through to panel check
             }
 
             // Check panels (reverse order = topmost first)
@@ -555,7 +555,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 var panelBounds = new RectangleF(panel.X, panel.Y, panel.Width, panel.ComputedHeight);
                 if (!panelBounds.Contains(mx, my)) continue;
 
-                // Title bar click â†’ toggle collapse
+                // Title bar click → toggle collapse
                 if (my < panel.Y + PanelTitleHeight)
                 {
                     if (panel.Collapsible)
@@ -618,7 +618,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     return true;
                 }
 
-                // Clicked inside panel but not on any element â€” still consume
+                // Clicked inside panel but not on any element — still consume
                 return true;
             }
 

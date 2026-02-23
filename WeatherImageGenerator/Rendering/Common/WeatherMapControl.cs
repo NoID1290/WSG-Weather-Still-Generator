@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -83,14 +83,14 @@ namespace WeatherImageGenerator.Rendering.Common
             _updateTimer.Start();
 
             // Initial overlay is triggered by SetLocation/SetZoom from the host form,
-            // NOT here â€” avoids race with location detection.
+            // NOT here — avoids race with location detection.
         }
 
         private void InitializeComponents()
         {
             this.Size = new Size(1200, 800);
             this.BackColor = ThemeManager.Current.Background;
-            // No WinForms sidebar â€” all controls are rendered via GL HUD
+            // No WinForms sidebar — all controls are rendered via GL HUD
         }
 
         private void InitializeMapControl()
@@ -138,7 +138,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
                 if (string.IsNullOrEmpty(msg))
                 {
-                    // Data is now available â€” clear HUD immediately
+                    // Data is now available — clear HUD immediately
                     if (_glControl.HostControl.IsHandleCreated)
                     {
                         try { _glControl.HostControl.BeginInvoke(new Action(() => _glControl.HudStatusText = "")); }
@@ -232,7 +232,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
             _hudSystem.AddPanel(actionsPanel);
 
-            // â•â•â• Viewport Panel (top-left, tab 2 â€” auto-stacked below Actions) â•â•â•
+            // â•â•â• Viewport Panel (top-left, tab 2 — auto-stacked below Actions) â•â•â•
             var viewportPanel = new HudPanel
             {
                 Id = "viewport",
@@ -286,12 +286,12 @@ namespace WeatherImageGenerator.Rendering.Common
                 Collapsible = false
             };
             zoomPanel.Elements.Add(new HudButton { Id = "zoomIn", Text = "+", OnClick = () => ZoomIn() });
-            zoomPanel.Elements.Add(new HudButton { Id = "zoomOut", Text = "âˆ’", OnClick = () => ZoomOut() });
+            zoomPanel.Elements.Add(new HudButton { Id = "zoomOut", Text = "−", OnClick = () => ZoomOut() });
             _lblZoom = new HudLabel { Id = "zoomLevel", Text = $"Z: {_currentZoom}", IsDim = true };
             zoomPanel.Elements.Add(_lblZoom);
             zoomPanel.Elements.Add(new HudSeparator());
-            zoomPanel.Elements.Add(new HudButton { Id = "center", Text = "â—Ž", OnClick = () => CenterMap() });
-            zoomPanel.Elements.Add(new HudButton { Id = "myLocation", Text = "âŒ– My Loc", OnClick = () => GoToMyLocation() });
+            zoomPanel.Elements.Add(new HudButton { Id = "center", Text = "◎", OnClick = () => CenterMap() });
+            zoomPanel.Elements.Add(new HudButton { Id = "myLocation", Text = "⌖ My Loc", OnClick = () => GoToMyLocation() });
             var chkShowLoc = new HudCheckbox
             {
                 Id = "showMyLoc",
@@ -486,10 +486,10 @@ namespace WeatherImageGenerator.Rendering.Common
                 Collapsible = false
             };
 
-            animPanel.Elements.Add(new HudButton { Id = "animStepBack", Text = "â®", OnClick = () => StepAnimationBackward() });
-            animPanel.Elements.Add(new HudButton { Id = "animPlayPause", Text = "â–¶", IsAccent = true, OnClick = () => PlayPauseAnimation() });
-            animPanel.Elements.Add(new HudButton { Id = "animStepFwd", Text = "â­", OnClick = () => StepAnimationForward() });
-            animPanel.Elements.Add(new HudButton { Id = "animSpeedDown", Text = "Speedâˆ’", OnClick = () => AdjustAnimationSpeed(200) });
+            animPanel.Elements.Add(new HudButton { Id = "animStepBack", Text = "⏮", OnClick = () => StepAnimationBackward() });
+            animPanel.Elements.Add(new HudButton { Id = "animPlayPause", Text = "▶", IsAccent = true, OnClick = () => PlayPauseAnimation() });
+            animPanel.Elements.Add(new HudButton { Id = "animStepFwd", Text = "⏭", OnClick = () => StepAnimationForward() });
+            animPanel.Elements.Add(new HudButton { Id = "animSpeedDown", Text = "Speed−", OnClick = () => AdjustAnimationSpeed(200) });
             animPanel.Elements.Add(new HudButton { Id = "animSpeedUp", Text = "Speed+", OnClick = () => AdjustAnimationSpeed(-200) });
             animPanel.Elements.Add(new HudButton
             {
@@ -599,7 +599,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 // Show first frame
                 ShowAnimationFrame(0);
 
-                _lblFrameInfo.Text = $"Frame 1/{_animationFrames.Count} â€” {FormatTimestamp(_animationTimestamps[0])}";
+                _lblFrameInfo.Text = $"Frame 1/{_animationFrames.Count} — {FormatTimestamp(_animationTimestamps[0])}";
                 _glControl?.InvalidateView();
             }
             catch (Exception ex)
@@ -622,13 +622,13 @@ namespace WeatherImageGenerator.Rendering.Common
             var ppBtn = FindHudElement<HudButton>("animPlayPause");
             if (_isAnimating)
             {
-                if (ppBtn != null) { ppBtn.Text = "â¸"; ppBtn.IsAccent = false; }
+                if (ppBtn != null) { ppBtn.Text = "⏸"; ppBtn.IsAccent = false; }
                 _animationTimer.Interval = _animationSpeedMs;
                 _animationTimer.Start();
             }
             else
             {
-                if (ppBtn != null) { ppBtn.Text = "â–¶"; ppBtn.IsAccent = true; }
+                if (ppBtn != null) { ppBtn.Text = "▶"; ppBtn.IsAccent = true; }
                 _animationTimer.Stop();
             }
             _glControl?.InvalidateView();
@@ -672,7 +672,7 @@ namespace WeatherImageGenerator.Rendering.Common
             }
 
             var ts = index < _animationTimestamps.Count ? FormatTimestamp(_animationTimestamps[index]) : "";
-            _lblFrameInfo.Text = $"Frame {index + 1}/{_animationFrames.Count} â€” {ts}";
+            _lblFrameInfo.Text = $"Frame {index + 1}/{_animationFrames.Count} — {ts}";
             _glControl?.InvalidateView();
         }
 
@@ -693,7 +693,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _isAnimating = false;
                     _animationTimer?.Stop();
                     var ppb = FindHudElement<HudButton>("animPlayPause");
-                    if (ppb != null) { ppb.Text = "â–¶"; ppb.IsAccent = true; }
+                    if (ppb != null) { ppb.Text = "▶"; ppb.IsAccent = true; }
                     _glControl?.InvalidateView();
                     return;
                 }
@@ -871,7 +871,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 _isAnimating = false;
                 _animationTimer?.Stop();
                 var ppBtn = FindHudElement<HudButton>("animPlayPause");
-                if (ppBtn != null) { ppBtn.Text = "â–¶"; ppBtn.IsAccent = true; }
+                if (ppBtn != null) { ppBtn.Text = "▶"; ppBtn.IsAccent = true; }
             }
 
             // Clear frames
@@ -1008,7 +1008,7 @@ namespace WeatherImageGenerator.Rendering.Common
             _currentLon = lon;
             _glControl.SetCenterLatLon(lat, lon);
             UpdateStatusLabels();
-            // Don't call UpdateOverlays here â€” MapPositionChanged handler does it,
+            // Don't call UpdateOverlays here — MapPositionChanged handler does it,
             // and if SetZoom follows immediately, we'd fetch at the wrong zoom.
         }
 
@@ -1181,7 +1181,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
                 // â”€â”€ GPU compositing: upload radar and temperature as separate GL textures â”€â”€
                 // Each overlay gets its own texture slot with independent opacity.
-                // Alpha blending on the GPU composites them â€” no CPU-side GDI+ CompositeOverlays needed.
+                // Alpha blending on the GPU composites them — no CPU-side GDI+ CompositeOverlays needed.
 
                 byte[]? radarData = null;
                 byte[]? tempData = null;
@@ -1299,7 +1299,7 @@ namespace WeatherImageGenerator.Rendering.Common
         private async Task PrefetchMapTiles()
         {
             var confirm = MessageBox.Show(
-                "This will download map tiles for Canada/USA (zoom 3â€“7) into your local cache.\n\nPlease ensure you comply with tile provider usage policies. Continue?",
+                "This will download map tiles for Canada/USA (zoom 3–7) into your local cache.\n\nPlease ensure you comply with tile provider usage policies. Continue?",
                 "Prefetch Map Tiles",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
@@ -1348,7 +1348,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 _glControl.SetLocalTilesFolder(localTilesRoot);
                 UpdateCacheStats();
 
-                MessageBox.Show($"Prefetch complete â€” fetched {state.Fetched} tiles (processed {state.Completed} total).\nLocal tiles: {localTilesRoot}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Prefetch complete — fetched {state.Fetched} tiles (processed {state.Completed} total).\nLocal tiles: {localTilesRoot}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -1363,7 +1363,7 @@ namespace WeatherImageGenerator.Rendering.Common
         private async Task PrefetchRadarTiles()
         {
             var confirm = MessageBox.Show(
-                "This will download ECCC radar tiles (latest frame) for Canada/USA (zoom 3â€“7) into your local map cache.\n\nPlease ensure you comply with ECCC usage policies. Continue?",
+                "This will download ECCC radar tiles (latest frame) for Canada/USA (zoom 3–7) into your local map cache.\n\nPlease ensure you comply with ECCC usage policies. Continue?",
                 "Prefetch Radar Tiles",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
@@ -1406,7 +1406,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     progress: progress);
 
                 UpdateCacheStats();
-                MessageBox.Show($"Radar tile prefetch complete â€” fetched {state.Fetched} tiles (processed {state.Completed}).\nCache: {mapCacheDir}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Radar tile prefetch complete — fetched {state.Fetched} tiles (processed {state.Completed}).\nCache: {mapCacheDir}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -1482,7 +1482,7 @@ namespace WeatherImageGenerator.Rendering.Common
             if (_glControl != null)
             {
                 // Coordinate
-                string coord = $"{_currentLat:F2}Â°,{_currentLon:F2}Â°";
+                string coord = $"{_currentLat:F2}°,{_currentLon:F2}°";
 
                 // Zoom
                 string zoom = $"Z:{_currentZoom}";
