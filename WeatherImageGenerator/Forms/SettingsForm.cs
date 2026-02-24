@@ -1131,6 +1131,7 @@ namespace WeatherImageGenerator.Forms
             {
                 if (e.Index < 0) return;
                 e.DrawBackground();
+                e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
                 string text = cmbRenderApi.Items[e.Index]?.ToString() ?? "";
                 bool isDisabled = (e.Index == 1) || (e.Index == 2 && !_dx11Available);
                 Color textCol;

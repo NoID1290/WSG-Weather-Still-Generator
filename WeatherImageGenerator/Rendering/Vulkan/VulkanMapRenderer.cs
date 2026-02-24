@@ -75,6 +75,15 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         private void* _overlayVBMapped;
         private int _crosshairVertexCount;
 
+        // Invisible cursor for crosshair-as-mouse mode
+        private static readonly Cursor _blankCursor = CreateBlankCursor();
+        private static Cursor CreateBlankCursor()
+        {
+            var bmp = new System.Drawing.Bitmap(1, 1);
+            bmp.SetPixel(0, 0, System.Drawing.Color.Transparent);
+            return new Cursor(bmp.GetHicon());
+        }
+
         // Descriptor pool for texture bindings
         private DescriptorPool _textureDescPool;
         private Sampler _textureSampler;
@@ -265,7 +274,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             _hostPanel.MouseDown += OnMouseDown;
             _hostPanel.MouseMove += OnMouseMove;
             _hostPanel.MouseUp += OnMouseUp;
-            _hostPanel.MouseEnter += (s, e) => { _mouseInside = true; };
+            _hostPanel.MouseEnter += (s, e) => { _mouseInside = true; UpdateCursorStyle(); };
             _hostPanel.MouseLeave += (s, e) => { _mouseInside = false; _hostPanel.Cursor = Cursors.Default; _hostPanel.Invalidate(); };
         }
 
@@ -1873,7 +1882,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             {
                 _dragging = true;
                 _lastMousePos = e.Location;
-                _hostPanel.Cursor = Cursors.SizeAll;
+                _hostPanel.Cursor = (UseCrosshairAsMouse && ShowCrosshair) ? _blankCursor : Cursors.SizeAll;
             }
         }
 
@@ -1896,7 +1905,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             if (e.Button == MouseButtons.Left)
             {
                 _dragging = false;
-                _hostPanel.Cursor = Cursors.Default;
+                UpdateCursorStyle();
 
                 // Snap center to account for pan
                 double cx = LonToPixelX(_centerLon, _mapZoom) + _panX;
@@ -1908,6 +1917,15 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 MapPositionChanged?.Invoke(_centerLat, _centerLon);
                 _hostPanel.Invalidate();
             }
+        }
+
+        /// <summary>Set cursor style based on UseCrosshairAsMouse mode</summary>
+        private void UpdateCursorStyle()
+        {
+            if (UseCrosshairAsMouse && ShowCrosshair && _mouseInside)
+                _hostPanel.Cursor = _blankCursor;
+            else
+                _hostPanel.Cursor = Cursors.Default;
         }
 
         // ═══════════════════════════════════════════════════════════════════

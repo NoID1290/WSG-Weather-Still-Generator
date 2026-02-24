@@ -49,6 +49,15 @@ namespace WeatherImageGenerator.Rendering.DirectX
         private ComPtr<ID3D11Buffer> _overlayVB;
         private int _crosshairVertexCount;
 
+        // Invisible cursor for crosshair-as-mouse mode
+        private static readonly Cursor _blankCursor = CreateBlankCursor();
+        private static Cursor CreateBlankCursor()
+        {
+            var bmp = new System.Drawing.Bitmap(1, 1);
+            bmp.SetPixel(0, 0, System.Drawing.Color.Transparent);
+            return new Cursor(bmp.GetHicon());
+        }
+
         // Semantic name pointers (must stay alive while input layouts exist)
         private nint _semanticPOSITION;
         private nint _semanticTEXCOORD;
@@ -225,7 +234,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
             _hostPanel.MouseDown += OnMouseDown;
             _hostPanel.MouseMove += OnMouseMove;
             _hostPanel.MouseUp += OnMouseUp;
-            _hostPanel.MouseEnter += (s, e) => { _mouseInside = true; };
+            _hostPanel.MouseEnter += (s, e) => { _mouseInside = true; UpdateCursorStyle(); };
             _hostPanel.MouseLeave += (s, e) => { _mouseInside = false; _hostPanel.Cursor = Cursors.Default; _hostPanel.Invalidate(); };
 
             // Allocate persistent semantic name strings (must outlive input layouts)
@@ -1448,7 +1457,12 @@ namespace WeatherImageGenerator.Rendering.DirectX
         {
             if (e.Button == MouseButtons.Left && HudSystem != null && HudSystem.ProcessMouseDown(e.X, e.Y))
             { _hostPanel.Invalidate(); return; }
-            if (e.Button == MouseButtons.Left) { _dragging = true; _lastMousePos = e.Location; }
+            if (e.Button == MouseButtons.Left)
+            {
+                _dragging = true;
+                _lastMousePos = e.Location;
+                _hostPanel.Cursor = (UseCrosshairAsMouse && ShowCrosshair) ? _blankCursor : Cursors.SizeAll;
+            }
         }
 
         private void OnMouseMove(object? sender, MouseEventArgs e)
@@ -1458,7 +1472,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
             {
                 bool overHud = HudSystem.ProcessMouseMove(e.X, e.Y);
                 if (overHud && !_dragging) { _hostPanel.Cursor = Cursors.Hand; _hostPanel.Invalidate(); return; }
-                if (!_dragging && !overHud) _hostPanel.Cursor = Cursors.Default;
+                if (!_dragging && !overHud) UpdateCursorStyle();
                 if (overHud) _hostPanel.Invalidate();
             }
             if (UseCrosshairAsMouse && ShowCrosshair && !_dragging) _hostPanel.Invalidate();
@@ -1482,9 +1496,19 @@ namespace WeatherImageGenerator.Rendering.DirectX
             if (e.Button == MouseButtons.Left)
             {
                 _dragging = false;
+                UpdateCursorStyle();
                 UpdateTiles();
                 try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
             }
+        }
+
+        /// <summary>Set cursor style based on UseCrosshairAsMouse mode</summary>
+        private void UpdateCursorStyle()
+        {
+            if (UseCrosshairAsMouse && ShowCrosshair && _mouseInside)
+                _hostPanel.Cursor = _blankCursor;
+            else
+                _hostPanel.Cursor = Cursors.Default;
         }
 
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
