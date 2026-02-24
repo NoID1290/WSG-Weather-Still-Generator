@@ -49,16 +49,7 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkStartWithWindows;
         CheckBox chkStartMinimizedToTray;
 
-        // Controls — Version & Updates
-        Label lblCurrentVersion;
-        Label lblLatestVersion;
-        Label lblUpdateStatus;
-        Button btnCheckForUpdates;
-        Button btnDownloadUpdate;
-        ProgressBar _updateProgressBar;
-        Label lblUpdateProgress;
-        CheckBox chkAutoUpdate;
-        string _pendingDownloadUrl;
+
 
         // ═══════════════════════════════════════════════════════════════════
         // Controls — Image
@@ -567,67 +558,6 @@ namespace WeatherImageGenerator.Forms
             };
             y += 40;
 
-            var divider3 = CreateDivider(labelX, y + 5, 700);
-            y += 25;
-
-            // ── Version & Updates ──
-            var lblUpdateSection = CreateSectionHeader("Version & Updates", labelX, y, "🔄");
-            y += 35;
-
-            var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-            var currentVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                                 ?? asm.GetName().Version?.ToString() ?? "Unknown";
-
-            lblCurrentVersion = new Label
-            {
-                Text = $"Current Version:  {currentVersion}",
-                Left = labelX, Top = y, Width = 500, Height = 24,
-                Font = SubHeaderFont, ForeColor = TextColor, AutoSize = false
-            };
-            y += 30;
-
-            lblLatestVersion = new Label
-            {
-                Text = "Latest Version:  Checking...",
-                Left = labelX, Top = y, Width = 500, Height = 24,
-                Font = LabelFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
-            };
-            y += 28;
-
-            lblUpdateStatus = new Label
-            {
-                Text = "",
-                Left = labelX, Top = y, Width = 500, Height = 24,
-                Font = new Font("Segoe UI", 9F, FontStyle.Italic),
-                ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
-            };
-            y += 35;
-
-            btnCheckForUpdates = CreatePrimaryButton("🔍 Check for Updates", labelX, y, 175, 32);
-            btnCheckForUpdates.Click += async (s, e) => await CheckForUpdatesInSettingsAsync();
-
-            btnDownloadUpdate = CreateSuccessButton("⬇ Download & Install", labelX + 190, y, 175, 32);
-            btnDownloadUpdate.Visible = false;
-            btnDownloadUpdate.Enabled = false;
-            btnDownloadUpdate.Click += async (s, e) => await DownloadAndInstallFromSettingsAsync();
-
-            _updateProgressBar = new ProgressBar
-            {
-                Left = labelX, Top = y + 40, Width = 365, Height = 18,
-                Visible = false, Style = ProgressBarStyle.Continuous
-            };
-
-            lblUpdateProgress = new Label
-            {
-                Text = "", Left = labelX, Top = y + 62, Width = 365, Height = 20,
-                Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted",
-                Visible = false, AutoSize = false
-            };
-            y += 38;
-
-            chkAutoUpdate = CreateCheckBox("Check for updates on startup", labelX, y, 300);
-            y += 30;
-
             tab.Controls.AddRange(new Control[] {
                 lblAppSettings, lblRefresh, numRefresh, lblRefreshUnit,
                 lblTheme, cmbTheme,
@@ -636,11 +566,7 @@ namespace WeatherImageGenerator.Forms
                 lblOutputDirs, lblOutImg, txtImageOutputDir, btnBrowseImg,
                 lblOutVid, txtVideoOutputDir, btnBrowseVid, divider2,
                 lblTraySettings, chkMinimizeToTray, chkMinimizeToTrayOnClose,
-                chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray,
-                divider3,
-                lblUpdateSection, lblCurrentVersion, lblLatestVersion, lblUpdateStatus,
-                btnCheckForUpdates, btnDownloadUpdate, _updateProgressBar, lblUpdateProgress,
-                chkAutoUpdate
+                chkAutoStartCycle, chkStartWithWindows, chkStartMinimizedToTray
             });
 
             return tab;
@@ -1951,9 +1877,6 @@ namespace WeatherImageGenerator.Forms
                 chkStartMinimizedToTray.Checked = cfg.StartMinimizedToTray;
                 chkStartMinimizedToTray.Enabled = chkStartWithWindows.Checked;
 
-                // Version & Updates
-                chkAutoUpdate.Checked = cfg.CheckForUpdatesOnStartup;
-
                 // ── Image (Output Tab) ──
                 numImgWidth.Value = cfg.ImageGeneration?.ImageWidth ?? 1920;
                 numImgHeight.Value = cfg.ImageGeneration?.ImageHeight ?? 1080;
@@ -2212,16 +2135,6 @@ namespace WeatherImageGenerator.Forms
                     }
                 });
 
-                // Deferred update check
-                if (cfg.CheckForUpdatesOnStartup)
-                {
-                    Task.Run(async () =>
-                    {
-                        await Task.Delay(1500);
-                        if (this.IsHandleCreated)
-                            this.Invoke((Action)(async () => await CheckForUpdatesInSettingsAsync()));
-                    });
-                }
             }
             catch (Exception ex)
             {
@@ -2405,7 +2318,6 @@ namespace WeatherImageGenerator.Forms
                 cfg.AutoStartCycle = chkAutoStartCycle.Checked;
                 cfg.StartWithWindows = chkStartWithWindows.Checked;
                 cfg.StartMinimizedToTray = chkStartMinimizedToTray.Checked;
-                cfg.CheckForUpdatesOnStartup = chkAutoUpdate.Checked;
 
                 try
                 {
@@ -2784,115 +2696,7 @@ namespace WeatherImageGenerator.Forms
 
         #region Update Methods
 
-        private async Task CheckForUpdatesInSettingsAsync()
-        {
-            btnCheckForUpdates.Enabled = false;
-            btnCheckForUpdates.Text = "Checking...";
-            lblUpdateStatus.Text = "";
-            btnDownloadUpdate.Visible = false;
 
-            try
-            {
-                var updateInfo = await UpdateService.CheckForUpdatesAsync();
-
-                if (!string.IsNullOrEmpty(updateInfo.Error))
-                {
-                    lblLatestVersion.Text = "Latest Version:  Unknown";
-                    lblLatestVersion.ForeColor = DangerColor;
-                    lblUpdateStatus.Text = updateInfo.Error;
-                    lblUpdateStatus.ForeColor = DangerColor;
-                }
-                else
-                {
-                    lblLatestVersion.Text = $"Latest Version:  {updateInfo.LatestVersion}";
-                    lblLatestVersion.ForeColor = TextColor;
-
-                    if (updateInfo.IsUpdateAvailable)
-                    {
-                        lblUpdateStatus.Text = $"🎉 New version available! ({updateInfo.PublishedAt?.ToString("MMM dd, yyyy") ?? "Recent"})";
-                        lblUpdateStatus.ForeColor = SuccessColor;
-                        _pendingDownloadUrl = updateInfo.DownloadUrl;
-                        btnDownloadUpdate.Visible = true;
-                        btnDownloadUpdate.Enabled = !string.IsNullOrEmpty(_pendingDownloadUrl);
-                    }
-                    else
-                    {
-                        lblUpdateStatus.Text = "✓ You are running the latest version";
-                        lblUpdateStatus.ForeColor = SuccessColor;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                lblUpdateStatus.Text = $"Error: {ex.Message}";
-                lblUpdateStatus.ForeColor = DangerColor;
-            }
-            finally
-            {
-                btnCheckForUpdates.Enabled = true;
-                btnCheckForUpdates.Text = "🔍 Check for Updates";
-            }
-        }
-
-        private async Task DownloadAndInstallFromSettingsAsync()
-        {
-            if (string.IsNullOrEmpty(_pendingDownloadUrl))
-            {
-                MessageBox.Show("No download URL available. Please check for updates first.",
-                    "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var confirm = MessageBox.Show(
-                "This will download and install the latest version.\n\n" +
-                "The application will need to restart after the update.\n" +
-                "Your settings will be preserved.\n\nContinue?",
-                "Confirm Update", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            if (confirm != DialogResult.Yes) return;
-
-            btnDownloadUpdate.Enabled = false;
-            btnCheckForUpdates.Enabled = false;
-            _updateProgressBar.Visible = true;
-            lblUpdateProgress.Visible = true;
-            _updateProgressBar.Value = 0;
-
-            var progress = new Progress<(int Percent, string Status)>(p =>
-            {
-                _updateProgressBar.Value = Math.Min(100, p.Percent);
-                lblUpdateProgress.Text = p.Status;
-            });
-
-            try
-            {
-                var (success, message) = await UpdateService.DownloadAndInstallUpdateAsync(_pendingDownloadUrl, progress);
-
-                if (success)
-                {
-                    var restart = MessageBox.Show(
-                        message + "\n\nRestart now?",
-                        "Update Complete", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-
-                    if (restart == DialogResult.Yes)
-                        UpdateService.RestartApplication();
-                }
-                else
-                {
-                    MessageBox.Show(message, "Update Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Update failed: {ex.Message}", "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                _updateProgressBar.Visible = false;
-                lblUpdateProgress.Visible = false;
-                btnCheckForUpdates.Enabled = true;
-                btnDownloadUpdate.Enabled = true;
-            }
-        }
 
         #endregion
     }

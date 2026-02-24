@@ -4013,6 +4013,20 @@ namespace WeatherImageGenerator.Forms
                     updateProgress, lblUpdateProgress, chkAutoUpdate 
                 });
 
+                // Deferred auto-check when dialog opens (same as SettingsForm behavior)
+                if (aboutCfg.CheckForUpdatesOnStartup)
+                {
+                    this.Load += (s, e) =>
+                    {
+                        Task.Run(async () =>
+                        {
+                            await Task.Delay(500);
+                            if (this.IsHandleCreated && !this.IsDisposed)
+                                this.Invoke((Action)(() => btnCheckUpdate.PerformClick()));
+                        });
+                    };
+                }
+
                 var lblDesc = new Label 
                 { 
                     Text = "A comprehensive tool to generate beautiful weather forecast images and videos with support for:\n\n" +
