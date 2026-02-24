@@ -42,18 +42,11 @@ namespace WeatherImageGenerator
         [STAThread]
         static void Main(string[] args)
         {
-            // ── Single-instance guard: refuse startup if another instance is running ──
+            // ── Single-instance guard: hold a global mutex so the boot screen's
+            //    SingleInstanceCheck (process-name based) can detect us reliably.
+            //    No MessageBox here — the BootScreen handles the UX gracefully. ──
             const string mutexName = "Global\\WSG-WeatherStillGenerator-B7F3A8E1-4D2C-4F9A-8E1B-3C5D7F9A2B4E";
-            using var singleInstanceMutex = new Mutex(true, mutexName, out bool createdNew);
-            if (!createdNew)
-            {
-                MessageBox.Show(
-                    "Another instance of Weather Still Generator is already running.\n\nPlease close the existing instance before starting a new one.",
-                    "WSG — Already Running",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
+            using var singleInstanceMutex = new Mutex(true, mutexName, out bool _);
 
             // Ensure the working directory is the application's own directory.
             // Critical for auto-start via registry where CWD may be System32.
