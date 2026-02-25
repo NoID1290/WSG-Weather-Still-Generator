@@ -476,8 +476,9 @@ if ($NoRelease) {
         }
 
         # Check if release already exists
-        $releaseCheck = gh release view $tagName 2>$null
-        if (-not $releaseCheck) {
+        $releaseCheck = $null
+        $releaseCheck = gh release view $tagName 2>&1
+        if ($LASTEXITCODE -ne 0) {
             Write-Host "[RELEASE] Creating GitHub release for $tagName" -ForegroundColor Cyan
             gh release create $tagName --title "$tagName" --notes $releaseNotes --target $Branch
             if ($?) {
