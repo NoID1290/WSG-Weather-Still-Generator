@@ -309,6 +309,18 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool EnableCrosshairPulse { get; set; } = true;
 
+        /// <summary>Whether to display the bottom-right status bar</summary>
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool ShowStatusBar { get; set; } = true;
+
+        /// <summary>Whether to display the scale bar (ruler)</summary>
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool ShowRuler { get; set; } = true;
+
+        /// <summary>Opacity multiplier for the status bar background (0.0-1.0)</summary>
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public float StatusBarOpacity { get; set; } = 0.55f;
+
         // Cached uniform locations for shader toggles
         private int _tileShaderSaturationLoc = -1;
         private int _tileShaderContrastLoc = -1;
@@ -1157,7 +1169,7 @@ void main() {
                 }
 
                 // Status bar: single-row at bottom-right (mirrors attribution style)
-                if (!string.IsNullOrEmpty(_hudStatusBarText))
+                if (ShowStatusBar && !string.IsNullOrEmpty(_hudStatusBarText))
                 {
                     float textW = _uiRenderer.MeasureTextWidth(_hudStatusBarText);
                     float lh = _uiRenderer.LineHeight;
@@ -1167,7 +1179,7 @@ void main() {
                     float barX = Width - barW;
                     float barY = Height - barH;
 
-                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0f, 0f, 0f, 0.55f);
+                    _uiRenderer.DrawRect(barX, barY, barW, barH, 0f, 0f, 0f, StatusBarOpacity);
                     _uiRenderer.DrawText(_hudStatusBarText, barX + pad, barY + pad, 0.82f, 0.82f, 0.82f, 0.85f);
                 }
 
@@ -1235,7 +1247,8 @@ void main() {
                     _uiRenderer.DrawText(coordText, coordBarX + padC, coordBarY + padC, 0.6f, 1.0f, 0.2f, 0.95f);
                 }
 
-                // Scale bar: rendered at bottom-right of viewport
+                // Scale bar: rendered at bottom-left of viewport
+                if (ShowRuler)
                 {
                     // Calculate meters per pixel using Mercator projection
                     double metersPerPixel = 156543.03392 * Math.Cos(_centerLat * Math.PI / 180.0) / Math.Pow(2.0, _mapZoom);
@@ -1395,9 +1408,12 @@ void main() {
 
         private void SnapTileZoom()
         {
-            // Compute target tile zoom from smooth zoom factor
-            int zoomDelta = (int)Math.Round(Math.Log(_zoom) / Math.Log(2));
-            if (zoomDelta == 0 && Math.Abs(_zoom - 1.0f) < 0.05f)
+            // Compute target tile zoom using directional snap (ceiling for zoom-in, floor for zoom-out)
+            // This prevents the "rollback" where Math.Round snaps backward when the accumulated
+            // zoom factor is just below the halfway threshold.
+            double logZoom = Math.Log(_zoom) / Math.Log(2);
+            int zoomDelta;
+            if (Math.Abs(logZoom) < 0.05)
             {
                 // Already at correct tile zoom, just reset smooth zoom
                 _zoom = 1.0f;
@@ -1405,6 +1421,14 @@ void main() {
                 IsSmoothZooming = false;
                 Invalidate();
                 return;
+            }
+            else if (logZoom > 0)
+            {
+                zoomDelta = (int)Math.Ceiling(logZoom);  // Always snap forward when zooming in
+            }
+            else
+            {
+                zoomDelta = (int)Math.Floor(logZoom);    // Always snap forward when zooming out
             }
 
             int targetZoom = Math.Max(0, Math.Min(20, _mapZoom + zoomDelta));

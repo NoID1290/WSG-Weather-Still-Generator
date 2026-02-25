@@ -215,6 +215,10 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         public bool EnableRadarGlow { get; set; } = true;
         public bool EnableCrosshairPulse { get; set; } = true;
 
+        public bool ShowStatusBar { get; set; } = true;
+        public bool ShowRuler { get; set; } = true;
+        public float StatusBarOpacity { get; set; } = 0.55f;
+
         public float OverlayOpacity { get => _overlayOpacity; set { _overlayOpacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public float Overlay2Opacity { get => _overlay2Opacity; set { _overlay2Opacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public bool DebugOverlayBounds { get; set; }
@@ -1498,7 +1502,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             }
 
             // Status bar (bottom-right)
-            if (!string.IsNullOrEmpty(HudStatusBarText))
+            if (ShowStatusBar && !string.IsNullOrEmpty(HudStatusBarText))
             {
                 float tw = _hudRenderer.MeasureTextWidth(HudStatusBarText);
                 _hudRenderer.DrawRect(w - tw - 10, h - 20, tw + 10, 20, 0, 0, 0, 0.5f);

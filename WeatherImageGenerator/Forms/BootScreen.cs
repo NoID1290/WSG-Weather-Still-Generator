@@ -116,7 +116,7 @@ namespace WeatherImageGenerator.Forms
 
             _subtitleLabel = new Label
             {
-                Text = "WSG — Automated Weather Broadcast System",
+                Text = "Your personal weather, powered by open data",
                 Font = new Font("Segoe UI", 9F, FontStyle.Italic),
                 ForeColor = TextDim,
                 AutoSize = false,

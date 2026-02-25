@@ -1013,5 +1013,26 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("PanelPosition")]
         public string PanelPosition { get; set; } = "Right";
+
+        [JsonPropertyName("ShowStatusBar")]
+        public bool ShowStatusBar { get; set; } = true;
+
+        [JsonPropertyName("ShowRuler")]
+        public bool ShowRuler { get; set; } = true;
+
+        [JsonPropertyName("PanelOpacity")]
+        public int PanelOpacity { get; set; } = 75;
+
+        [JsonPropertyName("StatusBarOpacity")]
+        public int StatusBarOpacity { get; set; } = 55;
+
+        [JsonPropertyName("AnimationBarOpacity")]
+        public int AnimationBarOpacity { get; set; } = 75;
+
+        [JsonPropertyName("AnimationSpeed")]
+        public int AnimationSpeed { get; set; } = 500;
+
+        [JsonPropertyName("AnimationFrameCount")]
+        public int AnimationFrameCount { get; set; } = 10;
     }
 }

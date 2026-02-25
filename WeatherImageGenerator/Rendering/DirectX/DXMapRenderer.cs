@@ -169,6 +169,10 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public bool EnableRadarGlow { get; set; } = true;
         public bool EnableCrosshairPulse { get; set; } = true;
 
+        public bool ShowStatusBar { get; set; } = true;
+        public bool ShowRuler { get; set; } = true;
+        public float StatusBarOpacity { get; set; } = 0.55f;
+
         public float OverlayOpacity { get => _overlayOpacity; set { _overlayOpacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public float Overlay2Opacity { get => _overlay2Opacity; set { _overlay2Opacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public bool DebugOverlayBounds { get; set; }
@@ -959,7 +963,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
             }
 
             // Status bar (bottom-right)
-            if (!string.IsNullOrEmpty(HudStatusBarText))
+            if (ShowStatusBar && !string.IsNullOrEmpty(HudStatusBarText))
             {
                 float textW = _hudRenderer.MeasureTextWidth(HudStatusBarText);
                 float lh = _hudRenderer.LineHeight, pad = 6f;
@@ -1015,6 +1019,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
             }
 
             // Scale bar
+            if (ShowRuler)
             {
                 double mpp = 156543.03392 * Math.Cos(_centerLat * Math.PI / 180.0) / Math.Pow(2.0, _mapZoom);
                 double[] distances = { 5000000, 2000000, 1000000, 500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5 };

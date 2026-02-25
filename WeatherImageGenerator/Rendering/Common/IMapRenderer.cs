@@ -88,6 +88,15 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <summary>Enable pulsing animation on the crosshair.</summary>
         bool EnableCrosshairPulse { get; set; }
 
+        /// <summary>Whether to display the bottom-right status bar.</summary>
+        bool ShowStatusBar { get; set; }
+
+        /// <summary>Whether to display the scale bar (ruler).</summary>
+        bool ShowRuler { get; set; }
+
+        /// <summary>Opacity multiplier for the status bar background (0.0-1.0).</summary>
+        float StatusBarOpacity { get; set; }
+
         // ═══════════════════════════════════════════════════════════════════
         // Overlay management
         // ═══════════════════════════════════════════════════════════════════

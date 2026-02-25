@@ -208,21 +208,21 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private void BuildHudPanels()
         {
-            // â•â•â• Actions Panel (top-left, tab 1) â•â•â•
+            // === Actions Panel (top-left, horizontal row with Viewport + Shaders) ===
             var actionsPanel = new HudPanel
             {
                 Id = "actions",
                 Title = "Actions",
                 Anchor = HudAnchor.TopLeft,
                 Width = 200f,
+                CompactWidth = 80f,
                 MarginX = 10, MarginY = 10,
                 Collapsible = true,
-                Collapsed = true
+                Collapsed = true,
+                LayoutGroup = "topBar"
             };
 
             actionsPanel.Elements.Add(new HudButton { Id = "loadAnim", Text = "Load Animation", IsAccent = true, OnClick = async () => await LoadRadarAnimation() });
-            _chkAnimFollowMap = new HudCheckbox { Id = "animFollow", Text = "Follow Map", Checked = true };
-            actionsPanel.Elements.Add(_chkAnimFollowMap);
             actionsPanel.Elements.Add(new HudSeparator());
             actionsPanel.Elements.Add(new HudButton { Id = "refresh", Text = "Refresh Weather", IsAccent = true, OnClick = async () => await RefreshWeather() });
             actionsPanel.Elements.Add(new HudButton { Id = "clearCache", Text = "Clear Cache", OnClick = async () => await ClearCache() });
@@ -232,16 +232,18 @@ namespace WeatherImageGenerator.Rendering.Common
 
             _hudSystem.AddPanel(actionsPanel);
 
-            // â•â•â• Viewport Panel (top-left, tab 2 — auto-stacked below Actions) â•â•â•
+            // === Viewport Panel (top-left, horizontal row) ===
             var viewportPanel = new HudPanel
             {
                 Id = "viewport",
                 Title = "Viewport",
                 Anchor = HudAnchor.TopLeft,
-                Width = 200f,
+                Width = 210f,
+                CompactWidth = 85f,
                 MarginX = 10, MarginY = 10,
                 Collapsible = true,
-                Collapsed = true
+                Collapsed = true,
+                LayoutGroup = "topBar"
             };
 
             var chkCrosshairMouse = new HudCheckbox
@@ -273,169 +275,55 @@ namespace WeatherImageGenerator.Rendering.Common
             };
             viewportPanel.Elements.Add(chkCoords);
 
-            _hudSystem.AddPanel(viewportPanel);
-
-            // â•â•â• Zoom Panel (right-center) â•â•â•
-            var zoomPanel = new HudPanel
+            var chkStatusBar = new HudCheckbox
             {
-                Id = "zoom",
-                Title = "Zoom",
-                Anchor = HudAnchor.RightCenter,
-                Width = 110f,
-                MarginX = 10, MarginY = 0,
-                Collapsible = false
+                Id = "showStatusBar",
+                Text = "Status Bar",
+                Checked = _glControl.ShowStatusBar,
+                OnChanged = on =>
+                {
+                    _glControl.ShowStatusBar = on;
+                    _glControl.InvalidateView();
+                }
             };
-            zoomPanel.Elements.Add(new HudButton { Id = "zoomIn", Text = "+", OnClick = () => ZoomIn() });
-            zoomPanel.Elements.Add(new HudButton { Id = "zoomOut", Text = "−", OnClick = () => ZoomOut() });
-            _lblZoom = new HudLabel { Id = "zoomLevel", Text = $"Z: {_currentZoom}", IsDim = true };
-            zoomPanel.Elements.Add(_lblZoom);
-            zoomPanel.Elements.Add(new HudSeparator());
-            zoomPanel.Elements.Add(new HudButton { Id = "center", Text = "◎", OnClick = () => CenterMap() });
-            zoomPanel.Elements.Add(new HudButton { Id = "myLocation", Text = "⌖ My Loc", OnClick = () => GoToMyLocation() });
+            viewportPanel.Elements.Add(chkStatusBar);
+
+            var chkRuler = new HudCheckbox
+            {
+                Id = "showRuler",
+                Text = "Ruler",
+                Checked = _glControl.ShowRuler,
+                OnChanged = on =>
+                {
+                    _glControl.ShowRuler = on;
+                    _glControl.InvalidateView();
+                }
+            };
+            viewportPanel.Elements.Add(chkRuler);
+
             var chkShowLoc = new HudCheckbox
             {
                 Id = "showMyLoc",
-                Text = "Show Loc",
+                Text = "Show My Location",
                 Checked = false,
                 OnChanged = on => ToggleUserMarker(on)
             };
-            zoomPanel.Elements.Add(chkShowLoc);
-            _hudSystem.AddPanel(zoomPanel);
+            viewportPanel.Elements.Add(chkShowLoc);
 
-            // â•â•â• Overlays Panel (top-right, collapsible) â•â•â•
-            var overlayPanel = new HudPanel
-            {
-                Id = "overlays",
-                Title = "Weather Overlays",
-                Anchor = HudAnchor.TopRight,
-                Width = 240f,
-                MarginX = 10, MarginY = 10,
-                Collapsible = true
-            };
+            _hudSystem.AddPanel(viewportPanel);
 
-            // Radar toggle
-            _chkRadar = new HudCheckbox
-            {
-                Id = "radar",
-                Text = "Radar Composite",
-                Checked = true,
-                OnChanged = chk => { UpdateAttributionText(); _ = UpdateOverlays(); }
-            };
-            overlayPanel.Elements.Add(_chkRadar);
-
-            // Radar layer dropdown
-            overlayPanel.Elements.Add(new HudLabel { Id = "lblRadarLayer", Text = "Radar Layer", IsDim = true });
-            _ddRadarLayer = new HudDropdown
-            {
-                Id = "radarLayer",
-                Text = "Radar Layer",
-                Options = new List<string> { "Rain (RRAI)", "Snow (RSNO)", "Combined (RDBR)", "Coverage" },
-                SelectedIndex = 0,
-                OnSelectionChanged = _ => OnRadarLayerChanged()
-            };
-            overlayPanel.Elements.Add(_ddRadarLayer);
-
-            // Radar style dropdown
-            overlayPanel.Elements.Add(new HudLabel { Id = "lblRadarStyle", Text = "Radar Style", IsDim = true });
-            _ddRadarStyle = new HudDropdown
-            {
-                Id = "radarStyle",
-                Text = "Radar Style",
-                Options = new List<string> { "Precip Linear", "Server Default" },
-                SelectedIndex = 0,
-                OnSelectionChanged = _ => OnRadarStyleChanged()
-            };
-            overlayPanel.Elements.Add(_ddRadarStyle);
-
-            // Radar opacity
-            _sldRadarOpacity = new HudSlider
-            {
-                Id = "radarOpacity",
-                Text = "Radar Opacity",
-                Value = 75, Min = 0, Max = 100, ShowLabel = true,
-                OnChanged = val =>
-                {
-                    _overlayManager.RadarOpacity = val / 100f;
-                    _glControl.OverlayOpacity = val / 100f;
-                    _glControl.InvalidateView();
-                }
-            };
-            overlayPanel.Elements.Add(_sldRadarOpacity);
-
-            overlayPanel.Elements.Add(new HudSeparator());
-
-            // Temperature toggle
-            _chkTemperature = new HudCheckbox
-            {
-                Id = "temperature",
-                Text = "Temperature Grid",
-                Checked = false,
-                OnChanged = chk => { UpdateAttributionText(); _ = UpdateOverlays(); }
-            };
-            overlayPanel.Elements.Add(_chkTemperature);
-
-            // Temperature opacity
-            _sldTempOpacity = new HudSlider
-            {
-                Id = "tempOpacity",
-                Text = "Temp Opacity",
-                Value = 60, Min = 0, Max = 100, ShowLabel = true,
-                OnChanged = val =>
-                {
-                    _overlayManager.TemperatureOpacity = val / 100f;
-                    _glControl.Overlay2Opacity = val / 100f;
-                    _glControl.InvalidateView();
-                }
-            };
-            overlayPanel.Elements.Add(_sldTempOpacity);
-
-            // Temperature labels
-            var chkTempLabels = new HudCheckbox
-            {
-                Id = "tempLabels",
-                Text = "Show Temp Labels",
-                Checked = true,
-                OnChanged = on =>
-                {
-                    _overlayManager.ShowTemperatureLabels = on;
-                    _overlayManager.InvalidateTemperatureCache();
-                    _ = UpdateOverlays();
-                }
-            };
-            overlayPanel.Elements.Add(chkTempLabels);
-
-            _hudSystem.AddPanel(overlayPanel);
-
-            // â•â•â• Map Style Panel (top-right, auto-stacked below Overlays) â•â•â•
-            var mapStylePanel = new HudPanel
-            {
-                Id = "mapStyle",
-                Title = "Map Style",
-                Anchor = HudAnchor.TopRight,
-                Width = 240f,
-                MarginX = 10, MarginY = 10,
-                Collapsible = true
-            };
-            _grpMapStyle = new HudButtonGroup
-            {
-                Id = "mapStyleGroup",
-                Options = new List<string> { "Std", "Dark", "Terrain", "Sat" },
-                SelectedIndex = 0,
-                OnSelectionChanged = idx => OnMapStyleChanged()
-            };
-            mapStylePanel.Elements.Add(_grpMapStyle);
-            _hudSystem.AddPanel(mapStylePanel);
-
-            // â•â•â• Shaders Panel (top-right, auto-stacks below MapStyle) â•â•â•
+            // === Shaders Panel (top-left, horizontal row) ===
             var shadersPanel = new HudPanel
             {
                 Id = "shaders",
                 Title = "Shaders",
-                Anchor = HudAnchor.TopRight,
+                Anchor = HudAnchor.TopLeft,
                 Width = 220f,
+                CompactWidth = 80f,
                 MarginX = 10, MarginY = 10,
                 Collapsible = true,
-                Collapsed = true
+                Collapsed = true,
+                LayoutGroup = "topBar"
             };
             shadersPanel.Elements.Add(new HudCheckbox
             {
@@ -472,46 +360,233 @@ namespace WeatherImageGenerator.Rendering.Common
                 Checked = true,
                 OnChanged = v => { _glControl.EnableRadarGlow = v; _glControl.InvalidateView(); }
             });
+
+            shadersPanel.Elements.Add(new HudSeparator());
+            shadersPanel.Elements.Add(new HudLabel { Id = "lblUITransparency", Text = "UI Transparency", IsSection = true });
+
+            shadersPanel.Elements.Add(new HudSlider
+            {
+                Id = "panelOpacity",
+                Text = "Panel Opacity",
+                Value = 75, Min = 20, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _hudSystem.PanelOpacityMultiplier = val / 75f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            shadersPanel.Elements.Add(new HudSlider
+            {
+                Id = "statusBarOpacity",
+                Text = "Status Bar Opacity",
+                Value = 55, Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _glControl.StatusBarOpacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            shadersPanel.Elements.Add(new HudSlider
+            {
+                Id = "animBarOpacity",
+                Text = "Animation Bar Opacity",
+                Value = 75, Min = 20, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _hudSystem.AnimationPanelOpacity = val / 75f;
+                    _glControl.InvalidateView();
+                }
+            });
+
             _hudSystem.AddPanel(shadersPanel);
 
-            // â•â•â• Animation Panel (bottom-center, initially hidden) â•â•â•
+            // === Zoom Panel - minimal vertical strip, bottom-right above status bar ===
+            var zoomPanel = new HudPanel
+            {
+                Id = "zoom",
+                Title = "",
+                Anchor = HudAnchor.BottomRight,
+                Width = 40f,
+                MarginX = 12, MarginY = 40,
+                Collapsible = false,
+                TitleVisible = false
+            };
+            zoomPanel.Elements.Add(new HudButton { Id = "zoomIn", Text = "+", IsCompact = true, OnClick = () => ZoomIn() });
+            _lblZoom = new HudLabel { Id = "zoomLevel", Text = $"{_currentZoom}", IsDim = true };
+            zoomPanel.Elements.Add(_lblZoom);
+            zoomPanel.Elements.Add(new HudButton { Id = "zoomOut", Text = "\u2212", IsCompact = true, OnClick = () => ZoomOut() });
+            zoomPanel.Elements.Add(new HudSeparator());
+            zoomPanel.Elements.Add(new HudButton { Id = "center", Text = "\u25CE", IsCompact = true, OnClick = () => CenterMap() });
+            zoomPanel.Elements.Add(new HudButton { Id = "myLocation", Text = "\u2316", IsCompact = true, OnClick = () => GoToMyLocation() });
+            _hudSystem.AddPanel(zoomPanel);
+
+            // === Overlays Panel (top-right, collapsible) ===
+            var overlayPanel = new HudPanel
+            {
+                Id = "overlays",
+                Title = "Weather Overlays",
+                Anchor = HudAnchor.TopRight,
+                Width = 240f,
+                MarginX = 10, MarginY = 10,
+                Collapsible = true
+            };
+
+            _chkRadar = new HudCheckbox
+            {
+                Id = "radar",
+                Text = "Radar Composite",
+                Checked = true,
+                OnChanged = chk => { UpdateAttributionText(); _ = UpdateOverlays(); }
+            };
+            overlayPanel.Elements.Add(_chkRadar);
+
+            overlayPanel.Elements.Add(new HudLabel { Id = "lblRadarLayer", Text = "Radar Layer", IsDim = true });
+            _ddRadarLayer = new HudDropdown
+            {
+                Id = "radarLayer",
+                Text = "Radar Layer",
+                Options = new List<string> { "Rain (RRAI)", "Snow (RSNO)", "Combined (RDBR)", "Coverage" },
+                SelectedIndex = 0,
+                OnSelectionChanged = _ => OnRadarLayerChanged()
+            };
+            overlayPanel.Elements.Add(_ddRadarLayer);
+
+            overlayPanel.Elements.Add(new HudLabel { Id = "lblRadarStyle", Text = "Radar Style", IsDim = true });
+            _ddRadarStyle = new HudDropdown
+            {
+                Id = "radarStyle",
+                Text = "Radar Style",
+                Options = new List<string> { "Precip Linear", "Server Default" },
+                SelectedIndex = 0,
+                OnSelectionChanged = _ => OnRadarStyleChanged()
+            };
+            overlayPanel.Elements.Add(_ddRadarStyle);
+
+            _sldRadarOpacity = new HudSlider
+            {
+                Id = "radarOpacity",
+                Text = "Radar Opacity",
+                Value = 75, Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _overlayManager.RadarOpacity = val / 100f;
+                    _glControl.OverlayOpacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            };
+            overlayPanel.Elements.Add(_sldRadarOpacity);
+
+            overlayPanel.Elements.Add(new HudSeparator());
+
+            _chkTemperature = new HudCheckbox
+            {
+                Id = "temperature",
+                Text = "Temperature Grid",
+                Checked = false,
+                OnChanged = chk => { UpdateAttributionText(); _ = UpdateOverlays(); }
+            };
+            overlayPanel.Elements.Add(_chkTemperature);
+
+            _sldTempOpacity = new HudSlider
+            {
+                Id = "tempOpacity",
+                Text = "Temp Opacity",
+                Value = 60, Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _overlayManager.TemperatureOpacity = val / 100f;
+                    _glControl.Overlay2Opacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            };
+            overlayPanel.Elements.Add(_sldTempOpacity);
+
+            var chkTempLabels = new HudCheckbox
+            {
+                Id = "tempLabels",
+                Text = "Show Temp Labels",
+                Checked = true,
+                OnChanged = on =>
+                {
+                    _overlayManager.ShowTemperatureLabels = on;
+                    _overlayManager.InvalidateTemperatureCache();
+                    _ = UpdateOverlays();
+                }
+            };
+            overlayPanel.Elements.Add(chkTempLabels);
+
+            _hudSystem.AddPanel(overlayPanel);
+
+            // === Map Style Panel (top-right, auto-stacked below Overlays) ===
+            var mapStylePanel = new HudPanel
+            {
+                Id = "mapStyle",
+                Title = "Map Style",
+                Anchor = HudAnchor.TopRight,
+                Width = 240f,
+                MarginX = 10, MarginY = 10,
+                Collapsible = true
+            };
+            _grpMapStyle = new HudButtonGroup
+            {
+                Id = "mapStyleGroup",
+                Options = new List<string> { "Std", "Dark", "Terrain", "Sat" },
+                SelectedIndex = 0,
+                OnSelectionChanged = idx => OnMapStyleChanged()
+            };
+            mapStylePanel.Elements.Add(_grpMapStyle);
+            _hudSystem.AddPanel(mapStylePanel);
+
+            // === Animation Panel (bottom-center, always visible, slim toolbar) ===
             var animPanel = new HudPanel
             {
                 Id = "animation",
-                Title = "Radar Animation",
+                Title = "",
                 Anchor = HudAnchor.BottomCenter,
-                Width = 420f,
-                MarginX = 0, MarginY = 10,
-                Visible = false,
-                Collapsible = false
+                Width = 520f,
+                MarginX = 0, MarginY = 8,
+                Visible = true,
+                Collapsible = false,
+                TitleVisible = false
             };
 
-            animPanel.Elements.Add(new HudButton { Id = "animStepBack", Text = "⏮", OnClick = () => StepAnimationBackward() });
-            animPanel.Elements.Add(new HudButton { Id = "animPlayPause", Text = "▶", IsAccent = true, OnClick = () => PlayPauseAnimation() });
-            animPanel.Elements.Add(new HudButton { Id = "animStepFwd", Text = "⏭", OnClick = () => StepAnimationForward() });
-            animPanel.Elements.Add(new HudButton { Id = "animSpeedDown", Text = "Speed−", OnClick = () => AdjustAnimationSpeed(200) });
-            animPanel.Elements.Add(new HudButton { Id = "animSpeedUp", Text = "Speed+", OnClick = () => AdjustAnimationSpeed(-200) });
-            animPanel.Elements.Add(new HudButton
+            var transportRow = new HudInlineRow { Id = "animTransport" };
+            transportRow.Children.Add(new HudButton { Id = "animStepBack", Text = "\u23EE", IsCompact = true, OnClick = () => StepAnimationBackward() });
+            transportRow.Children.Add(new HudButton { Id = "animPlayPause", Text = "\u25B6", IsCompact = true, IsAccent = true, OnClick = () => PlayPauseAnimation() });
+            transportRow.Children.Add(new HudButton { Id = "animStepFwd", Text = "\u23ED", IsCompact = true, OnClick = () => StepAnimationForward() });
+            transportRow.Children.Add(new HudSeparator());
+            _lblFrameInfo = new HudLabel { Id = "frameInfo", Text = "No radar loaded", IsDim = true };
+            transportRow.Children.Add(_lblFrameInfo);
+            transportRow.Children.Add(new HudSeparator());
+            transportRow.Children.Add(new HudButton
             {
                 Id = "animLoop",
-                Text = "Loop: ON",
+                Text = "\uD83D\uDD01",
+                IsCompact = true,
                 IsAccent = true,
                 OnClick = () =>
                 {
                     _animationLoop = !_animationLoop;
                     var loopBtn = FindHudElement<HudButton>("animLoop");
-                    if (loopBtn != null)
-                    {
-                        loopBtn.Text = _animationLoop ? "Loop: ON" : "Loop: OFF";
-                        loopBtn.IsAccent = _animationLoop;
-                    }
+                    if (loopBtn != null) loopBtn.IsAccent = _animationLoop;
                     _glControl?.InvalidateView();
                 }
             });
-            animPanel.Elements.Add(new HudSeparator());
-            _lblFrameInfo = new HudLabel { Id = "frameInfo", Text = "No animation loaded", IsDim = true };
-            animPanel.Elements.Add(_lblFrameInfo);
-            animPanel.Elements.Add(new HudButton { Id = "animClose", Text = "Close Animation", OnClick = () => CloseRadarAnimation() });
+            transportRow.Children.Add(new HudButton { Id = "animLoadBtn", Text = "Load", IsCompact = false, IsAccent = true, OnClick = async () => await LoadRadarAnimation() });
+            animPanel.Elements.Add(transportRow);
+
+            var settingsRow = new HudInlineRow { Id = "animSettings" };
+            settingsRow.Children.Add(new HudButton { Id = "animSpeedDown", Text = "\u2212", IsCompact = true, OnClick = () => AdjustAnimationSpeed(200) });
+            settingsRow.Children.Add(new HudLabel { Id = "lblSpeed", Text = "Speed", IsDim = true });
+            settingsRow.Children.Add(new HudButton { Id = "animSpeedUp", Text = "+", IsCompact = true, OnClick = () => AdjustAnimationSpeed(-200) });
+            settingsRow.Children.Add(new HudSeparator());
+            _chkAnimFollowMap = new HudCheckbox { Id = "animFollow", Text = "Follow", Checked = true };
+            settingsRow.Children.Add(_chkAnimFollowMap);
+            settingsRow.Children.Add(new HudSeparator());
+            settingsRow.Children.Add(new HudButton { Id = "animClose", Text = "\u2715", IsCompact = true, OnClick = () => CloseRadarAnimation() });
+            animPanel.Elements.Add(settingsRow);
 
             _hudSystem.AddPanel(animPanel);
 
@@ -521,12 +596,19 @@ namespace WeatherImageGenerator.Rendering.Common
         private T? FindHudElement<T>(string id) where T : HudElement
         {
             foreach (var panel in _hudSystem.Panels)
+            {
                 foreach (var el in panel.Elements)
+                {
                     if (el.Id == id && el is T typed) return typed;
+                    if (el is HudInlineRow row)
+                    {
+                        foreach (var child in row.Children)
+                            if (child.Id == id && child is T typedChild) return typedChild;
+                    }
+                }
+            }
             return null;
         }
-
-        // â•â•â• Attribution â•â•â•
 
         private MapStyle GetCurrentMapStyle()
         {
@@ -907,7 +989,12 @@ namespace WeatherImageGenerator.Rendering.Common
                 config.WeatherMapView.TemperatureOpacity = (int)(_sldTempOpacity?.Value ?? 60);
                 config.WeatherMapView.RadarLayerIndex = _ddRadarLayer?.SelectedIndex ?? 0;
                 config.WeatherMapView.RadarStyleIndex = _ddRadarStyle?.SelectedIndex ?? 0;
-                config.WeatherMapView.PanelPosition = "Right"; // No panel position needed for GL HUD
+                config.WeatherMapView.PanelPosition = "Right";
+                config.WeatherMapView.ShowStatusBar = _glControl?.ShowStatusBar ?? true;
+                config.WeatherMapView.ShowRuler = _glControl?.ShowRuler ?? true;
+                config.WeatherMapView.PanelOpacity = (int)(((_hudSystem?.PanelOpacityMultiplier ?? 1f) * 75f));
+                config.WeatherMapView.StatusBarOpacity = (int)((_glControl?.StatusBarOpacity ?? 0.55f) * 100f);
+                config.WeatherMapView.AnimationBarOpacity = (int)(((_hudSystem?.AnimationPanelOpacity ?? 1f) * 75f));
                 ConfigManager.SaveConfig(config, silent: true);
             }
             catch (Exception ex)
@@ -977,7 +1064,31 @@ namespace WeatherImageGenerator.Rendering.Common
                     _glControl.ShowCrosshair = config.ShowCrosshair;
                     _glControl.UseCrosshairAsMouse = config.ShowCrosshair;
                     _glControl.ShowCoordinatesHUD = config.ShowCoordinatesHUD;
+                    _glControl.ShowStatusBar = s.ShowStatusBar;
+                    _glControl.ShowRuler = s.ShowRuler;
+                    _glControl.StatusBarOpacity = s.StatusBarOpacity / 100f;
                 }
+
+                // UI opacity settings
+                if (_hudSystem != null)
+                {
+                    _hudSystem.PanelOpacityMultiplier = s.PanelOpacity / 75f;
+                    _hudSystem.AnimationPanelOpacity = s.AnimationBarOpacity / 75f;
+                }
+
+                // Sync HUD checkboxes with loaded state
+                var chkSB = FindHudElement<HudCheckbox>("showStatusBar");
+                if (chkSB != null) chkSB.Checked = s.ShowStatusBar;
+                var chkR = FindHudElement<HudCheckbox>("showRuler");
+                if (chkR != null) chkR.Checked = s.ShowRuler;
+
+                // Sync opacity sliders
+                var sldPanel = FindHudElement<HudSlider>("panelOpacity");
+                if (sldPanel != null) sldPanel.Value = s.PanelOpacity;
+                var sldSB = FindHudElement<HudSlider>("statusBarOpacity");
+                if (sldSB != null) sldSB.Value = s.StatusBarOpacity;
+                var sldAnim = FindHudElement<HudSlider>("animBarOpacity");
+                if (sldAnim != null) sldAnim.Value = s.AnimationBarOpacity;
                 if (_overlayManager != null)
                 {
                     _overlayManager.ShowTemperatureLabels = config.ShowTemperatureLabels;

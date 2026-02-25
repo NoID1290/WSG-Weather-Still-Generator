@@ -48,6 +48,12 @@ namespace WeatherImageGenerator.Rendering.Common
         private const float SliderHeight = 20f;
         private const float DropdownHeight = 26f;
         private const float PanelTitleHeight = 28f;
+        private const float InlineItemSpacing = 4f;
+        private const float InlineButtonSize = 28f;
+
+        // UI opacity multipliers
+        public float PanelOpacityMultiplier { get; set; } = 1.0f;
+        public float AnimationPanelOpacity { get; set; } = 1.0f;
         private const float PanelCornerRadius = 6f;
 
         public HudSystem() { }
@@ -77,6 +83,9 @@ namespace WeatherImageGenerator.Rendering.Common
 
             // Auto-stack: accumulate Y offset for panels sharing the same anchor
             var anchorOffsets = new Dictionary<HudAnchor, float>();
+            // Horizontal layout groups: accumulate X offset for panels sharing the same LayoutGroup
+            var groupOffsets = new Dictionary<string, float>();
+            var groupStartY = new Dictionary<string, float>();
             foreach (var panel in _panels)
             {
                 if (!panel.Visible) continue;
@@ -85,8 +94,23 @@ namespace WeatherImageGenerator.Rendering.Common
                 float h = panel.ComputedHeight;
                 var anchor = panel.Anchor;
 
+                // Horizontal layout group takes priority
+                if (!string.IsNullOrEmpty(panel.LayoutGroup))
+                {
+                    string grp = panel.LayoutGroup;
+                    if (!groupOffsets.ContainsKey(grp))
+                    {
+                        groupOffsets[grp] = panel.MarginX;
+                        groupStartY[grp] = panel.MarginY;
+                    }
+
+                    float useWidth = panel.Collapsed ? (panel.CompactWidth > 0 ? panel.CompactWidth : w) : w;
+                    panel.X = groupOffsets[grp];
+                    panel.Y = groupStartY[grp];
+                    groupOffsets[grp] = panel.X + useWidth + 6f; // 6px gap between horizontal panels
+                }
                 // For stackable anchors (TopLeft, TopRight), use accumulated offset
-                if (anchor == HudAnchor.TopLeft || anchor == HudAnchor.TopRight)
+                else if (anchor == HudAnchor.TopLeft || anchor == HudAnchor.TopRight)
                 {
                     if (!anchorOffsets.ContainsKey(anchor))
                         anchorOffsets[anchor] = panel.MarginY;
@@ -165,10 +189,11 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private float CalculatePanelHeight(HudPanel panel)
         {
+            float titleH = panel.TitleVisible ? PanelTitleHeight : Padding;
             if (panel.Collapsed)
-                return PanelTitleHeight + Padding;
+                return titleH + (panel.TitleVisible ? Padding : 0f);
 
-            float y = PanelTitleHeight + ItemSpacing;
+            float y = titleH + ItemSpacing;
             foreach (var el in panel.Elements)
             {
                 if (!el.Visible) continue;
@@ -179,6 +204,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private float GetElementHeight(HudElement el) => el switch
         {
+            HudInlineRow row => InlineButtonSize + 2f,
             HudButton => ButtonHeight,
             HudCheckbox => CheckboxHeight,
             HudSlider s => SliderHeight + (s.ShowLabel ? 14f : 0f),
@@ -192,30 +218,41 @@ namespace WeatherImageGenerator.Rendering.Common
         private void RenderPanel(IHudRenderer r, HudPanel panel, int vw, int vh)
         {
             float px = panel.X, py = panel.Y;
-            float pw = panel.Width, ph = panel.ComputedHeight;
+            // For collapsed panels with LayoutGroup, use CompactWidth if available
+            float pw = (!string.IsNullOrEmpty(panel.LayoutGroup) && panel.Collapsed && panel.CompactWidth > 0)
+                ? panel.CompactWidth : panel.Width;
+            float ph = panel.ComputedHeight;
 
-            // Panel background
-            r.DrawRect(px, py, pw, ph, PanelBg.R, PanelBg.G, PanelBg.B, PanelBg.A);
+            // Panel background with opacity multiplier
+            float panelAlpha = PanelBg.A * (panel.Id == "animation" ? AnimationPanelOpacity : PanelOpacityMultiplier);
+            r.DrawRect(px, py, pw, ph, PanelBg.R, PanelBg.G, PanelBg.B, panelAlpha);
 
             // Border highlight (top edge)
             r.DrawRect(px, py, pw, 1f, AccentColor.R, AccentColor.G, AccentColor.B, 0.4f);
 
-            // Title bar
-            float tx = px + Padding;
-            float ty = py + 6f;
+            // Title bar (skip if TitleVisible = false)
+            if (panel.TitleVisible)
+            {
+                float tx = px + Padding;
+                float ty = py + 6f;
 
-            // Collapse indicator
-            string collapseIcon = panel.Collapsed ? "▶" : "▼";
-            r.DrawText(collapseIcon, tx, ty, TextDim.R, TextDim.G, TextDim.B, TextDim.A);
-            tx += 16f;
+                // Collapse indicator
+                if (panel.Collapsible)
+                {
+                    string collapseIcon = panel.Collapsed ? "▶" : "▼";
+                    r.DrawText(collapseIcon, tx, ty, TextDim.R, TextDim.G, TextDim.B, TextDim.A);
+                    tx += 16f;
+                }
 
-            // Panel title
-            r.DrawText(panel.Title, tx, ty, TextPrimary.R, TextPrimary.G, TextPrimary.B, TextPrimary.A);
+                // Panel title
+                r.DrawText(panel.Title, tx, ty, TextPrimary.R, TextPrimary.G, TextPrimary.B, TextPrimary.A);
+            }
 
             if (panel.Collapsed) return;
 
             // Render child elements
-            float ey = py + PanelTitleHeight + ItemSpacing;
+            float titleH = panel.TitleVisible ? PanelTitleHeight : Padding;
+            float ey = py + titleH + ItemSpacing;
             float contentX = px + Padding;
             float contentW = pw - Padding * 2;
             _currentPanelContentWidth = contentW;
@@ -252,6 +289,9 @@ namespace WeatherImageGenerator.Rendering.Common
                         break;
                     case HudButtonGroup grp:
                         RenderButtonGroup(r, grp, contentX, ey, contentW, elH, isHovered);
+                        break;
+                    case HudInlineRow row:
+                        RenderInlineRow(r, row, contentX, ey, contentW, elH);
                         break;
                 }
 
@@ -519,7 +559,109 @@ namespace WeatherImageGenerator.Rendering.Common
             }
         }
 
-        // â•â•â• Mouse event processing â•â•â•
+        private void RenderInlineRow(IHudRenderer r, HudInlineRow row, float x, float y, float w, float h)
+        {
+            // Render children horizontally within the row
+            float cx = x;
+            float rowH = InlineButtonSize;
+            row.ChildBounds.Clear();
+
+            foreach (var child in row.Children)
+            {
+                if (!child.Visible) continue;
+
+                bool isChildHovered = child == _hoveredElement;
+                bool isChildPressed = child == _pressedElement;
+
+                switch (child)
+                {
+                    case HudButton btn:
+                    {
+                        float btnTextW = r.MeasureTextWidth(btn.Text);
+                        float btnW = btn.IsCompact ? InlineButtonSize : Math.Max(btnTextW + 16f, InlineButtonSize);
+                        var bg = isChildPressed ? AccentColor : isChildHovered ? ButtonHover : btn.IsAccent ? ButtonActive : ButtonBg;
+                        r.DrawRect(cx, y, btnW, rowH, bg.R, bg.G, bg.B, bg.A);
+                        float tx = cx + (btnW - btnTextW) / 2f;
+                        float ty = y + (rowH - r.LineHeight) / 2f;
+                        var fg = (btn.IsAccent || isChildPressed) ? TextPrimary : isChildHovered ? TextPrimary : TextSecondary;
+                        r.DrawText(btn.Text, tx, ty, fg.R, fg.G, fg.B, fg.A);
+                        child.ComputedBounds = new RectangleF(cx, y, btnW, rowH);
+                        row.ChildBounds.Add(new RectangleF(cx, y, btnW, rowH));
+                        cx += btnW + InlineItemSpacing;
+                        break;
+                    }
+                    case HudLabel lbl:
+                    {
+                        float lblW = r.MeasureTextWidth(lbl.Text) + 8f;
+                        float ty = y + (rowH - r.LineHeight) / 2f;
+                        var color = lbl.IsDim ? TextDim : TextSecondary;
+                        r.DrawText(lbl.Text, cx + 4f, ty, color.R, color.G, color.B, color.A);
+                        child.ComputedBounds = new RectangleF(cx, y, lblW, rowH);
+                        row.ChildBounds.Add(new RectangleF(cx, y, lblW, rowH));
+                        cx += lblW + InlineItemSpacing;
+                        break;
+                    }
+                    case HudCheckbox chk:
+                    {
+                        float boxSize = 14f;
+                        float totalW = boxSize + 6f + r.MeasureTextWidth(chk.Text);
+                        float boxX = cx;
+                        float boxY = y + (rowH - boxSize) / 2f;
+                        var boxBg = isChildHovered ? ButtonHover : ButtonBg;
+                        r.DrawRect(boxX, boxY, boxSize, boxSize, boxBg.R, boxBg.G, boxBg.B, boxBg.A);
+                        if (chk.Checked)
+                            r.DrawRect(boxX + 2f, boxY + 2f, boxSize - 4f, boxSize - 4f, CheckActive.R, CheckActive.G, CheckActive.B, CheckActive.A);
+                        float labelX = boxX + boxSize + 6f;
+                        float labelY = y + (rowH - r.LineHeight) / 2f;
+                        var fg = chk.Checked ? TextPrimary : TextSecondary;
+                        r.DrawText(chk.Text, labelX, labelY, fg.R, fg.G, fg.B, fg.A);
+                        child.ComputedBounds = new RectangleF(cx, y, totalW, rowH);
+                        row.ChildBounds.Add(new RectangleF(cx, y, totalW, rowH));
+                        cx += totalW + InlineItemSpacing;
+                        break;
+                    }
+                    case HudSeparator:
+                    {
+                        // Vertical divider
+                        float sepX = cx + 2f;
+                        r.DrawRect(sepX, y + 4f, 1f, rowH - 8f, SeparatorColor.R, SeparatorColor.G, SeparatorColor.B, SeparatorColor.A);
+                        child.ComputedBounds = new RectangleF(cx, y, 6f, rowH);
+                        row.ChildBounds.Add(new RectangleF(cx, y, 6f, rowH));
+                        cx += 6f + InlineItemSpacing;
+                        break;
+                    }
+                    case HudSlider sld:
+                    {
+                        // Inline slider: fixed width
+                        float sliderW = Math.Min(120f, w - (cx - x) - 4f);
+                        if (sliderW < 40f) sliderW = 40f;
+                        float trackH = 6f;
+                        float trackY = y + (rowH - trackH) / 2f;
+                        r.DrawRect(cx, trackY, sliderW, trackH, SliderTrack.R, SliderTrack.G, SliderTrack.B, SliderTrack.A);
+                        float fillW = sliderW * ((sld.Value - sld.Min) / (sld.Max - sld.Min));
+                        r.DrawRect(cx, trackY, fillW, trackH, AccentColor.R, AccentColor.G, AccentColor.B, 0.7f);
+                        float thumbW = 10f, thumbH = 14f;
+                        float thumbX = cx + fillW - thumbW / 2f;
+                        float thumbY = trackY - (thumbH - trackH) / 2f;
+                        var thumbColor = (isChildHovered || sld == _draggingSlider) ? TextPrimary : SliderThumb;
+                        r.DrawRect(thumbX, thumbY, thumbW, thumbH, thumbColor.R, thumbColor.G, thumbColor.B, thumbColor.A);
+                        sld.TrackBounds = new RectangleF(cx, trackY - 4f, sliderW, trackH + 8f);
+                        child.ComputedBounds = new RectangleF(cx, y, sliderW, rowH);
+                        row.ChildBounds.Add(new RectangleF(cx, y, sliderW, rowH));
+                        cx += sliderW + InlineItemSpacing;
+                        break;
+                    }
+                    default:
+                    {
+                        child.ComputedBounds = new RectangleF(cx, y, 0, rowH);
+                        row.ChildBounds.Add(new RectangleF(cx, y, 0, rowH));
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ═══ Mouse event processing ═══
 
         /// <summary>
         /// Process a mouse click. Returns true if the HUD consumed the event (suppress map interaction).
@@ -552,11 +694,14 @@ namespace WeatherImageGenerator.Rendering.Common
                 var panel = _panels[pi];
                 if (!panel.Visible) continue;
 
-                var panelBounds = new RectangleF(panel.X, panel.Y, panel.Width, panel.ComputedHeight);
+                var panelW = (!string.IsNullOrEmpty(panel.LayoutGroup) && panel.Collapsed && panel.CompactWidth > 0)
+                    ? panel.CompactWidth : panel.Width;
+                var panelBounds = new RectangleF(panel.X, panel.Y, panelW, panel.ComputedHeight);
                 if (!panelBounds.Contains(mx, my)) continue;
 
                 // Title bar click → toggle collapse
-                if (my < panel.Y + PanelTitleHeight)
+                float titleH = panel.TitleVisible ? PanelTitleHeight : Padding;
+                if (panel.TitleVisible && my < panel.Y + titleH)
                 {
                     if (panel.Collapsible)
                         panel.Collapsed = !panel.Collapsed;
@@ -613,6 +758,30 @@ namespace WeatherImageGenerator.Rendering.Common
                                 }
                             }
                             return true;
+
+                        case HudInlineRow row:
+                            // Check children of the inline row
+                            foreach (var child in row.Children)
+                            {
+                                if (!child.Visible) continue;
+                                if (!child.ComputedBounds.Contains(mx, my)) continue;
+                                _pressedElement = child;
+                                switch (child)
+                                {
+                                    case HudButton btn2:
+                                        btn2.OnClick?.Invoke();
+                                        return true;
+                                    case HudCheckbox chk2:
+                                        chk2.Checked = !chk2.Checked;
+                                        chk2.OnChanged?.Invoke(chk2.Checked);
+                                        return true;
+                                    case HudSlider sld2:
+                                        _draggingSlider = sld2;
+                                        UpdateSliderValue(sld2, mx);
+                                        return true;
+                                }
+                            }
+                            return true;
                     }
 
                     return true;
@@ -659,7 +828,9 @@ namespace WeatherImageGenerator.Rendering.Common
                 var panel = _panels[pi];
                 if (!panel.Visible) continue;
 
-                var panelBounds = new RectangleF(panel.X, panel.Y, panel.Width, panel.ComputedHeight);
+                var panelW2 = (!string.IsNullOrEmpty(panel.LayoutGroup) && panel.Collapsed && panel.CompactWidth > 0)
+                    ? panel.CompactWidth : panel.Width;
+                var panelBounds = new RectangleF(panel.X, panel.Y, panelW2, panel.ComputedHeight);
                 if (!panelBounds.Contains(mx, my)) continue;
 
                 if (panel.Collapsed) return true; // Over collapsed panel title
@@ -680,6 +851,20 @@ namespace WeatherImageGenerator.Rendering.Common
                                 if (grp.ButtonBounds[i].Contains(mx, my))
                                 {
                                     grp._hoveredIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Track hovered child in inline row
+                        if (el is HudInlineRow row)
+                        {
+                            foreach (var child in row.Children)
+                            {
+                                if (!child.Visible) continue;
+                                if (child.ComputedBounds.Contains(mx, my))
+                                {
+                                    _hoveredElement = child;
                                     break;
                                 }
                             }
@@ -784,7 +969,9 @@ namespace WeatherImageGenerator.Rendering.Common
             foreach (var panel in _panels)
             {
                 if (!panel.Visible) continue;
-                var bounds = new RectangleF(panel.X, panel.Y, panel.Width, panel.ComputedHeight);
+                float pw = (!string.IsNullOrEmpty(panel.LayoutGroup) && panel.Collapsed && panel.CompactWidth > 0)
+                    ? panel.CompactWidth : panel.Width;
+                var bounds = new RectangleF(panel.X, panel.Y, pw, panel.ComputedHeight);
                 if (bounds.Contains(mx, my)) return true;
             }
             return false;
@@ -828,6 +1015,12 @@ namespace WeatherImageGenerator.Rendering.Common
         public bool Visible { get; set; } = true;
         public bool Collapsed { get; set; } = false;
         public bool Collapsible { get; set; } = true;
+        /// <summary>When false, the panel has no title bar (good for minimal/borderless panels like zoom strip).</summary>
+        public bool TitleVisible { get; set; } = true;
+        /// <summary>Panels sharing the same non-null LayoutGroup are laid out horizontally instead of vertically.</summary>
+        public string? LayoutGroup { get; set; } = null;
+        /// <summary>Width to use when collapsed in a horizontal LayoutGroup (title text width only).</summary>
+        public float CompactWidth { get; set; } = 0f;
         public List<HudElement> Elements { get; } = new();
     }
 
@@ -842,6 +1035,8 @@ namespace WeatherImageGenerator.Rendering.Common
     {
         public string Text { get; set; } = "";
         public bool IsAccent { get; set; } = false;
+        /// <summary>When true, compact square button (used in inline rows).</summary>
+        public bool IsCompact { get; set; } = false;
         public Action? OnClick { get; set; }
     }
 
@@ -892,5 +1087,15 @@ namespace WeatherImageGenerator.Rendering.Common
         public List<RectangleF> ButtonBounds { get; } = new();
         internal int _hoveredIndex = -1;
         public Action<int>? OnSelectionChanged { get; set; }
+    }
+
+    /// <summary>
+    /// Container element that renders its children horizontally in a single row.
+    /// Used for compact toolbars (e.g., animation transport controls).
+    /// </summary>
+    public class HudInlineRow : HudElement
+    {
+        public List<HudElement> Children { get; } = new();
+        public List<RectangleF> ChildBounds { get; } = new();
     }
 }

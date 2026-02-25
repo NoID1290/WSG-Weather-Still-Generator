@@ -1162,14 +1162,14 @@ namespace WeatherImageGenerator.Forms
                 _previousRenderApiIndex = idx;
             };
 
-            var lblRenderApiHelp = CreateHelpLabel("⚠ Requires application restart", fieldX + 230, y + 2, 180);
+            var lblRenderApiHelp = CreateHelpLabel("⚠ Requires the radar to be restarted", fieldX + 230, y + 2, 180);
             y += rowHeight + 5;
 
             var lblRenderNote = new Label
             {
-                Text = "• OpenGL: Most compatible (default). Works on all GPUs.\n" +
+                Text = "• OpenGL: Lower performance, but widely compatible.\n" +
                        "• DirectX 11: Windows-native, hardware-accelerated.\n" +
-                       "• Vulkan: High-performance (coming soon).",
+                       "• Vulkan: High-performance, but not supported on older GPUs.",
                 Left = labelX, Top = y, Width = 600, Height = 55,
                 Font = SmallFont, ForeColor = TextColor, AutoSize = false
             };
