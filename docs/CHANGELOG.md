@@ -8,16 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.13.3.0225] - 2026-02-25
 
 - Enhancing HUD layout in radar map
-- Fix release check logic to handle errors silently in auto-push script
-
-## [1.13.2.0225] - 2026-02-25
-
-- Enhancing HUD layout in radar map
-- Fix release check logic in auto-push script to handle errors correctly
-
-## [1.13.1.0225] - 2026-02-25
-
-- Enhancing HUD layout in radar map
 - Add Vulkan shaders for weather overlay and UI rendering
 - - Introduced ShowStatusBar and ShowRuler properties in IMapRenderer interface. - Implemented corresponding properties in DirectX, OpenGL, and Vulkan map renderers. - Updated WeatherMapControl to include checkboxes for status bar and ruler visibility. - Added opacity settings for status bar and animation bar in shaders panel. - Enhanced configuration management to save and load new settings for status bar and ruler.
 - Add invisible cursor for crosshair-as-mouse mode in DirectX and Vulkan renderers
