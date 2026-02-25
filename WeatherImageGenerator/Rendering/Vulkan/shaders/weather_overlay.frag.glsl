@@ -17,15 +17,14 @@ layout(push_constant) uniform PC {
 } pc;
 
 void main() {
-    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
-    vec4 c = texture(uTexture, uv);
+    vec4 c = texture(uTexture, vTex);
     float opacity = pc.uOpacity > 0.0 ? pc.uOpacity : 1.0;
 
     // --- Smooth alpha edge blend ---
     float edgeFade = 1.0;
     float border = 0.015;
-    edgeFade *= smoothstep(0.0, border, uv.x) * smoothstep(0.0, border, 1.0 - uv.x);
-    edgeFade *= smoothstep(0.0, border, uv.y) * smoothstep(0.0, border, 1.0 - uv.y);
+    edgeFade *= smoothstep(0.0, border, vTex.x) * smoothstep(0.0, border, 1.0 - vTex.x);
+    edgeFade *= smoothstep(0.0, border, vTex.y) * smoothstep(0.0, border, 1.0 - vTex.y);
 
     vec3 finalColor = c.rgb;
 
@@ -34,10 +33,10 @@ void main() {
         float bloomScale = 2.5;
         float selfIntensity = dot(c.rgb, vec3(0.299, 0.587, 0.114));
         float bloomSum = 0.0;
-        bloomSum += dot(texture(uTexture, uv + vec2( texelSize.x * bloomScale,  0.0)).rgb, vec3(0.333));
-        bloomSum += dot(texture(uTexture, uv + vec2(-texelSize.x * bloomScale,  0.0)).rgb, vec3(0.333));
-        bloomSum += dot(texture(uTexture, uv + vec2(0.0,  texelSize.y * bloomScale)).rgb, vec3(0.333));
-        bloomSum += dot(texture(uTexture, uv + vec2(0.0, -texelSize.y * bloomScale)).rgb, vec3(0.333));
+        bloomSum += dot(texture(uTexture, vTex + vec2( texelSize.x * bloomScale,  0.0)).rgb, vec3(0.333));
+        bloomSum += dot(texture(uTexture, vTex + vec2(-texelSize.x * bloomScale,  0.0)).rgb, vec3(0.333));
+        bloomSum += dot(texture(uTexture, vTex + vec2(0.0,  texelSize.y * bloomScale)).rgb, vec3(0.333));
+        bloomSum += dot(texture(uTexture, vTex + vec2(0.0, -texelSize.y * bloomScale)).rgb, vec3(0.333));
         float bloomAvg = bloomSum / 4.0;
 
         float glowStrength = smoothstep(0.3, 0.8, bloomAvg) * 0.18;

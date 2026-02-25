@@ -17,6 +17,7 @@ namespace WeatherImageGenerator.Forms
         private bool _isLoadingSettings = false;
         private int _previousRenderApiIndex = 0;
         private bool _dx11Available = false;
+        private bool _vulkanAvailable = false;
 
         // UI Style — delegates to ThemeManager so every usage is theme-aware
         private static Color AccentColor => ThemeManager.Current.Accent;
@@ -1115,12 +1116,13 @@ namespace WeatherImageGenerator.Forms
                 ForeColor = ThemeManager.Current.TextPrimary
             };
 
-            // Check DirectX 11 availability at runtime
+            // Check rendering API availability at runtime
+            try { _vulkanAvailable = RenderingFactory.IsAvailable(RenderingApi.Vulkan); } catch { _vulkanAvailable = false; }
             try { _dx11Available = RenderingFactory.IsAvailable(RenderingApi.DirectX11); } catch { _dx11Available = false; }
 
             cmbRenderApi.Items.AddRange(new object[] {
                 "OpenGL (Default)",
-                "Vulkan (Not Ready)",
+                "Vulkan (Experimental)",
                 _dx11Available ? "DirectX 11" : "DirectX 11 (Unavailable)"
             });
             cmbRenderApi.SelectedIndex = 0;

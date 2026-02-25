@@ -391,3 +391,5 @@ WeatherImageGenerator/logs/
 # Local appsettings files — keep local config out of the repo
 appsettings*.json
 TODO
+compile_spirv.ps1
+inspect_silk.csx

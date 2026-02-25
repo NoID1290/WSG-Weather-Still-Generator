@@ -7,7 +7,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$shaderDir = Join-Path $PSScriptRoot "WeatherImageGenerator" "Rendering" "Vulkan" "shaders"
+$shaderDir = Join-Path (Join-Path (Join-Path (Join-Path $PSScriptRoot "WeatherImageGenerator") "Rendering") "Vulkan") "shaders"
 
 # Detect glslc from Vulkan SDK or PATH
 $glslc = Get-Command "glslc" -ErrorAction SilentlyContinue
@@ -62,13 +62,14 @@ foreach ($shader in $shaders) {
     $stage = $shader.Stage
 
     if (-not (Test-Path $src)) {
-        Write-Host "  [SKIP] $($shader.Name) — source not found" -ForegroundColor Yellow
+        Write-Host "  [SKIP] $($shader.Name) - source not found" -ForegroundColor Yellow
         continue
     }
 
-    Write-Host "  [COMPILE] $($shader.Name) → $spvName" -ForegroundColor Gray -NoNewline
+    Write-Host "  [COMPILE] $($shader.Name) -> $spvName" -ForegroundColor Gray -NoNewline
 
-    $result = & $glslc -fshader-stage=$stage --target-env=vulkan1.0 -o $dst $src 2>&1
+    $stageArg = "-fshader-stage=$stage"
+    $result = & $glslc $stageArg --target-env=vulkan1.0 -o $dst $src 2>&1
     if ($LASTEXITCODE -eq 0) {
         $size = (Get-Item $dst).Length
         Write-Host " ($size bytes)" -ForegroundColor Green

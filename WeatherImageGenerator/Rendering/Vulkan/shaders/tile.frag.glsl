@@ -20,8 +20,7 @@ layout(push_constant) uniform PC {
 } pc;
 
 void main() {
-    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
-    vec4 c = texture(uTexture, uv);
+    vec4 c = texture(uTexture, vTex);
     float opacity = pc.uOpacity > 0.0 ? pc.uOpacity : 1.0;
     vec3 result = c.rgb;
 

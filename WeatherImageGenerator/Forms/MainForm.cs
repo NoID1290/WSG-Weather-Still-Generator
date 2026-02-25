@@ -885,6 +885,27 @@ namespace WeatherImageGenerator.Forms
                         weatherMapForm.Show();
                         Logger.Log("Opened Weather Interactive Map via Ctrl+Shift+M.", Logger.LogLevel.Info);
                     }
+                    else if (e.Control && e.Shift && e.KeyCode == Keys.V)
+                    {
+                        e.SuppressKeyPress = true;
+                        // Dev mode: temporarily switch to Vulkan and open the map
+                        var cfg = ConfigManager.LoadConfig();
+                        var prevApi = cfg.OpenMap?.RenderingApi ?? "OpenGL";
+                        if (cfg.OpenMap != null) cfg.OpenMap.RenderingApi = "Vulkan";
+                        ConfigManager.SaveConfig(cfg);
+                        Logger.Log("[DEV] Vulkan mode enabled via Ctrl+Shift+V (was: " + prevApi + ")", Logger.LogLevel.Info);
+                        var vkMapForm = new WeatherMapForm();
+                        vkMapForm.Text = "Weather Interactive Map [Vulkan DEV]";
+                        vkMapForm.FormClosed += (_, __) =>
+                        {
+                            // Restore previous rendering API on close
+                            var restoreCfg = ConfigManager.LoadConfig();
+                            if (restoreCfg.OpenMap != null) restoreCfg.OpenMap.RenderingApi = prevApi;
+                            ConfigManager.SaveConfig(restoreCfg);
+                            Logger.Log("[DEV] Restored rendering API to " + prevApi, Logger.LogLevel.Info);
+                        };
+                        vkMapForm.Show();
+                    }
                 }
                 catch (Exception ex)
                 {

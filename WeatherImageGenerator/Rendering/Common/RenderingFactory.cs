@@ -118,16 +118,38 @@ namespace WeatherImageGenerator.Rendering.Common
 
         // ═══ Availability checks ═══
 
-        private static bool CheckVulkanAvailability()
+        private static unsafe bool CheckVulkanAvailability()
         {
             try
             {
                 var vk = Silk.NET.Vulkan.Vk.GetApi();
+
+                // Create a minimal Vulkan instance to probe for physical devices
+                var appInfo = new Silk.NET.Vulkan.ApplicationInfo
+                {
+                    SType = Silk.NET.Vulkan.StructureType.ApplicationInfo,
+                    ApiVersion = Silk.NET.Vulkan.Vk.Version11,
+                };
+                var createInfo = new Silk.NET.Vulkan.InstanceCreateInfo
+                {
+                    SType = Silk.NET.Vulkan.StructureType.InstanceCreateInfo,
+                    PApplicationInfo = &appInfo,
+                };
+
+                Silk.NET.Vulkan.Instance instance = default;
+                var result = vk.CreateInstance(&createInfo, null, &instance);
+                if (result != Silk.NET.Vulkan.Result.Success)
+                {
+                    vk.Dispose();
+                    return false;
+                }
+
                 uint count = 0;
-                unsafe { vk.EnumeratePhysicalDevices(default, &count, null); }
+                vk.EnumeratePhysicalDevices(instance, &count, null);
+
+                vk.DestroyInstance(instance, null);
                 vk.Dispose();
-                // If we got here without throwing, the Vulkan loader is present.
-                // count==0 means no GPU, but that's checked at init time.
+
                 return count > 0;
             }
             catch

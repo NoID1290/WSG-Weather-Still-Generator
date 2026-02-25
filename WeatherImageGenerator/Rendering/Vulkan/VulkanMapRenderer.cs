@@ -818,11 +818,32 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             Check(_vk.AllocateMemory(_device, &allocInfo, null, &tex.Memory));
             Check(_vk.BindImageMemory(_device, tex.Image, tex.Memory, 0));
 
-            // Copy pixel data
+            // Copy pixel data — must respect GPU linear tiling row pitch
+            var subRes = new ImageSubresource { AspectMask = ImageAspectFlags.ColorBit, MipLevel = 0, ArrayLayer = 0 };
+            SubresourceLayout layout;
+            _vk.GetImageSubresourceLayout(_device, tex.Image, &subRes, &layout);
+
             void* mapped;
-            Check(_vk.MapMemory(_device, tex.Memory, 0, (ulong)(width * height * 4), 0, &mapped));
+            Check(_vk.MapMemory(_device, tex.Memory, 0, layout.Size, 0, &mapped));
+            int srcRowBytes = width * 4;
             fixed (byte* pPixels = pixels)
-                Unsafe.CopyBlock(mapped, pPixels, (uint)(width * height * 4));
+            {
+                if ((ulong)srcRowBytes == layout.RowPitch)
+                {
+                    // Row pitch matches — single fast copy
+                    Unsafe.CopyBlock(mapped, pPixels, (uint)(width * height * 4));
+                }
+                else
+                {
+                    // Row pitch differs — copy row by row
+                    byte* dst = (byte*)mapped + (long)layout.Offset;
+                    for (int row = 0; row < height; row++)
+                    {
+                        Unsafe.CopyBlock(dst + row * (long)layout.RowPitch,
+                            pPixels + row * srcRowBytes, (uint)srcRowBytes);
+                    }
+                }
+            }
             _vk.UnmapMemory(_device, tex.Memory);
 
             // Transition layout to ShaderReadOnlyOptimal
@@ -1468,7 +1489,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             double uy = LatToPixelY(_userMarkerLat, _mapZoom);
 
             float ndcX = (float)((ux - cx + _panX) * _zoom / (w / 2.0));
-            float ndcY = (float)(-(uy - cy + _panY) * _zoom / (h / 2.0));
+            float ndcY = (float)((uy - cy + _panY) * _zoom / (h / 2.0));
 
             // Small diamond marker using crosshair overlay
             var vb = _overlayVB;
@@ -1548,18 +1569,19 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         // ═══════════════════════════════════════════════════════════════════
         private static float[] BuildTileTransform(float screenX, float screenY, float screenW, float screenH, int vpW, int vpH)
         {
-            // Maps unit quad (0,0)-(1,1) → clip space for the given screen rect
+            // Maps unit quad (0,0)-(1,1) to Vulkan clip space for the given screen rect.
+            // Vulkan clip: X [-1,+1] left-to-right, Y [-1,+1] top-to-bottom.
             float sx = 2f * screenW / vpW;
-            float sy = -2f * screenH / vpH;
+            float sy = 2f * screenH / vpH;
             float tx = 2f * screenX / vpW - 1f;
-            float ty = -(2f * screenY / vpH - 1f);
+            float ty = 2f * screenY / vpH - 1f;
 
-            // mat3 packed as 3 × vec4 (xyz + pad)
+            // Compact 9-float mat3 — SetMatrix3 pads each row to vec4 for push constants
             return new float[]
             {
-                sx,  0f,  0f, 0f,   // row 0
-                0f,  sy,  0f, 0f,   // row 1
-                tx,  ty,  1f, 0f,   // row 2
+                sx,  0f,  0f,   // row 0
+                0f,  sy,  0f,   // row 1
+                tx,  ty,  1f,   // row 2
             };
         }
 
@@ -2027,18 +2049,30 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 var (data, status) = await self.TileProvider!.GetTileBytesAsync(key.z, key.x, key.y);
                 if (status == TileFetchStatus.Ok && data != null && data.Length > 0)
                 {
-                    using var ms = new MemoryStream(data);
-                    using var bmp = new Bitmap(ms);
+                    // Clone the bitmap pixel data on this thread so the stream/bitmap
+                    // are not disposed before the UI-thread upload runs.
+                    Bitmap cloned;
+                    using (var ms = new MemoryStream(data))
+                    using (var bmp = new Bitmap(ms))
+                    {
+                        cloned = new Bitmap(bmp.Width, bmp.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                        using (var g = Graphics.FromImage(cloned))
+                            g.DrawImage(bmp, 0, 0, bmp.Width, bmp.Height);
+                    }
 
                     self.HostControl.BeginInvoke((Action)(() =>
                     {
                         try
                         {
-                            self.UploadTileFromBitmap(key, bmp);
+                            self.UploadTileFromBitmap(key, cloned);
                         }
                         catch (Exception ex)
                         {
                             Console.WriteLine($"[VulkanMapRenderer] Tile upload failed: {ex.Message}");
+                        }
+                        finally
+                        {
+                            cloned.Dispose();
                         }
                     }));
                 }
