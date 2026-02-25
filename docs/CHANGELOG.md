@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.1.0225] - 2026-02-25
+
+- Enhancing HUD layout in radar map
+- Add Vulkan shaders for weather overlay and UI rendering
+- - Introduced ShowStatusBar and ShowRuler properties in IMapRenderer interface. - Implemented corresponding properties in DirectX, OpenGL, and Vulkan map renderers. - Updated WeatherMapControl to include checkboxes for status bar and ruler visibility. - Added opacity settings for status bar and animation bar in shaders panel. - Enhanced configuration management to save and load new settings for status bar and ruler.
+- Add invisible cursor for crosshair-as-mouse mode in DirectX and Vulkan renderers
+- Implement deferred auto-update check on startup and remove update controls from SettingsForm
+- Refactor single-instance guard for improved UX handling
+- Update CHANGELOG for version 1.13.0.0223
+
 ## [1.13.0.0223] - 2026-02-23
 
 - Refactor Settings Forms
