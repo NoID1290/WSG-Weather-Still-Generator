@@ -47,7 +47,7 @@ namespace WeatherImageGenerator.Rendering.Common
         private const float CheckboxHeight = 22f;
         private const float SliderHeight = 20f;
         private const float DropdownHeight = 26f;
-        private const float PanelTitleHeight = 28f;
+        private const float PanelTitleHeight = 22f;
         private const float InlineItemSpacing = 4f;
         private const float InlineButtonSize = 28f;
 
@@ -191,7 +191,7 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             float titleH = panel.TitleVisible ? PanelTitleHeight : Padding;
             if (panel.Collapsed)
-                return titleH + (panel.TitleVisible ? Padding : 0f);
+                return titleH + (panel.TitleVisible ? 4f : 0f);
 
             float y = titleH + ItemSpacing;
             foreach (var el in panel.Elements)
@@ -234,7 +234,7 @@ namespace WeatherImageGenerator.Rendering.Common
             if (panel.TitleVisible)
             {
                 float tx = px + Padding;
-                float ty = py + 6f;
+                float ty = py + 4f;
 
                 // Collapse indicator
                 if (panel.Collapsible)
