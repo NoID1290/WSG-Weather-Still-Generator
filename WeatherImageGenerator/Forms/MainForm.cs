@@ -199,8 +199,16 @@ namespace WeatherImageGenerator.Forms
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
 
-            // Set application icon
-            try { this.Icon = new Icon(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WSG.ico")); }
+            // Set application icon from embedded resource
+            try
+            {
+                using var iconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream("WeatherImageGenerator.WSG.ico");
+                if (iconStream != null)
+                {
+                    using var icon = new Icon(iconStream);
+                    this.Icon = (Icon)icon.Clone();
+                }
+            }
             catch { }
 
             _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, Name = "logBox", Font = new System.Drawing.Font("Consolas", 9F), DetectUrls = true, HideSelection = false, ScrollBars = RichTextBoxScrollBars.Vertical, BorderStyle = BorderStyle.None, Padding = new Padding(4) };

@@ -46,10 +46,8 @@
     </Content>
     <!-- Embed icons into the binary -->
     <EmbeddedResource Include="WeatherImages\Icons\*.png" />
-    <!-- Copy application icon to output for WinForms use -->
-    <Content Include="WSG.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- Embed application icon so runtime does not rely on an external file -->
+    <EmbeddedResource Include="WSG.ico" />
     <Content Include="Music\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
