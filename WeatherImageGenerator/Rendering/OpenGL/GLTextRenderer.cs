@@ -97,6 +97,8 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             charList.Add('\u2316'); // ⌖ position indicator
             charList.Add('\u2013'); // – en dash
             charList.Add('\u2014'); // — em dash
+            charList.Add('\u21BB'); // ↻ anticlockwise arrow (loop)
+            charList.Add('\u00D7'); // × multiplication sign (close)
 
             int totalChars = charList.Count;
             int cellW = (int)(fontSize * 1.5f);

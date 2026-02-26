@@ -52,7 +52,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         private int _vertexCount;
 
         // Font atlas metrics
-        private readonly int[] _glyphWidths = new int[128];
+        private readonly Dictionary<char, (int width, int col, int row)> _glyphMap = new();
         private int _cellW = 10, _cellH = 20;
         private int _atlasW = 160, _atlasH = 120;
 
@@ -104,27 +104,51 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         private void BuildFontAtlas()
         {
             var font = new Font("Consolas", 13f, FontStyle.Regular, GraphicsUnit.Pixel);
-            int cols = 16, rows = 6; // ASCII 32-127
+
+            // Build char list: ASCII 32-126 + extended UI symbols
+            var charList = new List<char>();
+            for (int i = 32; i <= 126; i++) charList.Add((char)i);
+            charList.AddRange(new[] {
+                '\u00A9', '\u00B0', '\u00B1', '\u00B2', '\u00B3', '\u00B5', '\u00B7',
+                '\u00E9', '\u00E8', '\u00D7',
+                '\u25B6', '\u25BC', '\u25B2', '\u25CE',
+                '\u23EE', '\u23ED', '\u23F8',
+                '\u2212', '\u2026', '\u25A0', '\u25CB',
+                '\u2316', '\u2013', '\u2014', '\u21BB'
+            });
+
+            int cols = 16;
+            int totalRows = (int)Math.Ceiling(charList.Count / (double)cols);
 
             using var measure = new Bitmap(1, 1);
             using var gm = Graphics.FromImage(measure);
             gm.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
 
-            // Measure widths
-            for (int i = 32; i < 128; i++)
-            {
-                var sz = gm.MeasureString(((char)i).ToString(), font, 0, System.Drawing.StringFormat.GenericTypographic);
-                _glyphWidths[i] = Math.Max(1, (int)Math.Ceiling(sz.Width));
-            }
-
+            // Measure widths for all chars
             _cellW = 10;
-            foreach (var w in _glyphWidths) _cellW = Math.Max(_cellW, w);
+            foreach (char c in charList)
+            {
+                var sz = gm.MeasureString(c.ToString(), font, 0, System.Drawing.StringFormat.GenericTypographic);
+                int w = Math.Max(1, (int)Math.Ceiling(sz.Width));
+                _cellW = Math.Max(_cellW, w);
+            }
             _cellW += 2;
 
             var fm = gm.MeasureString("M", font);
             _cellH = Math.Max(14, (int)Math.Ceiling(fm.Height));
             _atlasW = _cellW * cols;
-            _atlasH = _cellH * rows;
+            _atlasH = _cellH * totalRows;
+
+            // Build glyph map with atlas positions
+            _glyphMap.Clear();
+            for (int i = 0; i < charList.Count; i++)
+            {
+                int col = i % cols;
+                int row = i / cols;
+                var sz = gm.MeasureString(charList[i].ToString(), font, 0, System.Drawing.StringFormat.GenericTypographic);
+                int gw = Math.Max(1, (int)Math.Ceiling(sz.Width));
+                _glyphMap[charList[i]] = (gw, col, row);
+            }
 
             _atlasBitmap = new Bitmap(_atlasW, _atlasH, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             using var g = Graphics.FromImage(_atlasBitmap);
@@ -132,11 +156,11 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
 
             using var brush = new SolidBrush(Color.White);
-            for (int i = 32; i < 128; i++)
+            for (int i = 0; i < charList.Count; i++)
             {
-                int col = (i - 32) % cols;
-                int row = (i - 32) / cols;
-                g.DrawString(((char)i).ToString(), font, brush, col * _cellW, row * _cellH,
+                int col = i % cols;
+                int row = i / cols;
+                g.DrawString(charList[i].ToString(), font, brush, col * _cellW, row * _cellH,
                     System.Drawing.StringFormat.GenericTypographic);
             }
 
@@ -441,17 +465,17 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             if (string.IsNullOrEmpty(text)) return;
 
             float curX = x;
-            int cols = 16;
 
             foreach (char ch in text)
             {
-                int c = ch;
-                if (c < 32 || c >= 128) { curX += _cellW; continue; }
+                if (!_glyphMap.TryGetValue(ch, out var glyph))
+                {
+                    // Fallback to '?' if available, otherwise skip
+                    if (!_glyphMap.TryGetValue('?', out glyph)) { curX += _cellW; continue; }
+                }
 
-                int col = (c - 32) % cols;
-                int row = (c - 32) / cols;
-                float u0 = (float)(col * _cellW) / _atlasW;
-                float v0 = (float)(row * _cellH) / _atlasH;
+                float u0 = (float)(glyph.col * _cellW) / _atlasW;
+                float v0 = (float)(glyph.row * _cellH) / _atlasH;
                 float u1 = u0 + (float)_cellW / _atlasW;
                 float v1 = v0 + (float)_cellH / _atlasH;
                 float x2 = curX + _cellW;
@@ -466,7 +490,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 EmitVertex(x2, y2, u1, v1);
                 EmitVertex(curX, y2, u0, v1);
 
-                curX += _glyphWidths[c] + 1;
+                curX += glyph.width + 1;
             }
 
             FlushBatch(mode: 0, r, g, b, a);
@@ -478,9 +502,10 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             float w = 0;
             foreach (char ch in text)
             {
-                int c = ch;
-                if (c >= 32 && c < 128) w += _glyphWidths[c] + 1;
-                else w += _cellW;
+                if (_glyphMap.TryGetValue(ch, out var glyph))
+                    w += glyph.width + 1;
+                else
+                    w += _cellW;
             }
             return w;
         }

@@ -106,7 +106,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 '©', '°', '±', '²', '³', 'µ', '·', 'é', 'è',
                 '\u25B6', '\u25BC', '\u25B2', '\u25CE', '\u23EE', '\u23ED',
                 '\u23F8', '\u2212', '\u2026', '\u25A0', '\u25CB',
-                '\u2316', '\u2013', '\u2014'
+                '\u2316', '\u2013', '\u2014',
+                '\u21BB', '\u00D7'
             });
 
             int cellW = (int)(fontSize * 1.5f);

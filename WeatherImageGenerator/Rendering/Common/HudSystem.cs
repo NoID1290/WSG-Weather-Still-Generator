@@ -189,22 +189,22 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private float CalculatePanelHeight(HudPanel panel)
         {
-            float titleH = panel.TitleVisible ? PanelTitleHeight : Padding;
+            float topPad = panel.TitleVisible ? PanelTitleHeight : 6f;
             if (panel.Collapsed)
-                return titleH + (panel.TitleVisible ? 4f : 0f);
+                return topPad + (panel.TitleVisible ? 4f : 0f);
 
-            float y = titleH + ItemSpacing;
+            float y = topPad + ItemSpacing;
             foreach (var el in panel.Elements)
             {
                 if (!el.Visible) continue;
                 y += GetElementHeight(el) + ItemSpacing;
             }
-            return y + Padding;
+            return y + (panel.TitleVisible ? Padding : 4f);
         }
 
         private float GetElementHeight(HudElement el) => el switch
         {
-            HudInlineRow row => InlineButtonSize + 2f,
+            HudInlineRow row => InlineButtonSize,
             HudButton => ButtonHeight,
             HudCheckbox => CheckboxHeight,
             HudSlider s => SliderHeight + (s.ShowLabel ? 14f : 0f),
@@ -251,8 +251,8 @@ namespace WeatherImageGenerator.Rendering.Common
             if (panel.Collapsed) return;
 
             // Render child elements
-            float titleH = panel.TitleVisible ? PanelTitleHeight : Padding;
-            float ey = py + titleH + ItemSpacing;
+            float topPad = panel.TitleVisible ? PanelTitleHeight : 6f;
+            float ey = py + topPad + ItemSpacing;
             float contentX = px + Padding;
             float contentW = pw - Padding * 2;
             _currentPanelContentWidth = contentW;
@@ -346,18 +346,21 @@ namespace WeatherImageGenerator.Rendering.Common
                 sliderY = y + 14f;
             }
 
-            float trackH = 6f;
+            float trackH = sld.ShowLabel ? 6f : 4f;
             float trackY = sliderY + (SliderHeight - trackH) / 2f;
 
             // Track background
             r.DrawRect(x, trackY, w, trackH, SliderTrack.R, SliderTrack.G, SliderTrack.B, SliderTrack.A);
 
             // Filled portion
-            float fillW = w * ((sld.Value - sld.Min) / (sld.Max - sld.Min));
-            r.DrawRect(x, trackY, fillW, trackH, AccentColor.R, AccentColor.G, AccentColor.B, 0.7f);
+            float range = sld.Max - sld.Min;
+            float ratio = range > 0f ? (sld.Value - sld.Min) / range : 0f;
+            float fillW = w * ratio;
+            r.DrawRect(x, trackY, fillW, trackH, AccentColor.R, AccentColor.G, AccentColor.B, 0.85f);
 
             // Thumb
-            float thumbW = 12f, thumbH = 14f;
+            float thumbW = sld.ShowLabel ? 12f : 10f;
+            float thumbH = sld.ShowLabel ? 14f : 12f;
             float thumbX = x + fillW - thumbW / 2f;
             float thumbY = trackY - (thumbH - trackH) / 2f;
             var thumbColor = (hover || sld == _draggingSlider) ? TextPrimary : SliderThumb;
