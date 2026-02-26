@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.4.0226] - 2026-02-26
+
+- Enhance HUD controls: add progress line rendering, improve slider tick marks, and implement button disable states
+- Refactor mouse event handling to update map position only if dragging occurred
+- Add loading overlay functionality to HUD system for radar frame updates
+- Enhance HUD layout and controls: adjust panel dimensions, add timeline slider, and improve glyph rendering
+- Adjust panel title height and spacing in HUD layout for improved consistency
+- Refactor CHANGELOG to remove duplicate entries
+
 ## [1.13.3.0225] - 2026-02-25
 
 - Enhancing HUD layout in radar map
