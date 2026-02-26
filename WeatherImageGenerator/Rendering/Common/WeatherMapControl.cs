@@ -672,6 +672,7 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             var loadBtn = FindHudElement<HudButton>("loadAnim");
             if (loadBtn != null) loadBtn.Text = "Loading...";
+            _hudSystem.LoadingMessage = "Loading radar frames...";
             _glControl?.InvalidateView();
 
             try
@@ -683,6 +684,9 @@ namespace WeatherImageGenerator.Rendering.Common
                     MessageBox.Show("No radar timestamps available.", "Animation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+
+                _hudSystem.LoadingMessage = $"Fetching {timestamps.Count} radar frames...";
+                _glControl?.InvalidateView();
 
                 // Fetch frames
                 var (frames, validTimestamps) = await _overlayManager.FetchMultipleRadarFramesAsync(
@@ -722,6 +726,7 @@ namespace WeatherImageGenerator.Rendering.Common
             }
             finally
             {
+                _hudSystem.LoadingMessage = null;
                 if (loadBtn != null) loadBtn.Text = "Load Animation";
                 _glControl?.InvalidateView();
             }
@@ -865,7 +870,8 @@ namespace WeatherImageGenerator.Rendering.Common
                 _animationTimer.Stop();
             }
 
-            _lblFrameInfo.Text = "Updating frames...";
+            _hudSystem.LoadingMessage = "Updating radar frames...";
+            _lblFrameInfo.Text = "Updating...";
 
             try
             {
@@ -891,6 +897,7 @@ namespace WeatherImageGenerator.Rendering.Common
             }
             finally
             {
+                _hudSystem.LoadingMessage = null;
                 _animationRefreshInProgress = false;
 
                 // Resume playback if it was playing

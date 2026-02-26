@@ -56,6 +56,12 @@ namespace WeatherImageGenerator.Rendering.Common
         public float AnimationPanelOpacity { get; set; } = 1.0f;
         private const float PanelCornerRadius = 6f;
 
+        /// <summary>
+        /// Set to a non-null string to show a centered loading overlay on the viewport.
+        /// Set to null to hide it.
+        /// </summary>
+        public string? LoadingMessage { get; set; }
+
         public HudSystem() { }
 
         public void AddPanel(HudPanel panel) => _panels.Add(panel);
@@ -142,6 +148,12 @@ namespace WeatherImageGenerator.Rendering.Common
             if (_openDropdown != null && _openDropdown.IsOpen)
             {
                 RenderDropdownOverlay(renderer, _openDropdown, viewportW, viewportH);
+            }
+
+            // Render loading overlay on top of everything
+            if (!string.IsNullOrEmpty(LoadingMessage))
+            {
+                RenderLoadingOverlay(renderer, viewportW, viewportH, LoadingMessage);
             }
         }
 
@@ -427,6 +439,29 @@ namespace WeatherImageGenerator.Rendering.Common
                 var fg = isSelected ? AccentColor : TextPrimary;
                 r.DrawText(dd.Options[i], tx, ty, fg.R, fg.G, fg.B, fg.A);
             }
+        }
+
+        private void RenderLoadingOverlay(IHudRenderer r, int vw, int vh, string message)
+        {
+            // Semi-transparent dark scrim over entire viewport
+            r.DrawRect(0, 0, vw, vh, 0, 0, 0, 0.55f);
+
+            // Centered pill-shaped panel
+            float textW = r.MeasureTextWidth(message);
+            float panelW = textW + 60f;
+            float panelH = 44f;
+            float px = (vw - panelW) / 2f;
+            float py = (vh - panelH) / 2f;
+
+            // Panel background
+            r.DrawRect(px, py, panelW, panelH, PanelBg.R, PanelBg.G, PanelBg.B, 0.92f);
+            // Accent top edge
+            r.DrawRect(px, py, panelW, 2f, AccentColor.R, AccentColor.G, AccentColor.B, 0.8f);
+
+            // Centered text
+            float tx = px + (panelW - textW) / 2f;
+            float ty = py + (panelH - r.LineHeight) / 2f;
+            r.DrawText(message, tx, ty, TextPrimary.R, TextPrimary.G, TextPrimary.B, TextPrimary.A);
         }
 
         private void RenderLabel(IHudRenderer r, HudLabel lbl, float x, float y, float w, float h)
