@@ -1930,17 +1930,21 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         {
             if (e.Button == MouseButtons.Left)
             {
+                bool wasDragging = _dragging;
                 _dragging = false;
                 UpdateCursorStyle();
 
-                // Snap center to account for pan
-                double cx = LonToPixelX(_centerLon, _mapZoom) + _panX;
-                double cy = LatToPixelY(_centerLat, _mapZoom) + _panY;
-                _centerLon = PixelXToLon(cx, _mapZoom);
-                _centerLat = PixelYToLat(cy, _mapZoom);
-                _panX = 0; _panY = 0;
+                if (wasDragging)
+                {
+                    // Snap center to account for pan
+                    double cx = LonToPixelX(_centerLon, _mapZoom) + _panX;
+                    double cy = LatToPixelY(_centerLat, _mapZoom) + _panY;
+                    _centerLon = PixelXToLon(cx, _mapZoom);
+                    _centerLat = PixelYToLat(cy, _mapZoom);
+                    _panX = 0; _panY = 0;
 
-                MapPositionChanged?.Invoke(_centerLat, _centerLon);
+                    MapPositionChanged?.Invoke(_centerLat, _centerLon);
+                }
                 _hostPanel.Invalidate();
             }
         }

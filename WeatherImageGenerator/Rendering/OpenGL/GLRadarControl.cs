@@ -1527,19 +1527,22 @@ void main() {
             if (_hudSystem != null && _hudSystem.ProcessMouseUp(e.X, e.Y))
             {
                 Invalidate();
-                // Don't return â€” also need to end map drag if it was active
             }
 
             if (e.Button == MouseButtons.Left)
             {
+                bool wasDragging = _dragging;
                 _dragging = false;
                 UpdateCursorStyle();
 
-                // After dragging ends, refresh tiles for the new position
-                UpdateTiles();
+                if (wasDragging)
+                {
+                    // After dragging ends, refresh tiles for the new position
+                    UpdateTiles();
 
-                // Notify listeners that map center changed (triggers overlay refresh)
-                try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
+                    // Notify listeners that map center changed (triggers overlay refresh)
+                    try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
+                }
             }
         }
 

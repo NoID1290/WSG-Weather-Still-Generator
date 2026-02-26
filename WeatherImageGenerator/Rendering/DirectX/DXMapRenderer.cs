@@ -1500,10 +1500,14 @@ namespace WeatherImageGenerator.Rendering.DirectX
             if (HudSystem != null && HudSystem.ProcessMouseUp(e.X, e.Y)) _hostPanel.Invalidate();
             if (e.Button == MouseButtons.Left)
             {
+                bool wasDragging = _dragging;
                 _dragging = false;
                 UpdateCursorStyle();
-                UpdateTiles();
-                try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
+                if (wasDragging)
+                {
+                    UpdateTiles();
+                    try { MapPositionChanged?.Invoke(_centerLat, _centerLon); } catch { }
+                }
             }
         }
 
