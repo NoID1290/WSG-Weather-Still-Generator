@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -39,6 +40,12 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudLabel _lblStatusBar;
         private HudCheckbox _chkAnimFollowMap;
         private HudSlider _sldTimeline;
+
+        // Animation transport button refs (for disabling before load)
+        private HudButton? _btnStepBack;
+        private HudButton? _btnPlayPause;
+        private HudButton? _btnStepFwd;
+        private HudLabel? _lblSpeed;
 
         // Animation controls
         private List<byte[]> _animationFrames = new List<byte[]>();
@@ -546,18 +553,21 @@ namespace WeatherImageGenerator.Rendering.Common
                 Id = "animation",
                 Title = "",
                 Anchor = HudAnchor.BottomCenter,
-                Width = 460f,
-                MarginX = 0, MarginY = 6,
+                Width = 500f,
+                MarginX = 0, MarginY = 38,
                 Visible = true,
                 Collapsible = false,
                 TitleVisible = false
             };
 
-            // Row 1: transport controls + frame info + loop + load
+            // Row 1: transport controls + frame info + load
             var transportRow = new HudInlineRow { Id = "animTransport" };
-            transportRow.Children.Add(new HudButton { Id = "animStepBack", Text = "\u23EE", IsCompact = true, OnClick = () => StepAnimationBackward() });
-            transportRow.Children.Add(new HudButton { Id = "animPlayPause", Text = "\u25B6", IsCompact = true, IsAccent = true, OnClick = () => PlayPauseAnimation() });
-            transportRow.Children.Add(new HudButton { Id = "animStepFwd", Text = "\u23ED", IsCompact = true, OnClick = () => StepAnimationForward() });
+            _btnStepBack = new HudButton { Id = "animStepBack", Text = "\u23EE", IsCompact = true, IsDisabled = true, OnClick = () => StepAnimationBackward() };
+            transportRow.Children.Add(_btnStepBack);
+            _btnPlayPause = new HudButton { Id = "animPlayPause", Text = "\u25B6", IsCompact = true, IsAccent = true, IsDisabled = true, OnClick = () => PlayPauseAnimation() };
+            transportRow.Children.Add(_btnPlayPause);
+            _btnStepFwd = new HudButton { Id = "animStepFwd", Text = "\u23ED", IsCompact = true, IsDisabled = true, OnClick = () => StepAnimationForward() };
+            transportRow.Children.Add(_btnStepFwd);
             transportRow.Children.Add(new HudSeparator());
             _lblFrameInfo = new HudLabel { Id = "frameInfo", Text = "No radar loaded", IsDim = true };
             transportRow.Children.Add(_lblFrameInfo);
@@ -565,7 +575,7 @@ namespace WeatherImageGenerator.Rendering.Common
             transportRow.Children.Add(new HudButton { Id = "animLoadBtn", Text = "Load", IsCompact = false, IsAccent = true, OnClick = async () => await LoadRadarAnimation() });
             animPanel.Elements.Add(transportRow);
 
-            // Row 2: timeline scrub bar
+            // Row 2: timeline scrub bar with tick marks
             _sldTimeline = new HudSlider
             {
                 Id = "animTimeline",
@@ -574,6 +584,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 Min = 0f,
                 Max = 1f,
                 ShowLabel = false,
+                ShowTicks = false,
                 OnChanged = (val) =>
                 {
                     if (_animationFrames.Count > 0)
@@ -589,7 +600,8 @@ namespace WeatherImageGenerator.Rendering.Common
             // Row 3: speed + loop + follow + close
             var settingsRow = new HudInlineRow { Id = "animSettings" };
             settingsRow.Children.Add(new HudButton { Id = "animSpeedDown", Text = "\u2212", IsCompact = true, OnClick = () => AdjustAnimationSpeed(200) });
-            settingsRow.Children.Add(new HudLabel { Id = "lblSpeed", Text = "Speed", IsDim = true });
+            _lblSpeed = new HudLabel { Id = "lblSpeed", Text = "0.5s", IsDim = true };
+            settingsRow.Children.Add(_lblSpeed);
             settingsRow.Children.Add(new HudButton { Id = "animSpeedUp", Text = "+", IsCompact = true, OnClick = () => AdjustAnimationSpeed(-200) });
             settingsRow.Children.Add(new HudSeparator());
             settingsRow.Children.Add(new HudButton
@@ -702,6 +714,27 @@ namespace WeatherImageGenerator.Rendering.Common
                 _animationTimestamps = validTimestamps;
                 _animationBBox = _overlayManager.LastRadarBBox;
                 _currentFrameIndex = 0;
+
+                // Enable transport controls now that frames are available
+                if (_btnStepBack != null) _btnStepBack.IsDisabled = false;
+                if (_btnPlayPause != null) _btnPlayPause.IsDisabled = false;
+                if (_btnStepFwd != null) _btnStepFwd.IsDisabled = false;
+
+                // Mark Load button as loaded (green)
+                var loadBtnLoaded = FindHudElement<HudButton>("animLoadBtn");
+                if (loadBtnLoaded != null)
+                {
+                    loadBtnLoaded.Text = "Reload";
+                    loadBtnLoaded.IsAccent = false;
+                    loadBtnLoaded.IsSuccess = true;
+                }
+
+                // Populate timeline tick labels (HH:MM per frame)
+                if (_sldTimeline != null)
+                {
+                    _sldTimeline.TickLabels = validTimestamps.Select(ts => FormatTimeOnly(ts)).ToList();
+                    _sldTimeline.ShowTicks = true;
+                }
 
                 // Show animation HUD panel
                 var animPanel = _hudSystem.GetPanel("animation");
@@ -829,6 +862,8 @@ namespace WeatherImageGenerator.Rendering.Common
         private void AdjustAnimationSpeed(int deltaMs)
         {
             _animationSpeedMs = Math.Max(100, Math.Min(2000, _animationSpeedMs + deltaMs));
+            // Update live speed label
+            if (_lblSpeed != null) _lblSpeed.Text = $"{_animationSpeedMs / 1000.0:F1}s";
             // Speed is shown via frame info label
             if (_isAnimating)
             {
@@ -919,6 +954,16 @@ namespace WeatherImageGenerator.Rendering.Common
             return isoTimestamp;
         }
 
+        /// <summary>
+        /// Returns a compact HH:MM-only string for use in timeline tick labels.
+        /// </summary>
+        private string FormatTimeOnly(string isoTimestamp)
+        {
+            if (DateTime.TryParse(isoTimestamp, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt))
+                return dt.ToLocalTime().ToString("HH:mm");
+            return isoTimestamp.Length >= 5 ? isoTimestamp[..5] : isoTimestamp;
+        }
+
         // â•â•â• Map Style / Radar Config Handlers â•â•â•
 
         private void OnMapStyleChanged()
@@ -1006,6 +1051,28 @@ namespace WeatherImageGenerator.Rendering.Common
             _animationBBox = null;
             _currentFrameIndex = 0;
 
+            // Re-disable transport controls
+            if (_btnStepBack != null) _btnStepBack.IsDisabled = true;
+            if (_btnPlayPause != null) { _btnPlayPause.IsDisabled = true; _btnPlayPause.IsAccent = true; }
+            if (_btnStepFwd != null) _btnStepFwd.IsDisabled = true;
+
+            // Reset Load button to original state
+            var loadBtn2 = FindHudElement<HudButton>("animLoadBtn");
+            if (loadBtn2 != null)
+            {
+                loadBtn2.Text = "Load";
+                loadBtn2.IsAccent = true;
+                loadBtn2.IsSuccess = false;
+            }
+
+            // Reset timeline ticks
+            if (_sldTimeline != null)
+            {
+                _sldTimeline.ShowTicks = false;
+                _sldTimeline.TickLabels.Clear();
+                _sldTimeline.Value = 0f;
+            }
+
             // Hide animation HUD panel
             var animPanel = _hudSystem.GetPanel("animation");
             if (animPanel != null) animPanel.Visible = false;
@@ -1013,7 +1080,7 @@ namespace WeatherImageGenerator.Rendering.Common
             // Clear overlay from GL
             _glControl.ClearPositionedOverlay();
 
-            _lblFrameInfo.Text = "No animation loaded";
+            _lblFrameInfo.Text = "No radar loaded";
             _glControl?.InvalidateView();
         }
 

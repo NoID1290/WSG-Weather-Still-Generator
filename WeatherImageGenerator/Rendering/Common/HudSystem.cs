@@ -219,10 +219,11 @@ namespace WeatherImageGenerator.Rendering.Common
             HudInlineRow row => InlineButtonSize,
             HudButton => ButtonHeight,
             HudCheckbox => CheckboxHeight,
-            HudSlider s => SliderHeight + (s.ShowLabel ? 14f : 0f),
+            HudSlider s => SliderHeight + (s.ShowLabel ? 14f : 0f) + (s.ShowTicks ? 18f : 0f),
             HudDropdown => DropdownHeight,
             HudLabel l => l.IsSection ? 22f : 16f * Math.Max(1, CountWrappedLines(l.Text, _currentPanelContentWidth)),
             HudSeparator => 6f,
+            HudProgressLine => 6f,
             HudButtonGroup g => ButtonHeight,
             _ => 20f
         };
@@ -305,6 +306,9 @@ namespace WeatherImageGenerator.Rendering.Common
                     case HudInlineRow row:
                         RenderInlineRow(r, row, contentX, ey, contentW, elH);
                         break;
+                    case HudProgressLine prog:
+                        RenderProgressLine(r, prog, contentX, ey, contentW, elH);
+                        break;
                 }
 
                 ey += elH + ItemSpacing;
@@ -313,12 +317,22 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private void RenderButton(IHudRenderer r, HudButton btn, float x, float y, float w, float h, bool hover, bool pressed)
         {
-            var bg = pressed ? AccentColor : hover ? ButtonHover : btn.IsAccent ? ButtonActive : ButtonBg;
+            if (btn.IsDisabled)
+            {
+                r.DrawRect(x, y, w, h, ButtonBg.R, ButtonBg.G, ButtonBg.B, ButtonBg.A * 0.55f);
+                float tw2 = r.MeasureTextWidth(btn.Text);
+                float tx2 = x + (w - tw2) / 2f;
+                float ty3 = y + (h - r.LineHeight) / 2f;
+                r.DrawText(btn.Text, tx2, ty3, TextDim.R, TextDim.G, TextDim.B, TextDim.A * 0.55f);
+                return;
+            }
+            var successColor = new HudColor(CheckActive.R, CheckActive.G, CheckActive.B, CheckActive.A * 0.85f);
+            var bg = pressed ? AccentColor : hover ? ButtonHover : btn.IsSuccess ? successColor : btn.IsAccent ? ButtonActive : ButtonBg;
             r.DrawRect(x, y, w, h, bg.R, bg.G, bg.B, bg.A);
             float tw = r.MeasureTextWidth(btn.Text);
             float tx = x + (w - tw) / 2f;
             float ty2 = y + (h - r.LineHeight) / 2f;
-            var fg = (btn.IsAccent || pressed) ? TextPrimary : hover ? TextPrimary : TextSecondary;
+            var fg = (btn.IsAccent || btn.IsSuccess || pressed) ? TextPrimary : hover ? TextPrimary : TextSecondary;
             r.DrawText(btn.Text, tx, ty2, fg.R, fg.G, fg.B, fg.A);
         }
 
@@ -358,8 +372,48 @@ namespace WeatherImageGenerator.Rendering.Common
                 sliderY = y + 14f;
             }
 
+            // Reserve space for tick labels above the track
+            if (sld.ShowTicks && sld.TickLabels.Count > 0)
+                sliderY += 18f;
+
             float trackH = sld.ShowLabel ? 6f : 4f;
             float trackY = sliderY + (SliderHeight - trackH) / 2f;
+
+            // --- Tick marks and HH:MM labels ---
+            if (sld.ShowTicks && sld.TickLabels.Count > 1)
+            {
+                int count = sld.TickLabels.Count;
+                // Determine which tick is the active (current) one
+                float range2 = sld.Max - sld.Min;
+                int activeTick = range2 > 0f
+                    ? (int)Math.Round((sld.Value - sld.Min) / range2 * (count - 1))
+                    : 0;
+
+                float labelLineH = r.LineHeight;
+                float labelAreaY = sliderY - 18f;  // area above the track
+
+                for (int i = 0; i < count; i++)
+                {
+                    float tickRatio = (float)i / (count - 1);
+                    float tickX = x + tickRatio * w;
+
+                    bool isActive = (i == activeTick);
+
+                    // Tick line (2px tall, sitting just above the track)
+                    var tickColor = isActive ? AccentColor : SliderTrack;
+                    float tickAlpha = isActive ? 1.0f : 0.8f;
+                    r.DrawRect(tickX - 0.5f, trackY - 5f, 1f, 5f, tickColor.R, tickColor.G, tickColor.B, tickAlpha);
+
+                    // HH:MM label above the tick
+                    string lbl = sld.TickLabels[i];
+                    float lblW = r.MeasureTextWidth(lbl);
+                    // Clamp label X so it stays within slider bounds
+                    float lblX = Math.Max(x, Math.Min(tickX - lblW / 2f, x + w - lblW));
+                    float lblY = labelAreaY + (18f - labelLineH) / 2f;
+                    var lblColor = isActive ? AccentColor : TextDim;
+                    r.DrawText(lbl, lblX, lblY, lblColor.R, lblColor.G, lblColor.B, isActive ? 1.0f : 0.75f);
+                }
+            }
 
             // Track background
             r.DrawRect(x, trackY, w, trackH, SliderTrack.R, SliderTrack.G, SliderTrack.B, SliderTrack.A);
@@ -380,6 +434,23 @@ namespace WeatherImageGenerator.Rendering.Common
 
             // Store track bounds for hit-testing
             sld.TrackBounds = new RectangleF(x, trackY - 4f, w, trackH + 8f);
+        }
+
+        private void RenderProgressLine(IHudRenderer r, HudProgressLine prog, float x, float y, float w, float h)
+        {
+            // Slim 3px track
+            float trackH = 3f;
+            float trackY = y + (h - trackH) / 2f;
+            r.DrawRect(x, trackY, w, trackH, SliderTrack.R, SliderTrack.G, SliderTrack.B, SliderTrack.A * 0.7f);
+
+            // Filled accent portion
+            float fillW = w * Math.Max(0f, Math.Min(1f, prog.Value));
+            if (fillW > 0f)
+            {
+                r.DrawRect(x, trackY, fillW, trackH, AccentColor.R, AccentColor.G, AccentColor.B, 0.9f);
+                // Bright cap at leading edge
+                r.DrawRect(x + fillW - 1f, trackY - 1f, 2f, trackH + 2f, 1f, 1f, 1f, 0.55f);
+            }
         }
 
         private void RenderDropdown(IHudRenderer r, HudDropdown dd, float x, float y, float w, float h, bool hover)
@@ -617,12 +688,23 @@ namespace WeatherImageGenerator.Rendering.Common
                     {
                         float btnTextW = r.MeasureTextWidth(btn.Text);
                         float btnW = btn.IsCompact ? InlineButtonSize : Math.Max(btnTextW + 16f, InlineButtonSize);
-                        var bg = isChildPressed ? AccentColor : isChildHovered ? ButtonHover : btn.IsAccent ? ButtonActive : ButtonBg;
-                        r.DrawRect(cx, y, btnW, rowH, bg.R, bg.G, bg.B, bg.A);
-                        float tx = cx + (btnW - btnTextW) / 2f;
-                        float ty = y + (rowH - r.LineHeight) / 2f;
-                        var fg = (btn.IsAccent || isChildPressed) ? TextPrimary : isChildHovered ? TextPrimary : TextSecondary;
-                        r.DrawText(btn.Text, tx, ty, fg.R, fg.G, fg.B, fg.A);
+                        if (btn.IsDisabled)
+                        {
+                            r.DrawRect(cx, y, btnW, rowH, ButtonBg.R, ButtonBg.G, ButtonBg.B, ButtonBg.A * 0.55f);
+                            float dtx = cx + (btnW - btnTextW) / 2f;
+                            float dty = y + (rowH - r.LineHeight) / 2f;
+                            r.DrawText(btn.Text, dtx, dty, TextDim.R, TextDim.G, TextDim.B, TextDim.A * 0.5f);
+                        }
+                        else
+                        {
+                            var successColor2 = new HudColor(CheckActive.R, CheckActive.G, CheckActive.B, CheckActive.A * 0.85f);
+                            var bg = isChildPressed ? AccentColor : isChildHovered ? ButtonHover : btn.IsSuccess ? successColor2 : btn.IsAccent ? ButtonActive : ButtonBg;
+                            r.DrawRect(cx, y, btnW, rowH, bg.R, bg.G, bg.B, bg.A);
+                            float tx = cx + (btnW - btnTextW) / 2f;
+                            float ty = y + (rowH - r.LineHeight) / 2f;
+                            var fg = (btn.IsAccent || btn.IsSuccess || isChildPressed) ? TextPrimary : isChildHovered ? TextPrimary : TextSecondary;
+                            r.DrawText(btn.Text, tx, ty, fg.R, fg.G, fg.B, fg.A);
+                        }
                         child.ComputedBounds = new RectangleF(cx, y, btnW, rowH);
                         row.ChildBounds.Add(new RectangleF(cx, y, btnW, rowH));
                         cx += btnW + InlineItemSpacing;
@@ -807,7 +889,8 @@ namespace WeatherImageGenerator.Rendering.Common
                                 switch (child)
                                 {
                                     case HudButton btn2:
-                                        btn2.OnClick?.Invoke();
+                                        if (!btn2.IsDisabled)
+                                            btn2.OnClick?.Invoke();
                                         return true;
                                     case HudCheckbox chk2:
                                         chk2.Checked = !chk2.Checked;
@@ -983,9 +1066,11 @@ namespace WeatherImageGenerator.Rendering.Common
             float relative = (mx - sld.TrackBounds.X) / sld.TrackBounds.Width;
             relative = Math.Clamp(relative, 0f, 1f);
             float newVal = sld.Min + relative * (sld.Max - sld.Min);
-            // Snap to integer
-            newVal = (float)Math.Round(newVal);
-            if (Math.Abs(newVal - sld.Value) > 0.01f)
+            // Only quantise to integers for large-range sliders (e.g. 0-100 opacity).
+            // Normalised sliders like the animation timeline use the raw fraction.
+            if (sld.Max - sld.Min >= 2f)
+                newVal = (float)Math.Round(newVal);
+            if (Math.Abs(newVal - sld.Value) > 0.001f)
             {
                 sld.Value = newVal;
                 sld.OnChanged?.Invoke(sld.Value);
@@ -1075,6 +1160,10 @@ namespace WeatherImageGenerator.Rendering.Common
         public bool IsAccent { get; set; } = false;
         /// <summary>When true, compact square button (used in inline rows).</summary>
         public bool IsCompact { get; set; } = false;
+        /// <summary>Renders the button greyed-out and ignores clicks.</summary>
+        public bool IsDisabled { get; set; } = false;
+        /// <summary>Renders the button with a green success color (e.g. after loading completes).</summary>
+        public bool IsSuccess { get; set; } = false;
         public Action? OnClick { get; set; }
     }
 
@@ -1092,6 +1181,10 @@ namespace WeatherImageGenerator.Rendering.Common
         public float Min { get; set; } = 0f;
         public float Max { get; set; } = 100f;
         public bool ShowLabel { get; set; } = true;
+        /// <summary>When true, draws tick marks and labels above the slider track.</summary>
+        public bool ShowTicks { get; set; } = false;
+        /// <summary>Labels for each tick (one per frame). Shown above the track when ShowTicks is true.</summary>
+        public List<string> TickLabels { get; set; } = new();
         public RectangleF TrackBounds { get; set; }
         public Action<float>? OnChanged { get; set; }
     }
@@ -1117,6 +1210,16 @@ namespace WeatherImageGenerator.Rendering.Common
     }
 
     public class HudSeparator : HudElement { }
+
+    /// <summary>
+    /// A thin horizontal progress bar — purely decorative, shows playback progress.
+    /// Rendered as a slim accent-colored fill strip.
+    /// </summary>
+    public class HudProgressLine : HudElement
+    {
+        /// <summary>Fill fraction 0.0–1.0.</summary>
+        public float Value { get; set; } = 0f;
+    }
 
     public class HudButtonGroup : HudElement
     {
