@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.13.9.0227] - 2026-02-27
 
-- Version bump
+- Add missing radar frame configuration entries for frames 2-5 and update validation logic to check all frames
+- Now the user can configure up to 30 radar frames (ECCC)
 
 ## [1.13.8.0227] - 2026-02-27
 
-- Version bump
+- Fix bump
 
 ## [1.13.7.0226] - 2026-02-26
 
