@@ -1137,9 +1137,9 @@ namespace WeatherImageGenerator.Services
                 if (updates != null && updates.ContainsKey("enableWeatherMaps") && bool.TryParse(updates["enableWeatherMaps"]?.ToString() ?? "", out bool enableWeatherMaps))
                     config.ImageGeneration.EnableWeatherMaps = enableWeatherMaps;
                 if (updates != null && updates.ContainsKey("provinceFrames") && int.TryParse(updates["provinceFrames"]?.ToString() ?? "", out int frames))
-                    config.ECCC.ProvinceFrames = frames;
+                    config.ECCC.ProvinceFrames = Math.Clamp(frames, ConfigManager.MinRadarFrames, ConfigManager.MaxRadarFrames);
                 if (updates != null && updates.ContainsKey("provinceFrameStepMinutes") && int.TryParse(updates["provinceFrameStepMinutes"]?.ToString() ?? "", out int step))
-                    config.ECCC.ProvinceFrameStepMinutes = step;
+                    config.ECCC.ProvinceFrameStepMinutes = Math.Clamp(step, ConfigManager.MinRadarFrameStepMinutes, ConfigManager.MaxRadarFrameStepMinutes);
 
                 ConfigManager.SaveConfig(config);
                 RespondWithJson(context, new { status = "success", message = "Radar settings updated" });

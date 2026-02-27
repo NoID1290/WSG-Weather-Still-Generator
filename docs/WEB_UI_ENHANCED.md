@@ -294,7 +294,7 @@ The enhanced web UI works on:
 
 1. **Refresh Interval**: Set appropriate update frequency (5-60 minutes)
 2. **Video Presets**: Use "Balanced" for most use cases
-3. **Radar Frames**: 6-8 frames balances quality and speed
+3. **Radar Frames**: Default is 8; supported range is 1-30 (higher values increase generation time)
 4. **Cache**: Enable tile caching for maps (enabled by default)
 
 ## Troubleshooting

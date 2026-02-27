@@ -689,8 +689,14 @@ namespace WeatherImageGenerator.Rendering.Common
 
             try
             {
+                var config = ConfigManager.LoadConfig();
+                var radarFrames = Math.Clamp(
+                    config.ECCC?.ProvinceFrames ?? 8,
+                    ConfigManager.MinRadarFrames,
+                    ConfigManager.MaxRadarFrames);
+
                 // Fetch timestamps
-                var timestamps = await _overlayManager.FetchRadarTimestampsAsync(8);
+                var timestamps = await _overlayManager.FetchRadarTimestampsAsync(radarFrames);
                 if (timestamps.Count == 0)
                 {
                     MessageBox.Show("No radar timestamps available.", "Animation", MessageBoxButtons.OK, MessageBoxIcon.Warning);

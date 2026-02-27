@@ -278,7 +278,7 @@ videoGenerator.Generate();
 
 ### Typical Generation Times
 
-- **Radar animation (8 frames)**: 15-30 seconds
+- **Radar animation (default 8 frames)**: 15-30 seconds
   - Base map: 3-5 seconds (generated once)
   - Per frame: 1-2 seconds (radar fetch + composite)
   

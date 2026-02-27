@@ -21,6 +21,11 @@ namespace WeatherImageGenerator.Services
         private static AppSettings? _settings;
         private static readonly string ConfigFilePath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 
+        public const int MinRadarFrames = 1;
+        public const int MaxRadarFrames = 30;
+        public const int MinRadarFrameStepMinutes = 1;
+        public const int MaxRadarFrameStepMinutes = 60;
+
         /// <summary>
         /// Loads configuration from appsettings.json. Caches the result after first load.
         /// If the file is missing or corrupt, generates default settings automatically so the
