@@ -14,6 +14,7 @@ using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 using Silk.NET.DXGI;
 using WeatherImageGenerator.Rendering.Common;
+using WeatherImageGenerator.Utilities;
 
 namespace WeatherImageGenerator.Rendering.DirectX
 {
@@ -510,8 +511,6 @@ namespace WeatherImageGenerator.Rendering.DirectX
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         private unsafe void LoadShaders()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-
             // === Tile shader ===
             var tileUniforms = new Dictionary<string, (bool, int, int)>
             {
@@ -525,8 +524,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
             };
 
             _tileShader = CreateShaderFromFiles(
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "tile.vs.hlsl"),
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "tile.ps.hlsl"),
+                "Rendering/DirectX/shaders/tile.vs.hlsl",
+                "Rendering/DirectX/shaders/tile.ps.hlsl",
                 GetQuadInputLayout(), tileUniforms, "tile");
             _tileShader?.SetFloat("uOpacity", 1.0f);
 
@@ -540,8 +539,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
             };
 
             _weatherOverlayShader = CreateShaderFromFiles(
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "weather_overlay.vs.hlsl"),
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "weather_overlay.ps.hlsl"),
+                "Rendering/DirectX/shaders/weather_overlay.vs.hlsl",
+                "Rendering/DirectX/shaders/weather_overlay.ps.hlsl",
                 GetQuadInputLayout(), woUniforms, "weather_overlay");
             _weatherOverlayShader?.SetFloat("uOpacity", 1.0f);
 
@@ -556,8 +555,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
             };
 
             _overlayShader = CreateShaderFromFiles(
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "overlay.vs.hlsl"),
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "overlay.ps.hlsl"),
+                "Rendering/DirectX/shaders/overlay.vs.hlsl",
+                "Rendering/DirectX/shaders/overlay.ps.hlsl",
                 GetOverlayInputLayout(), ovUniforms, "overlay");
 
             // === General (vertex/fragment) shader ===
@@ -568,8 +567,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
             };
 
             _generalShader = CreateShaderFromFiles(
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "vertex.vs.hlsl"),
-                Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "fragment.ps.hlsl"),
+                "Rendering/DirectX/shaders/vertex.vs.hlsl",
+                "Rendering/DirectX/shaders/fragment.ps.hlsl",
                 GetQuadInputLayout(), genUniforms, "general");
         }
 
@@ -581,14 +580,74 @@ namespace WeatherImageGenerator.Rendering.DirectX
         {
             try
             {
-                string vsSrc = File.ReadAllText(vsPath);
-                string psSrc = File.ReadAllText(psPath);
+                if (!TryReadShaderText(vsPath, out var vsSrc) || !TryReadShaderText(psPath, out var psSrc))
+                {
+                    Console.WriteLine($"[DXMapRenderer] Failed to load {name} shader source.");
+                    return null;
+                }
+
                 return new DXShader(_device.Handle, _context.Handle, vsSrc, psSrc, "main", "main", inputLayout, uniforms);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[DXMapRenderer] Failed to load {name} shader: {ex.Message}");
                 return null;
+            }
+        }
+
+        private static bool TryReadShaderText(string shaderPath, out string source)
+        {
+            if (TryReadShaderTextSingle(shaderPath, out source))
+            {
+                return true;
+            }
+
+            foreach (var alt in GetShaderPathAlternates(shaderPath))
+            {
+                if (TryReadShaderTextSingle(alt, out source))
+                {
+                    return true;
+                }
+            }
+
+            source = string.Empty;
+            return false;
+        }
+
+        private static bool TryReadShaderTextSingle(string shaderPath, out string source)
+        {
+            if (EmbeddedResourceLoader.TryReadText(shaderPath, out source))
+            {
+                return true;
+            }
+
+            var normalized = shaderPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            if (Path.IsPathRooted(normalized) && File.Exists(normalized))
+            {
+                source = File.ReadAllText(normalized);
+                return true;
+            }
+
+            var combined = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, normalized);
+            if (File.Exists(combined))
+            {
+                source = File.ReadAllText(combined);
+                return true;
+            }
+
+            source = string.Empty;
+            return false;
+        }
+
+        private static IEnumerable<string> GetShaderPathAlternates(string shaderPath)
+        {
+            if (shaderPath.EndsWith(".ps.hlsl", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return shaderPath[..^8] + ".frag.hlsl";
+            }
+            else if (shaderPath.EndsWith(".vs.hlsl", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return shaderPath[..^8] + ".vert.hlsl";
             }
         }
 

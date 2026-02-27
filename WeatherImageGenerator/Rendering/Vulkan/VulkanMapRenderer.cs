@@ -8,6 +8,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using WeatherImageGenerator.Utilities;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Silk.NET.Core.Native;
@@ -1005,8 +1006,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         // ═══════════════════════════════════════════════════════════════════
         private void LoadShaders()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var shaderDir = Path.Combine(baseDir, "Rendering", "Vulkan", "shaders");
+            var shaderDir = "Rendering/Vulkan/shaders";
 
             // Tile shader: push_constant = mat3(3×vec4=48) + 6 floats(24) = 72 bytes
             _tileShader = CreatePipeline(shaderDir, "tile",
@@ -1084,20 +1084,11 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 var vertPath = Path.Combine(shaderDir, $"{name}.vert.spv");
                 var fragPath = Path.Combine(shaderDir, $"{name}.frag.spv");
 
-                // Fall back to reading GLSL if SPIR-V not precompiled
-                if (!File.Exists(vertPath)) vertPath = Path.Combine(shaderDir, $"{name}.vert.glsl");
-                if (!File.Exists(fragPath)) fragPath = Path.Combine(shaderDir, $"{name}.frag.glsl");
-
-                // If only GLSL available, we need runtime SPIR-V compilation (not implemented)
-                // For now, require precompiled .spv files
-                if (!vertPath.EndsWith(".spv") || !fragPath.EndsWith(".spv"))
+                if (!TryReadShaderBytes(vertPath, out var vertSpv) || !TryReadShaderBytes(fragPath, out var fragSpv))
                 {
                     Console.WriteLine($"[VulkanMapRenderer] SPIR-V not found for {name} — pipeline skipped.");
                     return null;
                 }
-
-                var vertSpv = File.ReadAllBytes(vertPath);
-                var fragSpv = File.ReadAllBytes(fragPath);
 
                 return new VulkanShader(_vk!, _device, _renderPass,
                     vertSpv, fragSpv,
@@ -1109,6 +1100,31 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 Console.WriteLine($"[VulkanMapRenderer] Shader '{name}' failed: {ex.Message}");
                 return null;
             }
+        }
+
+        private static bool TryReadShaderBytes(string shaderPath, out byte[] bytes)
+        {
+            if (EmbeddedResourceLoader.TryReadBytes(shaderPath, out bytes))
+            {
+                return true;
+            }
+
+            var normalized = shaderPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            if (Path.IsPathRooted(normalized) && File.Exists(normalized))
+            {
+                bytes = File.ReadAllBytes(normalized);
+                return true;
+            }
+
+            var combined = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, normalized);
+            if (File.Exists(combined))
+            {
+                bytes = File.ReadAllBytes(combined);
+                return true;
+            }
+
+            bytes = Array.Empty<byte>();
+            return false;
         }
 
         private VertexInputAttributeDescription[] GetQuadVertexAttributes()

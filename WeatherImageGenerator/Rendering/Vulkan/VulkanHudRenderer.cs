@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Silk.NET.Vulkan;
 using WeatherImageGenerator.Rendering.Common;
+using WeatherImageGenerator.Utilities;
 using VkImage = Silk.NET.Vulkan.Image;
 
 namespace WeatherImageGenerator.Rendering.Vulkan
@@ -376,19 +378,13 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         {
             if (_vk == null) return;
 
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var vertPath = System.IO.Path.Combine(baseDir, "Rendering", "Vulkan", "shaders", "ui.vert.spv");
-            var fragPath = System.IO.Path.Combine(baseDir, "Rendering", "Vulkan", "shaders", "ui.frag.spv");
+            var vertPath = "Rendering/Vulkan/shaders/ui.vert.spv";
+            var fragPath = "Rendering/Vulkan/shaders/ui.frag.spv";
 
             byte[] vertSpv, fragSpv;
-            try
+            if (!TryReadShaderBytes(vertPath, out vertSpv) || !TryReadShaderBytes(fragPath, out fragSpv))
             {
-                vertSpv = System.IO.File.ReadAllBytes(vertPath);
-                fragSpv = System.IO.File.ReadAllBytes(fragPath);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[VulkanHudRenderer] Failed to load UI shaders: {ex.Message}");
+                Console.WriteLine("[VulkanHudRenderer] Failed to load UI shaders.");
                 return;
             }
 
@@ -419,6 +415,31 @@ namespace WeatherImageGenerator.Rendering.Vulkan
 
             // Now that we have the pipeline, create the descriptor set
             CreateDescriptorSet();
+        }
+
+        private static bool TryReadShaderBytes(string shaderPath, out byte[] bytes)
+        {
+            if (EmbeddedResourceLoader.TryReadBytes(shaderPath, out bytes))
+            {
+                return true;
+            }
+
+            var normalized = shaderPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            if (Path.IsPathRooted(normalized) && File.Exists(normalized))
+            {
+                bytes = File.ReadAllBytes(normalized);
+                return true;
+            }
+
+            var combined = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, normalized);
+            if (File.Exists(combined))
+            {
+                bytes = File.ReadAllBytes(combined);
+                return true;
+            }
+
+            bytes = Array.Empty<byte>();
+            return false;
         }
 
         // ═══════════════════════════════════════════════════════════════════

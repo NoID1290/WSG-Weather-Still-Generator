@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using WeatherImageGenerator.Rendering.Common;
+using WeatherImageGenerator.Utilities;
 
 namespace WeatherImageGenerator.Rendering.OpenGL
 {
@@ -190,13 +191,8 @@ namespace WeatherImageGenerator.Rendering.OpenGL
 
         private void LoadShader()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var vPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "ui.vert.glsl");
-            var fPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "ui.frag.glsl");
-
             string vSrc, fSrc;
-            try { vSrc = File.ReadAllText(vPath); }
-            catch
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/ui.vert.glsl", out vSrc))
             {
                 vSrc = @"#version 330 core
 layout(location=0) in vec2 aPos;
@@ -209,8 +205,7 @@ void main() {
 }";
             }
 
-            try { fSrc = File.ReadAllText(fPath); }
-            catch
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/ui.frag.glsl", out fSrc))
             {
                 fSrc = @"#version 330 core
 in vec2 vTex;

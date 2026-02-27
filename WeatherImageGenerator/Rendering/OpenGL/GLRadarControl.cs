@@ -10,6 +10,7 @@ using System.Linq;
 using OpenTK.WinForms;
 using OpenTK.Graphics.OpenGL4;
 using WeatherImageGenerator.Rendering.Common;
+using WeatherImageGenerator.Utilities;
 
 namespace WeatherImageGenerator.Rendering.OpenGL
 {
@@ -409,13 +410,10 @@ void main() {
             GL.EnableVertexAttribArray(1);
             GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
 
-            // Load shader from disk with fallback
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var vPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "vertex.glsl");
-            var fPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "fragment.glsl");
+            // Load shader from embedded resources with fallback
             string vSrc, fSrc;
-            try { vSrc = File.ReadAllText(vPath); } catch { vSrc = _vertexSourceFallback; }
-            try { fSrc = File.ReadAllText(fPath); } catch { fSrc = _fragmentSourceFallback; }
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/vertex.glsl", out vSrc)) vSrc = _vertexSourceFallback;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/fragment.glsl", out fSrc)) fSrc = _fragmentSourceFallback;
 
             try
             {
@@ -433,12 +431,10 @@ void main() {
             // create fallback tile texture (neutral background) used when tiles are missing/blocked
             _fallbackTexture = CreateFallbackTexture(256, 256);
 
-            // Tile shader (simple texture copy) - load from disk if present
-            var tileVPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "tile.vert.glsl");
-            var tileFPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "tile.frag.glsl");
+            // Tile shader (simple texture copy)
             string tileV, tileF;
-            try { tileV = File.ReadAllText(tileVPath); } catch { tileV = _vertexSourceFallback; }
-            try { tileF = File.ReadAllText(tileFPath); } catch { tileF = "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }"; }
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/tile.vert.glsl", out tileV)) tileV = _vertexSourceFallback;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/tile.frag.glsl", out tileF)) tileF = "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }";
             try
             {
                 _tileShader = new GLShader(tileV, tileF);
@@ -454,11 +450,9 @@ void main() {
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
             // Prepare overlay (crosshair/markers)
-            var overlayVPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "overlay.vert.glsl");
-            var overlayFPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "overlay.frag.glsl");
             string ovSrcV, ovSrcF;
-            try { ovSrcV = File.ReadAllText(overlayVPath); } catch { ovSrcV = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }"; }
-            try { ovSrcF = File.ReadAllText(overlayFPath); } catch { ovSrcF = "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }"; }
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/overlay.vert.glsl", out ovSrcV)) ovSrcV = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }";
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/overlay.frag.glsl", out ovSrcF)) ovSrcF = "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }";
 
             try
             {
@@ -484,11 +478,9 @@ void main() {
             _tileShader!.SetFloat("uOpacity", 1.0f);
 
             // Build dedicated weather overlay shader (pass-through, no tile effects)
-            var overlayTexVPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "weather_overlay.vert.glsl");
-            var overlayTexFPath = Path.Combine(baseDir, "Rendering", "OpenGL", "shaders", "weather_overlay.frag.glsl");
             string woV, woF;
-            try { woV = File.ReadAllText(overlayTexVPath); } catch { woV = _vertexSourceFallback; }
-            try { woF = File.ReadAllText(overlayTexFPath); } catch {
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/weather_overlay.vert.glsl", out woV)) woV = _vertexSourceFallback;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/weather_overlay.frag.glsl", out woF)) {
                 // Inline fallback: clean pass-through with opacity and edge blend
                 woF = @"#version 330 core
 in vec2 vTex;

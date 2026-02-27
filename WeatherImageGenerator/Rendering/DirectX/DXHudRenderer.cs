@@ -10,6 +10,7 @@ using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 using Silk.NET.DXGI;
 using WeatherImageGenerator.Rendering.Common;
+using WeatherImageGenerator.Utilities;
 
 using DXBlend = Silk.NET.Direct3D11.Blend;
 
@@ -218,15 +219,9 @@ namespace WeatherImageGenerator.Rendering.DirectX
 
         private void CreateUIShader()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var vsPath = Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "ui.vs.hlsl");
-            var psPath = Path.Combine(baseDir, "Rendering", "DirectX", "shaders", "ui.ps.hlsl");
-
             string vsSrc, psSrc;
-            try { vsSrc = File.ReadAllText(vsPath); }
-            catch { vsSrc = GetFallbackUIVS(); }
-            try { psSrc = File.ReadAllText(psPath); }
-            catch { psSrc = GetFallbackUIPS(); }
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/DirectX/shaders/ui.vs.hlsl", out vsSrc)) vsSrc = GetFallbackUIVS();
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/DirectX/shaders/ui.ps.hlsl", out psSrc)) psSrc = GetFallbackUIPS();
 
             // Input layout: POSITION (float2), TEXCOORD0 (float2)
             var inputElements = new InputElementDesc[]

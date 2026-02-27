@@ -35,15 +35,9 @@
     <Content Include="wwwroot\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Rendering\OpenGL\shaders\**\*.*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Rendering\Vulkan\shaders\**\*.*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Rendering\DirectX\shaders\**\*.*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <EmbeddedResource Include="Rendering\OpenGL\shaders\**\*.*" />
+    <EmbeddedResource Include="Rendering\Vulkan\shaders\**\*.*" />
+    <EmbeddedResource Include="Rendering\DirectX\shaders\**\*.*" />
     <!-- Embed icons into the binary -->
     <EmbeddedResource Include="WeatherImages\Icons\*.png" />
     <!-- Embed application icon so runtime does not rely on an external file -->
