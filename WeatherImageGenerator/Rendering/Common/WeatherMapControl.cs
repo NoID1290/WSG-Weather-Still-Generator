@@ -230,9 +230,9 @@ namespace WeatherImageGenerator.Rendering.Common
                 LayoutGroup = "topBar"
             };
 
-            actionsPanel.Elements.Add(new HudButton { Id = "loadAnim", Text = "Load Animation", IsAccent = true, OnClick = async () => await LoadRadarAnimation() });
-            actionsPanel.Elements.Add(new HudSeparator());
             actionsPanel.Elements.Add(new HudButton { Id = "refresh", Text = "Refresh Weather", IsAccent = true, OnClick = async () => await RefreshWeather() });
+            actionsPanel.Elements.Add(new HudButton { Id = "screenshot", Text = "Screenshot", IsAccent = true, OnClick = async () => await TakeScreenshot() });
+            actionsPanel.Elements.Add(new HudSeparator());
             actionsPanel.Elements.Add(new HudButton { Id = "clearCache", Text = "Clear Cache", OnClick = async () => await ClearCache() });
             actionsPanel.Elements.Add(new HudButton { Id = "prefetchMap", Text = "Prefetch Map Tiles", OnClick = async () => await PrefetchMapTiles() });
             actionsPanel.Elements.Add(new HudButton { Id = "prefetchRadar", Text = "Prefetch Radar", OnClick = async () => await PrefetchRadarTiles() });
@@ -317,6 +317,20 @@ namespace WeatherImageGenerator.Rendering.Common
                 OnChanged = on => ToggleUserMarker(on)
             };
             viewportPanel.Elements.Add(chkShowLoc);
+
+            var chkRadarAnim = new HudCheckbox
+            {
+                Id = "radarAnim",
+                Text = "Radar Animation",
+                Checked = true,
+                OnChanged = on =>
+                {
+                    var animPanel = _hudSystem.GetPanel("animation");
+                    if (animPanel != null) animPanel.Visible = on;
+                    _glControl?.InvalidateView();
+                }
+            };
+            viewportPanel.Elements.Add(chkRadarAnim);
 
             _hudSystem.AddPanel(viewportPanel);
 
@@ -1714,6 +1728,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
                 // Zoom
                 string zoom = $"Z:{_currentZoom}";
+                if (_lblZoom != null) _lblZoom.Text = $"{_currentZoom}";
 
                 // Cache (disk) size
                 long cacheBytes = 0;
@@ -1796,6 +1811,70 @@ namespace WeatherImageGenerator.Rendering.Common
         public void RefreshOverlays()
         {
             _ = UpdateOverlays();
+        }
+
+        /// <summary>Take a screenshot of the current viewport without the HUD overlays but keeping attribution</summary>
+        private async Task TakeScreenshot()
+        {
+            try
+            {
+                // Create output directory if it doesn't exist
+                var outputDir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                    "Weather Still Generator");
+                System.IO.Directory.CreateDirectory(outputDir);
+
+                // Generate filename with timestamp
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+                string filename = System.IO.Path.Combine(outputDir, $"screenshot_{timestamp}.png");
+
+                // Temporarily hide the HUD panels
+                var panels = _hudSystem?.Panels?.ToList() ?? new List<HudPanel>();
+                var panelVisibility = new Dictionary<HudPanel, bool>();
+                foreach (var panel in panels)
+                {
+                    panelVisibility[panel] = panel.Visible;
+                    panel.Visible = false;
+                }
+
+                // Invalidate and wait for render to complete
+                _glControl?.InvalidateView();
+                await Task.Delay(200);
+
+                // Capture the viewport using screen capture (works with GL/DX without rendering artifacts)
+                if (_glControl?.HostControl != null)
+                {
+                    int width = _glControl.HostControl.Width;
+                    int height = _glControl.HostControl.Height;
+                    
+                    // Create a region to capture from the screen
+                    var controlPos = _glControl.HostControl.PointToScreen(Point.Empty);
+                    using (var screenBitmap = new Bitmap(width, height))
+                    {
+                        using (var g = Graphics.FromImage(screenBitmap))
+                        {
+                            g.CopyFromScreen(controlPos.X, controlPos.Y, 0, 0, new Size(width, height), CopyPixelOperation.SourceCopy);
+                        }
+                        screenBitmap.Save(filename, System.Drawing.Imaging.ImageFormat.Png);
+                    }
+                }
+
+                // Restore panel visibility
+                foreach (var panel in panels)
+                {
+                    if (panelVisibility.TryGetValue(panel, out var visible))
+                    {
+                        panel.Visible = visible;
+                    }
+                }
+
+                _glControl?.InvalidateView();
+                MessageBox.Show($"Screenshot saved:\n{filename}", "Screenshot Captured", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Screenshot error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         protected override void Dispose(bool disposing)
