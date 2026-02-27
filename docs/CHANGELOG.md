@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.6.0226] - 2026-02-26
+
+- Refactor shader to use embedded resources across DirectX, OpenGL, and Vulkan renderers
+
 ## [1.13.5.0226] - 2026-02-26
 
 - Embed application icon as a resource and update icon loading logic in MainForm
