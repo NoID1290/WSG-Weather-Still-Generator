@@ -7,14 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.13.12.0228] - 2026-02-28
 
-- Version bump
-
-## [1.13.11.0227] - 2026-02-27
-
 - Add session-only animation frame count controls and update UI interactions
-
-## [1.13.10.0227] - 2026-02-27
-
 - Add screenshot functionality and radar animation toggle to UI Fix zoom UI not working
 - Update changelog to reflect radar frame configuration enhancements and validation logic
 
