@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -183,6 +184,7 @@ namespace WeatherImageGenerator.Forms
         DataGridView dgvProxyChannels;
         Button btnAddChannel;
         Button btnRemoveChannel;
+        Button btnAutoDetectChannels;
 
         // ═══════════════════════════════════════════════════════════════════
         // Constructor
@@ -1745,10 +1747,13 @@ namespace WeatherImageGenerator.Forms
             dgvProxyChannels.Columns.Add(new DataGridViewCheckBoxColumn { Name = "AlertEnabled", HeaderText = "EAS Alert", FillWeight = 12 });
             y += 190;
 
-            btnAddChannel = CreatePrimaryButton("➕ Add Channel", labelX, y, 140, 32);
+            btnAutoDetectChannels = CreateSuccessButton("🔍 Auto-Detect from Tunarr", labelX, y, 220, 32);
+            btnAutoDetectChannels.Click += (s, e) => AutoDetectTunarrChannels();
+
+            btnAddChannel = CreatePrimaryButton("➕ Add Channel", labelX + 230, y, 140, 32);
             btnAddChannel.Click += (s, e) => AddProxyChannel();
 
-            btnRemoveChannel = CreateSecondaryButton("➖ Remove", labelX + 150, y, 110, 32);
+            btnRemoveChannel = CreateSecondaryButton("➖ Remove", labelX + 380, y, 110, 32);
             btnRemoveChannel.Click += (s, e) => RemoveProxyChannel();
             y += 50;
 
@@ -1781,7 +1786,7 @@ namespace WeatherImageGenerator.Forms
                 lblDeviceId, txtProxyDeviceId, lblDeviceIdHelp, divider3,
                 lblSplice, lblSpliceBuffer, numSpliceBufferMs, lblSpliceHelp, divider4,
                 lblChannels, lblChannelDesc, dgvProxyChannels,
-                btnAddChannel, btnRemoveChannel
+                btnAutoDetectChannels, btnAddChannel, btnRemoveChannel
             });
 
             return tab;
@@ -3181,6 +3186,133 @@ namespace WeatherImageGenerator.Forms
             {
                 MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void AutoDetectTunarrChannels()
+        {
+            string baseUrl = string.IsNullOrWhiteSpace(txtTunarrBaseUrl.Text)
+                ? "http://localhost:8000" : txtTunarrBaseUrl.Text.Trim();
+
+            btnAutoDetectChannels.Enabled = false;
+            btnAutoDetectChannels.Text = "⏳ Detecting...";
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    string url = $"{baseUrl.TrimEnd('/')}/api/channels";
+                    Logger.Log($"[StreamProxy] Auto-detecting channels from {url}", Logger.LogLevel.Info);
+
+                    var json = await http.GetStringAsync(url);
+                    var channels = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(json);
+
+                    if (channels.ValueKind != System.Text.Json.JsonValueKind.Array)
+                    {
+                        this.Invoke((Action)(() =>
+                        {
+                            MessageBox.Show("Unexpected response from Tunarr — expected a JSON array of channels.",
+                                "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }));
+                        return;
+                    }
+
+                    var detected = new List<(string Id, int Number, string Name)>();
+                    foreach (var ch in channels.EnumerateArray())
+                    {
+                        // Tunarr returns { id, number, name, ... } for each channel
+                        string id = ch.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                        int number = ch.TryGetProperty("number", out var numProp) ? numProp.GetInt32() : 0;
+                        string name = ch.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "Channel" : "Channel";
+
+                        // Also check for guideNumber / guideName variants
+                        if (string.IsNullOrEmpty(id) && ch.TryGetProperty("uuid", out var uuidProp))
+                            id = uuidProp.GetString() ?? "";
+                        if (number == 0 && ch.TryGetProperty("guideNumber", out var gnProp))
+                            int.TryParse(gnProp.GetString(), out number);
+                        if (name == "Channel" && ch.TryGetProperty("guideName", out var gnameProp))
+                            name = gnameProp.GetString() ?? "Channel";
+
+                        if (!string.IsNullOrWhiteSpace(id))
+                            detected.Add((id, number == 0 ? detected.Count + 1 : number, name));
+                    }
+
+                    Logger.Log($"[StreamProxy] Detected {detected.Count} channels from Tunarr", Logger.LogLevel.Info);
+
+                    this.Invoke((Action)(() =>
+                    {
+                        if (detected.Count == 0)
+                        {
+                            MessageBox.Show("No channels found on the Tunarr server. Make sure Tunarr has channels configured.",
+                                "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+
+                        // Collect existing channel IDs to avoid duplicates
+                        var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (DataGridViewRow row in dgvProxyChannels.Rows)
+                        {
+                            var val = row.Cells["TunarrId"].Value?.ToString();
+                            if (!string.IsNullOrWhiteSpace(val)) existingIds.Add(val.Trim());
+                        }
+
+                        int added = 0;
+                        foreach (var (chId, chNum, chName) in detected)
+                        {
+                            if (existingIds.Contains(chId)) continue;
+
+                            int rowIdx = dgvProxyChannels.Rows.Add();
+                            dgvProxyChannels.Rows[rowIdx].Cells["TunarrId"].Value = chId;
+                            dgvProxyChannels.Rows[rowIdx].Cells["Number"].Value = chNum.ToString();
+                            dgvProxyChannels.Rows[rowIdx].Cells["DisplayName"].Value = chName;
+                            dgvProxyChannels.Rows[rowIdx].Cells["AlertEnabled"].Value = true;
+                            added++;
+                        }
+
+                        string msg = added > 0
+                            ? $"Added {added} new channel(s) from Tunarr ({detected.Count} total detected, {detected.Count - added} already mapped)."
+                            : $"All {detected.Count} Tunarr channels are already mapped.";
+                        MessageBox.Show(msg, "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }));
+                }
+                catch (System.Net.Http.HttpRequestException ex)
+                {
+                    Logger.Log($"[StreamProxy] Auto-detect failed: {ex.Message}", Logger.LogLevel.Error);
+                    this.Invoke((Action)(() =>
+                    {
+                        MessageBox.Show($"Could not connect to Tunarr at:\n{baseUrl}\n\n{ex.Message}\n\nMake sure Tunarr is running and the URL is correct.",
+                            "Connection Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }));
+                }
+                catch (TaskCanceledException)
+                {
+                    this.Invoke((Action)(() =>
+                    {
+                        MessageBox.Show($"Connection to Tunarr timed out.\n\nMake sure Tunarr is running at: {baseUrl}",
+                            "Timeout", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[StreamProxy] Auto-detect error: {ex.Message}", Logger.LogLevel.Error);
+                    this.Invoke((Action)(() =>
+                    {
+                        MessageBox.Show($"Auto-detect failed:\n{ex.Message}",
+                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }));
+                }
+                finally
+                {
+                    if (this.IsHandleCreated)
+                    {
+                        this.Invoke((Action)(() =>
+                        {
+                            btnAutoDetectChannels.Enabled = true;
+                            btnAutoDetectChannels.Text = "🔍 Auto-Detect from Tunarr";
+                        }));
+                    }
+                }
+            });
         }
 
         private void AddProxyChannel()
