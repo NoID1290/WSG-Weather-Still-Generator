@@ -2777,13 +2777,30 @@ namespace WeatherImageGenerator.Forms
                             }
 
                             // Use the new method that generates both media AND video automatically
-                            var (generatedFiles, videoPath, _) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
+                            var (generatedFiles, videoPath, tsPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                                 alerts,
                                 outputDir,
                                 language
                             );
 
                             Logger.Log($"Generated {generatedFiles.Count} file(s) in TestAlerts folder.", Logger.LogLevel.Info);
+
+                            // Trigger stream pipe splice if running
+                            if (!string.IsNullOrEmpty(tsPath))
+                            {
+                                var pipeService = Program.StreamPipeService;
+                                if (pipeService?.IsRunning == true)
+                                {
+                                    var videoCfg = ConfigManager.LoadConfig().Video ?? new VideoSettings();
+                                    double duration = videoCfg.AlertDisplayDurationSeconds > 0 ? videoCfg.AlertDisplayDurationSeconds : 30.0;
+                                    pipeService.TriggerAlertSplice(tsPath, duration);
+                                    Logger.Log($"Stream pipe alert splice triggered for test alert ({duration:F0}s)", Logger.LogLevel.Info);
+                                }
+                                else
+                                {
+                                    Logger.Log("Stream pipe is not running — splice not triggered. Enable it in Settings > Stream Proxy.", Logger.LogLevel.Debug);
+                                }
+                            }
 
                             if (!string.IsNullOrEmpty(videoPath))
                             {
@@ -3406,15 +3423,15 @@ namespace WeatherImageGenerator.Forms
                 // Use the new method that generates both media AND video automatically
                 var (generatedFiles, videoPath, tsPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language);
 
-                // If stream proxy is running and a .ts was generated, trigger the splice
+                // If stream pipe is running and a .ts was generated, trigger the splice
                 if (!string.IsNullOrEmpty(tsPath))
                 {
-                    var proxyService = Program.StreamProxyService;
-                    if (proxyService?.IsRunning == true)
+                    var pipeService = Program.StreamPipeService;
+                    if (pipeService?.IsRunning == true)
                     {
                         var videoCfg = cfg.Video ?? new VideoSettings();
                         double duration = videoCfg.AlertDisplayDurationSeconds > 0 ? videoCfg.AlertDisplayDurationSeconds : 30.0;
-                        proxyService.TriggerAlertSplice(tsPath, duration);
+                        pipeService.TriggerAlertSplice(tsPath, duration);
                     }
                 }
 

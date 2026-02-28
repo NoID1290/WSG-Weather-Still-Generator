@@ -87,7 +87,7 @@ namespace WeatherImageGenerator
                 try
                 {
                     // Use the new method that generates both media AND video automatically
-                    var (generatedFiles, videoPath, _) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
+                    var (generatedFiles, videoPath, tsPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                         parsedAlerts, 
                         outputDir, 
                         "fr-CA"
@@ -103,6 +103,10 @@ namespace WeatherImageGenerator
                     if (!string.IsNullOrEmpty(videoPath))
                     {
                         Console.WriteLine($"\n✓ Alert video generated: {videoPath}");
+                    }
+                    if (!string.IsNullOrEmpty(tsPath))
+                    {
+                        Console.WriteLine($"✓ Alert transport stream generated: {tsPath}");
                     }
                 }
                 catch (Exception ex)

@@ -4,8 +4,10 @@ using System.Text.Json.Serialization;
 namespace WeatherImageGenerator.Models
 {
     /// <summary>
-    /// Configuration for the MPEG-TS stream proxy that sits between Tunarr and downstream clients.
-    /// Enables transparent EAS alert injection into live streams.
+    /// Configuration for the MPEG-TS stream proxy (same-port takeover mode).
+    /// The proxy listens on Tunarr's original public port so ALL existing clients
+    /// (Plex, Jellyfin, Emby, VLC, STBs) keep working with zero URL changes.
+    /// Tunarr is moved to an internal port that only the proxy connects to.
     /// </summary>
     public class StreamProxySettings
     {
@@ -13,13 +15,19 @@ namespace WeatherImageGenerator.Models
         [JsonPropertyName("Enabled")]
         public bool Enabled { get; set; } = false;
 
-        /// <summary>Port the proxy listens on for incoming client connections.</summary>
-        [JsonPropertyName("ListenPort")]
-        public int ListenPort { get; set; } = 6077;
+        /// <summary>
+        /// The public port that clients already connect to (Tunarr's original port).
+        /// The proxy takes over this port. Default: 8000 (Tunarr's default).
+        /// </summary>
+        [JsonPropertyName("TunarrPublicPort")]
+        public int TunarrPublicPort { get; set; } = 8000;
 
-        /// <summary>Base URL of the Tunarr server (e.g. "http://localhost:8000").</summary>
-        [JsonPropertyName("TunarrBaseUrl")]
-        public string TunarrBaseUrl { get; set; } = "http://localhost:8000";
+        /// <summary>
+        /// The internal port where Tunarr is moved to after enabling the proxy.
+        /// Only the proxy connects here. Default: 8001.
+        /// </summary>
+        [JsonPropertyName("TunarrInternalPort")]
+        public int TunarrInternalPort { get; set; } = 8001;
 
         /// <summary>Allow remote access (bind to all interfaces) or localhost only.</summary>
         [JsonPropertyName("AllowRemoteAccess")]
@@ -40,9 +48,33 @@ namespace WeatherImageGenerator.Models
         [JsonPropertyName("SpliceBufferMs")]
         public int SpliceBufferMs { get; set; } = 500;
 
+        /// <summary>
+        /// Maximum number of consecutive upstream reconnection attempts before dropping a client.
+        /// Default: 10.
+        /// </summary>
+        [JsonPropertyName("MaxReconnectRetries")]
+        public int MaxReconnectRetries { get; set; } = 10;
+
+        /// <summary>
+        /// Base reconnection delay in milliseconds. Doubles each retry (exponential backoff),
+        /// capped at 15 seconds. Default: 1000 (1 second).
+        /// </summary>
+        [JsonPropertyName("ReconnectBaseMs")]
+        public int ReconnectBaseMs { get; set; } = 1000;
+
         /// <summary>Channels to proxy. Each maps a Tunarr channel to a local channel number.</summary>
         [JsonPropertyName("Channels")]
         public List<ProxyChannelConfig> Channels { get; set; } = new();
+
+        // ── Computed helpers (not serialized) ──────────────────────────
+
+        /// <summary>The internal Tunarr base URL (derived from TunarrInternalPort).</summary>
+        [JsonIgnore]
+        public string TunarrBaseUrl => $"http://localhost:{TunarrInternalPort}";
+
+        /// <summary>The public-facing listen port (same as TunarrPublicPort).</summary>
+        [JsonIgnore]
+        public int ListenPort => TunarrPublicPort;
     }
 
     /// <summary>

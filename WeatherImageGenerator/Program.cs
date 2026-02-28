@@ -25,14 +25,14 @@ namespace WeatherImageGenerator
         // Static instance of Web UI service
         private static WebUIService? _webUIService;
         
-        // Static instance of Stream Proxy service (EAS alert splice into MPEG-TS)
-        private static StreamProxyService? _streamProxyService;
+        // Static instance of Stream Pipe service (EAS alert splice into MPEG-TS)
+        private static StreamPipeService? _streamPipeService;
         
         // Public accessor for WebUI service (used by SettingsForm)
         public static WebUIService? WebUIService => _webUIService;
         
-        // Public accessor for Stream Proxy service (used by MainForm for alert splice trigger)
-        public static StreamProxyService? StreamProxyService => _streamProxyService;
+        // Public accessor for Stream Pipe service (used by MainForm for alert splice trigger)
+        public static StreamPipeService? StreamPipeService => _streamPipeService;
         
         // Method to set the WebUI service instance (used when restarting with new settings)
         public static void SetWebUIService(WebUIService? service)
@@ -40,10 +40,10 @@ namespace WeatherImageGenerator
             _webUIService = service;
         }
         
-        // Method to set the Stream Proxy service instance
-        public static void SetStreamProxyService(StreamProxyService? service)
+        // Method to set the Stream Pipe service instance
+        public static void SetStreamPipeService(StreamPipeService? service)
         {
-            _streamProxyService = service;
+            _streamPipeService = service;
         }
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
@@ -258,19 +258,19 @@ namespace WeatherImageGenerator
                 _webUIService.Start();
             }
 
-            // Initialize Stream Proxy (MPEG-TS EAS alert splice) if enabled
+            // Initialize Stream Pipe (MPEG-TS EAS alert splice) if enabled
             if (bootConfig.StreamProxy?.Enabled ?? false)
             {
-                _streamProxyService = new StreamProxyService(bootConfig.StreamProxy);
-                _streamProxyService.Start();
+                _streamPipeService = new StreamPipeService(bootConfig.StreamProxy);
+                _streamPipeService.Start();
             }
 
             Application.Run(new MainForm());
             
-            // Stop Stream Proxy service when application closes
-            if (_streamProxyService?.IsRunning ?? false)
+            // Stop Stream Pipe service when application closes
+            if (_streamPipeService?.IsRunning ?? false)
             {
-                Task.Run(async () => await _streamProxyService.StopAsync()).GetAwaiter().GetResult();
+                Task.Run(async () => await _streamPipeService.StopAsync()).GetAwaiter().GetResult();
             }
 
             // Stop Web UI service when application closes

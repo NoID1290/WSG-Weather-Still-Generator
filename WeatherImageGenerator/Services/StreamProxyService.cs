@@ -16,15 +16,11 @@ using WeatherImageGenerator.Utilities;
 namespace WeatherImageGenerator.Services
 {
     /// <summary>
-    /// Transparent MPEG-TS proxy that sits between Tunarr and downstream clients.
-    /// During normal operation it forwards raw TS packets unchanged.
-    /// When an EAS alert is triggered, the proxy seamlessly splices a pre-encoded
-    /// alert .ts segment into the stream, then resumes the original feed — maintaining
-    /// continuity counters, PAT/PMT, and monotonic PTS/DTS timestamps throughout.
-    ///
-    /// Exposes HDHomeRun (HDHR) emulation endpoints so Plex / Jellyfin / Emby
-    /// auto-discover it as a network tuner, plus M3U and direct .ts stream URLs.
+    /// [OBSOLETE] Full HTTP MPEG-TS proxy with HDHR emulation. Replaced by StreamPipeService
+    /// which provides a lightweight TCP byte pipe without HTTP overhead.
+    /// Kept in the codebase for reference / optional use.
     /// </summary>
+    [Obsolete("Use StreamPipeService instead — lightweight TCP byte pipe without HTTP proxy overhead.")]
     public class StreamProxyService
     {
         // ── Configuration ──────────────────────────────────────────────────
@@ -105,7 +101,9 @@ namespace WeatherImageGenerator.Services
                 ProxyStarted?.Invoke(this, EventArgs.Empty);
 
                 string localIp = NetworkHelper.GetLocalIPAddress();
-                Logger.Log($"[StreamProxy] ✓ MPEG-TS proxy started on port {_settings.ListenPort}", Logger.LogLevel.Info);
+                Logger.Log($"[StreamProxy] \u2713 MPEG-TS proxy started \u2014 port takeover active", Logger.LogLevel.Info);
+                Logger.Log($"[StreamProxy]   Public port (clients):  {_settings.TunarrPublicPort}  \u2192 proxy intercepts here", Logger.LogLevel.Info);
+                Logger.Log($"[StreamProxy]   Internal port (Tunarr): {_settings.TunarrInternalPort} \u2192 actual Tunarr at {_settings.TunarrBaseUrl}", Logger.LogLevel.Info);
                 Logger.Log($"[StreamProxy]   HDHR discover: http://{localIp}:{_settings.ListenPort}/discover.json", Logger.LogLevel.Info);
                 Logger.Log($"[StreamProxy]   M3U playlist:  http://{localIp}:{_settings.ListenPort}/channels.m3u", Logger.LogLevel.Info);
                 Logger.Log($"[StreamProxy]   Channels configured: {_settings.Channels.Count}", Logger.LogLevel.Info);
@@ -161,13 +159,29 @@ namespace WeatherImageGenerator.Services
         /// <param name="durationSeconds">Duration the alert should play (determines when to resume).</param>
         public void TriggerAlertSplice(string alertTsPath, double durationSeconds)
         {
-            if (!IsRunning || string.IsNullOrEmpty(alertTsPath) || !File.Exists(alertTsPath))
+            if (!IsRunning)
             {
-                Logger.Log("[StreamProxy] Cannot trigger alert splice — proxy not running or file missing.", Logger.LogLevel.Warning);
+                Logger.Log("[StreamProxy] Cannot trigger alert splice — proxy is not running.", Logger.LogLevel.Warning);
+                return;
+            }
+            if (string.IsNullOrEmpty(alertTsPath) || !File.Exists(alertTsPath))
+            {
+                Logger.Log($"[StreamProxy] Cannot trigger alert splice — file missing or empty: '{alertTsPath}'", Logger.LogLevel.Warning);
                 return;
             }
 
-            Logger.Log($"[StreamProxy] 🚨 EAS ALERT SPLICE triggered — {Path.GetFileName(alertTsPath)} ({durationSeconds:F1}s)", Logger.LogLevel.Info);
+            // Count connected clients for diagnostic
+            int totalClients = 0;
+            foreach (var kv in _channels)
+                totalClients += kv.Value.ClientCount;
+
+            Logger.Log($"[StreamProxy] 🚨 EAS ALERT SPLICE triggered — {Path.GetFileName(alertTsPath)} ({durationSeconds:F1}s), {_settings.Channels.Count} channel(s) configured, {totalClients} client(s) connected", Logger.LogLevel.Info);
+
+            if (totalClients == 0)
+            {
+                Logger.Log("[StreamProxy] ⚠ WARNING: No clients are currently connected through the proxy. The splice will have no visible effect.", Logger.LogLevel.Warning);
+                Logger.Log($"[StreamProxy]   Clients should connect via Tunarr's original port {_settings.TunarrPublicPort} (now intercepted by proxy)", Logger.LogLevel.Warning);
+            }
 
             _activeAlertTsPath = alertTsPath;
             lock (_alertDurationLock) { _activeAlertDuration = durationSeconds; }
@@ -484,31 +498,44 @@ namespace WeatherImageGenerator.Services
                         // Check for alert trigger
                         if (chConfig.AlertInterruptEnabled && _alertSignal.IsSet && _activeAlertTsPath != null)
                         {
-                            Logger.Log($"[StreamProxy] {clientId}: Alert detected — initiating splice", Logger.LogLevel.Info);
-
-                            // ── Phase 2: Splice alert .ts ──────────────────
-                            long preAlertPcr = lastPcrSeen;
-                            long preAlertPts = lastPtsSeen;
-
+                            // Grab a local copy of the alert path and clear the signal BEFORE splicing
+                            // so other clients can also pick it up, and this client won't re-splice on reconnect.
                             string alertPath = _activeAlertTsPath;
-                            var spliceResult = await SpliceAlertTs(alertPath, clientStream, ccTracker, preAlertPts, ct);
-                            long alertEndPts = spliceResult.EndPts;
-                            long alertEndPcr = spliceResult.EndPcr;
-
-                            // Update timestamp offset so Tunarr stream continues monotonically
-                            // after the alert ends. The alert's timestamps started at ~0 and we
-                            // offset them to continue from preAlertPts. After it finishes,
-                            // Tunarr's own timestamps will still be around where they were before
-                            // the alert, so we need to skip over the alert duration.
                             double alertDur;
                             lock (_alertDurationLock) { alertDur = _activeAlertDuration; }
-                            long alertDurationTicks = (long)(alertDur * 90000); // 90kHz
-                            timestampOffset += alertDurationTicks;
 
-                            Logger.Log($"[StreamProxy] {clientId}: Alert splice done, timestamp offset now {timestampOffset} ticks ({timestampOffset / 90000.0:F2}s)", Logger.LogLevel.Debug);
+                            Logger.Log($"[StreamProxy] {clientId}: 🚨 Alert detected — splicing {Path.GetFileName(alertPath)} ({alertDur:F1}s) into channel {chConfig.ProxyChannelNumber}", Logger.LogLevel.Info);
 
-                            // Wait briefly for Tunarr to catch up, then fall through to reconnect
-                            await Task.Delay(200, ct);
+                            // ── Phase 2: Splice alert .ts ──────────────────
+                            long preAlertPts = lastPtsSeen;
+
+                            try
+                            {
+                                var spliceResult = await SpliceAlertTs(alertPath, clientStream, ccTracker, preAlertPts, ct);
+
+                                // Update timestamp offset so Tunarr stream continues monotonically
+                                // after the alert ends. The alert's timestamps started at ~0 and we
+                                // offset them to continue from preAlertPts. After it finishes,
+                                // Tunarr's own timestamps will still be around where they were before
+                                // the alert, so we need to skip over the alert duration.
+                                long alertDurationTicks = (long)(alertDur * 90000); // 90kHz
+                                timestampOffset += alertDurationTicks;
+
+                                Logger.Log($"[StreamProxy] {clientId}: ✓ Alert splice complete — resuming Tunarr stream (ts offset: {timestampOffset / 90000.0:F2}s)", Logger.LogLevel.Info);
+                            }
+                            catch (Exception spliceEx) when (!ct.IsCancellationRequested)
+                            {
+                                Logger.Log($"[StreamProxy] {clientId}: Alert splice failed: {spliceEx.Message}", Logger.LogLevel.Error);
+                            }
+
+                            // Auto-reset the alert signal after this client has spliced.
+                            // Use Interlocked exchange pattern: only the first client to finish resets the global state.
+                            Interlocked.CompareExchange(ref _activeAlertTsPath, null, alertPath);
+                            _alertSignal.Reset();
+                            _alertEnded.Set();
+
+                            // Wait briefly for Tunarr to catch up, then fall through to reconnect upstream.
+                            await Task.Delay(500, ct);
                             break; // break inner loop to reconnect upstream
                         }
 

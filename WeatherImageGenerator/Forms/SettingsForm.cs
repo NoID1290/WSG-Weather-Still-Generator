@@ -168,15 +168,17 @@ namespace WeatherImageGenerator.Forms
         Label lblPublicIP;
 
         // ═══════════════════════════════════════════════════════════════════
-        // Controls — Stream Proxy (EAS MPEG-TS)
+        // Controls — Stream Pipe (EAS MPEG-TS)
         // ═══════════════════════════════════════════════════════════════════
         CheckBox chkProxyEnabled;
-        NumericUpDown numProxyPort;
-        TextBox txtTunarrBaseUrl;
+        NumericUpDown numTunarrPublicPort;
+        NumericUpDown numTunarrInternalPort;
         CheckBox chkProxyAllowRemote;
         TextBox txtProxyDeviceName;
         TextBox txtProxyDeviceId;
         NumericUpDown numSpliceBufferMs;
+        NumericUpDown numMaxRetries;
+        NumericUpDown numReconnectBaseMs;
         Label lblProxyStatus;
         Button btnTestProxy;
         TextBox txtProxyUrl;
@@ -1582,50 +1584,59 @@ namespace WeatherImageGenerator.Forms
         //
         private TabPage BuildStreamProxyTab()
         {
-            var tab = new TabPage("Stream Proxy") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            var tab = new TabPage("Stream Pipe") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
             int y = 15;
             int labelX = 20;
             int fieldX = 220;
             int rowHeight = 38;
 
             // ── Header ──────────────────────────────────────────────────
-            var lblHeader = CreateSectionHeader("MPEG-TS Stream Proxy", labelX, y, "📡");
+            var lblHeader = CreateSectionHeader("EAS Stream Pipe", labelX, y, "📡");
             y += 35;
 
             var lblDesc = new Label
             {
-                Text = "Transparent proxy between Tunarr and IPTV clients. Splices EAS emergency alerts into live MPEG-TS streams,\n" +
-                       "then seamlessly resumes the original feed. Emulates an HDHomeRun tuner for Plex / Jellyfin / Emby discovery.",
+                Text = "Lightweight MPEG-TS byte pipe: reads Tunarr's stream and forwards it over TCP to clients.\n" +
+                       "When an EAS alert fires, the pipe seamlessly splices the alert into the live stream.",
                 Left = labelX, Top = y, Width = 700, Height = 40,
                 Font = LabelFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
             };
             y += 50;
 
-            chkProxyEnabled = CreateCheckBox("Enable Stream Proxy", labelX, y, 250);
+            chkProxyEnabled = CreateCheckBox("Enable Stream Pipe", labelX, y, 250);
             chkProxyEnabled.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             y += 40;
 
             var divider1 = CreateDivider(labelX, y, 700);
             y += 25;
 
-            // ── Connection ──────────────────────────────────────────────
-            var lblConnection = CreateSubHeader("Connection", labelX, y);
+            // ── Port Configuration ──────────────────────────────────────
+            var lblConnection = CreateSubHeader("Port Configuration", labelX, y);
             y += 30;
 
-            var lblTunarrUrl = CreateLabel("Tunarr Base URL:", labelX, y);
-            txtTunarrBaseUrl = CreateTextBox(fieldX, y - 2, 300);
-            txtTunarrBaseUrl.PlaceholderText = "http://localhost:8000";
+            var lblSetupNote = new Label
+            {
+                Text = "ℹ One-time setup: In Tunarr's settings, change its listen port to a different number (e.g. 8001).\n" +
+                       "  Then enter that port below as \"Tunarr Internal Port\". The pipe takes over the original port.",
+                Left = labelX, Top = y, Width = 700, Height = 38,
+                Font = SmallFont, ForeColor = WarningColor, Tag = "warning", AutoSize = false
+            };
+            y += 45;
+
+            var lblPublicPort = CreateLabel("Pipe Listen Port:", labelX, y);
+            numTunarrPublicPort = CreateNumericUpDown(fieldX, y - 2, 100, 1024, 65535, 8000);
+            var lblPublicPortHelp = CreateHelpLabel("Port clients connect to", fieldX + 110, y + 2, 200);
             y += rowHeight;
 
-            var lblProxyPort = CreateLabel("Proxy Listen Port:", labelX, y);
-            numProxyPort = CreateNumericUpDown(fieldX, y - 2, 100, 1024, 65535, 6077);
-            var lblPortHelp = CreateHelpLabel("(1024-65535)", fieldX + 110, y + 2);
+            var lblInternalPort = CreateLabel("Tunarr Internal Port:", labelX, y);
+            numTunarrInternalPort = CreateNumericUpDown(fieldX, y - 2, 100, 1024, 65535, 8001);
+            var lblInternalPortHelp = CreateHelpLabel("Where Tunarr now runs", fieldX + 110, y + 2, 200);
             y += rowHeight;
 
             chkProxyAllowRemote = CreateCheckBox("Allow Remote Access (bind to all interfaces)", labelX, y, 400);
             y += rowHeight;
 
-            var lblUrl = CreateLabel("Proxy URL:", labelX, y);
+            var lblUrl = CreateLabel("Pipe URL:", labelX, y);
             txtProxyUrl = CreateTextBox(fieldX, y - 2, 350);
             txtProxyUrl.ReadOnly = true;
             txtProxyUrl.BackColor = ThemeManager.Current.InputBackground;
@@ -1648,49 +1659,34 @@ namespace WeatherImageGenerator.Forms
             };
             y += 40;
 
-            btnTestProxy = CreateSecondaryButton("🔗 Test Connection", labelX, y, 150, 34);
+            btnTestProxy = CreateSecondaryButton("🔗 Check Status", labelX, y, 150, 34);
             btnTestProxy.Click += (s, e) => TestProxyConnection();
-
-            var btnOpenProxyBrowser = CreatePrimaryButton("🌐 Open Status Page", labelX + 165, y, 170, 34);
-            btnOpenProxyBrowser.Click += (s, e) => OpenProxyInBrowser();
             y += 55;
 
             var divider2 = CreateDivider(labelX, y, 700);
             y += 25;
 
-            // ── HDHR Device Identity ────────────────────────────────────
-            var lblDevice = CreateSubHeader("HDHomeRun Device Identity", labelX, y);
-            y += 30;
+            // ── HDHR Device Identity (kept for backward compat, hidden) ─
+            txtProxyDeviceName = new TextBox { Visible = false, Text = "WSG EAS Proxy" };
+            txtProxyDeviceId = new TextBox { Visible = false, Text = "12345680" };
 
-            var lblDeviceDesc = new Label
-            {
-                Text = "These settings control how the proxy identifies itself to Plex, Jellyfin, and Emby during HDHR device discovery.",
-                Left = labelX, Top = y, Width = 700, Height = 22,
-                Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
-            };
-            y += 30;
-
-            var lblDeviceName = CreateLabel("Friendly Name:", labelX, y);
-            txtProxyDeviceName = CreateTextBox(fieldX, y - 2, 250);
-            txtProxyDeviceName.PlaceholderText = "WSG EAS Proxy";
-            y += rowHeight;
-
-            var lblDeviceId = CreateLabel("Device ID (hex):", labelX, y);
-            txtProxyDeviceId = CreateTextBox(fieldX, y - 2, 150);
-            txtProxyDeviceId.PlaceholderText = "12345680";
-            var lblDeviceIdHelp = CreateHelpLabel("Must be unique on your network", fieldX + 160, y + 2, 220);
-            y += rowHeight;
-
-            var divider3 = CreateDivider(labelX, y, 700);
-            y += 25;
-
-            // ── Splice Settings ─────────────────────────────────────────
+            // ── Splice & Reconnect Settings ─────────────────────────────
             var lblSplice = CreateSubHeader("Alert Splice Settings", labelX, y);
             y += 30;
 
             var lblSpliceBuffer = CreateLabel("Splice Buffer (ms):", labelX, y);
             numSpliceBufferMs = CreateNumericUpDown(fieldX, y - 2, 100, 0, 5000, 500);
             var lblSpliceHelp = CreateHelpLabel("Keyframe search window (0-5000ms)", fieldX + 110, y + 2, 250);
+            y += rowHeight;
+
+            var lblMaxRetries = CreateLabel("Max Reconnect Retries:", labelX, y);
+            numMaxRetries = CreateNumericUpDown(fieldX, y - 2, 100, 1, 100, 10);
+            var lblMaxRetriesHelp = CreateHelpLabel("Drop client after N upstream failures", fieldX + 110, y + 2, 250);
+            y += rowHeight;
+
+            var lblReconnectBase = CreateLabel("Reconnect Base (ms):", labelX, y);
+            numReconnectBaseMs = CreateNumericUpDown(fieldX, y - 2, 100, 500, 30000, 1000);
+            var lblReconnectHelp = CreateHelpLabel("Initial backoff delay (doubles each retry, max 15s)", fieldX + 110, y + 2, 300);
             y += rowHeight + 10;
 
             var divider4 = CreateDivider(labelX, y, 700);
@@ -1702,7 +1698,7 @@ namespace WeatherImageGenerator.Forms
 
             var lblChannelDesc = new Label
             {
-                Text = "Map Tunarr channels to proxy channel numbers. Each channel can individually have EAS alert interruption enabled or disabled.",
+                Text = "Map Tunarr channels to pipe ports. Each channel gets its own TCP listener. EAS alert interruption can be toggled per channel.",
                 Left = labelX, Top = y, Width = 700, Height = 22,
                 Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
             };
@@ -1759,7 +1755,7 @@ namespace WeatherImageGenerator.Forms
 
             // ── Event handlers ──────────────────────────────────────────
             chkProxyEnabled.CheckedChanged += (s, e) => { if (!_isLoadingSettings) OnProxyEnabledChanged(); };
-            numProxyPort.ValueChanged += (s, e) =>
+            numTunarrPublicPort.ValueChanged += (s, e) =>
             {
                 if (!_isLoadingSettings)
                 {
@@ -1778,13 +1774,15 @@ namespace WeatherImageGenerator.Forms
 
             tab.Controls.AddRange(new Control[] {
                 lblHeader, lblDesc, chkProxyEnabled, divider1,
-                lblConnection, lblTunarrUrl, txtTunarrBaseUrl,
-                lblProxyPort, numProxyPort, lblPortHelp,
+                lblConnection, lblSetupNote,
+                lblPublicPort, numTunarrPublicPort, lblPublicPortHelp,
+                lblInternalPort, numTunarrInternalPort, lblInternalPortHelp,
                 chkProxyAllowRemote, lblUrl, txtProxyUrl, lblProxyLocalIP, lblProxyStatus,
-                btnTestProxy, btnOpenProxyBrowser, divider2,
-                lblDevice, lblDeviceDesc, lblDeviceName, txtProxyDeviceName,
-                lblDeviceId, txtProxyDeviceId, lblDeviceIdHelp, divider3,
-                lblSplice, lblSpliceBuffer, numSpliceBufferMs, lblSpliceHelp, divider4,
+                btnTestProxy, divider2,
+                txtProxyDeviceName, txtProxyDeviceId,
+                lblSplice, lblSpliceBuffer, numSpliceBufferMs, lblSpliceHelp,
+                lblMaxRetries, numMaxRetries, lblMaxRetriesHelp,
+                lblReconnectBase, numReconnectBaseMs, lblReconnectHelp, divider4,
                 lblChannels, lblChannelDesc, dgvProxyChannels,
                 btnAutoDetectChannels, btnAddChannel, btnRemoveChannel
             });
@@ -2340,15 +2338,17 @@ namespace WeatherImageGenerator.Forms
                 UpdateWebUIStatus();
                 UpdateIPAddressDisplay();
 
-                // ── Stream Proxy Tab ──
+                // ── Stream Pipe Tab ──
                 var proxy = cfg.StreamProxy ?? new StreamProxySettings();
                 chkProxyEnabled.Checked = proxy.Enabled;
-                numProxyPort.Value = proxy.ListenPort;
-                txtTunarrBaseUrl.Text = proxy.TunarrBaseUrl;
+                numTunarrPublicPort.Value = proxy.TunarrPublicPort;
+                numTunarrInternalPort.Value = proxy.TunarrInternalPort;
                 chkProxyAllowRemote.Checked = proxy.AllowRemoteAccess;
                 txtProxyDeviceName.Text = proxy.DeviceFriendlyName;
                 txtProxyDeviceId.Text = proxy.DeviceId;
                 numSpliceBufferMs.Value = proxy.SpliceBufferMs;
+                numMaxRetries.Value = proxy.MaxReconnectRetries;
+                numReconnectBaseMs.Value = proxy.ReconnectBaseMs;
 
                 // Load channel rows
                 dgvProxyChannels.Rows.Clear();
@@ -2670,18 +2670,20 @@ namespace WeatherImageGenerator.Forms
                 // ── Stream Proxy ──
                 var proxySettings = cfg.StreamProxy ?? new StreamProxySettings();
                 bool proxyWasEnabled = proxySettings.Enabled;
-                int oldProxyPort = proxySettings.ListenPort;
+                int oldPublicPort = proxySettings.TunarrPublicPort;
+                int oldInternalPort = proxySettings.TunarrInternalPort;
 
                 proxySettings.Enabled = chkProxyEnabled.Checked;
-                proxySettings.ListenPort = (int)numProxyPort.Value;
-                proxySettings.TunarrBaseUrl = string.IsNullOrWhiteSpace(txtTunarrBaseUrl.Text)
-                    ? "http://localhost:8000" : txtTunarrBaseUrl.Text.Trim();
+                proxySettings.TunarrPublicPort = (int)numTunarrPublicPort.Value;
+                proxySettings.TunarrInternalPort = (int)numTunarrInternalPort.Value;
                 proxySettings.AllowRemoteAccess = chkProxyAllowRemote.Checked;
                 proxySettings.DeviceFriendlyName = string.IsNullOrWhiteSpace(txtProxyDeviceName.Text)
                     ? "WSG EAS Proxy" : txtProxyDeviceName.Text.Trim();
                 proxySettings.DeviceId = string.IsNullOrWhiteSpace(txtProxyDeviceId.Text)
                     ? "12345680" : txtProxyDeviceId.Text.Trim();
                 proxySettings.SpliceBufferMs = (int)numSpliceBufferMs.Value;
+                proxySettings.MaxReconnectRetries = (int)numMaxRetries.Value;
+                proxySettings.ReconnectBaseMs = (int)numReconnectBaseMs.Value;
 
                 // Save channel grid
                 proxySettings.Channels.Clear();
@@ -2706,11 +2708,12 @@ namespace WeatherImageGenerator.Forms
 
                 cfg.StreamProxy = proxySettings;
 
-                // Restart proxy if port changed while running
-                if (chkProxyEnabled.Checked && proxyWasEnabled && oldProxyPort != proxySettings.ListenPort)
+                // Restart pipe if port changed while running
+                if (chkProxyEnabled.Checked && proxyWasEnabled &&
+                    (oldPublicPort != proxySettings.TunarrPublicPort || oldInternalPort != proxySettings.TunarrInternalPort))
                 {
                     StopStreamProxyService();
-                    Program.SetStreamProxyService(null);
+                    Program.SetStreamPipeService(null);
                     StartStreamProxyService();
                 }
 
@@ -3019,15 +3022,14 @@ namespace WeatherImageGenerator.Forms
         {
             try
             {
-                var service = Program.StreamProxyService;
+                var service = Program.StreamPipeService;
                 if (service == null)
                 {
                     var settings = new StreamProxySettings
                     {
                         Enabled = true,
-                        ListenPort = (int)numProxyPort.Value,
-                        TunarrBaseUrl = string.IsNullOrWhiteSpace(txtTunarrBaseUrl.Text)
-                            ? "http://localhost:8000" : txtTunarrBaseUrl.Text.Trim(),
+                        TunarrPublicPort = (int)numTunarrPublicPort.Value,
+                        TunarrInternalPort = (int)numTunarrInternalPort.Value,
                         AllowRemoteAccess = chkProxyAllowRemote.Checked,
                         DeviceFriendlyName = txtProxyDeviceName.Text,
                         DeviceId = txtProxyDeviceId.Text,
@@ -3052,21 +3054,21 @@ namespace WeatherImageGenerator.Forms
                         });
                     }
 
-                    service = new StreamProxyService(settings);
-                    Program.SetStreamProxyService(service);
+                    service = new StreamPipeService(settings);
+                    Program.SetStreamPipeService(service);
                     service.Start();
-                    Logger.Log($"Stream Proxy started on port {settings.ListenPort}", Logger.LogLevel.Info);
+                    Logger.Log($"Stream Pipe started on port {settings.ListenPort}", Logger.LogLevel.Info);
                 }
                 else if (!service.IsRunning)
                 {
                     service.Start();
-                    Logger.Log("Stream Proxy started", Logger.LogLevel.Info);
+                    Logger.Log("Stream Pipe started", Logger.LogLevel.Info);
                 }
             }
             catch (Exception ex)
             {
-                Logger.Log($"Failed to start Stream Proxy: {ex.Message}", Logger.LogLevel.Error);
-                MessageBox.Show($"Failed to start Stream Proxy: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Logger.Log($"Failed to start Stream Pipe: {ex.Message}", Logger.LogLevel.Error);
+                MessageBox.Show($"Failed to start Stream Pipe: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 chkProxyEnabled.Checked = false;
             }
         }
@@ -3075,22 +3077,22 @@ namespace WeatherImageGenerator.Forms
         {
             try
             {
-                var service = Program.StreamProxyService;
+                var service = Program.StreamPipeService;
                 if (service != null && service.IsRunning)
                 {
                     Task.Run(async () => await service.StopAsync()).GetAwaiter().GetResult();
-                    Logger.Log("Stream Proxy stopped", Logger.LogLevel.Info);
+                    Logger.Log("Stream Pipe stopped", Logger.LogLevel.Info);
                 }
             }
             catch (Exception ex)
             {
-                Logger.Log($"Failed to stop Stream Proxy: {ex.Message}", Logger.LogLevel.Error);
+                Logger.Log($"Failed to stop Stream Pipe: {ex.Message}", Logger.LogLevel.Error);
             }
         }
 
         private void UpdateProxyStatus()
         {
-            var service = Program.StreamProxyService;
+            var service = Program.StreamPipeService;
             bool isRunning = service?.IsRunning ?? false;
 
             if (isRunning)
@@ -3109,13 +3111,13 @@ namespace WeatherImageGenerator.Forms
         {
             try
             {
-                int port = (int)numProxyPort.Value;
+                int port = (int)numTunarrPublicPort.Value;
                 var hostname = chkProxyAllowRemote.Checked ? Environment.MachineName : "localhost";
                 txtProxyUrl.Text = $"http://{hostname}:{port}";
             }
             catch
             {
-                txtProxyUrl.Text = "http://localhost:6077";
+                txtProxyUrl.Text = "http://localhost:8000";
             }
         }
 
@@ -3131,7 +3133,7 @@ namespace WeatherImageGenerator.Forms
                     {
                         this.Invoke((Action)(() =>
                         {
-                            int port = (int)numProxyPort.Value;
+                            int port = (int)numTunarrPublicPort.Value;
                             lblProxyLocalIP.Text = $"🌐 Proxy accessible at: {localIP}:{port}";
                             lblProxyLocalIP.ForeColor = localIP == "Unable to determine" ? DangerColor : AccentColor;
                         }));
@@ -3146,27 +3148,15 @@ namespace WeatherImageGenerator.Forms
 
         private void TestProxyConnection()
         {
-            try
+            var service = Program.StreamPipeService;
+            if (service?.IsRunning == true)
             {
-                int port = (int)numProxyPort.Value;
-                using (var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) })
-                {
-                    var response = client.GetAsync($"http://localhost:{port}/status").Result;
-                    if (response.IsSuccessStatusCode)
-                    {
-                        lblProxyStatus.Text = "✓ Status: Proxy is running and accessible";
-                        lblProxyStatus.ForeColor = SuccessColor;
-                    }
-                    else
-                    {
-                        lblProxyStatus.Text = "⚠ Status: Proxy responded with error";
-                        lblProxyStatus.ForeColor = WarningColor;
-                    }
-                }
+                lblProxyStatus.Text = "✓ Status: Stream pipe is running";
+                lblProxyStatus.ForeColor = SuccessColor;
             }
-            catch
+            else
             {
-                lblProxyStatus.Text = "✗ Status: Proxy is not running or not accessible";
+                lblProxyStatus.Text = "✗ Status: Stream pipe is not running";
                 lblProxyStatus.ForeColor = DangerColor;
             }
         }
@@ -3175,7 +3165,8 @@ namespace WeatherImageGenerator.Forms
         {
             try
             {
-                var url = txtProxyUrl.Text + "/status";
+                int port = (int)numTunarrPublicPort.Value;
+                var url = $"http://localhost:{port}/";
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = url,
@@ -3190,8 +3181,8 @@ namespace WeatherImageGenerator.Forms
 
         private void AutoDetectTunarrChannels()
         {
-            string baseUrl = string.IsNullOrWhiteSpace(txtTunarrBaseUrl.Text)
-                ? "http://localhost:8000" : txtTunarrBaseUrl.Text.Trim();
+            int internalPort = (int)numTunarrInternalPort.Value;
+            string baseUrl = $"http://localhost:{internalPort}";
 
             btnAutoDetectChannels.Enabled = false;
             btnAutoDetectChannels.Text = "⏳ Detecting...";
