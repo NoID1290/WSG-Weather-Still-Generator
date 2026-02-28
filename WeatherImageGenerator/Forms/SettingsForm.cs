@@ -167,6 +167,24 @@ namespace WeatherImageGenerator.Forms
         Label lblPublicIP;
 
         // ═══════════════════════════════════════════════════════════════════
+        // Controls — Stream Proxy (EAS MPEG-TS)
+        // ═══════════════════════════════════════════════════════════════════
+        CheckBox chkProxyEnabled;
+        NumericUpDown numProxyPort;
+        TextBox txtTunarrBaseUrl;
+        CheckBox chkProxyAllowRemote;
+        TextBox txtProxyDeviceName;
+        TextBox txtProxyDeviceId;
+        NumericUpDown numSpliceBufferMs;
+        Label lblProxyStatus;
+        Button btnTestProxy;
+        TextBox txtProxyUrl;
+        Label lblProxyLocalIP;
+        DataGridView dgvProxyChannels;
+        Button btnAddChannel;
+        Button btnRemoveChannel;
+
+        // ═══════════════════════════════════════════════════════════════════
         // Constructor
         // ═══════════════════════════════════════════════════════════════════
 
@@ -441,9 +459,10 @@ namespace WeatherImageGenerator.Forms
             var tabMap = BuildMapTab();
             var tabAlerts = BuildAlertsTab();
             var tabNetwork = BuildNetworkTab();
+            var tabStreamProxy = BuildStreamProxyTab();
 
             tabControl.TabPages.AddRange(new TabPage[] {
-                tabGeneral, tabOutput, tabMap, tabAlerts, tabNetwork
+                tabGeneral, tabOutput, tabMap, tabAlerts, tabNetwork, tabStreamProxy
             });
 
             // Footer buttons
@@ -1557,6 +1576,217 @@ namespace WeatherImageGenerator.Forms
             return tab;
         }
 
+        // Tab 6: Stream Proxy (MPEG-TS EAS Alert Splice)
+        //
+        private TabPage BuildStreamProxyTab()
+        {
+            var tab = new TabPage("Stream Proxy") { BackColor = BackgroundColor, Padding = new Padding(20), AutoScroll = true };
+            int y = 15;
+            int labelX = 20;
+            int fieldX = 220;
+            int rowHeight = 38;
+
+            // ── Header ──────────────────────────────────────────────────
+            var lblHeader = CreateSectionHeader("MPEG-TS Stream Proxy", labelX, y, "📡");
+            y += 35;
+
+            var lblDesc = new Label
+            {
+                Text = "Transparent proxy between Tunarr and IPTV clients. Splices EAS emergency alerts into live MPEG-TS streams,\n" +
+                       "then seamlessly resumes the original feed. Emulates an HDHomeRun tuner for Plex / Jellyfin / Emby discovery.",
+                Left = labelX, Top = y, Width = 700, Height = 40,
+                Font = LabelFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
+            };
+            y += 50;
+
+            chkProxyEnabled = CreateCheckBox("Enable Stream Proxy", labelX, y, 250);
+            chkProxyEnabled.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            y += 40;
+
+            var divider1 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // ── Connection ──────────────────────────────────────────────
+            var lblConnection = CreateSubHeader("Connection", labelX, y);
+            y += 30;
+
+            var lblTunarrUrl = CreateLabel("Tunarr Base URL:", labelX, y);
+            txtTunarrBaseUrl = CreateTextBox(fieldX, y - 2, 300);
+            txtTunarrBaseUrl.PlaceholderText = "http://localhost:8000";
+            y += rowHeight;
+
+            var lblProxyPort = CreateLabel("Proxy Listen Port:", labelX, y);
+            numProxyPort = CreateNumericUpDown(fieldX, y - 2, 100, 1024, 65535, 6077);
+            var lblPortHelp = CreateHelpLabel("(1024-65535)", fieldX + 110, y + 2);
+            y += rowHeight;
+
+            chkProxyAllowRemote = CreateCheckBox("Allow Remote Access (bind to all interfaces)", labelX, y, 400);
+            y += rowHeight;
+
+            var lblUrl = CreateLabel("Proxy URL:", labelX, y);
+            txtProxyUrl = CreateTextBox(fieldX, y - 2, 350);
+            txtProxyUrl.ReadOnly = true;
+            txtProxyUrl.BackColor = ThemeManager.Current.InputBackground;
+            y += rowHeight;
+
+            lblProxyLocalIP = new Label
+            {
+                Left = labelX, Top = y, Width = 520, Height = 25,
+                Font = LabelFont, ForeColor = AccentColor, Tag = "accent",
+                Text = "", AutoSize = false, Visible = false
+            };
+            y += 28;
+
+            lblProxyStatus = new Label
+            {
+                Left = labelX, Top = y, Width = 450, Height = 25,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                ForeColor = TextMutedColor, Tag = "muted",
+                Text = "Status: Not running", AutoSize = false
+            };
+            y += 40;
+
+            btnTestProxy = CreateSecondaryButton("🔗 Test Connection", labelX, y, 150, 34);
+            btnTestProxy.Click += (s, e) => TestProxyConnection();
+
+            var btnOpenProxyBrowser = CreatePrimaryButton("🌐 Open Status Page", labelX + 165, y, 170, 34);
+            btnOpenProxyBrowser.Click += (s, e) => OpenProxyInBrowser();
+            y += 55;
+
+            var divider2 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // ── HDHR Device Identity ────────────────────────────────────
+            var lblDevice = CreateSubHeader("HDHomeRun Device Identity", labelX, y);
+            y += 30;
+
+            var lblDeviceDesc = new Label
+            {
+                Text = "These settings control how the proxy identifies itself to Plex, Jellyfin, and Emby during HDHR device discovery.",
+                Left = labelX, Top = y, Width = 700, Height = 22,
+                Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
+            };
+            y += 30;
+
+            var lblDeviceName = CreateLabel("Friendly Name:", labelX, y);
+            txtProxyDeviceName = CreateTextBox(fieldX, y - 2, 250);
+            txtProxyDeviceName.PlaceholderText = "WSG EAS Proxy";
+            y += rowHeight;
+
+            var lblDeviceId = CreateLabel("Device ID (hex):", labelX, y);
+            txtProxyDeviceId = CreateTextBox(fieldX, y - 2, 150);
+            txtProxyDeviceId.PlaceholderText = "12345680";
+            var lblDeviceIdHelp = CreateHelpLabel("Must be unique on your network", fieldX + 160, y + 2, 220);
+            y += rowHeight;
+
+            var divider3 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // ── Splice Settings ─────────────────────────────────────────
+            var lblSplice = CreateSubHeader("Alert Splice Settings", labelX, y);
+            y += 30;
+
+            var lblSpliceBuffer = CreateLabel("Splice Buffer (ms):", labelX, y);
+            numSpliceBufferMs = CreateNumericUpDown(fieldX, y - 2, 100, 0, 5000, 500);
+            var lblSpliceHelp = CreateHelpLabel("Keyframe search window (0-5000ms)", fieldX + 110, y + 2, 250);
+            y += rowHeight + 10;
+
+            var divider4 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // ── Channel Mapping ─────────────────────────────────────────
+            var lblChannels = CreateSubHeader("Channel Mapping", labelX, y);
+            y += 30;
+
+            var lblChannelDesc = new Label
+            {
+                Text = "Map Tunarr channels to proxy channel numbers. Each channel can individually have EAS alert interruption enabled or disabled.",
+                Left = labelX, Top = y, Width = 700, Height = 22,
+                Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
+            };
+            y += 30;
+
+            dgvProxyChannels = new DataGridView
+            {
+                Left = labelX, Top = y, Width = 700, Height = 180,
+                BackgroundColor = ThemeManager.Current.InputBackground,
+                ForeColor = TextColor,
+                GridColor = BorderColor,
+                BorderStyle = BorderStyle.FixedSingle,
+                RowHeadersVisible = false,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                AllowUserToResizeRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Font = LabelFont,
+                ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
+                {
+                    BackColor = CardColor,
+                    ForeColor = TextColor,
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                    SelectionBackColor = CardColor,
+                    SelectionForeColor = TextColor
+                },
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    BackColor = ThemeManager.Current.InputBackground,
+                    ForeColor = TextColor,
+                    SelectionBackColor = AccentColor,
+                    SelectionForeColor = ThemeManager.Current.TextOnAccent
+                },
+                EnableHeadersVisualStyles = false
+            };
+
+            dgvProxyChannels.Columns.Add(new DataGridViewTextBoxColumn { Name = "TunarrId", HeaderText = "Tunarr Channel ID / UUID", FillWeight = 35 });
+            dgvProxyChannels.Columns.Add(new DataGridViewTextBoxColumn { Name = "Number", HeaderText = "#", FillWeight = 8 });
+            dgvProxyChannels.Columns.Add(new DataGridViewTextBoxColumn { Name = "DisplayName", HeaderText = "Display Name", FillWeight = 30 });
+            dgvProxyChannels.Columns.Add(new DataGridViewCheckBoxColumn { Name = "AlertEnabled", HeaderText = "EAS Alert", FillWeight = 12 });
+            y += 190;
+
+            btnAddChannel = CreatePrimaryButton("➕ Add Channel", labelX, y, 140, 32);
+            btnAddChannel.Click += (s, e) => AddProxyChannel();
+
+            btnRemoveChannel = CreateSecondaryButton("➖ Remove", labelX + 150, y, 110, 32);
+            btnRemoveChannel.Click += (s, e) => RemoveProxyChannel();
+            y += 50;
+
+            // ── Event handlers ──────────────────────────────────────────
+            chkProxyEnabled.CheckedChanged += (s, e) => { if (!_isLoadingSettings) OnProxyEnabledChanged(); };
+            numProxyPort.ValueChanged += (s, e) =>
+            {
+                if (!_isLoadingSettings)
+                {
+                    UpdateProxyUrl();
+                    if (chkProxyAllowRemote.Checked) UpdateProxyIPDisplay();
+                }
+            };
+            chkProxyAllowRemote.CheckedChanged += (s, e) =>
+            {
+                if (!_isLoadingSettings)
+                {
+                    UpdateProxyUrl();
+                    UpdateProxyIPDisplay();
+                }
+            };
+
+            tab.Controls.AddRange(new Control[] {
+                lblHeader, lblDesc, chkProxyEnabled, divider1,
+                lblConnection, lblTunarrUrl, txtTunarrBaseUrl,
+                lblProxyPort, numProxyPort, lblPortHelp,
+                chkProxyAllowRemote, lblUrl, txtProxyUrl, lblProxyLocalIP, lblProxyStatus,
+                btnTestProxy, btnOpenProxyBrowser, divider2,
+                lblDevice, lblDeviceDesc, lblDeviceName, txtProxyDeviceName,
+                lblDeviceId, txtProxyDeviceId, lblDeviceIdHelp, divider3,
+                lblSplice, lblSpliceBuffer, numSpliceBufferMs, lblSpliceHelp, divider4,
+                lblChannels, lblChannelDesc, dgvProxyChannels,
+                btnAddChannel, btnRemoveChannel
+            });
+
+            return tab;
+        }
+
         #endregion
 
         #region Event Handlers
@@ -2105,6 +2335,31 @@ namespace WeatherImageGenerator.Forms
                 UpdateWebUIStatus();
                 UpdateIPAddressDisplay();
 
+                // ── Stream Proxy Tab ──
+                var proxy = cfg.StreamProxy ?? new StreamProxySettings();
+                chkProxyEnabled.Checked = proxy.Enabled;
+                numProxyPort.Value = proxy.ListenPort;
+                txtTunarrBaseUrl.Text = proxy.TunarrBaseUrl;
+                chkProxyAllowRemote.Checked = proxy.AllowRemoteAccess;
+                txtProxyDeviceName.Text = proxy.DeviceFriendlyName;
+                txtProxyDeviceId.Text = proxy.DeviceId;
+                numSpliceBufferMs.Value = proxy.SpliceBufferMs;
+
+                // Load channel rows
+                dgvProxyChannels.Rows.Clear();
+                foreach (var ch in proxy.Channels)
+                {
+                    int rowIdx = dgvProxyChannels.Rows.Add();
+                    dgvProxyChannels.Rows[rowIdx].Cells["TunarrId"].Value = ch.TunarrChannelId;
+                    dgvProxyChannels.Rows[rowIdx].Cells["Number"].Value = ch.ProxyChannelNumber.ToString();
+                    dgvProxyChannels.Rows[rowIdx].Cells["DisplayName"].Value = ch.DisplayName;
+                    dgvProxyChannels.Rows[rowIdx].Cells["AlertEnabled"].Value = ch.AlertInterruptEnabled;
+                }
+
+                UpdateProxyUrl();
+                UpdateProxyStatus();
+                UpdateProxyIPDisplay();
+
                 // Async validations
                 Task.Run(() =>
                 {
@@ -2407,6 +2662,53 @@ namespace WeatherImageGenerator.Forms
                     ffmpeg.CustomPath
                 );
 
+                // ── Stream Proxy ──
+                var proxySettings = cfg.StreamProxy ?? new StreamProxySettings();
+                bool proxyWasEnabled = proxySettings.Enabled;
+                int oldProxyPort = proxySettings.ListenPort;
+
+                proxySettings.Enabled = chkProxyEnabled.Checked;
+                proxySettings.ListenPort = (int)numProxyPort.Value;
+                proxySettings.TunarrBaseUrl = string.IsNullOrWhiteSpace(txtTunarrBaseUrl.Text)
+                    ? "http://localhost:8000" : txtTunarrBaseUrl.Text.Trim();
+                proxySettings.AllowRemoteAccess = chkProxyAllowRemote.Checked;
+                proxySettings.DeviceFriendlyName = string.IsNullOrWhiteSpace(txtProxyDeviceName.Text)
+                    ? "WSG EAS Proxy" : txtProxyDeviceName.Text.Trim();
+                proxySettings.DeviceId = string.IsNullOrWhiteSpace(txtProxyDeviceId.Text)
+                    ? "12345680" : txtProxyDeviceId.Text.Trim();
+                proxySettings.SpliceBufferMs = (int)numSpliceBufferMs.Value;
+
+                // Save channel grid
+                proxySettings.Channels.Clear();
+                foreach (DataGridViewRow row in dgvProxyChannels.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    var tunarrId = row.Cells["TunarrId"].Value?.ToString() ?? "";
+                    if (string.IsNullOrWhiteSpace(tunarrId)) continue;
+
+                    int chNum = 1;
+                    if (row.Cells["Number"].Value != null)
+                        int.TryParse(row.Cells["Number"].Value.ToString(), out chNum);
+
+                    proxySettings.Channels.Add(new ProxyChannelConfig
+                    {
+                        TunarrChannelId = tunarrId.Trim(),
+                        ProxyChannelNumber = chNum,
+                        DisplayName = row.Cells["DisplayName"].Value?.ToString()?.Trim() ?? "Channel",
+                        AlertInterruptEnabled = row.Cells["AlertEnabled"].Value is true
+                    });
+                }
+
+                cfg.StreamProxy = proxySettings;
+
+                // Restart proxy if port changed while running
+                if (chkProxyEnabled.Checked && proxyWasEnabled && oldProxyPort != proxySettings.ListenPort)
+                {
+                    StopStreamProxyService();
+                    Program.SetStreamProxyService(null);
+                    StartStreamProxyService();
+                }
+
                 ConfigManager.SaveConfig(cfg);
                 this.DialogResult = DialogResult.OK;
             }
@@ -2692,6 +2994,227 @@ namespace WeatherImageGenerator.Forms
             catch (Exception ex)
             {
                 MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        #endregion
+
+        #region Stream Proxy Methods
+
+        private void OnProxyEnabledChanged()
+        {
+            if (chkProxyEnabled.Checked)
+                StartStreamProxyService();
+            else
+                StopStreamProxyService();
+            UpdateProxyStatus();
+        }
+
+        private void StartStreamProxyService()
+        {
+            try
+            {
+                var service = Program.StreamProxyService;
+                if (service == null)
+                {
+                    var settings = new StreamProxySettings
+                    {
+                        Enabled = true,
+                        ListenPort = (int)numProxyPort.Value,
+                        TunarrBaseUrl = string.IsNullOrWhiteSpace(txtTunarrBaseUrl.Text)
+                            ? "http://localhost:8000" : txtTunarrBaseUrl.Text.Trim(),
+                        AllowRemoteAccess = chkProxyAllowRemote.Checked,
+                        DeviceFriendlyName = txtProxyDeviceName.Text,
+                        DeviceId = txtProxyDeviceId.Text,
+                        SpliceBufferMs = (int)numSpliceBufferMs.Value
+                    };
+
+                    // Load channels from grid
+                    foreach (DataGridViewRow row in dgvProxyChannels.Rows)
+                    {
+                        if (row.IsNewRow) continue;
+                        var tunarrId = row.Cells["TunarrId"].Value?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(tunarrId)) continue;
+                        int chNum = 1;
+                        if (row.Cells["Number"].Value != null)
+                            int.TryParse(row.Cells["Number"].Value.ToString(), out chNum);
+                        settings.Channels.Add(new ProxyChannelConfig
+                        {
+                            TunarrChannelId = tunarrId.Trim(),
+                            ProxyChannelNumber = chNum,
+                            DisplayName = row.Cells["DisplayName"].Value?.ToString()?.Trim() ?? "Channel",
+                            AlertInterruptEnabled = row.Cells["AlertEnabled"].Value is true
+                        });
+                    }
+
+                    service = new StreamProxyService(settings);
+                    Program.SetStreamProxyService(service);
+                    service.Start();
+                    Logger.Log($"Stream Proxy started on port {settings.ListenPort}", Logger.LogLevel.Info);
+                }
+                else if (!service.IsRunning)
+                {
+                    service.Start();
+                    Logger.Log("Stream Proxy started", Logger.LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to start Stream Proxy: {ex.Message}", Logger.LogLevel.Error);
+                MessageBox.Show($"Failed to start Stream Proxy: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                chkProxyEnabled.Checked = false;
+            }
+        }
+
+        private void StopStreamProxyService()
+        {
+            try
+            {
+                var service = Program.StreamProxyService;
+                if (service != null && service.IsRunning)
+                {
+                    Task.Run(async () => await service.StopAsync()).GetAwaiter().GetResult();
+                    Logger.Log("Stream Proxy stopped", Logger.LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to stop Stream Proxy: {ex.Message}", Logger.LogLevel.Error);
+            }
+        }
+
+        private void UpdateProxyStatus()
+        {
+            var service = Program.StreamProxyService;
+            bool isRunning = service?.IsRunning ?? false;
+
+            if (isRunning)
+            {
+                lblProxyStatus.Text = "✓ Status: Proxy is running";
+                lblProxyStatus.ForeColor = SuccessColor;
+            }
+            else
+            {
+                lblProxyStatus.Text = "○ Status: Proxy is not running";
+                lblProxyStatus.ForeColor = TextMutedColor;
+            }
+        }
+
+        private void UpdateProxyUrl()
+        {
+            try
+            {
+                int port = (int)numProxyPort.Value;
+                var hostname = chkProxyAllowRemote.Checked ? Environment.MachineName : "localhost";
+                txtProxyUrl.Text = $"http://{hostname}:{port}";
+            }
+            catch
+            {
+                txtProxyUrl.Text = "http://localhost:6077";
+            }
+        }
+
+        private void UpdateProxyIPDisplay()
+        {
+            if (chkProxyAllowRemote.Checked)
+            {
+                lblProxyLocalIP.Visible = true;
+                Task.Run(() =>
+                {
+                    string localIP = Utilities.NetworkHelper.GetLocalIPAddress();
+                    if (this.IsHandleCreated)
+                    {
+                        this.Invoke((Action)(() =>
+                        {
+                            int port = (int)numProxyPort.Value;
+                            lblProxyLocalIP.Text = $"🌐 Proxy accessible at: {localIP}:{port}";
+                            lblProxyLocalIP.ForeColor = localIP == "Unable to determine" ? DangerColor : AccentColor;
+                        }));
+                    }
+                });
+            }
+            else
+            {
+                lblProxyLocalIP.Visible = false;
+            }
+        }
+
+        private void TestProxyConnection()
+        {
+            try
+            {
+                int port = (int)numProxyPort.Value;
+                using (var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                {
+                    var response = client.GetAsync($"http://localhost:{port}/status").Result;
+                    if (response.IsSuccessStatusCode)
+                    {
+                        lblProxyStatus.Text = "✓ Status: Proxy is running and accessible";
+                        lblProxyStatus.ForeColor = SuccessColor;
+                    }
+                    else
+                    {
+                        lblProxyStatus.Text = "⚠ Status: Proxy responded with error";
+                        lblProxyStatus.ForeColor = WarningColor;
+                    }
+                }
+            }
+            catch
+            {
+                lblProxyStatus.Text = "✗ Status: Proxy is not running or not accessible";
+                lblProxyStatus.ForeColor = DangerColor;
+            }
+        }
+
+        private void OpenProxyInBrowser()
+        {
+            try
+            {
+                var url = txtProxyUrl.Text + "/status";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void AddProxyChannel()
+        {
+            int nextNum = 1;
+            if (dgvProxyChannels.Rows.Count > 0)
+            {
+                foreach (DataGridViewRow row in dgvProxyChannels.Rows)
+                {
+                    if (row.Cells["Number"].Value != null &&
+                        int.TryParse(row.Cells["Number"].Value.ToString(), out int n) && n >= nextNum)
+                        nextNum = n + 1;
+                }
+            }
+
+            int rowIdx = dgvProxyChannels.Rows.Add();
+            dgvProxyChannels.Rows[rowIdx].Cells["TunarrId"].Value = "";
+            dgvProxyChannels.Rows[rowIdx].Cells["Number"].Value = nextNum.ToString();
+            dgvProxyChannels.Rows[rowIdx].Cells["DisplayName"].Value = "Weather Channel";
+            dgvProxyChannels.Rows[rowIdx].Cells["AlertEnabled"].Value = true;
+
+            dgvProxyChannels.CurrentCell = dgvProxyChannels.Rows[rowIdx].Cells["TunarrId"];
+            dgvProxyChannels.BeginEdit(true);
+        }
+
+        private void RemoveProxyChannel()
+        {
+            if (dgvProxyChannels.SelectedRows.Count > 0)
+            {
+                dgvProxyChannels.Rows.RemoveAt(dgvProxyChannels.SelectedRows[0].Index);
+            }
+            else if (dgvProxyChannels.CurrentRow != null && !dgvProxyChannels.CurrentRow.IsNewRow)
+            {
+                dgvProxyChannels.Rows.RemoveAt(dgvProxyChannels.CurrentRow.Index);
             }
         }
 

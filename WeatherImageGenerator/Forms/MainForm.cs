@@ -2777,7 +2777,7 @@ namespace WeatherImageGenerator.Forms
                             }
 
                             // Use the new method that generates both media AND video automatically
-                            var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
+                            var (generatedFiles, videoPath, _) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                                 alerts,
                                 outputDir,
                                 language
@@ -3404,7 +3404,19 @@ namespace WeatherImageGenerator.Forms
                 var alerts = new List<AlertEntry> { alert };
                 
                 // Use the new method that generates both media AND video automatically
-                var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language);
+                var (generatedFiles, videoPath, tsPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language);
+
+                // If stream proxy is running and a .ts was generated, trigger the splice
+                if (!string.IsNullOrEmpty(tsPath))
+                {
+                    var proxyService = Program.StreamProxyService;
+                    if (proxyService?.IsRunning == true)
+                    {
+                        var videoCfg = cfg.Video ?? new VideoSettings();
+                        double duration = videoCfg.AlertDisplayDurationSeconds > 0 ? videoCfg.AlertDisplayDurationSeconds : 30.0;
+                        proxyService.TriggerAlertSplice(tsPath, duration);
+                    }
+                }
 
                 Logger.Log($"Generated {generatedFiles.Count} file(s) for alert: {alert.Title}", Logger.LogLevel.Info);
 

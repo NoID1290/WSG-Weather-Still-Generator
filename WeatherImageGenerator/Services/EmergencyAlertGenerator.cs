@@ -216,13 +216,115 @@ namespace WeatherImageGenerator.Services
         }
 
         /// <summary>
+        /// Generates an MPEG Transport Stream (.ts) version of the alert video for
+        /// seamless splice into a live MPEG-TS stream (e.g. Tunarr proxy interception).
+        /// Uses the same image + audio source but outputs as .ts with frequent PAT/PMT
+        /// insertion and a forced keyframe at the start.
+        /// </summary>
+        /// <param name="alertImagePath">Path to the alert image file</param>
+        /// <param name="alertAudioPath">Path to the alert audio file</param>
+        /// <param name="outputDir">Output directory</param>
+        /// <param name="videoDuration">Total duration in seconds</param>
+        /// <returns>Path to the generated .ts file, or null if generation failed</returns>
+        public static string? GenerateAlertTransportStream(
+            string alertImagePath, string alertAudioPath, string outputDir, double videoDuration)
+        {
+            try
+            {
+                if (!File.Exists(alertImagePath) || !File.Exists(alertAudioPath))
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Missing image/audio for .ts generation.", Logger.LogLevel.Warning);
+                    return null;
+                }
+
+                var config = ConfigManager.LoadConfig();
+                var videoConfig = config.Video ?? new VideoSettings();
+
+                string tsOutputPath = Path.Combine(outputDir, "alert_video.ts");
+
+                Logger.Log("[EmergencyAlertGenerator] Generating alert MPEG-TS for stream proxy...", Logger.LogLevel.Info);
+
+                // Force keyframe at frame 0 for clean splice entry,
+                // frequent PAT/PMT so decoders can lock quickly mid-stream,
+                // timestamps starting at 0 (the proxy will offset them).
+                string codec = videoConfig.VideoCodec ?? "libx264";
+                var codecArgs = BuildVideoCodecArgs(videoConfig);
+
+                string ffmpegArgs = $"-y -loop 1 -i \"{alertImagePath}\" -i \"{alertAudioPath}\" " +
+                                   $"-c:v {codec} {codecArgs} " +
+                                   $"-force_key_frames 0 " +
+                                   $"-af \"apad=whole_dur={videoDuration:F2}\" " +
+                                   $"-c:a aac -b:a 192k " +
+                                   $"-t {videoDuration:F2} " +
+                                   $"-pix_fmt yuv420p " +
+                                   $"-f mpegts " +
+                                   $"-mpegts_copyts 1 " +
+                                   $"-pat_period 0.1 -sdt_period 0.1 " +
+                                   $"\"{tsOutputPath}\"";
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = ffmpegArgs,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                };
+
+                Logger.Log("[EmergencyAlertGenerator] Running FFmpeg for alert .ts...", Logger.LogLevel.Debug);
+
+                using var process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Failed to start FFmpeg for .ts generation.", Logger.LogLevel.Error);
+                    return null;
+                }
+
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                bool exited = process.WaitForExit(300000);
+
+                string stderr = "";
+                if (stderrTask.Wait(5000)) stderr = stderrTask.Result;
+
+                if (!exited)
+                {
+                    Logger.Log("[EmergencyAlertGenerator] FFmpeg .ts timed out.", Logger.LogLevel.Warning);
+                    try { process.Kill(); } catch { }
+                    return null;
+                }
+
+                if (process.ExitCode == 0 && File.Exists(tsOutputPath) && new FileInfo(tsOutputPath).Length > 1000)
+                {
+                    var outSize = new FileInfo(tsOutputPath).Length;
+                    Logger.Log($"[EmergencyAlertGenerator] ✓ Alert .ts generated: {tsOutputPath} ({outSize / 1024}KB, {videoDuration:F0}s)", Logger.LogLevel.Info);
+                    return tsOutputPath;
+                }
+                else
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] ✗ FFmpeg .ts failed (exit {process.ExitCode})", Logger.LogLevel.Error);
+                    if (!string.IsNullOrEmpty(stderr))
+                        Logger.Log($"[EmergencyAlertGenerator] FFmpeg .ts error: {stderr.Substring(0, Math.Min(500, stderr.Length))}", Logger.LogLevel.Error);
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[EmergencyAlertGenerator] Error generating alert .ts: {ex.Message}", Logger.LogLevel.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Generates alerts and automatically creates a video from them.
+        /// Also generates an MPEG-TS version if the stream proxy is enabled.
         /// </summary>
         /// <param name="alerts">List of emergency alerts</param>
         /// <param name="outputDir">Output directory</param>
         /// <param name="language">Language for TTS</param>
-        /// <returns>Tuple containing list of generated files and the video path (if successful)</returns>
-        public static (List<string> GeneratedFiles, string? VideoPath) GenerateEmergencyAlertsWithVideo(
+        /// <returns>Tuple containing list of generated files, the video path, and the .ts path (if successful)</returns>
+        public static (List<string> GeneratedFiles, string? VideoPath, string? TransportStreamPath) GenerateEmergencyAlertsWithVideo(
             List<AlertEntry> alerts, string outputDir, string language = "fr-CA")
         {
             // Generate the alert media (images and audio)
@@ -231,7 +333,7 @@ namespace WeatherImageGenerator.Services
             if (generatedFiles.Count == 0)
             {
                 Logger.Log("[EmergencyAlertGenerator] No alert files generated, skipping video creation.", Logger.LogLevel.Warning);
-                return (generatedFiles, null);
+                return (generatedFiles, null, null);
             }
 
             // Find the first image and audio pair
@@ -243,10 +345,10 @@ namespace WeatherImageGenerator.Services
             if (string.IsNullOrEmpty(imagePath) || string.IsNullOrEmpty(audioPath))
             {
                 Logger.Log("[EmergencyAlertGenerator] Missing image or audio file, skipping video creation.", Logger.LogLevel.Warning);
-                return (generatedFiles, null);
+                return (generatedFiles, null, null);
             }
 
-            // Generate the video
+            // Generate the video (MP4 or configured container)
             string? videoPath = GenerateAlertVideo(imagePath, audioPath, outputDir);
 
             if (!string.IsNullOrEmpty(videoPath))
@@ -254,7 +356,32 @@ namespace WeatherImageGenerator.Services
                 generatedFiles.Add(videoPath);
             }
 
-            return (generatedFiles, videoPath);
+            // Generate MPEG-TS version for stream proxy splice (if proxy is configured)
+            string? tsPath = null;
+            try
+            {
+                var config = ConfigManager.LoadConfig();
+                if (config.StreamProxy?.Enabled == true)
+                {
+                    var videoConfig = config.Video ?? new VideoSettings();
+                    double minDuration = videoConfig.AlertDisplayDurationSeconds > 0
+                        ? videoConfig.AlertDisplayDurationSeconds : 30.0;
+                    double? audioDuration = GetAudioDuration(audioPath);
+                    double videoDuration = Math.Max(audioDuration ?? minDuration, minDuration);
+
+                    tsPath = GenerateAlertTransportStream(imagePath, audioPath, outputDir, videoDuration);
+                    if (!string.IsNullOrEmpty(tsPath))
+                    {
+                        generatedFiles.Add(tsPath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[EmergencyAlertGenerator] .ts generation skipped: {ex.Message}", Logger.LogLevel.Warning);
+            }
+
+            return (generatedFiles, videoPath, tsPath);
         }
 
         /// <summary>

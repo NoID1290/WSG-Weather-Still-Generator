@@ -87,7 +87,7 @@ namespace WeatherImageGenerator
                 try
                 {
                     // Use the new method that generates both media AND video automatically
-                    var (generatedFiles, videoPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
+                    var (generatedFiles, videoPath, _) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                         parsedAlerts, 
                         outputDir, 
                         "fr-CA"

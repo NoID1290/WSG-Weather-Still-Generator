@@ -180,6 +180,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("WebUI")]
         public WebUISettings? WebUI { get; set; }
 
+        [JsonPropertyName("StreamProxy")]
+        public StreamProxySettings? StreamProxy { get; set; }
+
         [JsonPropertyName("SelectedTabIndex")]
         public int SelectedTabIndex { get; set; } = 0;
 
