@@ -40,11 +40,16 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudLabel _lblStatusBar;
         private HudCheckbox _chkAnimFollowMap;
         private HudSlider _sldTimeline;
+        private HudLabel? _lblAnimFrameCount;
 
         // Animation transport button refs (for disabling before load)
         private HudButton? _btnStepBack;
         private HudButton? _btnPlayPause;
         private HudButton? _btnStepFwd;
+        private HudButton? _btnFrameMinusFive;
+        private HudButton? _btnFrameMinusOne;
+        private HudButton? _btnFramePlusOne;
+        private HudButton? _btnFramePlusFive;
         private HudLabel? _lblSpeed;
 
         // Animation controls
@@ -54,6 +59,9 @@ namespace WeatherImageGenerator.Rendering.Common
         private bool _isAnimating;
         private Timer _animationTimer;
         private int _animationSpeedMs = 500;
+        private int _animationFrameCount = 8;
+        private int _lastRequestedAnimationFrames = 8;
+        private bool _animationLoadInProgress = false;
         private System.Threading.Timer? _animationRefreshDebounce;
         private bool _animationRefreshInProgress = false;
 
@@ -174,6 +182,15 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             // Build GL HUD panels (replaces WinForms sidebar)
             BuildHudPanels();
+
+            // Session-only animation frame count defaults from persisted config.
+            var config = ConfigManager.LoadConfig();
+            _animationFrameCount = Math.Clamp(
+                config.ECCC?.ProvinceFrames ?? 8,
+                ConfigManager.MinRadarFrames,
+                ConfigManager.MaxRadarFrames);
+            _lastRequestedAnimationFrames = _animationFrameCount;
+            UpdateAnimationFrameCountControls();
 
             // Refresh attribution now that checkboxes exist (radar is checked by default)
             UpdateAttributionText();
@@ -589,7 +606,27 @@ namespace WeatherImageGenerator.Rendering.Common
             transportRow.Children.Add(new HudButton { Id = "animLoadBtn", Text = "Load", IsCompact = false, IsAccent = true, OnClick = async () => await LoadRadarAnimation() });
             animPanel.Elements.Add(transportRow);
 
-            // Row 2: timeline scrub bar with tick marks
+            // Row 2: frame count selector (session-only)
+            var frameCountRow = new HudInlineRow { Id = "animFrameCountRow" };
+            frameCountRow.Children.Add(new HudLabel { Id = "animFrameCountLabel", Text = "Frames", IsDim = true });
+            _btnFrameMinusFive = new HudButton { Id = "animFrameMinus5", Text = "-5", IsCompact = false, OnClick = () => ChangeAnimationFrameCount(-5) };
+            frameCountRow.Children.Add(_btnFrameMinusFive);
+            _btnFrameMinusOne = new HudButton { Id = "animFrameMinus1", Text = "−", IsCompact = true, OnClick = () => ChangeAnimationFrameCount(-1) };
+            frameCountRow.Children.Add(_btnFrameMinusOne);
+            _lblAnimFrameCount = new HudLabel
+            {
+                Id = "animFrameCountValue",
+                Text = _animationFrameCount.ToString(),
+                IsDim = false
+            };
+            frameCountRow.Children.Add(_lblAnimFrameCount);
+            _btnFramePlusOne = new HudButton { Id = "animFramePlus1", Text = "+", IsCompact = true, OnClick = () => ChangeAnimationFrameCount(1) };
+            frameCountRow.Children.Add(_btnFramePlusOne);
+            _btnFramePlusFive = new HudButton { Id = "animFramePlus5", Text = "+5", IsCompact = false, OnClick = () => ChangeAnimationFrameCount(5) };
+            frameCountRow.Children.Add(_btnFramePlusFive);
+            animPanel.Elements.Add(frameCountRow);
+
+            // Row 3: timeline scrub bar with tick marks
             _sldTimeline = new HudSlider
             {
                 Id = "animTimeline",
@@ -603,7 +640,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 {
                     if (_animationFrames.Count > 0)
                     {
-                        int idx = Math.Min((int)(val * _animationFrames.Count), _animationFrames.Count - 1);
+                        int idx = Math.Clamp((int)Math.Round(val * (_animationFrames.Count - 1)), 0, _animationFrames.Count - 1);
                         if (idx != _currentFrameIndex)
                             ShowAnimationFrame(idx);
                     }
@@ -611,7 +648,7 @@ namespace WeatherImageGenerator.Rendering.Common
             };
             animPanel.Elements.Add(_sldTimeline);
 
-            // Row 3: speed + loop + follow + close
+            // Row 4: speed + loop + follow + close
             var settingsRow = new HudInlineRow { Id = "animSettings" };
             settingsRow.Children.Add(new HudButton { Id = "animSpeedDown", Text = "\u2212", IsCompact = true, OnClick = () => AdjustAnimationSpeed(200) });
             _lblSpeed = new HudLabel { Id = "lblSpeed", Text = "0.5s", IsDim = true };
@@ -694,20 +731,86 @@ namespace WeatherImageGenerator.Rendering.Common
 
         // â•â•â• Animation Logic â•â•â•
 
+        private void ChangeAnimationFrameCount(int delta)
+        {
+            int next = Math.Clamp(_animationFrameCount + delta, ConfigManager.MinRadarFrames, ConfigManager.MaxRadarFrames);
+            if (next == _animationFrameCount)
+                return;
+
+            _animationFrameCount = next;
+            UpdateAnimationFrameCountControls();
+
+            if (_animationFrames.Count == 0)
+            {
+                _lblFrameInfo.Text = $"No radar loaded • Fetch: {_animationFrameCount} frame{(_animationFrameCount == 1 ? "" : "s")}";
+                _glControl?.InvalidateView();
+                return;
+            }
+
+            _lblFrameInfo.Text = BuildFrameInfoText(_currentFrameIndex);
+            _glControl?.InvalidateView();
+        }
+
+        private void UpdateAnimationFrameCountControls()
+        {
+            if (_lblAnimFrameCount != null)
+                _lblAnimFrameCount.Text = _animationFrameCount.ToString();
+
+            if (_btnFrameMinusOne != null)
+                _btnFrameMinusOne.IsDisabled = _animationFrameCount <= ConfigManager.MinRadarFrames;
+            if (_btnFrameMinusFive != null)
+                _btnFrameMinusFive.IsDisabled = _animationFrameCount <= ConfigManager.MinRadarFrames;
+            if (_btnFramePlusOne != null)
+                _btnFramePlusOne.IsDisabled = _animationFrameCount >= ConfigManager.MaxRadarFrames;
+            if (_btnFramePlusFive != null)
+                _btnFramePlusFive.IsDisabled = _animationFrameCount >= ConfigManager.MaxRadarFrames;
+        }
+
+        private void UpdateTimelineUiFromFrames()
+        {
+            if (_sldTimeline == null)
+                return;
+
+            _sldTimeline.TickLabels = _animationTimestamps.Select(ts => FormatTimeOnly(ts)).ToList();
+            _sldTimeline.ShowTicks = _animationFrames.Count > 0;
+            _sldTimeline.Max = 1f;
+            _sldTimeline.Value = _animationFrames.Count <= 1
+                ? 0f
+                : (float)_currentFrameIndex / (_animationFrames.Count - 1);
+        }
+
+        private string BuildFrameInfoText(int frameIndex)
+        {
+            string ts = frameIndex < _animationTimestamps.Count ? FormatTimestamp(_animationTimestamps[frameIndex]) : "";
+            string loaded = $"{frameIndex + 1}/{_animationFrames.Count}";
+            if (_animationFrames.Count != _lastRequestedAnimationFrames)
+                return $"{loaded} ({_animationFrames.Count}/{_lastRequestedAnimationFrames} fetched) {ts}";
+            if (_animationFrameCount != _lastRequestedAnimationFrames)
+                return $"{loaded} {ts} • Next: {_animationFrameCount}";
+            return $"{loaded} {ts}";
+        }
+
         private async Task LoadRadarAnimation()
         {
-            var loadBtn = FindHudElement<HudButton>("loadAnim");
-            if (loadBtn != null) loadBtn.Text = "Loading...";
+            if (_animationLoadInProgress)
+                return;
+
+            _animationLoadInProgress = true;
+
+            var loadBtn = FindHudElement<HudButton>("animLoadBtn");
+            if (loadBtn != null)
+            {
+                loadBtn.Text = "Loading...";
+                loadBtn.IsDisabled = true;
+            }
             _hudSystem.LoadingMessage = "Loading radar frames...";
             _glControl?.InvalidateView();
 
             try
             {
-                var config = ConfigManager.LoadConfig();
-                var radarFrames = Math.Clamp(
-                    config.ECCC?.ProvinceFrames ?? 8,
-                    ConfigManager.MinRadarFrames,
-                    ConfigManager.MaxRadarFrames);
+                int radarFrames = Math.Clamp(_animationFrameCount, ConfigManager.MinRadarFrames, ConfigManager.MaxRadarFrames);
+                _lastRequestedAnimationFrames = radarFrames;
+                UpdateAnimationFrameCountControls();
 
                 // Fetch timestamps
                 var timestamps = await _overlayManager.FetchRadarTimestampsAsync(radarFrames);
@@ -747,14 +850,11 @@ namespace WeatherImageGenerator.Rendering.Common
                     loadBtnLoaded.Text = "Reload";
                     loadBtnLoaded.IsAccent = false;
                     loadBtnLoaded.IsSuccess = true;
+                    loadBtnLoaded.IsDisabled = false;
                 }
 
-                // Populate timeline tick labels (HH:MM per frame)
-                if (_sldTimeline != null)
-                {
-                    _sldTimeline.TickLabels = validTimestamps.Select(ts => FormatTimeOnly(ts)).ToList();
-                    _sldTimeline.ShowTicks = true;
-                }
+                // Populate timeline from fetched frames only
+                UpdateTimelineUiFromFrames();
 
                 // Show animation HUD panel
                 var animPanel = _hudSystem.GetPanel("animation");
@@ -763,14 +863,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 // Show first frame
                 ShowAnimationFrame(0);
 
-                // Reset timeline slider range
-                if (_sldTimeline != null)
-                {
-                    _sldTimeline.Value = 0f;
-                    _sldTimeline.Max = 1f;
-                }
-
-                _lblFrameInfo.Text = $"1/{_animationFrames.Count} {FormatTimestamp(_animationTimestamps[0])}";
+                _lblFrameInfo.Text = BuildFrameInfoText(0);
                 _glControl?.InvalidateView();
             }
             catch (Exception ex)
@@ -780,7 +873,23 @@ namespace WeatherImageGenerator.Rendering.Common
             finally
             {
                 _hudSystem.LoadingMessage = null;
-                if (loadBtn != null) loadBtn.Text = "Load Animation";
+                _animationLoadInProgress = false;
+                if (loadBtn != null)
+                {
+                    loadBtn.IsDisabled = false;
+                    if (_animationFrames.Count == 0)
+                    {
+                        loadBtn.Text = "Load";
+                        loadBtn.IsAccent = true;
+                        loadBtn.IsSuccess = false;
+                    }
+                    else
+                    {
+                        loadBtn.Text = "Reload";
+                        loadBtn.IsAccent = false;
+                        loadBtn.IsSuccess = true;
+                    }
+                }
                 _glControl?.InvalidateView();
             }
         }
@@ -843,12 +952,11 @@ namespace WeatherImageGenerator.Rendering.Common
                 _glControl.SetImageBytes(frameData, _currentLat, _currentLon, _currentZoom);
             }
 
-            var ts = index < _animationTimestamps.Count ? FormatTimestamp(_animationTimestamps[index]) : "";
-            _lblFrameInfo.Text = $"{index + 1}/{_animationFrames.Count} {ts}";
+            _lblFrameInfo.Text = BuildFrameInfoText(index);
 
             // Update timeline slider position (avoid re-triggering OnChanged)
-            if (_sldTimeline != null && _animationFrames.Count > 1)
-                _sldTimeline.Value = (float)index / (_animationFrames.Count - 1);
+            if (_sldTimeline != null)
+                _sldTimeline.Value = _animationFrames.Count <= 1 ? 0f : (float)index / (_animationFrames.Count - 1);
 
             _glControl?.InvalidateView();
         }
@@ -926,7 +1034,7 @@ namespace WeatherImageGenerator.Rendering.Common
             }
 
             _hudSystem.LoadingMessage = "Updating radar frames...";
-            _lblFrameInfo.Text = "Updating...";
+            _lblFrameInfo.Text = $"Updating... ({_animationFrames.Count}/{_lastRequestedAnimationFrames} loaded)";
 
             try
             {
@@ -941,6 +1049,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
                     // Clamp frame index
                     _currentFrameIndex = Math.Min(_currentFrameIndex, _animationFrames.Count - 1);
+                    UpdateTimelineUiFromFrames();
 
                     // Show current frame at new viewport position
                     ShowAnimationFrame(_currentFrameIndex);
@@ -1091,6 +1200,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 _sldTimeline.ShowTicks = false;
                 _sldTimeline.TickLabels.Clear();
                 _sldTimeline.Value = 0f;
+                _sldTimeline.Max = 1f;
             }
 
             // Hide animation HUD panel
@@ -1100,7 +1210,7 @@ namespace WeatherImageGenerator.Rendering.Common
             // Clear overlay from GL
             _glControl.ClearPositionedOverlay();
 
-            _lblFrameInfo.Text = "No radar loaded";
+            _lblFrameInfo.Text = $"No radar loaded • Fetch: {_animationFrameCount} frame{(_animationFrameCount == 1 ? "" : "s")}";
             _glControl?.InvalidateView();
         }
 
