@@ -2777,7 +2777,7 @@ namespace WeatherImageGenerator.Forms
                             }
 
                             // Use the new method that generates both media AND video automatically
-                            var (generatedFiles, videoPath, tsPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
+                            var (generatedFiles, videoPath, tsPath, actualDuration) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                                 alerts,
                                 outputDir,
                                 language
@@ -2788,11 +2788,13 @@ namespace WeatherImageGenerator.Forms
                             // Trigger stream pipe splice if running
                             if (!string.IsNullOrEmpty(tsPath))
                             {
+                                // Use actual .ts video duration (derived from audio length) so the
+                                // splice and timestamp offset calculations match the real content.
+                                double duration = actualDuration > 0 ? actualDuration : 30.0;
+
                                 var pipeService = Program.StreamPipeService;
                                 if (pipeService?.IsRunning == true)
                                 {
-                                    var videoCfg = ConfigManager.LoadConfig().Video ?? new VideoSettings();
-                                    double duration = videoCfg.AlertDisplayDurationSeconds > 0 ? videoCfg.AlertDisplayDurationSeconds : 30.0;
                                     pipeService.TriggerAlertSplice(tsPath, duration);
                                     Logger.Log($"Stream pipe alert splice triggered for test alert ({duration:F0}s)", Logger.LogLevel.Info);
                                 }
@@ -2805,10 +2807,8 @@ namespace WeatherImageGenerator.Forms
                                 var hlsInjector = Program.HlsAlertInjector;
                                 if (hlsInjector?.IsRunning == true)
                                 {
-                                    var videoCfg2 = ConfigManager.LoadConfig().Video ?? new VideoSettings();
-                                    double duration2 = videoCfg2.AlertDisplayDurationSeconds > 0 ? videoCfg2.AlertDisplayDurationSeconds : 30.0;
-                                    hlsInjector.TriggerAlertSplice(tsPath, duration2);
-                                    Logger.Log($"HLS alert injection triggered for test alert ({duration2:F0}s)", Logger.LogLevel.Info);
+                                    hlsInjector.TriggerAlertSplice(tsPath, duration);
+                                    Logger.Log($"HLS alert injection triggered for test alert ({duration:F0}s)", Logger.LogLevel.Info);
                                 }
                             }
 
@@ -3431,16 +3431,17 @@ namespace WeatherImageGenerator.Forms
                 var alerts = new List<AlertEntry> { alert };
                 
                 // Use the new method that generates both media AND video automatically
-                var (generatedFiles, videoPath, tsPath) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language);
+                var (generatedFiles, videoPath, tsPath, actualDuration) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language);
 
                 // If stream pipe is running and a .ts was generated, trigger the splice
                 if (!string.IsNullOrEmpty(tsPath))
                 {
+                    // Use actual .ts video duration (derived from audio length)
+                    double duration = actualDuration > 0 ? actualDuration : 30.0;
+
                     var pipeService = Program.StreamPipeService;
                     if (pipeService?.IsRunning == true)
                     {
-                        var videoCfg = cfg.Video ?? new VideoSettings();
-                        double duration = videoCfg.AlertDisplayDurationSeconds > 0 ? videoCfg.AlertDisplayDurationSeconds : 30.0;
                         pipeService.TriggerAlertSplice(tsPath, duration);
                     }
 
@@ -3448,9 +3449,7 @@ namespace WeatherImageGenerator.Forms
                     var hlsInjector = Program.HlsAlertInjector;
                     if (hlsInjector?.IsRunning == true)
                     {
-                        var videoCfg2 = cfg.Video ?? new VideoSettings();
-                        double duration2 = videoCfg2.AlertDisplayDurationSeconds > 0 ? videoCfg2.AlertDisplayDurationSeconds : 30.0;
-                        hlsInjector.TriggerAlertSplice(tsPath, duration2);
+                        hlsInjector.TriggerAlertSplice(tsPath, duration);
                     }
                 }
 

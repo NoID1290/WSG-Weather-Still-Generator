@@ -247,19 +247,24 @@ namespace WeatherImageGenerator.Services
                 // Force keyframe at frame 0 for clean splice entry,
                 // frequent PAT/PMT so decoders can lock quickly mid-stream,
                 // timestamps starting at 0 (the proxy will offset them).
+                // CBR mux rate and frequent keyframes improve splice compatibility.
                 string codec = videoConfig.VideoCodec ?? "libx264";
                 var codecArgs = BuildVideoCodecArgs(videoConfig);
 
                 string ffmpegArgs = $"-y -loop 1 -i \"{alertImagePath}\" -i \"{alertAudioPath}\" " +
                                    $"-c:v {codec} {codecArgs} " +
-                                   $"-force_key_frames 0 " +
+                                   $"-force_key_frames \"expr:eq(mod(n,30),0)\" " +
+                                   $"-g 30 " +
                                    $"-af \"apad=whole_dur={videoDuration:F2}\" " +
                                    $"-c:a aac -b:a 192k " +
                                    $"-t {videoDuration:F2} " +
                                    $"-pix_fmt yuv420p " +
                                    $"-f mpegts " +
                                    $"-mpegts_copyts 1 " +
+                                   $"-muxrate 3000000 " +
                                    $"-pat_period 0.1 -sdt_period 0.1 " +
+                                   $"-mpegts_service_id 1 " +
+                                   $"-mpegts_start_pid 0x100 " +
                                    $"\"{tsOutputPath}\"";
 
                 var startInfo = new ProcessStartInfo
@@ -324,7 +329,11 @@ namespace WeatherImageGenerator.Services
         /// <param name="outputDir">Output directory</param>
         /// <param name="language">Language for TTS</param>
         /// <returns>Tuple containing list of generated files, the video path, and the .ts path (if successful)</returns>
-        public static (List<string> GeneratedFiles, string? VideoPath, string? TransportStreamPath) GenerateEmergencyAlertsWithVideo(
+        /// <summary>
+        /// Generates alert images, audio, video (MP4), and optionally an MPEG-TS transport stream.
+        /// Returns generated file list, video path, .ts path, and the actual video duration in seconds.
+        /// </summary>
+        public static (List<string> GeneratedFiles, string? VideoPath, string? TransportStreamPath, double VideoDurationSeconds) GenerateEmergencyAlertsWithVideo(
             List<AlertEntry> alerts, string outputDir, string language = "fr-CA")
         {
             // Generate the alert media (images and audio)
@@ -333,7 +342,7 @@ namespace WeatherImageGenerator.Services
             if (generatedFiles.Count == 0)
             {
                 Logger.Log("[EmergencyAlertGenerator] No alert files generated, skipping video creation.", Logger.LogLevel.Warning);
-                return (generatedFiles, null, null);
+                return (generatedFiles, null, null, 0);
             }
 
             // Find the first image and audio pair
@@ -345,7 +354,7 @@ namespace WeatherImageGenerator.Services
             if (string.IsNullOrEmpty(imagePath) || string.IsNullOrEmpty(audioPath))
             {
                 Logger.Log("[EmergencyAlertGenerator] Missing image or audio file, skipping video creation.", Logger.LogLevel.Warning);
-                return (generatedFiles, null, null);
+                return (generatedFiles, null, null, 0);
             }
 
             // Generate the video (MP4 or configured container)
@@ -356,18 +365,21 @@ namespace WeatherImageGenerator.Services
                 generatedFiles.Add(videoPath);
             }
 
-            // Generate MPEG-TS version for stream proxy splice (if proxy is configured)
+            // Generate MPEG-TS version for stream proxy splice or HLS injection
             string? tsPath = null;
+            double actualDuration = 0;
             try
             {
                 var config = ConfigManager.LoadConfig();
-                if (config.StreamProxy?.Enabled == true)
+                bool needTs = (config.StreamProxy?.Enabled == true) || (config.StreamProxy?.HlsInjectionEnabled == true);
+                if (needTs)
                 {
                     var videoConfig = config.Video ?? new VideoSettings();
                     double minDuration = videoConfig.AlertDisplayDurationSeconds > 0
                         ? videoConfig.AlertDisplayDurationSeconds : 30.0;
                     double? audioDuration = GetAudioDuration(audioPath);
                     double videoDuration = Math.Max(audioDuration ?? minDuration, minDuration);
+                    actualDuration = videoDuration;
 
                     tsPath = GenerateAlertTransportStream(imagePath, audioPath, outputDir, videoDuration);
                     if (!string.IsNullOrEmpty(tsPath))
@@ -381,7 +393,7 @@ namespace WeatherImageGenerator.Services
                 Logger.Log($"[EmergencyAlertGenerator] .ts generation skipped: {ex.Message}", Logger.LogLevel.Warning);
             }
 
-            return (generatedFiles, videoPath, tsPath);
+            return (generatedFiles, videoPath, tsPath, actualDuration);
         }
 
         /// <summary>

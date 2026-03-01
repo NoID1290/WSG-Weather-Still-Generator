@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using WeatherImageGenerator.Models;
@@ -19,10 +22,10 @@ namespace WeatherImageGenerator.Services
     /// alert .ts segment into every active client stream, then resumes the Tunarr feed —
     /// maintaining continuity counters and monotonic PTS/DTS/PCR timestamps throughout.
     ///
-    /// Unlike the full StreamProxyService (HTTP proxy + HDHR emulation), this service
-    /// has zero HTTP overhead — it's a raw TCP byte pipe with per-packet processing.
-    /// Clients connect with any MPEG-TS-capable player (VLC, ffplay, Plex, etc.)
-    /// using a direct TCP or HTTP URL like http://host:port/.
+    /// All channels share a single TCP listener port (the public Tunarr port, e.g. 8000).
+    /// When a client connects with an HTTP GET, the request path determines which Tunarr
+    /// channel to pipe (e.g. GET /stream/channels/{uuid}.ts). Raw TCP clients without an
+    /// HTTP request are routed to the first configured channel.
     /// </summary>
     public class StreamPipeService
     {
@@ -32,8 +35,14 @@ namespace WeatherImageGenerator.Services
 
         public bool IsRunning { get; private set; }
 
-        // ── Per-channel listeners ──────────────────────────────────────────
+        // ── Per-channel state (keyed by ProxyChannelNumber) ────────────────
         private readonly ConcurrentDictionary<int, ChannelPipeState> _channels = new();
+
+        // ── Channel lookup by TunarrChannelId (for HTTP path routing) ──────
+        private readonly ConcurrentDictionary<string, ChannelPipeState> _channelsByTunarrId = new();
+
+        // ── Single shared TCP listener ─────────────────────────────────────
+        private TcpListener? _sharedListener;
 
         // ── Alert splice state (global — one alert at a time) ──────────────
         private volatile string? _activeAlertTsPath;
@@ -41,6 +50,19 @@ namespace WeatherImageGenerator.Services
         private readonly object _alertDurationLock = new();
         private readonly ManualResetEventSlim _alertSignal = new(false);
         private int _alertGeneration; // incremented per alert to prevent stale-signal races
+
+        // ── Regex to extract channel ID from HTTP request path ─────────────
+        // Matches: /stream/channels/{id}.ts  or  /stream/{N}.ts  or just /{id}.ts
+        private static readonly Regex ChannelPathRegex = new(
+            @"/(?:stream/(?:channels/)?)?([^/]+?)(?:\.ts)?(?:\?.*)?$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // ── Sentinel returned by HandleHttpHandshake when the request was an API
+        //    proxy (already fully handled — caller should just close the connection).
+        private const string API_PROXY_HANDLED = "\x00__API_PROXIED__";
+
+        // ── Shared HttpClient for short-lived API proxy requests ───────────
+        private static readonly HttpClient _apiProxyClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
         // ────────────────────────────────────────────────────────────────────
         // Construction
@@ -63,41 +85,35 @@ namespace WeatherImageGenerator.Services
             {
                 _cts = new CancellationTokenSource();
 
-                // Start a TCP listener for the configured listen port.
-                // All alert-enabled channels share one port; the pipe reads from
-                // the first alert-enabled channel's Tunarr stream.
-                var alertChannel = _settings.Channels.FirstOrDefault(c => c.AlertInterruptEnabled);
-                if (alertChannel == null && _settings.Channels.Count > 0)
-                    alertChannel = _settings.Channels[0];
-
-                if (alertChannel == null)
+                if (_settings.Channels.Count == 0)
                 {
                     Logger.Log("[StreamPipe] No channels configured — nothing to pipe.", Logger.LogLevel.Warning);
                     return;
                 }
 
-                // Start one listener per channel on sequential ports
+                // Register all channels (single shared listener — no per-channel ports)
                 foreach (var ch in _settings.Channels)
                 {
-                    int listenPort = ch.ProxyChannelNumber == _settings.Channels[0].ProxyChannelNumber
-                        ? _settings.ListenPort
-                        : _settings.ListenPort + (ch.ProxyChannelNumber - _settings.Channels[0].ProxyChannelNumber);
-
-                    var state = new ChannelPipeState(ch, listenPort);
+                    var state = new ChannelPipeState(ch, _settings.ListenPort);
                     _channels[ch.ProxyChannelNumber] = state;
 
-                    _ = StartChannelListener(state, _cts.Token);
+                    // Index by TunarrChannelId for HTTP path-based routing
+                    if (!string.IsNullOrEmpty(ch.TunarrChannelId))
+                        _channelsByTunarrId[ch.TunarrChannelId] = state;
                 }
+
+                // Start single shared TCP listener on the public port
+                _ = StartSharedListener(_cts.Token);
 
                 IsRunning = true;
 
                 string localIp = NetworkHelper.GetLocalIPAddress();
-                Logger.Log($"[StreamPipe] ✓ MPEG-TS byte pipe started", Logger.LogLevel.Info);
+                Logger.Log($"[StreamPipe] ✓ MPEG-TS byte pipe started on port {_settings.ListenPort}", Logger.LogLevel.Info);
                 Logger.Log($"[StreamPipe]   Tunarr upstream: {_settings.TunarrBaseUrl}", Logger.LogLevel.Info);
-                foreach (var kv in _channels)
+                foreach (var kv in _channels.OrderBy(k => k.Key))
                 {
                     var s = kv.Value;
-                    Logger.Log($"[StreamPipe]   Channel {s.Config.ProxyChannelNumber} ({s.Config.DisplayName}): tcp://{localIp}:{s.ListenPort}  alert={s.Config.AlertInterruptEnabled}", Logger.LogLevel.Info);
+                    Logger.Log($"[StreamPipe]   Channel {s.Config.ProxyChannelNumber} ({s.Config.DisplayName}): http://{localIp}:{_settings.ListenPort}/stream/channels/{s.Config.TunarrChannelId}.ts  alert={s.Config.AlertInterruptEnabled}", Logger.LogLevel.Info);
                 }
             }
             catch (Exception ex)
@@ -115,9 +131,12 @@ namespace WeatherImageGenerator.Services
             {
                 _cts?.Cancel();
 
+                try { _sharedListener?.Stop(); } catch { }
+
                 foreach (var kv in _channels)
                     kv.Value.Dispose();
                 _channels.Clear();
+                _channelsByTunarrId.Clear();
 
                 IsRunning = false;
                 Logger.Log("[StreamPipe] Pipe stopped.", Logger.LogLevel.Info);
@@ -165,73 +184,91 @@ namespace WeatherImageGenerator.Services
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // Per-channel TCP listener
+        // Single shared TCP listener
         // ────────────────────────────────────────────────────────────────────
 
-        private async Task StartChannelListener(ChannelPipeState state, CancellationToken ct)
+        private async Task StartSharedListener(CancellationToken ct)
         {
-            var listener = new TcpListener(
+            _sharedListener = new TcpListener(
                 _settings.AllowRemoteAccess ? IPAddress.Any : IPAddress.Loopback,
-                state.ListenPort);
-
-            state.Listener = listener;
+                _settings.ListenPort);
 
             try
             {
-                listener.Start();
-                Logger.Log($"[StreamPipe] Channel {state.Config.ProxyChannelNumber}: listening on port {state.ListenPort}", Logger.LogLevel.Debug);
+                _sharedListener.Start();
+                Logger.Log($"[StreamPipe] Listening on port {_settings.ListenPort} (all channels)", Logger.LogLevel.Debug);
 
                 while (!ct.IsCancellationRequested)
                 {
                     TcpClient client;
                     try
                     {
-                        client = await listener.AcceptTcpClientAsync(ct);
+                        client = await _sharedListener.AcceptTcpClientAsync(ct);
                     }
                     catch (OperationCanceledException) { break; }
                     catch (ObjectDisposedException) { break; }
                     catch (SocketException) { break; }
 
-                    // Handle each client in its own task (tracked for clean shutdown)
-                    var clientTask = HandleClient(state, client, ct);
-                    state.TrackClientTask(clientTask);
+                    // Route and handle each client in its own task
+                    _ = Task.Run(() => RouteAndHandleClient(client, ct), ct);
                 }
             }
             catch (SocketException ex)
             {
-                Logger.Log($"[StreamPipe] Channel {state.Config.ProxyChannelNumber}: listener failed on port {state.ListenPort}: {ex.Message}", Logger.LogLevel.Error);
+                Logger.Log($"[StreamPipe] Listener failed on port {_settings.ListenPort}: {ex.Message}", Logger.LogLevel.Error);
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
-                Logger.Log($"[StreamPipe] Channel {state.Config.ProxyChannelNumber}: listener error: {ex.Message}", Logger.LogLevel.Error);
+                Logger.Log($"[StreamPipe] Listener error: {ex.Message}", Logger.LogLevel.Error);
             }
             finally
             {
-                try { listener.Stop(); } catch { }
+                try { _sharedListener?.Stop(); } catch { }
             }
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // Per-client pipe loop
+        // Client routing (parses HTTP path → channel)
         // ────────────────────────────────────────────────────────────────────
 
-        private async Task HandleClient(ChannelPipeState channelState, TcpClient tcpClient, CancellationToken ct)
+        /// <summary>
+        /// Accepts a new TCP connection, reads the HTTP request (if any) to determine
+        /// which channel the client wants, then routes to the correct channel pipe.
+        /// </summary>
+        private async Task RouteAndHandleClient(TcpClient tcpClient, CancellationToken ct)
         {
             var clientId = Guid.NewGuid().ToString("N")[..8];
-            channelState.IncrementClients();
-            Logger.Log($"[StreamPipe] Client {clientId} connected to channel {channelState.Config.ProxyChannelNumber} ({channelState.Config.DisplayName})", Logger.LogLevel.Info);
+            ChannelPipeState? channelState = null;
 
             try
             {
                 tcpClient.NoDelay = true;
                 tcpClient.SendBufferSize = 65536;
-                tcpClient.Client.SetSocketOption(System.Net.Sockets.SocketOptionLevel.Socket, System.Net.Sockets.SocketOptionName.KeepAlive, true);
+                tcpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
 
                 using var clientStream = tcpClient.GetStream();
 
-                // If the client sends an HTTP GET request, consume it and send a minimal
-                // HTTP 200 response so HTTP-based players (VLC http://, Plex, etc.) work.
-                await HandleHttpHandshakeIfNeeded(clientStream, ct);
+                // Read HTTP request and extract channel ID from path.
+                // Also sends the HTTP 200 response if it's an HTTP client.
+                // Non-stream (API) requests are transparently proxied to Tunarr.
+                string? resolvedChannelId = await HandleHttpHandshake(clientStream, ct);
+
+                // If the request was already handled as an API proxy, we're done
+                if (resolvedChannelId == API_PROXY_HANDLED)
+                    return;
+
+                // Resolve channel: try by TunarrChannelId first, then by channel number
+                channelState = ResolveChannel(resolvedChannelId);
+
+                if (channelState == null)
+                {
+                    Logger.Log($"[StreamPipe] Client {clientId}: could not resolve channel from request (path id='{resolvedChannelId ?? "null"}') — rejecting", Logger.LogLevel.Warning);
+                    return;
+                }
+
+                channelState.IncrementClients();
+
+                Logger.Log($"[StreamPipe] Client {clientId} connected to channel {channelState.Config.ProxyChannelNumber} ({channelState.Config.DisplayName})", Logger.LogLevel.Info);
 
                 await PipeStreamLoop(channelState.Config, channelState, clientStream, clientId, ct);
             }
@@ -246,22 +283,67 @@ namespace WeatherImageGenerator.Services
             }
             finally
             {
-                Logger.Log($"[StreamPipe] Client {clientId} disconnected from channel {channelState.Config.ProxyChannelNumber}", Logger.LogLevel.Info);
-                channelState.DecrementClients();
+                if (channelState != null)
+                {
+                    Logger.Log($"[StreamPipe] Client {clientId} disconnected from channel {channelState.Config.ProxyChannelNumber}", Logger.LogLevel.Info);
+                    channelState.DecrementClients();
+                }
                 try { tcpClient.Close(); } catch { }
             }
         }
 
         /// <summary>
-        /// Peek at incoming bytes. If the client sent "GET " (HTTP request), consume the
-        /// request headers and respond with a minimal HTTP 200 + MPEG-TS content type.
-        /// This lets HTTP-capable players connect via http://host:port/ without needing
-        /// a full HTTP server.
+        /// Resolves a channel ID string to a ChannelPipeState.
+        /// Tries: exact TunarrChannelId match → case-insensitive → channel number → fallback.
         /// </summary>
-        private static async Task HandleHttpHandshakeIfNeeded(NetworkStream stream, CancellationToken ct)
+        private ChannelPipeState? ResolveChannel(string? channelId)
         {
-            // Set a short read timeout to peek for HTTP headers
+            if (string.IsNullOrEmpty(channelId))
+            {
+                // No HTTP path or raw TCP client — fall back to first channel
+                return _channels.Values.FirstOrDefault();
+            }
+
+            // Try exact TunarrChannelId match (UUID)
+            if (_channelsByTunarrId.TryGetValue(channelId, out var byId))
+                return byId;
+
+            // Try case-insensitive TunarrChannelId match
+            var caseInsensitive = _channelsByTunarrId
+                .FirstOrDefault(kv => string.Equals(kv.Key, channelId, StringComparison.OrdinalIgnoreCase));
+            if (caseInsensitive.Value != null)
+                return caseInsensitive.Value;
+
+            // Try parsing as a channel number
+            if (int.TryParse(channelId, out int chNum) && _channels.TryGetValue(chNum, out var byNum))
+                return byNum;
+
+            // No match — fall back to first channel
+            Logger.Log($"[StreamPipe] Channel ID '{channelId}' not found — falling back to first channel", Logger.LogLevel.Warning);
+            return _channels.Values.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Returns true if the HTTP request path is a stream path that should be
+        /// handled by the pipe. All other paths are proxied transparently to Tunarr.
+        /// </summary>
+        private static bool IsStreamPath(string path)
+        {
+            return path.StartsWith("/stream/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Reads the HTTP request from the client (if present), sends an HTTP 200 response,
+        /// and extracts the channel ID from the request path.
+        /// Non-stream paths (API requests such as /api/xmltv.xml, /api/channels.m3u,
+        /// HDHR discovery, etc.) are transparently proxied to Tunarr's internal port.
+        /// Returns the extracted channel ID string, null if no HTTP request was sent,
+        /// or API_PROXY_HANDLED if the request was already proxied to Tunarr.
+        /// </summary>
+        private async Task<string?> HandleHttpHandshake(NetworkStream stream, CancellationToken ct)
+        {
             stream.ReadTimeout = 500; // ms
+            string? channelId = null;
 
             try
             {
@@ -276,11 +358,35 @@ namespace WeatherImageGenerator.Services
                     if (bytesRead >= 4)
                     {
                         string header = System.Text.Encoding.ASCII.GetString(peekBuf, 0, Math.Min(bytesRead, 512));
+
                         if (header.StartsWith("GET ", StringComparison.OrdinalIgnoreCase))
                         {
-                            // It's an HTTP request — send HTTP response headers.
-                            // NO Transfer-Encoding or Content-Length — the stream is
-                            // indeterminate-length; the client reads until we close.
+                            // Extract request path: "GET /stream/channels/{id}.ts HTTP/1.1\r\n..."
+                            int pathStart = 4; // after "GET "
+                            int pathEnd = header.IndexOf(' ', pathStart);
+                            if (pathEnd < 0) pathEnd = header.IndexOf('\r', pathStart);
+                            if (pathEnd < 0) pathEnd = header.Length;
+
+                            string requestPath = header.Substring(pathStart, pathEnd - pathStart);
+
+                            // ── Non-stream request → proxy to Tunarr's internal port ──
+                            if (!IsStreamPath(requestPath))
+                            {
+                                stream.ReadTimeout = Timeout.Infinite;
+                                await ProxyApiRequestToTunarr(stream, requestPath, ct);
+                                return API_PROXY_HANDLED;
+                            }
+
+                            // ── Stream request → extract channel ID ──
+                            var match = ChannelPathRegex.Match(requestPath);
+                            if (match.Success)
+                            {
+                                channelId = match.Groups[1].Value;
+                            }
+
+                            Logger.Log($"[StreamPipe] HTTP request: GET {requestPath} → channel id='{channelId ?? "?"}'", Logger.LogLevel.Debug);
+
+                            // Send HTTP 200 response for MPEG-TS stream
                             string httpResponse =
                                 "HTTP/1.1 200 OK\r\n" +
                                 "Content-Type: video/mp2t\r\n" +
@@ -302,6 +408,69 @@ namespace WeatherImageGenerator.Services
             finally
             {
                 stream.ReadTimeout = Timeout.Infinite; // restore for streaming
+            }
+
+            return channelId;
+        }
+
+        /// <summary>
+        /// Forwards a non-stream HTTP GET request to Tunarr's internal port and writes
+        /// the complete HTTP response (status line + headers + body) back to the client.
+        /// This allows API endpoints like /api/xmltv.xml, /api/channels.m3u, HDHR
+        /// discovery (/discover.json, /lineup.json, etc.) to work transparently through
+        /// the proxy.
+        /// </summary>
+        private async Task ProxyApiRequestToTunarr(NetworkStream clientStream, string requestPath, CancellationToken ct)
+        {
+            try
+            {
+                string tunarrUrl = $"{_settings.TunarrBaseUrl.TrimEnd('/')}{requestPath}";
+                Logger.Log($"[StreamPipe] API proxy: GET {requestPath} → {tunarrUrl}", Logger.LogLevel.Debug);
+
+                using var response = await _apiProxyClient.GetAsync(tunarrUrl, ct);
+
+                // Build the raw HTTP response to send back to the client
+                var sb = new StringBuilder();
+                sb.Append($"HTTP/1.1 {(int)response.StatusCode} {response.ReasonPhrase}\r\n");
+
+                // Forward response headers
+                foreach (var h in response.Headers)
+                    foreach (var v in h.Value)
+                        sb.Append($"{h.Key}: {v}\r\n");
+                foreach (var h in response.Content.Headers)
+                    foreach (var v in h.Value)
+                        sb.Append($"{h.Key}: {v}\r\n");
+
+                sb.Append("Access-Control-Allow-Origin: *\r\n");
+                sb.Append("Connection: close\r\n");
+                sb.Append("\r\n");
+
+                var headerBytes = Encoding.ASCII.GetBytes(sb.ToString());
+                await clientStream.WriteAsync(headerBytes, 0, headerBytes.Length, ct);
+
+                // Forward the body
+                var body = await response.Content.ReadAsByteArrayAsync(ct);
+                if (body.Length > 0)
+                {
+                    await clientStream.WriteAsync(body, 0, body.Length, ct);
+                }
+
+                await clientStream.FlushAsync(ct);
+                Logger.Log($"[StreamPipe] API proxy: {requestPath} → {(int)response.StatusCode} ({body.Length} bytes)", Logger.LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[StreamPipe] API proxy error for {requestPath}: {ex.Message}", Logger.LogLevel.Warning);
+
+                // Try to send a 502 Bad Gateway response
+                try
+                {
+                    string errResponse = "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n";
+                    var errBytes = Encoding.ASCII.GetBytes(errResponse);
+                    await clientStream.WriteAsync(errBytes, 0, errBytes.Length, ct);
+                    await clientStream.FlushAsync(ct);
+                }
+                catch { }
             }
         }
 
@@ -325,6 +494,9 @@ namespace WeatherImageGenerator.Services
             long timestampOffset = 0; // 90kHz tick offset for splice transitions
             long lastPcrSeen = 0;
             long lastPtsSeen = 0;
+
+            // ── Upstream PID map (learned from PAT/PMT) for splice PID remapping ──
+            var upstreamPidMap = new UpstreamPidMap();
 
             int consecutiveFailures = 0;
             int maxRetries = Math.Max(_settings.MaxReconnectRetries, 1);
@@ -375,7 +547,7 @@ namespace WeatherImageGenerator.Services
 
                                     try
                                     {
-                                        var spliceResult = await SpliceAlertTs(alertPath, clientStream, ccTracker, preAlertPts, ct);
+                                        var spliceResult = await SpliceAlertTs(alertPath, clientStream, ccTracker, preAlertPts, upstreamPidMap, clientId, ct);
 
                                         // Mark that we need to recalculate timestamp offset
                                         // on the next PCR from Tunarr, so timestamps remain monotonic
@@ -383,25 +555,22 @@ namespace WeatherImageGenerator.Services
                                         lastPtsSeen = spliceResult.EndPts;
                                         lastPcrSeen = spliceResult.EndPcr;
 
+                                        // Mark this generation as spliced so we don't re-splice
+                                        // the same alert in a tight loop
+                                        lastSplicedGeneration = currentGen;
+
                                         Logger.Log($"[StreamPipe] {clientId}: ✓ Alert splice complete — resuming Tunarr (endPts={spliceResult.EndPts / 90000.0:F2}s)", Logger.LogLevel.Info);
                                     }
-                                    catch (Exception spliceEx) when (!ct.IsCancellationRequested)
+                                    catch (Exception spliceEx) when (spliceEx is IOException || spliceEx is SocketException)
                                     {
-                                        Logger.Log($"[StreamPipe] {clientId}: Alert splice failed: {spliceEx.Message}", Logger.LogLevel.Error);
+                                        // Client disconnected during splice — propagate so outer handler exits cleanly
+                                        Logger.Log($"[StreamPipe] {clientId}: Alert splice failed (client disconnected): {spliceEx.Message}", Logger.LogLevel.Warning);
+                                        throw;
                                     }
 
-                                    lastSplicedGeneration = currentGen;
-
-                                    // Continue reading from the SAME upstream — no reconnect needed.
-                                    // The upstream kept sending data while we spliced; we just need to
-                                    // drain/skip to the next keyframe and adjust timestamps.
-                                    // The timestamp recalc flag will be handled below on next PCR read.
-                                    if (needTimestampRecalc)
-                                    {
-                                        // We'll compute the new offset on the first PCR packet we read
-                                        // from Tunarr after the splice. Set a sentinel value.
-                                        timestampOffset = long.MinValue; // sentinel: "recalculate on next PCR"
-                                    }
+                                    // We'll compute the new offset on the first PCR packet we read
+                                    // from Tunarr after the splice. Set a sentinel value.
+                                    timestampOffset = long.MinValue; // sentinel: "recalculate on next PCR"
 
                                     continue; // resume inner loop — read from upstream
                                 }
@@ -505,6 +674,9 @@ namespace WeatherImageGenerator.Services
                                 }
                             }
 
+                            // ── Learn upstream PID structure from PAT/PMT ──
+                            upstreamPidMap.LearnFromPacket(workBuf, pos);
+
                             pos += MpegTsHelper.PacketSize;
                         }
 
@@ -524,14 +696,56 @@ namespace WeatherImageGenerator.Services
                         }
                     }
                 }
-                catch (Exception ex) when (!ct.IsCancellationRequested)
+                catch (Exception ex) when (ex is IOException || ex is SocketException)
                 {
+                    // Distinguish client disconnect from upstream failure:
+                    // If we can't write null packets to the client, the client is gone.
+                    bool clientAlive = true;
+                    try
+                    {
+                        var nullPkt = MpegTsHelper.CreateNullPacket();
+                        await clientStream.WriteAsync(nullPkt, 0, nullPkt.Length, ct);
+                        await clientStream.FlushAsync(ct);
+                    }
+                    catch
+                    {
+                        clientAlive = false;
+                    }
+
+                    if (!clientAlive)
+                        throw; // re-throw so RouteAndHandleClient catches it as a clean disconnect
+
+                    // Client is alive — this was an upstream failure
                     consecutiveFailures++;
                     int backoffMs = Math.Min(reconnectBaseMs * (1 << Math.Min(consecutiveFailures, 4)), 15000);
 
                     Logger.Log($"[StreamPipe] {clientId}: Upstream connection lost ({ex.Message}). Reconnecting in {backoffMs / 1000.0:F0}s... (attempt {consecutiveFailures}/{maxRetries})", Logger.LogLevel.Warning);
 
-                    // Send null packets to keep client decoder alive
+                    // Send more null packets to keep client decoder alive
+                    try
+                    {
+                        var nullPkt = MpegTsHelper.CreateNullPacket();
+                        for (int i = 0; i < 49; i++)
+                            await clientStream.WriteAsync(nullPkt, 0, nullPkt.Length, ct);
+                        await clientStream.FlushAsync(ct);
+                    }
+                    catch { break; }
+
+                    if (consecutiveFailures >= maxRetries)
+                    {
+                        Logger.Log($"[StreamPipe] {clientId}: Too many consecutive upstream failures ({maxRetries}). Dropping client.", Logger.LogLevel.Error);
+                        break;
+                    }
+
+                    await Task.Delay(backoffMs, ct);
+                }
+                catch (Exception ex) when (!ct.IsCancellationRequested)
+                {
+                    consecutiveFailures++;
+                    int backoffMs = Math.Min(reconnectBaseMs * (1 << Math.Min(consecutiveFailures, 4)), 15000);
+
+                    Logger.Log($"[StreamPipe] {clientId}: Upstream error ({ex.Message}). Reconnecting in {backoffMs / 1000.0:F0}s... (attempt {consecutiveFailures}/{maxRetries})", Logger.LogLevel.Warning);
+
                     try
                     {
                         var nullPkt = MpegTsHelper.CreateNullPacket();
@@ -539,7 +753,7 @@ namespace WeatherImageGenerator.Services
                             await clientStream.WriteAsync(nullPkt, 0, nullPkt.Length, ct);
                         await clientStream.FlushAsync(ct);
                     }
-                    catch { break; } // client gone too
+                    catch { break; }
 
                     if (consecutiveFailures >= maxRetries)
                     {
@@ -557,21 +771,45 @@ namespace WeatherImageGenerator.Services
         // ────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Reads the alert .ts file and writes it to the client stream, rewriting
-        /// continuity counters and offsetting timestamps for seamless splice.
+        /// Splices an alert .ts into the client stream. The approach:
+        ///   1. Send a burst of null packets to cleanly break the decoder's state
+        ///   2. Send the complete alert .ts with its own PAT/PMT (like a channel change),
+        ///      rewriting only CC counters and timestamp offsets
+        ///   3. The file is written as fast as I/O allows — decoders buffer the data
+        ///      and use PTS timestamps to render at the correct playback rate
+        /// When the caller resumes the Tunarr stream, Tunarr's PAT/PMT will re-establish
+        /// the original program. This "channel-change" approach is widely supported by
+        /// all MPEG-TS clients including Plex, Jellyfin, VLC, and hardware STBs.
         /// </summary>
         private static async Task<(long EndPts, long EndPcr)> SpliceAlertTs(
             string alertTsPath,
             Stream clientStream,
             ConcurrentDictionary<int, int> ccTracker,
             long baseTimestamp,
+            UpstreamPidMap upstreamPids,
+            string clientId,
             CancellationToken ct)
         {
             long endPts = baseTimestamp;
             long endPcr = baseTimestamp;
 
+            // ── Step 1: Send null packet burst to signal a clean break ──
+            // ~500 null packets (~92KB) creates a gap the decoder can use to
+            // drain buffers and reset. This is standard practice in low-cost
+            // MPEG-TS ad-insertion systems.
+            var nullPkt = MpegTsHelper.CreateNullPacket();
+            var nullBurst = new byte[MpegTsHelper.PacketSize * 500];
+            for (int i = 0; i < 500; i++)
+                Buffer.BlockCopy(nullPkt, 0, nullBurst, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
+
+            await clientStream.WriteAsync(nullBurst, 0, nullBurst.Length, ct);
+            await clientStream.FlushAsync(ct);
+
+            Logger.Log($"[StreamPipe] {clientId}: Sent {nullBurst.Length / 1024}KB null packet gap before alert splice", Logger.LogLevel.Debug);
+
+            // ── Step 2: Read and forward alert .ts with CC + timestamp rewrite ──
             using var fs = new FileStream(alertTsPath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536);
-            var buffer = new byte[MpegTsHelper.PacketSize * 49];
+            var buffer = new byte[MpegTsHelper.PacketSize * 49]; // ~9KB per read
             long alertTickOffset = baseTimestamp;
 
             int bytesRead;
@@ -589,8 +827,12 @@ namespace WeatherImageGenerator.Services
                         continue;
                     }
 
+                    // Rewrite CC counters and offset timestamps — nothing else.
+                    // The alert's own PAT/PMT flow through untouched (except CC),
+                    // so the client can lock onto the new program structure.
                     RewritePacket(buffer, pos, ccTracker, alertTickOffset);
 
+                    // Track end timestamps for the caller
                     if (MpegTsHelper.HasPcr(buffer, pos))
                     {
                         long pcr = MpegTsHelper.GetPcrBase(buffer, pos);
@@ -606,11 +848,55 @@ namespace WeatherImageGenerator.Services
                 if (writeLen > 0)
                 {
                     await clientStream.WriteAsync(buffer, syncOff, writeLen, ct);
-                    await clientStream.FlushAsync(ct);
                 }
             }
 
+            // Flush after sending all alert data
+            await clientStream.FlushAsync(ct);
+
+            // Send another small null burst to signal end of alert before Tunarr resumes
+            var smallNull = new byte[MpegTsHelper.PacketSize * 50];
+            for (int i = 0; i < 50; i++)
+                Buffer.BlockCopy(nullPkt, 0, smallNull, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
+            await clientStream.WriteAsync(smallNull, 0, smallNull.Length, ct);
+            await clientStream.FlushAsync(ct);
+
             return (endPts, endPcr);
+        }
+
+        /// <summary>
+        /// Builds a PID remap table: alert file PIDs → upstream (Tunarr) PIDs.
+        /// Maps PMT PID, video PID(s), audio PID(s), and PCR PID.
+        /// Currently unused but retained for future PID-remapping splice mode.
+        /// </summary>
+        private static Dictionary<int, int> BuildPidRemapTable(UpstreamPidMap alertPids, UpstreamPidMap upstreamPids)
+        {
+            var remap = new Dictionary<int, int>();
+
+            // Don't remap if we haven't learned the upstream PIDs yet
+            if (!upstreamPids.IsLearned) return remap;
+            if (!alertPids.IsLearned) return remap;
+
+            // Remap PMT PID
+            if (alertPids.PmtPid > 0 && upstreamPids.PmtPid > 0 && alertPids.PmtPid != upstreamPids.PmtPid)
+                remap[alertPids.PmtPid] = upstreamPids.PmtPid;
+
+            // Remap video PID
+            if (alertPids.VideoPid > 0 && upstreamPids.VideoPid > 0 && alertPids.VideoPid != upstreamPids.VideoPid)
+                remap[alertPids.VideoPid] = upstreamPids.VideoPid;
+
+            // Remap audio PID
+            if (alertPids.AudioPid > 0 && upstreamPids.AudioPid > 0 && alertPids.AudioPid != upstreamPids.AudioPid)
+                remap[alertPids.AudioPid] = upstreamPids.AudioPid;
+
+            // Remap PCR PID (often same as video, but could be separate)
+            if (alertPids.PcrPid > 0 && upstreamPids.PcrPid > 0 && alertPids.PcrPid != upstreamPids.PcrPid)
+            {
+                if (!remap.ContainsKey(alertPids.PcrPid))
+                    remap[alertPids.PcrPid] = upstreamPids.PcrPid;
+            }
+
+            return remap;
         }
 
         /// <summary>
@@ -658,10 +944,8 @@ namespace WeatherImageGenerator.Services
         {
             public ProxyChannelConfig Config { get; }
             public int ListenPort { get; }
-            public TcpListener? Listener { get; set; }
             private int _clientCount;
             public int ClientCount => _clientCount;
-            private readonly ConcurrentBag<Task> _clientTasks = new();
 
             public ChannelPipeState(ProxyChannelConfig config, int listenPort)
             {
@@ -671,17 +955,61 @@ namespace WeatherImageGenerator.Services
 
             public void IncrementClients() => Interlocked.Increment(ref _clientCount);
             public void DecrementClients() => Interlocked.Decrement(ref _clientCount);
-            public void TrackClientTask(Task task) => _clientTasks.Add(task);
 
-            public void Dispose()
+            public void Dispose() { }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Upstream PID map — learned from PAT/PMT flowing through the pipe
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Tracks the PID structure of the upstream MPEG-TS by parsing PAT and PMT
+        /// packets as they flow through the pipe. Used to remap alert .ts PIDs so
+        /// they match the upstream's program structure, enabling clean splicing.
+        /// </summary>
+        private class UpstreamPidMap
+        {
+            public int PmtPid { get; private set; } = -1;
+            public int PcrPid { get; private set; } = -1;
+            public int VideoPid { get; private set; } = -1;
+            public int AudioPid { get; private set; } = -1;
+
+            /// <summary>True once we've successfully parsed both PAT and PMT.</summary>
+            public bool IsLearned => PmtPid > 0 && (VideoPid > 0 || AudioPid > 0);
+
+            private readonly HashSet<int> _pmtPids = new();
+
+            /// <summary>
+            /// Inspects a TS packet. If it's a PAT, learns the PMT PID(s).
+            /// If it's a PMT, learns video/audio/PCR PIDs.
+            /// </summary>
+            public void LearnFromPacket(byte[] buffer, int offset)
             {
-                try { Listener?.Stop(); } catch { }
+                int pid = MpegTsHelper.GetPid(buffer, offset);
 
-                // Wait briefly for active client handlers to drain
-                var activeTasks = _clientTasks.Where(t => !t.IsCompleted).ToArray();
-                if (activeTasks.Length > 0)
+                if (pid == MpegTsHelper.PidPat && MpegTsHelper.HasPayloadUnitStart(buffer, offset))
                 {
-                    try { Task.WaitAll(activeTasks, TimeSpan.FromSeconds(3)); } catch { }
+                    var pmtPids = MpegTsHelper.ParsePatForPmtPids(buffer, offset);
+                    if (pmtPids.Count > 0)
+                    {
+                        PmtPid = pmtPids[0]; // use first program's PMT
+                        _pmtPids.Clear();
+                        foreach (var p in pmtPids) _pmtPids.Add(p);
+                    }
+                }
+                else if (_pmtPids.Contains(pid) && MpegTsHelper.HasPayloadUnitStart(buffer, offset))
+                {
+                    var (pcrPid, streams) = MpegTsHelper.ParsePmt(buffer, offset);
+                    if (pcrPid >= 0) PcrPid = pcrPid;
+
+                    foreach (var (streamType, esPid) in streams)
+                    {
+                        if (MpegTsHelper.IsVideoStreamType(streamType) && VideoPid < 0)
+                            VideoPid = esPid;
+                        else if (MpegTsHelper.IsAudioStreamType(streamType) && AudioPid < 0)
+                            AudioPid = esPid;
+                    }
                 }
             }
         }

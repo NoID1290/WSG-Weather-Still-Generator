@@ -2776,16 +2776,36 @@ namespace WeatherImageGenerator.Forms
                 proxySettings.TunarrStreamCachePath = txtTunarrStreamCachePath.Text.Trim();
                 proxySettings.HlsSegmentDurationSeconds = (int)numHlsSegmentDuration.Value;
 
-                // Restart pipe if port changed while running
-                if (chkProxyEnabled.Checked && proxyWasEnabled &&
-                    (oldPublicPort != proxySettings.TunarrPublicPort || oldInternalPort != proxySettings.TunarrInternalPort))
+                // Ensure StreamPipe service matches enabled state
+                if (proxySettings.Enabled)
                 {
-                    StopStreamProxyService();
-                    Program.SetStreamPipeService(null);
-                    StartStreamProxyService();
+                    var sp = Program.StreamPipeService;
+                    if (sp == null || !sp.IsRunning)
+                    {
+                        // First start, or service died — (re)start
+                        StopStreamProxyService();
+                        Program.SetStreamPipeService(null);
+                        StartStreamProxyService();
+                    }
+                    else if (proxyWasEnabled &&
+                        (oldPublicPort != proxySettings.TunarrPublicPort || oldInternalPort != proxySettings.TunarrInternalPort))
+                    {
+                        // Ports changed while running — restart
+                        StopStreamProxyService();
+                        Program.SetStreamPipeService(null);
+                        StartStreamProxyService();
+                    }
+                }
+                else
+                {
+                    var sp = Program.StreamPipeService;
+                    if (sp?.IsRunning == true)
+                    {
+                        StopStreamProxyService();
+                    }
                 }
 
-                // Restart HLS injector if settings changed while running
+                // Ensure HLS injector matches enabled state (independent of StreamPipe)
                 var hlsInjector = Program.HlsAlertInjector;
                 if (proxySettings.HlsInjectionEnabled)
                 {

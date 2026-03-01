@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace WeatherImageGenerator.Utilities
 {
@@ -351,6 +352,152 @@ namespace WeatherImageGenerator.Utilities
             pkt[3] = 0x10; // AFC = 01 (payload only), CC = 0
             // rest is 0x00 (valid stuffing)
             return pkt;
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Discontinuity indicator
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Sets the discontinuity_indicator bit in the adaptation field.
+        /// If the packet has no adaptation field, modifies the AFC to include one
+        /// (stealing one byte from the payload to create a minimal adaptation field).
+        /// </summary>
+        public static void SetDiscontinuityIndicator(byte[] packet, int offset = 0)
+        {
+            int afc = GetAdaptationFieldControl(packet, offset);
+
+            if (afc == 2 || afc == 3)
+            {
+                // Adaptation field already present — just set the discontinuity bit
+                int afLen = packet[offset + 4];
+                if (afLen >= 1)
+                {
+                    packet[offset + 5] |= 0x80; // discontinuity_indicator is bit 7
+                }
+            }
+            else if (afc == 1)
+            {
+                // Payload only — change AFC to 3 (adaptation + payload) and inject
+                // a minimal 1-byte adaptation field with discontinuity set.
+                packet[offset + 3] = (byte)((packet[offset + 3] & 0x0F) | 0x30); // AFC = 11
+                // Shift payload right by 2 bytes to make room: af_length(1) + af_flags(1)
+                // For simplicity, we just set the flags in the space where payload was.
+                // This corrupts 2 payload bytes at the start, which is acceptable for a
+                // splice-point transition packet.
+                packet[offset + 4] = 0x01; // adaptation field length = 1
+                packet[offset + 5] = 0x80; // discontinuity_indicator = 1
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // PAT / PMT parsing for PID discovery
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Parses a PAT packet and returns the PMT PID(s).
+        /// Returns an empty list if the packet is not a valid PAT.
+        /// </summary>
+        public static List<int> ParsePatForPmtPids(byte[] packet, int packetOffset = 0)
+        {
+            var pmtPids = new List<int>();
+            if (GetPid(packet, packetOffset) != PidPat) return pmtPids;
+            if (!HasPayloadUnitStart(packet, packetOffset)) return pmtPids;
+
+            int payOff = GetPayloadOffset(packet, packetOffset);
+            if (payOff < 0) return pmtPids;
+
+            // Skip pointer field
+            int pointer = packet[payOff];
+            int tableStart = payOff + 1 + pointer;
+            if (tableStart + 8 > packetOffset + PacketSize) return pmtPids;
+
+            // table_id should be 0x00 for PAT
+            if (packet[tableStart] != 0x00) return pmtPids;
+
+            int sectionLength = ((packet[tableStart + 1] & 0x0F) << 8) | packet[tableStart + 2];
+            int dataStart = tableStart + 8; // skip header (table_id, section_length, transport_stream_id, version, section_number, last_section)
+            int dataEnd = Math.Min(tableStart + 3 + sectionLength - 4, packetOffset + PacketSize); // -4 for CRC
+
+            for (int i = dataStart; i + 3 < dataEnd; i += 4)
+            {
+                int programNum = (packet[i] << 8) | packet[i + 1];
+                int pid = ((packet[i + 2] & 0x1F) << 8) | packet[i + 3];
+                if (programNum != 0) // skip NIT (program 0)
+                    pmtPids.Add(pid);
+            }
+
+            return pmtPids;
+        }
+
+        /// <summary>
+        /// Parses a PMT packet and returns the elementary stream PIDs with their types.
+        /// Returns (pcrPid, list of (streamType, elementaryPid)).
+        /// </summary>
+        public static (int PcrPid, List<(int StreamType, int Pid)> Streams) ParsePmt(byte[] packet, int packetOffset = 0)
+        {
+            var streams = new List<(int StreamType, int Pid)>();
+            if (!HasPayloadUnitStart(packet, packetOffset))
+                return (-1, streams);
+
+            int payOff = GetPayloadOffset(packet, packetOffset);
+            if (payOff < 0) return (-1, streams);
+
+            // Skip pointer field
+            int pointer = packet[payOff];
+            int tableStart = payOff + 1 + pointer;
+            if (tableStart + 12 > packetOffset + PacketSize) return (-1, streams);
+
+            // table_id should be 0x02 for PMT
+            if (packet[tableStart] != 0x02) return (-1, streams);
+
+            int sectionLength = ((packet[tableStart + 1] & 0x0F) << 8) | packet[tableStart + 2];
+            int pcrPid = ((packet[tableStart + 8] & 0x1F) << 8) | packet[tableStart + 9];
+            int programInfoLength = ((packet[tableStart + 10] & 0x0F) << 8) | packet[tableStart + 11];
+
+            int esStart = tableStart + 12 + programInfoLength;
+            int esEnd = Math.Min(tableStart + 3 + sectionLength - 4, packetOffset + PacketSize);
+
+            int pos = esStart;
+            while (pos + 5 <= esEnd)
+            {
+                int streamType = packet[pos];
+                int esPid = ((packet[pos + 1] & 0x1F) << 8) | packet[pos + 2];
+                int esInfoLength = ((packet[pos + 3] & 0x0F) << 8) | packet[pos + 4];
+                streams.Add((streamType, esPid));
+                pos += 5 + esInfoLength;
+            }
+
+            return (pcrPid, streams);
+        }
+
+        /// <summary>
+        /// Rewrites the 13-bit PID in bytes 1-2 of a TS packet header.
+        /// </summary>
+        public static void SetPid(byte[] packet, int offset, int newPid)
+        {
+            packet[offset + 1] = (byte)((packet[offset + 1] & 0xE0) | ((newPid >> 8) & 0x1F));
+            packet[offset + 2] = (byte)(newPid & 0xFF);
+        }
+
+        /// <summary>
+        /// Determines if a stream type is video (H.264, H.265, MPEG-2, etc.).
+        /// </summary>
+        public static bool IsVideoStreamType(int streamType)
+        {
+            // 0x01/0x02 = MPEG-1/2, 0x1B = H.264, 0x24 = H.265, 0x10 = MPEG-4
+            return streamType == 0x01 || streamType == 0x02 || streamType == 0x1B ||
+                   streamType == 0x24 || streamType == 0x10;
+        }
+
+        /// <summary>
+        /// Determines if a stream type is audio (AAC, MP3, AC-3, etc.).
+        /// </summary>
+        public static bool IsAudioStreamType(int streamType)
+        {
+            // 0x03/0x04 = MPEG audio, 0x0F = AAC, 0x11 = AAC-LATM, 0x81 = AC-3, 0x06 = PES private (often audio)
+            return streamType == 0x03 || streamType == 0x04 || streamType == 0x0F ||
+                   streamType == 0x11 || streamType == 0x81 || streamType == 0x06;
         }
     }
 }

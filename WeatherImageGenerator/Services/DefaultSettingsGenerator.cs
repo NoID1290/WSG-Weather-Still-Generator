@@ -350,6 +350,13 @@ namespace WeatherImageGenerator.Services
                 needsSave = true;
             }
 
+            if (settings.StreamProxy == null)
+            {
+                settings.StreamProxy = new StreamProxySettings();
+                repairs.Add("Added missing [StreamProxy] section");
+                needsSave = true;
+            }
+
             if (settings.Music == null)
             {
                 settings.Music = defaults.Music;

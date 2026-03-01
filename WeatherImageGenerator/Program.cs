@@ -273,15 +273,25 @@ namespace WeatherImageGenerator
             // Initialize Stream Pipe (MPEG-TS EAS alert splice) if enabled
             if (bootConfig.StreamProxy?.Enabled ?? false)
             {
+                Logger.Log("[Boot] StreamPipe enabled — starting on port " + bootConfig.StreamProxy.ListenPort, Logger.LogLevel.Info);
                 _streamPipeService = new StreamPipeService(bootConfig.StreamProxy);
                 _streamPipeService.Start();
             }
+            else
+            {
+                Logger.Log($"[Boot] StreamPipe disabled (Enabled={bootConfig.StreamProxy?.Enabled ?? false})", Logger.LogLevel.Debug);
+            }
 
-            // Initialize HLS Alert Injector if enabled
+            // Initialize HLS Alert Injector if enabled (independent of StreamPipe)
             if (bootConfig.StreamProxy?.HlsInjectionEnabled ?? false)
             {
+                Logger.Log("[Boot] HLS Alert Injector enabled — cache: " + (bootConfig.StreamProxy.TunarrStreamCachePath ?? "(empty)"), Logger.LogLevel.Info);
                 _hlsAlertInjector = new HlsAlertInjectorService(bootConfig.StreamProxy);
                 _hlsAlertInjector.Start();
+            }
+            else
+            {
+                Logger.Log($"[Boot] HLS Alert Injector disabled (HlsInjectionEnabled={bootConfig.StreamProxy?.HlsInjectionEnabled ?? false})", Logger.LogLevel.Debug);
             }
 
             Application.Run(new MainForm());
