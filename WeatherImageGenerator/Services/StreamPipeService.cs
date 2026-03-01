@@ -192,8 +192,9 @@ namespace WeatherImageGenerator.Services
                     catch (ObjectDisposedException) { break; }
                     catch (SocketException) { break; }
 
-                    // Handle each client in its own task
-                    _ = HandleClient(state, client, ct);
+                    // Handle each client in its own task (tracked for clean shutdown)
+                    var clientTask = HandleClient(state, client, ct);
+                    state.TrackClientTask(clientTask);
                 }
             }
             catch (SocketException ex)
@@ -224,6 +225,7 @@ namespace WeatherImageGenerator.Services
             {
                 tcpClient.NoDelay = true;
                 tcpClient.SendBufferSize = 65536;
+                tcpClient.Client.SetSocketOption(System.Net.Sockets.SocketOptionLevel.Socket, System.Net.Sockets.SocketOptionName.KeepAlive, true);
 
                 using var clientStream = tcpClient.GetStream();
 
@@ -276,14 +278,15 @@ namespace WeatherImageGenerator.Services
                         string header = System.Text.Encoding.ASCII.GetString(peekBuf, 0, Math.Min(bytesRead, 512));
                         if (header.StartsWith("GET ", StringComparison.OrdinalIgnoreCase))
                         {
-                            // It's an HTTP request — send HTTP response headers
+                            // It's an HTTP request — send HTTP response headers.
+                            // NO Transfer-Encoding or Content-Length — the stream is
+                            // indeterminate-length; the client reads until we close.
                             string httpResponse =
                                 "HTTP/1.1 200 OK\r\n" +
                                 "Content-Type: video/mp2t\r\n" +
-                                "Connection: close\r\n" +
+                                "Connection: keep-alive\r\n" +
                                 "Cache-Control: no-cache, no-store\r\n" +
                                 "Access-Control-Allow-Origin: *\r\n" +
-                                "Transfer-Encoding: chunked\r\n" +
                                 "\r\n";
                             var respBytes = System.Text.Encoding.ASCII.GetBytes(httpResponse);
                             await stream.WriteAsync(respBytes, 0, respBytes.Length, ct);
@@ -344,6 +347,7 @@ namespace WeatherImageGenerator.Services
                     var buffer = new byte[MpegTsHelper.PacketSize * 49]; // ~9KB per read
                     var leftover = new byte[MpegTsHelper.PacketSize];
                     int leftoverLen = 0;
+                    var preallocWorkBuf = new byte[leftover.Length + buffer.Length]; // reusable work buffer
 
                     // Track which alert generation this client has already spliced
                     int lastSplicedGeneration = _alertGeneration;
@@ -423,14 +427,14 @@ namespace WeatherImageGenerator.Services
                             break; // break inner loop to reconnect upstream
                         }
 
-                        // ── Packet-aligned processing ──────────────────
+                        // ── Packet-aligned processing (zero-alloc) ────
                         byte[] workBuf;
                         int workLen;
                         if (leftoverLen > 0)
                         {
-                            workBuf = new byte[leftoverLen + bytesRead];
-                            Buffer.BlockCopy(leftover, 0, workBuf, 0, leftoverLen);
-                            Buffer.BlockCopy(buffer, 0, workBuf, leftoverLen, bytesRead);
+                            Buffer.BlockCopy(leftover, 0, preallocWorkBuf, 0, leftoverLen);
+                            Buffer.BlockCopy(buffer, 0, preallocWorkBuf, leftoverLen, bytesRead);
+                            workBuf = preallocWorkBuf;
                             workLen = leftoverLen + bytesRead;
                             leftoverLen = 0;
                         }
@@ -511,13 +515,12 @@ namespace WeatherImageGenerator.Services
                             Buffer.BlockCopy(workBuf, pos, leftover, 0, leftoverLen);
                         }
 
-                        // Write processed packets to client
+                        // Write processed packets to client (NoDelay=true pushes immediately)
                         int writeStart = syncOff;
                         int writeLen = pos - syncOff;
                         if (writeLen > 0)
                         {
                             await clientStream.WriteAsync(workBuf, writeStart, writeLen, ct);
-                            await clientStream.FlushAsync(ct);
                         }
                     }
                 }
@@ -658,6 +661,7 @@ namespace WeatherImageGenerator.Services
             public TcpListener? Listener { get; set; }
             private int _clientCount;
             public int ClientCount => _clientCount;
+            private readonly ConcurrentBag<Task> _clientTasks = new();
 
             public ChannelPipeState(ProxyChannelConfig config, int listenPort)
             {
@@ -667,10 +671,18 @@ namespace WeatherImageGenerator.Services
 
             public void IncrementClients() => Interlocked.Increment(ref _clientCount);
             public void DecrementClients() => Interlocked.Decrement(ref _clientCount);
+            public void TrackClientTask(Task task) => _clientTasks.Add(task);
 
             public void Dispose()
             {
                 try { Listener?.Stop(); } catch { }
+
+                // Wait briefly for active client handlers to drain
+                var activeTasks = _clientTasks.Where(t => !t.IsCompleted).ToArray();
+                if (activeTasks.Length > 0)
+                {
+                    try { Task.WaitAll(activeTasks, TimeSpan.FromSeconds(3)); } catch { }
+                }
             }
         }
     }

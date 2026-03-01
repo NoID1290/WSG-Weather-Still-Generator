@@ -66,6 +66,32 @@ namespace WeatherImageGenerator.Models
         [JsonPropertyName("Channels")]
         public List<ProxyChannelConfig> Channels { get; set; } = new();
 
+        // ── HLS Alert Injection (writes to Tunarr's stream cache on disk) ──
+
+        /// <summary>
+        /// When enabled, EAS alerts are also injected directly into Tunarr's HLS stream
+        /// cache on disk by appending #EXT-X-DISCONTINUITY + alert segments to stream.m3u8.
+        /// This is a secondary delivery mode — clients reading Tunarr's HLS endpoint natively
+        /// will see the alert without going through the TCP byte pipe.
+        /// </summary>
+        [JsonPropertyName("HlsInjectionEnabled")]
+        public bool HlsInjectionEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Root path of Tunarr's stream cache directory (e.g. "R:\stream-cache").
+        /// Each channel's HLS output lives at {path}\stream_{TunarrChannelId}\.
+        /// </summary>
+        [JsonPropertyName("TunarrStreamCachePath")]
+        public string TunarrStreamCachePath { get; set; } = "";
+
+        /// <summary>
+        /// HLS segment duration in seconds. Must match Tunarr's -hls_time setting.
+        /// Used to split the alert .ts into correctly-sized HLS segments.
+        /// Default: 4 (Tunarr 0.20.x typical default).
+        /// </summary>
+        [JsonPropertyName("HlsSegmentDurationSeconds")]
+        public int HlsSegmentDurationSeconds { get; set; } = 4;
+
         // ── Computed helpers (not serialized) ──────────────────────────
 
         /// <summary>The internal Tunarr base URL (derived from TunarrInternalPort).</summary>

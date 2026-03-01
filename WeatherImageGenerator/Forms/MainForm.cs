@@ -2800,6 +2800,16 @@ namespace WeatherImageGenerator.Forms
                                 {
                                     Logger.Log("Stream pipe is not running — splice not triggered. Enable it in Settings > Stream Proxy.", Logger.LogLevel.Debug);
                                 }
+
+                                // Also trigger HLS injection if enabled
+                                var hlsInjector = Program.HlsAlertInjector;
+                                if (hlsInjector?.IsRunning == true)
+                                {
+                                    var videoCfg2 = ConfigManager.LoadConfig().Video ?? new VideoSettings();
+                                    double duration2 = videoCfg2.AlertDisplayDurationSeconds > 0 ? videoCfg2.AlertDisplayDurationSeconds : 30.0;
+                                    hlsInjector.TriggerAlertSplice(tsPath, duration2);
+                                    Logger.Log($"HLS alert injection triggered for test alert ({duration2:F0}s)", Logger.LogLevel.Info);
+                                }
                             }
 
                             if (!string.IsNullOrEmpty(videoPath))
@@ -3432,6 +3442,15 @@ namespace WeatherImageGenerator.Forms
                         var videoCfg = cfg.Video ?? new VideoSettings();
                         double duration = videoCfg.AlertDisplayDurationSeconds > 0 ? videoCfg.AlertDisplayDurationSeconds : 30.0;
                         pipeService.TriggerAlertSplice(tsPath, duration);
+                    }
+
+                    // Also trigger HLS injection if enabled
+                    var hlsInjector = Program.HlsAlertInjector;
+                    if (hlsInjector?.IsRunning == true)
+                    {
+                        var videoCfg2 = cfg.Video ?? new VideoSettings();
+                        double duration2 = videoCfg2.AlertDisplayDurationSeconds > 0 ? videoCfg2.AlertDisplayDurationSeconds : 30.0;
+                        hlsInjector.TriggerAlertSplice(tsPath, duration2);
                     }
                 }
 

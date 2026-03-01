@@ -27,12 +27,18 @@ namespace WeatherImageGenerator
         
         // Static instance of Stream Pipe service (EAS alert splice into MPEG-TS)
         private static StreamPipeService? _streamPipeService;
+
+        // Static instance of HLS Alert Injector service
+        private static HlsAlertInjectorService? _hlsAlertInjector;
         
         // Public accessor for WebUI service (used by SettingsForm)
         public static WebUIService? WebUIService => _webUIService;
         
         // Public accessor for Stream Pipe service (used by MainForm for alert splice trigger)
         public static StreamPipeService? StreamPipeService => _streamPipeService;
+
+        // Public accessor for HLS Alert Injector service
+        public static HlsAlertInjectorService? HlsAlertInjector => _hlsAlertInjector;
         
         // Method to set the WebUI service instance (used when restarting with new settings)
         public static void SetWebUIService(WebUIService? service)
@@ -44,6 +50,12 @@ namespace WeatherImageGenerator
         public static void SetStreamPipeService(StreamPipeService? service)
         {
             _streamPipeService = service;
+        }
+
+        // Method to set the HLS Alert Injector service instance
+        public static void SetHlsAlertInjector(HlsAlertInjectorService? service)
+        {
+            _hlsAlertInjector = service;
         }
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
@@ -265,12 +277,25 @@ namespace WeatherImageGenerator
                 _streamPipeService.Start();
             }
 
+            // Initialize HLS Alert Injector if enabled
+            if (bootConfig.StreamProxy?.HlsInjectionEnabled ?? false)
+            {
+                _hlsAlertInjector = new HlsAlertInjectorService(bootConfig.StreamProxy);
+                _hlsAlertInjector.Start();
+            }
+
             Application.Run(new MainForm());
             
             // Stop Stream Pipe service when application closes
             if (_streamPipeService?.IsRunning ?? false)
             {
                 Task.Run(async () => await _streamPipeService.StopAsync()).GetAwaiter().GetResult();
+            }
+
+            // Stop HLS Alert Injector service when application closes
+            if (_hlsAlertInjector?.IsRunning ?? false)
+            {
+                Task.Run(async () => await _hlsAlertInjector.StopAsync()).GetAwaiter().GetResult();
             }
 
             // Stop Web UI service when application closes

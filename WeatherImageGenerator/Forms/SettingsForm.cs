@@ -188,6 +188,12 @@ namespace WeatherImageGenerator.Forms
         Button btnRemoveChannel;
         Button btnAutoDetectChannels;
 
+        // HLS Alert Injection controls
+        CheckBox chkHlsInjectionEnabled;
+        TextBox txtTunarrStreamCachePath;
+        Button btnBrowseStreamCache;
+        NumericUpDown numHlsSegmentDuration;
+
         // ═══════════════════════════════════════════════════════════════════
         // Constructor
         // ═══════════════════════════════════════════════════════════════════
@@ -1753,6 +1759,54 @@ namespace WeatherImageGenerator.Forms
             btnRemoveChannel.Click += (s, e) => RemoveProxyChannel();
             y += 50;
 
+            var divider5 = CreateDivider(labelX, y, 700);
+            y += 25;
+
+            // ── HLS Alert Injection ─────────────────────────────────────
+            var lblHlsHeader = CreateSubHeader("HLS Alert Injection", labelX, y);
+            y += 30;
+
+            var lblHlsDesc = new Label
+            {
+                Text = "Secondary delivery mode: writes alert .ts segments directly into Tunarr's HLS\n" +
+                       "stream cache on disk. Covers clients using Tunarr's HLS endpoint (Plex native, etc.).\n" +
+                       "Alert latency depends on HLS client buffering (typically 12-40 seconds).",
+                Left = labelX, Top = y, Width = 700, Height = 50,
+                Font = SmallFont, ForeColor = TextMutedColor, Tag = "muted", AutoSize = false
+            };
+            y += 55;
+
+            chkHlsInjectionEnabled = CreateCheckBox("Enable HLS Alert Injection", labelX, y, 350);
+            y += rowHeight;
+
+            var lblCachePath = CreateLabel("Stream Cache Path:", labelX, y);
+            txtTunarrStreamCachePath = CreateTextBox(fieldX, y - 2, 360);
+            txtTunarrStreamCachePath.PlaceholderText = @"e.g. R:\stream-cache";
+            btnBrowseStreamCache = CreateSecondaryButton("📂 Browse", fieldX + 370, y - 2, 100, 28);
+            btnBrowseStreamCache.Click += (s, e) =>
+            {
+                using var dlg = new FolderBrowserDialog
+                {
+                    Description = "Select Tunarr's stream cache directory",
+                    UseDescriptionForTitle = true
+                };
+                if (!string.IsNullOrWhiteSpace(txtTunarrStreamCachePath.Text))
+                    dlg.SelectedPath = txtTunarrStreamCachePath.Text;
+                if (dlg.ShowDialog() == DialogResult.OK)
+                    txtTunarrStreamCachePath.Text = dlg.SelectedPath;
+            };
+            y += rowHeight;
+
+            var lblHlsSegDur = CreateLabel("HLS Segment Duration:", labelX, y);
+            numHlsSegmentDuration = CreateNumericUpDown(fieldX, y - 2, 80, 2, 10, 4);
+            var lblHlsSegHelp = CreateHelpLabel("Must match Tunarr's -hls_time (default: 4s)", fieldX + 90, y + 2, 300);
+            y += rowHeight;
+
+            chkHlsInjectionEnabled.CheckedChanged += (s, e) =>
+            {
+                if (!_isLoadingSettings) OnHlsInjectionEnabledChanged();
+            };
+
             // ── Event handlers ──────────────────────────────────────────
             chkProxyEnabled.CheckedChanged += (s, e) => { if (!_isLoadingSettings) OnProxyEnabledChanged(); };
             numTunarrPublicPort.ValueChanged += (s, e) =>
@@ -1784,7 +1838,11 @@ namespace WeatherImageGenerator.Forms
                 lblMaxRetries, numMaxRetries, lblMaxRetriesHelp,
                 lblReconnectBase, numReconnectBaseMs, lblReconnectHelp, divider4,
                 lblChannels, lblChannelDesc, dgvProxyChannels,
-                btnAutoDetectChannels, btnAddChannel, btnRemoveChannel
+                btnAutoDetectChannels, btnAddChannel, btnRemoveChannel,
+                divider5,
+                lblHlsHeader, lblHlsDesc, chkHlsInjectionEnabled,
+                lblCachePath, txtTunarrStreamCachePath, btnBrowseStreamCache,
+                lblHlsSegDur, numHlsSegmentDuration, lblHlsSegHelp
             });
 
             return tab;
@@ -2365,6 +2423,11 @@ namespace WeatherImageGenerator.Forms
                 UpdateProxyStatus();
                 UpdateProxyIPDisplay();
 
+                // HLS injection settings
+                chkHlsInjectionEnabled.Checked = proxy.HlsInjectionEnabled;
+                txtTunarrStreamCachePath.Text = proxy.TunarrStreamCachePath;
+                numHlsSegmentDuration.Value = Math.Max(2, Math.Min(10, proxy.HlsSegmentDurationSeconds));
+
                 // Async validations
                 Task.Run(() =>
                 {
@@ -2708,6 +2771,11 @@ namespace WeatherImageGenerator.Forms
 
                 cfg.StreamProxy = proxySettings;
 
+                // Save HLS injection settings
+                proxySettings.HlsInjectionEnabled = chkHlsInjectionEnabled.Checked;
+                proxySettings.TunarrStreamCachePath = txtTunarrStreamCachePath.Text.Trim();
+                proxySettings.HlsSegmentDurationSeconds = (int)numHlsSegmentDuration.Value;
+
                 // Restart pipe if port changed while running
                 if (chkProxyEnabled.Checked && proxyWasEnabled &&
                     (oldPublicPort != proxySettings.TunarrPublicPort || oldInternalPort != proxySettings.TunarrInternalPort))
@@ -2715,6 +2783,20 @@ namespace WeatherImageGenerator.Forms
                     StopStreamProxyService();
                     Program.SetStreamPipeService(null);
                     StartStreamProxyService();
+                }
+
+                // Restart HLS injector if settings changed while running
+                var hlsInjector = Program.HlsAlertInjector;
+                if (proxySettings.HlsInjectionEnabled)
+                {
+                    if (hlsInjector == null || !hlsInjector.IsRunning)
+                    {
+                        StartHlsInjectorService(proxySettings);
+                    }
+                }
+                else if (hlsInjector?.IsRunning == true)
+                {
+                    StopHlsInjectorService();
                 }
 
                 ConfigManager.SaveConfig(cfg);
@@ -3087,6 +3169,78 @@ namespace WeatherImageGenerator.Forms
             catch (Exception ex)
             {
                 Logger.Log($"Failed to stop Stream Pipe: {ex.Message}", Logger.LogLevel.Error);
+            }
+        }
+
+        // ── HLS Alert Injection start/stop ────────────────────────
+
+        private void OnHlsInjectionEnabledChanged()
+        {
+            if (chkHlsInjectionEnabled.Checked)
+            {
+                var settings = new StreamProxySettings
+                {
+                    HlsInjectionEnabled = true,
+                    TunarrStreamCachePath = txtTunarrStreamCachePath.Text.Trim(),
+                    HlsSegmentDurationSeconds = (int)numHlsSegmentDuration.Value,
+                    Channels = new List<ProxyChannelConfig>()
+                };
+                foreach (DataGridViewRow row in dgvProxyChannels.Rows)
+                {
+                    if (row.IsNewRow) continue;
+                    var tunarrId = row.Cells["TunarrId"].Value?.ToString() ?? "";
+                    if (string.IsNullOrWhiteSpace(tunarrId)) continue;
+                    int chNum = 1;
+                    if (row.Cells["Number"].Value != null)
+                        int.TryParse(row.Cells["Number"].Value.ToString(), out chNum);
+                    settings.Channels.Add(new ProxyChannelConfig
+                    {
+                        TunarrChannelId = tunarrId.Trim(),
+                        ProxyChannelNumber = chNum,
+                        DisplayName = row.Cells["DisplayName"].Value?.ToString()?.Trim() ?? "Channel",
+                        AlertInterruptEnabled = row.Cells["AlertEnabled"].Value is true
+                    });
+                }
+                StartHlsInjectorService(settings);
+            }
+            else
+            {
+                StopHlsInjectorService();
+            }
+        }
+
+        private void StartHlsInjectorService(StreamProxySettings settings)
+        {
+            try
+            {
+                StopHlsInjectorService(); // stop any existing instance first
+                var injector = new HlsAlertInjectorService(settings);
+                Program.SetHlsAlertInjector(injector);
+                injector.Start();
+                Logger.Log($"HLS Alert Injector started — cache: {settings.TunarrStreamCachePath}", Logger.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to start HLS Alert Injector: {ex.Message}", Logger.LogLevel.Error);
+                MessageBox.Show($"Failed to start HLS Alert Injector: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                chkHlsInjectionEnabled.Checked = false;
+            }
+        }
+
+        private void StopHlsInjectorService()
+        {
+            try
+            {
+                var injector = Program.HlsAlertInjector;
+                if (injector != null && injector.IsRunning)
+                {
+                    Task.Run(async () => await injector.StopAsync()).GetAwaiter().GetResult();
+                    Logger.Log("HLS Alert Injector stopped", Logger.LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Failed to stop HLS Alert Injector: {ex.Message}", Logger.LogLevel.Error);
             }
         }
 
