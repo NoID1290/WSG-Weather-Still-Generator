@@ -393,3 +393,4 @@ appsettings*.json
 TODO
 compile_spirv.ps1
 inspect_silk.csx
+server_deploy.ps1

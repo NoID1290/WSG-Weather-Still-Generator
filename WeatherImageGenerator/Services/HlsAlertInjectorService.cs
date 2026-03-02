@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,6 +38,8 @@ namespace WeatherImageGenerator.Services
         private const int CleanupGraceSeconds = 90;  // extra time after alert duration before deleting segments
         private const int PollIntervalMs = 800;       // fallback polling interval for re-injection (FSW may miss events on network drives)
         private const int ReInjectRetryDelayMs = 150;  // delay between retries on IOException during re-inject
+        private const int WarmUpTimeoutSeconds = 8;        // max time to wait for Tunarr to create a channel's HLS cache dir
+        private const int DefaultPlaylistWindow = 3;       // default HLS sliding window size if we can't determine from playlist
 
         private readonly StreamProxySettings _settings;
         private CancellationTokenSource? _cts;
@@ -72,7 +75,45 @@ namespace WeatherImageGenerator.Services
             IsRunning = true;
 
             int alertChannels = _settings.Channels.Count(c => c.AlertInterruptEnabled);
-            Logger.Log($"[HlsInjector] ✓ HLS alert injection ready — cache: {_settings.TunarrStreamCachePath}, {alertChannels} alert-enabled channel(s), segment duration: {_settings.HlsSegmentDurationSeconds}s", Logger.LogLevel.Info);
+            Logger.Log($"[HlsInjector] ✓ HLS alert injection ready — cache: {_settings.TunarrStreamCachePath}, " +
+                $"{alertChannels} alert-enabled channel(s) (may increase after auto-detect), " +
+                $"segment duration: {_settings.HlsSegmentDurationSeconds}s", Logger.LogLevel.Info);
+
+            // ── Compatibility warning ──
+            // On-disk HLS injection modifies stream.m3u8 files in Tunarr's cache directory.
+            // Tunarr v0.20.x may serve playlists via its internal HTTP handler rather than
+            // reading the raw files from disk, which makes on-disk modifications invisible
+            // to HLS clients. If the StreamPipe proxy is also enabled, its built-in HLS
+            // proxy with HTTP-level injection is the recommended approach.
+            if (_settings.Enabled)
+            {
+                Logger.Log("[HlsInjector] ⚠ NOTE: StreamPipe is also enabled. StreamPipe includes built-in HTTP-level HLS " +
+                    "alert injection which is more reliable than on-disk cache manipulation. On-disk HLS injection may " +
+                    "be redundant or ineffective with Tunarr v0.20+. Consider disabling HlsInjection if StreamPipe " +
+                    "covers all your clients.", Logger.LogLevel.Warning);
+            }
+
+            // Validate that Tunarr actually uses the stream cache path by checking for
+            // stream_* subdirectories
+            bool foundAnyStreamDir = false;
+            try
+            {
+                var streamDirs = Directory.GetDirectories(_settings.TunarrStreamCachePath, "stream_*");
+                foundAnyStreamDir = streamDirs.Length > 0;
+                if (!foundAnyStreamDir)
+                {
+                    Logger.Log($"[HlsInjector] ⚠ No stream_* directories found in {_settings.TunarrStreamCachePath}. " +
+                        "On-disk injection will have no effect until Tunarr starts streaming channels.", Logger.LogLevel.Warning);
+                }
+                else
+                {
+                    Logger.Log($"[HlsInjector] Found {streamDirs.Length} stream_* directory(ies) in cache path.", Logger.LogLevel.Debug);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[HlsInjector] Could not enumerate stream cache: {ex.Message}", Logger.LogLevel.Warning);
+            }
         }
 
         public Task StopAsync()
@@ -164,16 +205,9 @@ namespace WeatherImageGenerator.Services
 
                 Logger.Log($"[HlsInjector] Alert segmented into {segments.Count} HLS chunk(s)", Logger.LogLevel.Debug);
 
-                // Build the injection block once (shared across all channels)
-                string injectionBlock = BuildInjectionBlock(segments);
-
-                // Step 2: For each alert-enabled channel, copy segments and start re-injection loop
-                var injectedPaths = new List<string>();  // track for cleanup
-                var loopTasks = new List<Task>();         // one re-injection loop per channel
-
-                // Combined CTS: expires after alert duration OR when service stops
-                using var alertCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                alertCts.CancelAfter(TimeSpan.FromSeconds(durationSeconds));
+                // Step 1.5: Categorize channels by cache readiness & warm up inactive ones
+                var channelsReady = new List<(ProxyChannelConfig Ch, string CacheDir)>();
+                var channelsNeedingWarmup = new List<(ProxyChannelConfig Ch, string CacheDir)>();
 
                 foreach (var ch in channels)
                 {
@@ -183,18 +217,68 @@ namespace WeatherImageGenerator.Services
                         _settings.TunarrStreamCachePath,
                         $"stream_{ch.TunarrChannelId}");
 
-                    if (!Directory.Exists(channelCacheDir))
+                    if (Directory.Exists(channelCacheDir) && File.Exists(Path.Combine(channelCacheDir, "stream.m3u8")))
                     {
-                        Logger.Log($"[HlsInjector] Channel {ch.ProxyChannelNumber} ({ch.DisplayName}): cache dir not found at {channelCacheDir} — channel may not be rendering. Skipping.", Logger.LogLevel.Warning);
-                        continue;
+                        channelsReady.Add((ch, channelCacheDir));
                     }
+                    else
+                    {
+                        channelsNeedingWarmup.Add((ch, channelCacheDir));
+                    }
+                }
 
-                    string m3u8Path = Path.Combine(channelCacheDir, "stream.m3u8");
-                    if (!File.Exists(m3u8Path))
+                // Warm up channels that don't have cache directories (in parallel)
+                if (channelsNeedingWarmup.Count > 0 && !ct.IsCancellationRequested)
+                {
+                    Logger.Log($"[HlsInjector] {channelsNeedingWarmup.Count} channel(s) have no HLS cache — requesting streams from Tunarr to warm up...", Logger.LogLevel.Info);
+
+                    var warmUpTasks = channelsNeedingWarmup.Select(async x =>
                     {
-                        Logger.Log($"[HlsInjector] Channel {ch.ProxyChannelNumber}: stream.m3u8 not found — channel may not be streaming. Skipping.", Logger.LogLevel.Warning);
-                        continue;
+                        bool ok = await TryWarmUpChannelAsync(x.Ch, x.CacheDir, ct);
+                        return (x.Ch, x.CacheDir, ok);
+                    }).ToList();
+
+                    try
+                    {
+                        var results = await Task.WhenAll(warmUpTasks);
+                        int warmed = 0;
+                        foreach (var (ch, cacheDir, ok) in results)
+                        {
+                            if (ok)
+                            {
+                                channelsReady.Add((ch, cacheDir));
+                                warmed++;
+                            }
+                            else
+                            {
+                                Logger.Log($"[HlsInjector] Channel {ch.ProxyChannelNumber} ({ch.DisplayName}): " +
+                                    $"cache dir not found at {cacheDir} — channel may not be available in Tunarr. Skipping.",
+                                    Logger.LogLevel.Warning);
+                            }
+                        }
+                        if (warmed > 0)
+                            Logger.Log($"[HlsInjector] ✓ Warm-up created cache for {warmed} channel(s)", Logger.LogLevel.Info);
                     }
+                    catch (OperationCanceledException) { }
+                }
+
+                if (channelsReady.Count == 0)
+                {
+                    Logger.Log("[HlsInjector] No channels with active HLS cache — injection aborted.", Logger.LogLevel.Warning);
+                    return;
+                }
+
+                // Step 2: For each ready channel, copy segments and start re-injection loop
+                var injectedPaths = new List<string>();  // track for cleanup
+                var loopTasks = new List<Task>();         // one re-injection loop per channel
+
+                // Combined CTS: expires after alert duration OR when service stops
+                using var alertCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                alertCts.CancelAfter(TimeSpan.FromSeconds(durationSeconds));
+
+                foreach (var (ch, channelCacheDir) in channelsReady)
+                {
+                    if (ct.IsCancellationRequested) break;
 
                     // Copy alert segments into the channel's cache directory
                     var copiedSegments = new List<(string FileName, double Duration)>();
@@ -210,14 +294,15 @@ namespace WeatherImageGenerator.Services
 
                     // Launch persistent re-injection loop for this channel.
                     // Must use Task.Run to ensure each loop runs on its own thread pool thread —
-                    // RunReInjectionLoopAsync uses blocking ManualResetEventSlim.Wait when a
-                    // FileSystemWatcher is available, which would otherwise block the foreach
+                    // RunReInjectionLoopAsync uses SemaphoreSlim.WaitAsync with a
+                    // FileSystemWatcher which would otherwise block the foreach
                     // and cause channels to be processed sequentially.
                     int chNum = ch.ProxyChannelNumber;
                     string chName = ch.DisplayName;
+                    var segmentsCopy = segments.ToList();  // capture for closure safety
                     loopTasks.Add(Task.Run(() => RunReInjectionLoopAsync(
-                        m3u8Path,
-                        injectionBlock,
+                        Path.Combine(channelCacheDir, "stream.m3u8"),
+                        segmentsCopy,
                         chNum,
                         chName,
                         alertCts.Token), ct));
@@ -283,12 +368,19 @@ namespace WeatherImageGenerator.Services
 
         /// <summary>
         /// Continuously re-injects alert segments into stream.m3u8 until cancelled.
-        /// Uses FileSystemWatcher for immediate response + polling fallback for reliability
-        /// on network drives where FSW events may be missed.
+        /// Uses a rolling window that advances with the HLS media sequence to maintain
+        /// proper segment numbering continuity for HLS clients.
+        ///
+        /// The key insight: Tunarr's ffmpeg advances #EXT-X-MEDIA-SEQUENCE by 1 each cycle (~4s).
+        /// If we always appended ALL alert segments, the same media-sequence position would map
+        /// to different content on successive playlists (e.g., position N = eas_000000 in one
+        /// playlist, then position N = streamN in the next), violating the HLS spec and causing
+        /// clients to loop or skip. Instead, we append a sliding window of alert segments that
+        /// advances by 1 each cycle, so each position maps to the same segment across playlists.
         /// </summary>
         private async Task RunReInjectionLoopAsync(
             string m3u8Path,
-            string injectionBlock,
+            List<(string FilePath, double Duration)> alertSegments,
             int channelNumber,
             string displayName,
             CancellationToken ct)
@@ -297,6 +389,7 @@ namespace WeatherImageGenerator.Services
             string fileName = Path.GetFileName(m3u8Path);
             int injectCount = 0;
             DateTime lastInjectedWriteTime = DateTime.MinValue;
+            int? baseMediaSequence = null;  // recorded on first injection for sliding window calculation
 
             // Signal: set when FSW detects a change to stream.m3u8
             using var changeDetected = new SemaphoreSlim(0, 1);
@@ -321,8 +414,18 @@ namespace WeatherImageGenerator.Services
                 }
 
                 // Perform immediate first injection
-                if (ReInjectIntoPlaylist(m3u8Path, injectionBlock, ref lastInjectedWriteTime))
-                    injectCount++;
+                {
+                    string? content = ReadPlaylistSafe(m3u8Path);
+                    if (content != null && !content.Contains(AlertSegmentPrefix))
+                    {
+                        int mediaSeq = ParseMediaSequence(content);
+                        baseMediaSequence = mediaSeq;
+                        int tunarrSegCount = CountContentSegments(content);
+                        string block = BuildSlidingWindowBlock(alertSegments, 0, Math.Max(tunarrSegCount, DefaultPlaylistWindow));
+                        if (WriteInjectedPlaylist(m3u8Path, content, block, ref lastInjectedWriteTime))
+                            injectCount++;
+                    }
+                }
 
                 // Loop until alert duration expires (ct is cancelled)
                 while (!ct.IsCancellationRequested)
@@ -352,11 +455,35 @@ namespace WeatherImageGenerator.Services
 
                         // Only re-inject if the file was modified since our last successful injection.
                         // This avoids needless rewrites when the file hasn't changed.
-                        if (currentWriteTime > lastInjectedWriteTime)
-                        {
-                            if (ReInjectIntoPlaylist(m3u8Path, injectionBlock, ref lastInjectedWriteTime))
-                                injectCount++;
-                        }
+                        if (currentWriteTime <= lastInjectedWriteTime)
+                            continue;
+
+                        string? content = ReadPlaylistSafe(m3u8Path);
+                        if (content == null || content.Contains(AlertSegmentPrefix))
+                            continue;
+
+                        int mediaSeq = ParseMediaSequence(content);
+                        if (baseMediaSequence == null)
+                            baseMediaSequence = mediaSeq;
+
+                        int tunarrSegCount = CountContentSegments(content);
+                        int windowSize = Math.Max(tunarrSegCount, DefaultPlaylistWindow);
+
+                        // Calculate which alert segment to start from based on how far the
+                        // media sequence has advanced since the first injection.
+                        int alertStartIdx = 0;
+                        if (baseMediaSequence.HasValue && mediaSeq > baseMediaSequence.Value)
+                            alertStartIdx = mediaSeq - baseMediaSequence.Value;
+
+                        // If all alert segments have already been presented via the sliding window,
+                        // stop injecting — clients have already downloaded them, and Tunarr's clean
+                        // playlist will naturally resume normal content.
+                        if (alertStartIdx >= alertSegments.Count)
+                            continue;
+
+                        string block = BuildSlidingWindowBlock(alertSegments, alertStartIdx, windowSize);
+                        if (WriteInjectedPlaylist(m3u8Path, content, block, ref lastInjectedWriteTime))
+                            injectCount++;
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
@@ -396,39 +523,89 @@ namespace WeatherImageGenerator.Services
         }
 
         /// <summary>
-        /// Reads the current stream.m3u8 content, checks whether alert segments are already
-        /// present (to avoid double-injection from our own write triggering FSW), handles
-        /// #EXT-X-ENDLIST placement, ensures proper newline boundaries, and writes the
-        /// modified playlist back atomically via truncate-and-rewrite.
+        /// Reads playlist content from disk safely, handling concurrent access from Tunarr's ffmpeg.
+        /// Returns null if the file can't be read or is empty.
+        /// </summary>
+        private static string? ReadPlaylistSafe(string m3u8Path)
+        {
+            try
+            {
+                using var fs = new FileStream(m3u8Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(fs, Encoding.UTF8);
+                string content = reader.ReadToEnd();
+                return string.IsNullOrWhiteSpace(content) ? null : content;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Parses the #EXT-X-MEDIA-SEQUENCE value from HLS playlist content.
+        /// Returns 0 if the tag is not present or can't be parsed.
+        /// </summary>
+        private static int ParseMediaSequence(string content)
+        {
+            foreach (var line in content.Split('\n'))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("#EXT-X-MEDIA-SEQUENCE:", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (int.TryParse(trimmed.Substring(22).Trim(), out int seq))
+                        return seq;
+                }
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Counts the number of #EXTINF segment entries (non-alert) in playlist content.
+        /// </summary>
+        private static int CountContentSegments(string content)
+        {
+            int count = 0;
+            foreach (var line in content.Split('\n'))
+            {
+                if (line.TrimStart().StartsWith("#EXTINF:", StringComparison.OrdinalIgnoreCase))
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Builds an HLS injection block using a sliding window over the alert segments.
+        /// This maintains proper media sequence continuity — each injection cycle should
+        /// advance startIndex by 1 (matching Tunarr's media sequence increment per segment
+        /// boundary), so each playlist position maps to the same content across rewrites.
+        /// </summary>
+        private static string BuildSlidingWindowBlock(
+            List<(string FilePath, double Duration)> allSegments,
+            int startIndex,
+            int windowSize)
+        {
+            int endIndex = Math.Min(startIndex + windowSize, allSegments.Count);
+            if (endIndex <= startIndex || startIndex < 0)
+                return BuildInjectionBlock(allSegments); // fallback: all segments
+
+            var window = allSegments.GetRange(startIndex, endIndex - startIndex);
+            return BuildInjectionBlock(window);
+        }
+
+        /// <summary>
+        /// Writes the injection block into previously-read playlist content and saves to disk.
+        /// Handles #EXT-X-ENDLIST placement and newline hygiene.
+        /// Uses truncate-and-rewrite for atomicity.
         /// </summary>
         /// <returns>True if injection was performed, false if skipped or failed.</returns>
-        private static bool ReInjectIntoPlaylist(
+        private static bool WriteInjectedPlaylist(
             string m3u8Path,
+            string content,
             string injectionBlock,
             ref DateTime lastInjectedWriteTime)
         {
             try
             {
-                string content;
-
-                // Read current playlist content (Tunarr's freshly-written version)
-                using (var fs = new FileStream(
-                    m3u8Path,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite))
-                using (var reader = new StreamReader(fs, Encoding.UTF8))
-                {
-                    content = reader.ReadToEnd();
-                }
-
-                if (string.IsNullOrWhiteSpace(content))
-                    return false;
-
-                // Guard: if our alert segments are already present, Tunarr hasn't rewritten yet
-                if (content.Contains(AlertSegmentPrefix))
-                    return false;
-
                 // Handle #EXT-X-ENDLIST: strip it so we can append after our injection
                 bool hadEndList = false;
                 string endListTag = "#EXT-X-ENDLIST";
@@ -480,9 +657,55 @@ namespace WeatherImageGenerator.Services
             }
             catch (Exception ex)
             {
-                Logger.Log($"[HlsInjector] Re-inject failed for {Path.GetFileName(Path.GetDirectoryName(m3u8Path))}: {ex.Message}", Logger.LogLevel.Debug);
+                Logger.Log($"[HlsInjector] Write failed for {Path.GetFileName(Path.GetDirectoryName(m3u8Path))}: {ex.Message}", Logger.LogLevel.Debug);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Attempts to warm up a channel by requesting its HLS stream from Tunarr,
+        /// which triggers Tunarr to start ffmpeg and create the stream cache directory.
+        /// Returns true if the cache directory and stream.m3u8 appear within the timeout.
+        /// </summary>
+        private async Task<bool> TryWarmUpChannelAsync(
+            ProxyChannelConfig ch,
+            string channelCacheDir,
+            CancellationToken ct)
+        {
+            // Use TunarrBaseUrl (internal port) — that's where Tunarr listens
+            string warmUpUrl = $"{_settings.TunarrBaseUrl.TrimEnd('/')}/stream/channels/{ch.TunarrChannelId}.m3u8";
+            Logger.Log($"[HlsInjector] Ch {ch.ProxyChannelNumber} ({ch.DisplayName}): requesting stream to warm up cache...", Logger.LogLevel.Debug);
+
+            try
+            {
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(WarmUpTimeoutSeconds) };
+                // Request the HLS playlist — this triggers Tunarr to start transcoding
+                using var response = await http.GetAsync(warmUpUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Logger.Log($"[HlsInjector] Ch {ch.ProxyChannelNumber}: warm-up request returned HTTP {(int)response.StatusCode}", Logger.LogLevel.Debug);
+                }
+
+                // Wait for the cache directory + stream.m3u8 to appear
+                for (int i = 0; i < WarmUpTimeoutSeconds; i++)
+                {
+                    await Task.Delay(1000, ct);
+                    if (Directory.Exists(channelCacheDir))
+                    {
+                        string m3u8 = Path.Combine(channelCacheDir, "stream.m3u8");
+                        if (File.Exists(m3u8))
+                            return true;
+                    }
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                Logger.Log($"[HlsInjector] Ch {ch.ProxyChannelNumber}: warm-up failed: {ex.Message}", Logger.LogLevel.Debug);
+            }
+
+            return false;
         }
 
         // ────────────────────────────────────────────────────────────────────
