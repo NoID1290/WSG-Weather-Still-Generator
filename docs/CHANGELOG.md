@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.13.0302] - 2026-03-02
+
+- Testing Streampipe over proxy and HLS Injection
+- Enhance HLS alert injection in StreamPipeService
+- Refactor StreamPipeService to support single shared TCP listener and HTTP path routing for channels
+- Add HLS Alert Injection feature for direct integration with Tunarr's stream cache
+- Refactor Stream Proxy to Stream Pipe: Introduce lightweight TCP byte pipe for MPEG-TS streaming
+- Add Auto-Detect Channels feature to SettingsForm for Tunarr integration
+- Add StreamProxyService and MpegTsHelper for MPEG-TS streaming and alert splicing
+- Update CHANGELOG.md by removing version bump
+
 ## [1.13.12.0228] - 2026-02-28
 
 - Add session-only animation frame count controls and update UI interactions
