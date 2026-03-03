@@ -173,6 +173,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public bool ShowStatusBar { get; set; } = true;
         public bool ShowRuler { get; set; } = true;
         public float StatusBarOpacity { get; set; } = 0.55f;
+        public bool EnableVSync { get; set; } = false;
 
         public float OverlayOpacity { get => _overlayOpacity; set { _overlayOpacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public float Overlay2Opacity { get => _overlay2Opacity; set { _overlay2Opacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
@@ -301,11 +302,11 @@ namespace WeatherImageGenerator.Rendering.DirectX
                     Stereo = 0,
                     SampleDesc = new SampleDesc(1, 0),
                     BufferUsage = DXGI.UsageRenderTargetOutput,
-                    BufferCount = 2,
+                    BufferCount = 3,
                     Scaling = Scaling.Stretch,
-                    SwapEffect = SwapEffect.FlipSequential,
+                    SwapEffect = SwapEffect.FlipDiscard,
                     AlphaMode = AlphaMode.Unspecified,
-                    Flags = 0
+                    Flags = (uint)SwapChainFlag.AllowTearing
                 };
 
                 IDXGISwapChain1* pSc = null;
@@ -792,8 +793,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
             // Mark loading complete once we have some tiles
             if (_mapLoading && _tileTextures.Count > 0) _mapLoading = false;
 
-            // Present (vsync)
-            _swapChain.Handle->Present(1, 0);
+            // Present (vsync controlled by EnableVSync property)
+            _swapChain.Handle->Present(EnableVSync ? 1u : 0u, 0);
         }
 
         // â”€â”€â”€ Tile rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1027,7 +1028,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 float textW = _hudRenderer.MeasureTextWidth(HudStatusBarText);
                 float lh = _hudRenderer.LineHeight, pad = 6f;
                 float barH = lh + pad * 2, barW = textW + pad * 2;
-                _hudRenderer.DrawRect(w - barW, h - barH, barW, barH, 0f, 0f, 0f, 0.55f);
+                _hudRenderer.DrawRect(w - barW, h - barH, barW, barH, 0f, 0f, 0f, StatusBarOpacity);
                 _hudRenderer.DrawText(HudStatusBarText, w - barW + pad, h - barH + pad, 0.82f, 0.82f, 0.82f, 0.85f);
             }
 

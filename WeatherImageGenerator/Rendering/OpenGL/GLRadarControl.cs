@@ -1544,7 +1544,7 @@ void main() {
             if (UseCrosshairAsMouse && ShowCrosshair && _mouseInside)
                 this.Cursor = _blankCursor;
             else
-                this.Cursor = Cursors.Hand;
+                this.Cursor = Cursors.Default;
         }
 
         // Backwards-compatible single-arg API - delegates to the metadata-aware variant with null metadata.
