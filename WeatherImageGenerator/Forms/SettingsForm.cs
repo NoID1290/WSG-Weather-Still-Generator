@@ -194,6 +194,11 @@ namespace WeatherImageGenerator.Forms
         Button btnBrowseStreamCache;
         NumericUpDown numHlsSegmentDuration;
 
+        // Tab control & dev-only Stream Pipe tab
+        private TabControl _tabControl;
+        private TabPage _tabStreamProxy;
+        private bool _devStreamTabUnlocked = false;
+
         // ═══════════════════════════════════════════════════════════════════
         // Constructor
         // ═══════════════════════════════════════════════════════════════════
@@ -220,6 +225,30 @@ namespace WeatherImageGenerator.Forms
             this.BackColor = BackgroundColor;
             this.Font = LabelFont;
             this.Padding = new Padding(10);
+            this.KeyPreview = true;
+        }
+
+        /// <summary>
+        /// Dev shortcut: Ctrl+Shift+P reveals the Stream Pipe tab.
+        /// </summary>
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.Shift | Keys.P))
+            {
+                UnlockStreamPipeTab();
+                return true;
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void UnlockStreamPipeTab()
+        {
+            if (_devStreamTabUnlocked) return;
+            _devStreamTabUnlocked = true;
+            _tabControl.TabPages.Add(_tabStreamProxy);
+            _tabControl.SelectedTab = _tabStreamProxy;
+            Logger.Log("[DEV] Stream Pipe tab unlocked via Ctrl+Shift+P.", Logger.LogLevel.Info);
         }
 
         #region UI Helper Methods
@@ -456,7 +485,7 @@ namespace WeatherImageGenerator.Forms
 
         private void BuildUI()
         {
-            var tabControl = new TabControl
+            _tabControl = new TabControl
             {
                 Dock = DockStyle.Top,
                 Height = 720,
@@ -469,10 +498,11 @@ namespace WeatherImageGenerator.Forms
             var tabMap = BuildMapTab();
             var tabAlerts = BuildAlertsTab();
             var tabNetwork = BuildNetworkTab();
-            var tabStreamProxy = BuildStreamProxyTab();
+            _tabStreamProxy = BuildStreamProxyTab();
 
-            tabControl.TabPages.AddRange(new TabPage[] {
-                tabGeneral, tabOutput, tabMap, tabAlerts, tabNetwork, tabStreamProxy
+            // Stream Pipe tab is hidden by default — unlock with Ctrl+Shift+S then P
+            _tabControl.TabPages.AddRange(new TabPage[] {
+                tabGeneral, tabOutput, tabMap, tabAlerts, tabNetwork
             });
 
             // Footer buttons
@@ -484,7 +514,7 @@ namespace WeatherImageGenerator.Forms
             btnCancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
 
-            this.Controls.Add(tabControl);
+            this.Controls.Add(_tabControl);
             this.Controls.Add(btnSave);
             this.Controls.Add(btnCancel);
 

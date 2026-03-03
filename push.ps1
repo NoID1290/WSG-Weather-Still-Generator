@@ -100,13 +100,10 @@ function Update-ProjectVersion {
     switch ($UpdateType) {
         "frontend" {
             $vA++
-            $vB = 0
-            $vC = 0
             Write-Host "[$Name] Frontend version incremented" -ForegroundColor Green
         }
         "backend" {
             $vB++
-            $vC = 0
             Write-Host "[$Name] Backend version incremented" -ForegroundColor Green
         }
         "fix" {

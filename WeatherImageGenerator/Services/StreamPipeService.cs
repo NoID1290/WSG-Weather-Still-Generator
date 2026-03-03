@@ -525,12 +525,15 @@ namespace WeatherImageGenerator.Services
 
             // ── Per-client stream state ────────────────────────────────
             var ccTracker = new ConcurrentDictionary<int, int>(); // PID → last CC sent
-            long timestampOffset = 0; // 90kHz tick offset for splice transitions
             long lastPcrSeen = 0;
             long lastPtsSeen = 0;
 
             // ── Upstream PID map (learned from PAT/PMT) for splice PID remapping ──
             var upstreamPidMap = new UpstreamPidMap();
+
+            // ── Discontinuity tracking: after an alert splice, the first N packets
+            //    from Tunarr get the discontinuity_indicator set so clients re-lock ──
+            int discontinuityRemaining = 0;
 
             int consecutiveFailures = 0;
             int maxRetries = Math.Max(_settings.MaxReconnectRetries, 1);
@@ -575,15 +578,9 @@ namespace WeatherImageGenerator.Services
                                 {
                                     Logger.Log($"[StreamPipe] {clientId}: 🚨 Alert detected — splicing {Path.GetFileName(alertPath)} ({alertDur:F1}s)", Logger.LogLevel.Info);
 
-                                    // ── Splice alert .ts (paced at ~real-time) ───────────────
-                                    long preAlertPts = lastPtsSeen;
-
                                     try
                                     {
-                                        var spliceResult = await SpliceAlertTs(alertPath, clientStream, ccTracker, preAlertPts, upstreamPidMap, clientId, alertDur, ct);
-
-                                        lastPtsSeen = spliceResult.EndPts;
-                                        lastPcrSeen = spliceResult.EndPcr;
+                                        var spliceResult = await SpliceAlertTs(alertPath, clientStream, clientId, alertDur, ct);
 
                                         // Mark this generation as spliced so we don't re-splice
                                         // the same alert in a tight loop
@@ -598,9 +595,13 @@ namespace WeatherImageGenerator.Services
                                         throw;
                                     }
 
-                                    // We'll compute the new offset on the first PCR packet we read
-                                    // from Tunarr after the splice. Set a sentinel value.
-                                    timestampOffset = long.MinValue; // sentinel: "recalculate on next PCR"
+                                    // After the splice the stream switches back to
+                                    // Tunarr's program. Mark the first batch of Tunarr
+                                    // packets with the discontinuity indicator so the
+                                    // client's decoder re-locks on the PAT/PMT and
+                                    // resets its CC / timestamp state cleanly.
+                                    ccTracker.Clear();
+                                    discontinuityRemaining = 200; // ~200 packets ≈ 2-3 PAT/PMT cycles
 
                                     continue; // resume inner loop — read from upstream
                                 }
@@ -658,22 +659,16 @@ namespace WeatherImageGenerator.Services
                                 continue;
                             }
 
-                            // ── Dynamic timestamp recalculation after splice ──
-                            if (timestampOffset == long.MinValue && MpegTsHelper.HasPcr(workBuf, pos))
+                            // ── Post-splice discontinuity: mark first N Tunarr packets ──
+                            // This tells the client's decoder to re-lock on the
+                            // stream's PAT/PMT and reset CC / timestamp tracking.
+                            if (discontinuityRemaining > 0)
                             {
-                                long tunarrPcr = MpegTsHelper.GetPcrBase(workBuf, pos);
-                                if (tunarrPcr >= 0)
-                                {
-                                    // Tunarr's clock kept advancing during the splice.
-                                    // We need: outgoing_time = lastPtsSeen (end of alert) + small_gap
-                                    // So: offset = lastPtsSeen + gap - tunarrPcr
-                                    long gap = 90000 / 4; // ~250ms gap for clean transition
-                                    timestampOffset = (lastPtsSeen + gap) - tunarrPcr;
-                                    Logger.Log($"[StreamPipe] {clientId}: Timestamp recalculated: offset={timestampOffset / 90000.0:F2}s (Tunarr PCR={tunarrPcr / 90000.0:F2}s, lastPts={lastPtsSeen / 90000.0:F2}s)", Logger.LogLevel.Debug);
-                                }
+                                MpegTsHelper.SetDiscontinuityIndicator(workBuf, pos);
+                                discontinuityRemaining--;
                             }
 
-                            // Track timestamps
+                            // Track timestamps (read-only — never rewrite Tunarr data)
                             if (MpegTsHelper.HasPcr(workBuf, pos))
                             {
                                 long pcr = MpegTsHelper.GetPcrBase(workBuf, pos);
@@ -682,26 +677,13 @@ namespace WeatherImageGenerator.Services
 
                             long pts = MpegTsHelper.GetPts(workBuf, pos);
                             if (pts >= 0)
-                            {
-                                if (timestampOffset != 0 && timestampOffset != long.MinValue)
-                                    lastPtsSeen = pts + timestampOffset;
-                                else
-                                    lastPtsSeen = pts;
-                            }
+                                lastPtsSeen = pts;
 
-                            // Apply timestamp offset and CC rewriting
-                            if (timestampOffset != 0 && timestampOffset != long.MinValue)
+                            // Track CC for diagnostic purposes (read-only)
                             {
-                                RewritePacket(workBuf, pos, ccTracker, timestampOffset);
-                            }
-                            else
-                            {
-                                // Track CC even during pass-through
                                 int pid = MpegTsHelper.GetPid(workBuf, pos);
                                 if (MpegTsHelper.HasPayload(workBuf, pos))
-                                {
                                     ccTracker[pid] = MpegTsHelper.GetContinuityCounter(workBuf, pos);
-                                }
                             }
 
                             // ── Learn upstream PID structure from PAT/PMT ──
@@ -802,37 +784,33 @@ namespace WeatherImageGenerator.Services
 
         /// <summary>
         /// Splices an alert .ts into the client stream at approximately real-time rate.
-        /// The approach:
-        ///   1. Send a small burst of null packets to cleanly break the decoder's state
-        ///   2. Send the alert .ts with its own PAT/PMT (like a channel change),
-        ///      rewriting CC counters and timestamp offsets
-        ///   3. Data is **paced at ~1.05× real-time** to prevent client receive-buffer
-        ///      overflow that causes TCP RST disconnects. The previous wire-speed
-        ///      approach dumped the entire file in &lt;1s, overwhelming clients.
-        /// When the caller resumes the Tunarr stream, Tunarr's PAT/PMT will re-establish
-        /// the original program. This "channel-change" approach is widely supported by
-        /// all MPEG-TS clients including Plex, Jellyfin, VLC, and hardware STBs.
+        /// The approach ("hard splice" / channel-change style):
+        ///   1. Send a small burst of null packets with discontinuity indicators
+        ///   2. Send the alert .ts **completely unmodified** — its own PAT/PMT
+        ///      establishes a new program, exactly like a TV channel change.
+        ///      No CC rewriting, no timestamp offsetting — this prevents the
+        ///      HEVC PPS corruption that occurred when RewritePacket modified
+        ///      PES header bytes in the video bitstream.
+        ///   3. Data is paced at ~1.05× real-time to prevent TCP buffer overflow.
+        ///   4. A trailing discontinuity burst signals the decoder that the
+        ///      Tunarr stream (a second "channel change") is about to resume.
+        /// This is the same approach used by real broadcast EAS systems (SCTE-35).
         /// </summary>
-        private static async Task<(long EndPts, long EndPcr, double ElapsedSeconds)> SpliceAlertTs(
+        private static async Task<(double ElapsedSeconds, string Diag)> SpliceAlertTs(
             string alertTsPath,
             Stream clientStream,
-            ConcurrentDictionary<int, int> ccTracker,
-            long baseTimestamp,
-            UpstreamPidMap upstreamPids,
             string clientId,
             double alertDurationSeconds,
             CancellationToken ct)
         {
             var spliceStopwatch = Stopwatch.StartNew();
-            long endPts = baseTimestamp;
-            long endPcr = baseTimestamp;
 
-            // ── Step 1: Small null packet gap to signal a clean break ──
-            // 20 packets (~3.7KB) — enough to drain any partial PES packet in
-            // the decoder's demuxer without triggering a read-timeout disconnect.
-            // The previous 500-packet (92KB) burst was too aggressive and caused
-            // some clients to RST the connection.
+            // ── Step 1: Discontinuity null gap ──
+            // Send 20 null packets, each with the discontinuity indicator set.
+            // This drains any partial PES in the demuxer and tells the decoder
+            // to expect a CC / timestamp reset on the next real data.
             var nullPkt = MpegTsHelper.CreateNullPacket();
+            MpegTsHelper.SetDiscontinuityIndicator(nullPkt, 0);
             const int nullGapCount = 20;
             var nullBurst = new byte[MpegTsHelper.PacketSize * nullGapCount];
             for (int i = 0; i < nullGapCount; i++)
@@ -841,88 +819,79 @@ namespace WeatherImageGenerator.Services
             await clientStream.WriteAsync(nullBurst, 0, nullBurst.Length, ct);
             await clientStream.FlushAsync(ct);
 
-            // ── Step 2: Read alert .ts and write at paced rate ──
-            // Instead of dumping the entire file at wire speed (which overwhelms
-            // client receive buffers and causes TCP RST disconnects), we pace
-            // the write at approximately 1.05× real-time. This keeps the
-            // decoder's buffer comfortably full without triggering overflow
-            // resets, and means we don't need a separate "hold phase" afterward.
+            // ── Step 2: Read alert .ts and write paced — NO packet modification ──
+            // The alert .ts is sent byte-for-byte as FFmpeg encoded it.
+            // Its PAT/PMT/video/audio are self-contained and valid.
+            // Any CC or timestamp rewriting risks corrupting the compressed
+            // video bitstream (HEVC PPS corruption was observed in testing).
             var fileInfo = new FileInfo(alertTsPath);
             long totalFileBytes = fileInfo.Length;
             double safeDuration = Math.Max(alertDurationSeconds, 1.0);
             double targetBytesPerSecond = (totalFileBytes / safeDuration) * 1.05;
 
             using var fs = new FileStream(alertTsPath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536);
-            var buffer = new byte[MpegTsHelper.PacketSize * 49]; // ~9KB per read
-            long alertTickOffset = baseTimestamp;
+            // Use a larger read buffer (~188KB) to reduce syscall overhead during paced writes
+            var buffer = new byte[MpegTsHelper.PacketSize * 1000];
             var paceClock = Stopwatch.StartNew();
             long totalBytesWritten = 0;
+            bool firstChunk = true;
 
-            Logger.Log($"[StreamPipe] {clientId}: Paced splice — {totalFileBytes / 1024}KB over ~{safeDuration:F1}s at {targetBytesPerSecond / 1024:F0} KB/s", Logger.LogLevel.Debug);
+            Logger.Log($"[StreamPipe] {clientId}: Paced splice (raw passthrough) — {totalFileBytes / 1024}KB over ~{safeDuration:F1}s at {targetBytesPerSecond / 1024:F0} KB/s", Logger.LogLevel.Debug);
 
             int bytesRead;
             while ((bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
             {
-                int syncOff = MpegTsHelper.FindSyncOffset(buffer, 0, bytesRead);
-                if (syncOff < 0) continue;
-
-                int pos = syncOff;
-                while (pos + MpegTsHelper.PacketSize <= bytesRead)
+                // Set discontinuity indicator on the very first few packets
+                // of the alert so the decoder knows to re-lock.
+                if (firstChunk)
                 {
-                    if (buffer[pos] != MpegTsHelper.SyncByte)
+                    firstChunk = false;
+                    int syncOff = MpegTsHelper.FindSyncOffset(buffer, 0, bytesRead);
+                    if (syncOff >= 0)
                     {
-                        pos++;
-                        continue;
+                        // Set discontinuity on first ~10 packets (covers PAT + PMT + first video)
+                        int p = syncOff;
+                        int marked = 0;
+                        while (p + MpegTsHelper.PacketSize <= bytesRead && marked < 10)
+                        {
+                            if (buffer[p] == MpegTsHelper.SyncByte)
+                            {
+                                MpegTsHelper.SetDiscontinuityIndicator(buffer, p);
+                                marked++;
+                            }
+                            p += MpegTsHelper.PacketSize;
+                        }
                     }
-
-                    // Rewrite CC counters and offset timestamps — nothing else.
-                    // The alert's own PAT/PMT flow through untouched (except CC),
-                    // so the client can lock onto the new program structure.
-                    RewritePacket(buffer, pos, ccTracker, alertTickOffset);
-
-                    // Track end timestamps for the caller
-                    if (MpegTsHelper.HasPcr(buffer, pos))
-                    {
-                        long pcr = MpegTsHelper.GetPcrBase(buffer, pos);
-                        if (pcr > endPcr) endPcr = pcr;
-                    }
-                    long pts = MpegTsHelper.GetPts(buffer, pos);
-                    if (pts > endPts) endPts = pts;
-
-                    pos += MpegTsHelper.PacketSize;
                 }
 
-                int writeLen = pos - syncOff;
-                if (writeLen > 0)
-                {
-                    await clientStream.WriteAsync(buffer, syncOff, writeLen, ct);
-                    totalBytesWritten += writeLen;
+                await clientStream.WriteAsync(buffer, 0, bytesRead, ct);
+                totalBytesWritten += bytesRead;
 
-                    // ── Pace control: throttle if writing faster than target rate ──
-                    // expectedElapsed = how long it SHOULD have taken to write this many bytes
-                    // If wall-clock is behind expected, we're ahead of schedule → wait.
-                    double expectedElapsed = totalBytesWritten / targetBytesPerSecond;
-                    double actualElapsed = paceClock.Elapsed.TotalSeconds;
-                    double aheadMs = (expectedElapsed - actualElapsed) * 1000.0;
-                    if (aheadMs > 20) // only sleep if >20ms ahead to avoid micro-sleeps
-                    {
-                        await Task.Delay((int)aheadMs, ct);
-                    }
+                // ── Pace control: throttle if writing faster than target rate ──
+                double expectedElapsed = totalBytesWritten / targetBytesPerSecond;
+                double actualElapsed = paceClock.Elapsed.TotalSeconds;
+                double aheadMs = (expectedElapsed - actualElapsed) * 1000.0;
+                if (aheadMs > 20)
+                {
+                    await Task.Delay((int)aheadMs, ct);
                 }
             }
 
-            // Flush after sending all alert data
             await clientStream.FlushAsync(ct);
 
-            // Send a small trailing null burst to signal end of alert before Tunarr resumes
-            var smallNull = new byte[MpegTsHelper.PacketSize * 20];
+            // ── Step 3: Trailing discontinuity burst ──
+            // Signals the decoder that a second "channel change" (back to Tunarr) follows.
+            var trailNull = MpegTsHelper.CreateNullPacket();
+            MpegTsHelper.SetDiscontinuityIndicator(trailNull, 0);
+            var trailBurst = new byte[MpegTsHelper.PacketSize * 20];
             for (int i = 0; i < 20; i++)
-                Buffer.BlockCopy(nullPkt, 0, smallNull, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
-            await clientStream.WriteAsync(smallNull, 0, smallNull.Length, ct);
+                Buffer.BlockCopy(trailNull, 0, trailBurst, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
+            await clientStream.WriteAsync(trailBurst, 0, trailBurst.Length, ct);
             await clientStream.FlushAsync(ct);
 
             spliceStopwatch.Stop();
-            return (endPts, endPcr, spliceStopwatch.Elapsed.TotalSeconds);
+            string diag = $"{totalBytesWritten / 1024}KB written, {targetBytesPerSecond / 1024:F0} KB/s target";
+            return (spliceStopwatch.Elapsed.TotalSeconds, diag);
         }
 
         /// <summary>
