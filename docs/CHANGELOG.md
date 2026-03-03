@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.15.0303] - 2026-03-03
+
+- Fix animation being slow with DirectX on AMD GPU Fix bad windows cursor on OpenGL
+
 ## [1.13.14.0303] - 2026-03-03
 
 - Refactor release check in push.ps1 to simplify GitHub release verification
