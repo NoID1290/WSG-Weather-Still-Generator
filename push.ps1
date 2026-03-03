@@ -473,10 +473,9 @@ if ($NoRelease) {
         }
 
         # Check if release already exists
-        $releaseCheck = $null
         $prevEAP = $ErrorActionPreference
         $ErrorActionPreference = 'SilentlyContinue'
-        $releaseCheck = gh release view $tagName 2>&1
+        gh release view $tagName >$null 2>&1
         $ErrorActionPreference = $prevEAP
         if ($LASTEXITCODE -ne 0) {
             Write-Host "[RELEASE] Creating GitHub release for $tagName" -ForegroundColor Cyan
