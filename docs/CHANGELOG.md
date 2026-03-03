@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.14.0303] - 2026-03-03
+
+- Refactor release check in push.ps1 to simplify GitHub release verification
+- Add developer shortcut to unlock Stream Pipe tab in SettingsForm Refreactor push script for futur version
+
 ## [1.13.13.0302] - 2026-03-02
 
 - Testing Streampipe over proxy and HLS Injection
