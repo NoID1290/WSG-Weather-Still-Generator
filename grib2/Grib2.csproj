@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Grib2</AssemblyName>
+    <RootNamespace>Grib2</RootNamespace>
+    <Title>Grib2 - GRIB2 Decoder with ILGPU Compute</Title>
+    <Product>Grib2</Product>
+    <Company>NoID Softwork</Company>
+    <Copyright>Copyright (c) NoID Softwork 2026</Copyright>
+    <Description>Pure C# GRIB2 binary decoder with ILGPU-accelerated forecast computation for ECCC Datamart model data.</Description>
+    <Version>1.0.16.0304</Version>
+    <AssemblyVersion>1.0.16.0304</AssemblyVersion>
+    <FileVersion>1.0.16.0304</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ILGPU" Version="1.5.1" />
+    <PackageReference Include="ILGPU.Algorithms" Version="1.5.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
+    <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
+  </ItemGroup>
+</Project>

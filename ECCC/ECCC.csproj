@@ -18,6 +18,7 @@
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
     <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
     <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
+    <ProjectReference Include="..\Grib2\Grib2.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="9.0.13" />

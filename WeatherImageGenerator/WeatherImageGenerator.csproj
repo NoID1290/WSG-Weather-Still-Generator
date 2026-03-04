@@ -25,6 +25,7 @@
     <ProjectReference Include="..\ECCC\ECCC.csproj" />
     <ProjectReference Include="..\EAS\EAS.csproj" />
     <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
+    <ProjectReference Include="..\Grib2\Grib2.csproj" />
     <!-- Include the updater helper executable -->
     <ProjectReference Include="..\WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj" />
   </ItemGroup>
