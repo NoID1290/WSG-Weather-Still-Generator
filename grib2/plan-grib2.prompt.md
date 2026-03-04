@@ -105,4 +105,8 @@ A new `Grib2` class library project targeting `net10.0`, providing pure C# GRIB2
 - **Pure C# decoder over eccodes/wgrib2**: Zero native dependencies, easier deployment, full control over parsing
 - **AllowUnsafeBlocks**: Required for ILGPU `ArrayView<T>` and `MemoryBuffer` interop
 - **JPEG2000 dependency**: Template 5.41 will need a managed J2K decoder (e.g., `CSJ2K` NuGet) — this is the only external dependency beyond ILGPU
-- **Namespace**: `Grib2` (PascalCase) per user preference, even though the folder is lowercase `grib2`
+- **Namespace**: `Grib2` (PascalCase) per user preference
+- **Project structure**: Clear separation of concerns between decoding, GPU computation, and integration layers for maintainability and testability
+- **Documentation**: Comprehensive README with usage instructions, supported templates, and ECCC data source patterns to assist future users and contributors
+- **Implement into WSG**: The `Grib2` library will be integrated into the existing WSG architecture, allowing it to decode GRIB2 files fetched from ECCC Datamart and feed the data into the `OpenMeteo.WeatherForecast` model for use in image/video generation and alert systems.
+- **Implement into the Interactive Map Radar with personal options**: The decoded GRIB2 data can also be used to enhance the interactive map radar feature by providing additional layers of forecast data (e.g., temperature, wind fields) that users can toggle on/off for a more comprehensive weather visualization experience.
