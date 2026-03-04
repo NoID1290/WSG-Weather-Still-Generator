@@ -713,14 +713,21 @@ namespace WeatherImageGenerator.Rendering.DirectX
         private unsafe void HandleResize()
         {
             if (!_initialized || _disposed || _swapChain.Handle == null) return;
-            if (_hostPanel.Width <= 0 || _hostPanel.Height <= 0) return;
+
+            uint w = (uint)_hostPanel.Width, h = (uint)_hostPanel.Height;
+            if (w == 0 || h == 0) return;
+
+            // Release ALL pipeline references to the back buffer.
+            // ClearState resets every stage (OM, VS, PS, etc.) so nothing holds a ref.
+            _context.Handle->ClearState();
+            _context.Handle->Flush();
 
             _rtv.Dispose();
             _rtv = default;
 
             SilkMarshal.ThrowHResult(
-                _swapChain.Handle->ResizeBuffers(0, (uint)_hostPanel.Width, (uint)_hostPanel.Height,
-                    Format.FormatUnknown, 0));
+                _swapChain.Handle->ResizeBuffers(0, w, h, Format.FormatUnknown,
+                    (uint)SwapChainFlag.AllowTearing));
 
             CreateRenderTargetView();
             UpdateOverlayVertices();
