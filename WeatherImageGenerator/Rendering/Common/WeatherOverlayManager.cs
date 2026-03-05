@@ -933,6 +933,9 @@ namespace WeatherImageGenerator.Rendering.Common
 
                 await _grib2DataService.SetModelAsync(Grib2Model);
 
+                // Clamp forecast hour to model's maximum
+                int forecastHour = Math.Min(Grib2ForecastHour, _grib2DataService.MaxForecastHours);
+
                 var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
                 LastGrib2BBox = bbox;
 
@@ -941,7 +944,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 if (Grib2FieldType == Models.Grib2FieldType.Wind)
                 {
                     // Wind needs U + V components
-                    var (uField, vField) = await _grib2DataService.FetchWindComponentsAsync(Grib2ForecastHour);
+                    var (uField, vField) = await _grib2DataService.FetchWindComponentsAsync(forecastHour);
                     if (uField != null && vField != null)
                     {
                         overlayPng = _grib2Renderer.RenderWindOverlay(uField, vField, bbox, width, height);
@@ -949,7 +952,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 }
                 else
                 {
-                    var field = await _grib2DataService.FetchFieldAsync(Grib2FieldType, Grib2ForecastHour);
+                    var field = await _grib2DataService.FetchFieldAsync(Grib2FieldType, forecastHour);
                     if (field != null)
                     {
                         overlayPng = _grib2Renderer.RenderOverlay(field, Grib2FieldType, bbox, width, height);

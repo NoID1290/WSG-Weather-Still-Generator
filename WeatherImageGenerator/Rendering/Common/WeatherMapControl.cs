@@ -602,6 +602,27 @@ namespace WeatherImageGenerator.Rendering.Common
                 OnSelectionChanged = idx =>
                 {
                     _overlayManager.Grib2Model = (Models.Grib2ModelSource)idx;
+                    // Update slider max/step for new model and clamp current value
+                    bool isHrdps = idx == (int)Models.Grib2ModelSource.HRDPS;
+                    int maxHours = isHrdps ? 48 : 240;
+                    float step = isHrdps ? 1f : 3f;
+                    if (_sldGrib2ForecastHour != null)
+                    {
+                        _sldGrib2ForecastHour.Max = maxHours;
+                        _sldGrib2ForecastHour.Step = step;
+                        if (_sldGrib2ForecastHour.Value > maxHours)
+                        {
+                            _sldGrib2ForecastHour.Value = maxHours;
+                            _overlayManager.Grib2ForecastHour = maxHours;
+                        }
+                        else if (step > 1)
+                        {
+                            // Snap to nearest valid step
+                            float snapped = (float)(Math.Round(_sldGrib2ForecastHour.Value / step) * step);
+                            _sldGrib2ForecastHour.Value = snapped;
+                            _overlayManager.Grib2ForecastHour = (int)snapped;
+                        }
+                    }
                     _overlayManager.InvalidateGrib2Cache();
                     _ = UpdateOverlays();
                 }
@@ -626,7 +647,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 Id = "grib2ForecastHour",
                 Text = "Forecast Hour",
-                Value = 0, Min = 0, Max = 240, ShowLabel = true,
+                Value = 0, Min = 0, Max = 240, Step = 3, ShowLabel = true,
                 OnChanged = val =>
                 {
                     _overlayManager.Grib2ForecastHour = (int)val;

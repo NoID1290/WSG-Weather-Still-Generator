@@ -242,8 +242,8 @@ namespace Grib2.Decoder
                     0 => SimplePackingTemplate.Unpack(packedData, field, numberOfDataPoints),
                     2 => ComplexPackingTemplate.Unpack(packedData, sec5Template, field, numberOfDataPoints),
                     3 => ComplexSpatialPackingTemplate.Unpack(packedData, sec5Template, field, numberOfDataPoints),
-                    40 => PngPackingTemplate.Unpack(packedData, field, numberOfDataPoints),
-                    41 => Jpeg2000PackingTemplate.Unpack(packedData, field, numberOfDataPoints),
+                    40 => Jpeg2000PackingTemplate.Unpack(packedData, field, numberOfDataPoints),
+                    41 => PngPackingTemplate.Unpack(packedData, field, numberOfDataPoints),
                     _ => CreateMissingValues(numberOfDataPoints)
                 };
 
@@ -257,7 +257,7 @@ namespace Grib2.Decoder
             }
             catch (NotSupportedException)
             {
-                // Template not implemented (e.g., JPEG2000)
+                // Template not implemented
                 field.Values = CreateMissingValues(numberOfDataPoints);
             }
             catch (Exception ex)

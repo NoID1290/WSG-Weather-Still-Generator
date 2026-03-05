@@ -1,32 +1,67 @@
 #nullable enable
 using System;
+using System.IO;
+using CSJ2K;
 using Grib2.Models;
 
 namespace Grib2.Templates.Packing
 {
     /// <summary>
-    /// Data Representation Template 5.41 — JPEG2000 Packing.
+    /// Data Representation Template 5.40 — JPEG2000 Code Stream Packing.
     /// Grid values are packed as a JPEG2000 code stream embedded in Section 7.
-    /// 
-    /// STUB IMPLEMENTATION: Throws NotSupportedException.
-    /// 
-    /// Rationale: Most ECCC GRIB2 files from the Datamart use Simple Packing (5.0) or 
-    /// Complex Packing (5.2/5.3). JPEG2000 support requires a managed J2K decoder
-    /// (e.g., CSJ2K), which is not yet available for net10.0. This can be revisited
-    /// when a compatible library becomes available.
+    /// The decoded pixel values are raw unsigned integers that must be
+    /// decoded with the standard scale formula: Y = R + X × 2^E × 10^(-D).
+    /// Uses CSJ2K for JPEG2000 decompression.
     /// </summary>
     public static class Jpeg2000PackingTemplate
     {
         /// <summary>
-        /// Unpack Section 7 data using JPEG2000 Packing (Template 5.41).
+        /// Unpack Section 7 data using JPEG2000 Packing (Template 5.40).
         /// </summary>
-        /// <exception cref="NotSupportedException">Always thrown — JPEG2000 is not yet implemented.</exception>
         public static float[] Unpack(ReadOnlySpan<byte> packedData, Grib2Field field, int numberOfDataPoints)
         {
-            throw new NotSupportedException(
-                "JPEG2000 packing template 5.41 is not yet implemented. " +
-                "Most ECCC Datamart GRIB2 files use Simple (5.0) or Complex (5.2/5.3) packing. " +
-                "A managed J2K decoder compatible with net10.0 is required to support this template.");
+            if (packedData.Length == 0)
+            {
+                var empty = new float[numberOfDataPoints];
+                Array.Fill(empty, float.NaN);
+                return empty;
+            }
+
+            // Special case: 0 bits per value means constant field
+            if (field.BitsPerValue == 0)
+            {
+                var constant = new float[numberOfDataPoints];
+                Array.Fill(constant, field.ReferenceValue);
+                return constant;
+            }
+
+            float R = field.ReferenceValue;
+            float binaryScale = MathF.Pow(2.0f, field.BinaryScaleFactor);
+            float decimalScale = MathF.Pow(10.0f, -field.DecimalScaleFactor);
+
+            // Decode JPEG2000 code stream using CSJ2K
+            var image = J2kImage.FromBytes(packedData.ToArray());
+            if (image == null)
+                throw new InvalidOperationException("Failed to decode JPEG2000 from Section 7 data");
+
+            var values = new float[numberOfDataPoints];
+
+            // GRIB2 J2K is single-component (grayscale); each pixel is a raw integer
+            var component0 = image.GetComponent(0);
+
+            for (int i = 0; i < numberOfDataPoints; i++)
+            {
+                if (i >= component0.Length)
+                {
+                    values[i] = float.NaN;
+                    continue;
+                }
+
+                uint raw = (uint)component0[i];
+                values[i] = (R + raw * binaryScale) * decimalScale;
+            }
+
+            return values;
         }
     }
 }

@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Grib2.Integration;
 using Grib2.Models;
+using Grib2.Templates.Grid;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Utilities;
 
@@ -187,14 +188,6 @@ namespace WeatherImageGenerator.Services
             var bits = raster.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
             try
             {
-                double gridFirstLat = grid.FirstLatitude;
-                double gridFirstLon = grid.FirstLongitude;
-                double gridDi = grid.DiDegrees;
-                double gridDj = grid.DjDegrees;
-
-                // Determine grid scanning direction
-                bool scanNtoS = (grid.ScanningMode & 0x40) == 0; // bit 2 = 0 means N→S
-                bool scanWtoE = (grid.ScanningMode & 0x80) == 0; // bit 1 = 0 means W→E
 
                 for (int py = 0; py < rasterH; py++)
                 {
@@ -207,16 +200,7 @@ namespace WeatherImageGenerator.Services
                         double lon = viewBBox.MinLon + (double)px / rasterW * (viewBBox.MaxLon - viewBBox.MinLon);
 
                         // Convert lat/lon to grid indices
-                        double gi, gj;
-                        if (scanWtoE)
-                            gi = (lon - gridFirstLon) / gridDi;
-                        else
-                            gi = (gridFirstLon - lon) / gridDi;
-
-                        if (scanNtoS)
-                            gj = (gridFirstLat - lat) / gridDj;
-                        else
-                            gj = (lat - gridFirstLat) / gridDj;
+                        var (gi, gj) = MapToGridCoords(lat, lon, grid);
 
                         // Bilinear interpolation
                         int i0 = (int)Math.Floor(gi);
@@ -309,8 +293,9 @@ namespace WeatherImageGenerator.Services
                     double lon = viewBBox.MinLon + (double)px / width * (viewBBox.MaxLon - viewBBox.MinLon);
 
                     // Find nearest grid point
-                    int gi = (int)Math.Round((lon - grid.FirstLongitude) / grid.DiDegrees);
-                    int gj = (int)Math.Round((grid.FirstLatitude - lat) / grid.DjDegrees);
+                    var (gid, gjd) = MapToGridCoords(lat, lon, grid);
+                    int gi = (int)Math.Round(gid);
+                    int gj = (int)Math.Round(gjd);
 
                     gi = Math.Clamp(gi, 0, ni - 1);
                     gj = Math.Clamp(gj, 0, nj - 1);
@@ -414,8 +399,7 @@ namespace WeatherImageGenerator.Services
 
         private float SampleGrid(float[] values, double lat, double lon, Grib2Grid grid, int ni, int nj)
         {
-            double gi = (lon - grid.FirstLongitude) / grid.DiDegrees;
-            double gj = (grid.FirstLatitude - lat) / grid.DjDegrees;
+            var (gi, gj) = MapToGridCoords(lat, lon, grid);
 
             int i0 = Math.Clamp((int)gi, 0, ni - 1);
             int j0 = Math.Clamp((int)gj, 0, nj - 1);
@@ -533,6 +517,57 @@ namespace WeatherImageGenerator.Services
         #endregion
 
         #region Helpers
+
+        /// <summary>
+        /// Normalize a longitude value to match the grid's coordinate system.
+        /// GDPS grids use 0–360°; viewport uses -180 to +180°.
+        /// </summary>
+        private static double NormalizeLon(double lon, Grib2Grid grid)
+        {
+            if (grid.FirstLongitude >= 0 && grid.LastLongitude > 180 && lon < 0)
+                return lon + 360.0;
+            return lon;
+        }
+
+        /// <summary>
+        /// Map a geographic lat/lon to fractional grid indices, handling:
+        /// - Longitude normalization (0–360 vs -180 to +180)
+        /// - Rotated grids (Template 3.1, e.g., HRDPS)
+        /// - Scanning mode (N→S vs S→N, W→E vs E→W)
+        /// </summary>
+        private static (double gi, double gj) MapToGridCoords(double lat, double lon, Grib2Grid grid)
+        {
+            double gridLat = lat;
+            double gridLon = lon;
+
+            // Handle rotated grids (HRDPS): convert geographic → rotated coordinates
+            if (grid.TemplateNumber == 1 && grid.RotatedPoleLat.HasValue && grid.RotatedPoleLon.HasValue)
+            {
+                var (rLat, rLon) = RotatedLatLonGridTemplate.GeographicToRotated(
+                    lat, lon,
+                    grid.RotatedPoleLat.Value,
+                    grid.RotatedPoleLon.Value,
+                    grid.RotationAngle ?? 0.0);
+                gridLat = rLat;
+                gridLon = rLon;
+            }
+
+            // Normalize longitude to grid range
+            gridLon = NormalizeLon(gridLon, grid);
+
+            double gi, gj;
+            if (grid.IDirectionPositive)
+                gi = (gridLon - grid.FirstLongitude) / grid.DiDegrees;
+            else
+                gi = (grid.FirstLongitude - gridLon) / grid.DiDegrees;
+
+            if (!grid.JDirectionPositive)
+                gj = (grid.FirstLatitude - gridLat) / grid.DjDegrees; // N→S
+            else
+                gj = (gridLat - grid.FirstLatitude) / grid.DjDegrees; // S→N
+
+            return (gi, gj);
+        }
 
         private static GraphicsPath CreateRoundRect(float x, float y, float w, float h, float r)
         {

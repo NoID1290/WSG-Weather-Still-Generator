@@ -1046,8 +1046,10 @@ namespace WeatherImageGenerator.Rendering.Common
                     if (!el.Visible || !(el is HudSlider sld)) continue;
                     if (el.ComputedBounds.Contains(mx, my))
                     {
-                        float step = (sld.Max - sld.Min) * 0.05f;
+                        float step = sld.Step > 0 ? sld.Step : (sld.Max - sld.Min) * 0.05f;
                         sld.Value = Math.Clamp(sld.Value + (delta > 0 ? step : -step), sld.Min, sld.Max);
+                        if (sld.Step > 0)
+                            sld.Value = (float)(Math.Round(sld.Value / sld.Step) * sld.Step);
                         sld.OnChanged?.Invoke(sld.Value);
                         return true;
                     }
@@ -1066,9 +1068,10 @@ namespace WeatherImageGenerator.Rendering.Common
             float relative = (mx - sld.TrackBounds.X) / sld.TrackBounds.Width;
             relative = Math.Clamp(relative, 0f, 1f);
             float newVal = sld.Min + relative * (sld.Max - sld.Min);
-            // Only quantise to integers for large-range sliders (e.g. 0-100 opacity).
-            // Normalised sliders like the animation timeline use the raw fraction.
-            if (sld.Max - sld.Min >= 2f)
+            // Snap to step size if defined, otherwise quantise to integers for large-range sliders.
+            if (sld.Step > 0)
+                newVal = (float)(Math.Round(newVal / sld.Step) * sld.Step);
+            else if (sld.Max - sld.Min >= 2f)
                 newVal = (float)Math.Round(newVal);
             if (Math.Abs(newVal - sld.Value) > 0.001f)
             {
@@ -1180,6 +1183,8 @@ namespace WeatherImageGenerator.Rendering.Common
         public float Value { get; set; } = 50f;
         public float Min { get; set; } = 0f;
         public float Max { get; set; } = 100f;
+        /// <summary>Step size for value snapping (0 = no snapping).</summary>
+        public float Step { get; set; } = 0f;
         public bool ShowLabel { get; set; } = true;
         /// <summary>When true, draws tick marks and labels above the slider track.</summary>
         public bool ShowTicks { get; set; } = false;

@@ -82,7 +82,7 @@ namespace Grib2.Models
 
         // --- Data representation (from Section 5) ---
 
-        /// <summary>Data representation template number (e.g., 0=Simple, 2=Complex, 3=ComplexSpatial, 40=PNG, 41=JPEG2000).</summary>
+        /// <summary>Data representation template number (e.g., 0=Simple, 2=Complex, 3=ComplexSpatial, 40=JPEG2000, 41=PNG).</summary>
         public int PackingTemplateNumber { get; set; }
 
         /// <summary>Reference value R (IEEE 754 float from Section 5).</summary>

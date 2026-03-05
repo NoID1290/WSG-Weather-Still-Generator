@@ -26,14 +26,15 @@ namespace WeatherImageGenerator.Services
         private readonly SemaphoreSlim _downloadSemaphore = new(4);
         private readonly ConcurrentDictionary<string, CachedGrib2Message> _memoryCache = new();
 
-        // ECCC Datamart base URLs
-        private const string GDPS_BASE = "https://dd.weather.gc.ca/model_gem_global/15km/grib2/lat_lon";
-        private const string HRDPS_BASE = "https://dd.weather.gc.ca/model_hrdps/continental/2.5km";
+        // ECCC Datamart base URLs (date-prefixed structure: /{YYYYMMDD}/WXO-DD/...)
+        private const string DD_BASE = "https://dd.weather.gc.ca";
+        private const string GDPS_PATH = "WXO-DD/model_gem_global/15km/grib2/lat_lon";
+        private const string HRDPS_PATH = "WXO-DD/model_hrdps/continental/2.5km";
 
         // Parameter → GRIB2 filename fragments per model
         private static readonly Dictionary<Grib2FieldType, GribFileSpec> GdpsSpecs = new()
         {
-            [Grib2FieldType.Temperature]  = new("TMP",  "TMP_ISBL_1015", "TMP_TGL_2",     0, 0, 0),
+            [Grib2FieldType.Temperature]  = new("TMP",  "TMP_TGL_2",      null,             0, 0, 0),
             [Grib2FieldType.Wind]         = new("WIND", "UGRD_TGL_10",   "VGRD_TGL_10",   0, 2, 2),
             [Grib2FieldType.Precipitation]= new("APCP", "APCP_SFC_0",    null,             0, 1, 52),
             [Grib2FieldType.CloudCover]   = new("TCDC", "TCDC_SFC_0",    null,             0, 6, 1),
@@ -43,12 +44,12 @@ namespace WeatherImageGenerator.Services
 
         private static readonly Dictionary<Grib2FieldType, GribFileSpec> HrdpsSpecs = new()
         {
-            [Grib2FieldType.Temperature]  = new("TMP",  "TMP_TGL_2",    null,              0, 0, 0),
-            [Grib2FieldType.Wind]         = new("WIND", "UGRD_TGL_10",  "VGRD_TGL_10",    0, 2, 2),
-            [Grib2FieldType.Precipitation]= new("APCP", "APCP_SFC_0",   null,              0, 1, 52),
-            [Grib2FieldType.CloudCover]   = new("TCDC", "TCDC_SFC_0",   null,              0, 6, 1),
-            [Grib2FieldType.Pressure]     = new("PRMSL","PRMSL_MSL_0",  null,              0, 3, 1),
-            [Grib2FieldType.CAPE]         = new("CAPE", "CAPE_SFC_0",   null,              0, 7, 6),
+            [Grib2FieldType.Temperature]  = new("TMP",  "TMP_AGL-2m",     null,              0, 0, 0),
+            [Grib2FieldType.Wind]         = new("WIND", "UGRD_AGL-10m",   "VGRD_AGL-10m",   0, 2, 2),
+            [Grib2FieldType.Precipitation]= new("APCP", "APCP_Sfc",       null,              0, 1, 52),
+            [Grib2FieldType.CloudCover]   = new("TCDC", "TCDC_Sfc",       null,              0, 6, 1),
+            [Grib2FieldType.Pressure]     = new("PRMSL","PRMSL_MSL",      null,              0, 3, 1),
+            [Grib2FieldType.CAPE]         = new("CAPE", "CAPE_Sfc",       null,              0, 7, 6),
         };
 
         /// <summary>Latest GRIB2 run hour available (0, 6, 12, 18 for GDPS; 0, 6, 12, 18 for HRDPS)</summary>
@@ -143,6 +144,9 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         public async Task<Grib2Message?> FetchFieldAsync(Grib2FieldType fieldType, int forecastHour, CancellationToken ct = default)
         {
+            // Clamp and snap forecast hour to model's valid range/steps
+            forecastHour = SnapForecastHour(forecastHour);
+
             string cacheKey = $"{_currentModel}_{LatestRunDate:yyyyMMdd}_{LatestRunHour}_{fieldType}_{forecastHour:D3}";
 
             // Check memory cache first
@@ -236,6 +240,9 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         public async Task<(Grib2Message? U, Grib2Message? V)> FetchWindComponentsAsync(int forecastHour, CancellationToken ct = default)
         {
+            // Clamp and snap forecast hour to model's valid range/steps
+            forecastHour = SnapForecastHour(forecastHour);
+
             var specs = _currentModel == Grib2ModelSource.HRDPS ? HrdpsSpecs : GdpsSpecs;
             if (!specs.TryGetValue(Grib2FieldType.Wind, out var spec))
                 return (null, null);
@@ -336,7 +343,20 @@ namespace WeatherImageGenerator.Services
             catch { }
         }
 
+        /// <summary>Forecast hour step size for the current model (1 for HRDPS, 3 for GDPS).</summary>
+        public int ForecastHourStep => _currentModel == Grib2ModelSource.HRDPS ? 1 : 3;
+
         #region Private helpers
+
+        /// <summary>Clamps and snaps a forecast hour to the nearest valid step for the current model.</summary>
+        private int SnapForecastHour(int forecastHour)
+        {
+            forecastHour = Math.Clamp(forecastHour, 0, MaxForecastHours);
+            int step = ForecastHourStep;
+            if (step > 1)
+                forecastHour = (int)(Math.Round((double)forecastHour / step) * step);
+            return Math.Clamp(forecastHour, 0, MaxForecastHours);
+        }
 
         private string BuildUrl(Grib2FieldType fieldType, int runHour, int forecastHour, DateTime date)
         {
@@ -350,13 +370,13 @@ namespace WeatherImageGenerator.Services
 
             if (_currentModel == Grib2ModelSource.HRDPS)
             {
-                // e.g. https://dd.weather.gc.ca/model_hrdps/continental/2.5km/00/003/20260304T00Z_MSC_HRDPS_TMP_TGL_2_RLatLon0.0225_PT003H.grib2
-                return $"{HRDPS_BASE}/{runStr}/{fhStr}/{dateStr}T{runStr}Z_MSC_HRDPS_{spec.Primary}_RLatLon0.0225_PT{fhStr}H.grib2";
+                // e.g. https://dd.weather.gc.ca/20260305/WXO-DD/model_hrdps/continental/2.5km/12/003/20260305T12Z_MSC_HRDPS_TMP_AGL-2m_RLatLon0.0225_PT003H.grib2
+                return $"{DD_BASE}/{dateStr}/{HRDPS_PATH}/{runStr}/{fhStr}/{dateStr}T{runStr}Z_MSC_HRDPS_{spec.Primary}_RLatLon0.0225_PT{fhStr}H.grib2";
             }
             else
             {
-                // e.g. https://dd.weather.gc.ca/model_gem_global/15km/grib2/lat_lon/00/003/CMC_glb_TMP_TGL_2_latlon.15x.15_2026030400_P003.grib2
-                return $"{GDPS_BASE}/{runStr}/{fhStr}/CMC_glb_{spec.Primary}_latlon.15x.15_{dateStr}{runStr}_P{fhStr}.grib2";
+                // e.g. https://dd.weather.gc.ca/20260305/WXO-DD/model_gem_global/15km/grib2/lat_lon/12/003/CMC_glb_TMP_TGL_2_latlon.15x.15_2026030512_P003.grib2
+                return $"{DD_BASE}/{dateStr}/{GDPS_PATH}/{runStr}/{fhStr}/CMC_glb_{spec.Primary}_latlon.15x.15_{dateStr}{runStr}_P{fhStr}.grib2";
             }
         }
 
@@ -368,11 +388,11 @@ namespace WeatherImageGenerator.Services
 
             if (_currentModel == Grib2ModelSource.HRDPS)
             {
-                return $"{HRDPS_BASE}/{runStr}/{fhStr}/{dateStr}T{runStr}Z_MSC_HRDPS_{component}_TGL_10_RLatLon0.0225_PT{fhStr}H.grib2";
+                return $"{DD_BASE}/{dateStr}/{HRDPS_PATH}/{runStr}/{fhStr}/{dateStr}T{runStr}Z_MSC_HRDPS_{component}_AGL-10m_RLatLon0.0225_PT{fhStr}H.grib2";
             }
             else
             {
-                return $"{GDPS_BASE}/{runStr}/{fhStr}/CMC_glb_{component}_TGL_10_latlon.15x.15_{dateStr}{runStr}_P{fhStr}.grib2";
+                return $"{DD_BASE}/{dateStr}/{GDPS_PATH}/{runStr}/{fhStr}/CMC_glb_{component}_TGL_10_latlon.15x.15_{dateStr}{runStr}_P{fhStr}.grib2";
             }
         }
 

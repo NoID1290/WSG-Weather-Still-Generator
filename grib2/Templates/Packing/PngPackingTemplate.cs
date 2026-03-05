@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace Grib2.Templates.Packing
 {
     /// <summary>
-    /// Data Representation Template 5.40 — PNG Packing.
+    /// Data Representation Template 5.41 — PNG Packing.
     /// Grid values are packed as a PNG image embedded in Section 7.
     /// The PNG pixel values are raw unsigned integers that must be
     /// decoded with the standard scale formula: Y = R + X × 2^E × 10^(-D).
