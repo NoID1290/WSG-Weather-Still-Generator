@@ -1042,5 +1042,30 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("AnimationFrameCount")]
         public int AnimationFrameCount { get; set; } = 10;
+
+        // ── GRIB2 Forecast Overlay ──
+        [JsonPropertyName("Grib2Enabled")]
+        public bool Grib2Enabled { get; set; } = false;
+
+        [JsonPropertyName("Grib2FieldTypeIndex")]
+        public int Grib2FieldTypeIndex { get; set; } = 0;
+
+        [JsonPropertyName("Grib2ModelIndex")]
+        public int Grib2ModelIndex { get; set; } = 0;
+
+        [JsonPropertyName("Grib2Opacity")]
+        public int Grib2Opacity { get; set; } = 60;
+
+        [JsonPropertyName("Grib2ForecastHour")]
+        public int Grib2ForecastHour { get; set; } = 0;
+
+        [JsonPropertyName("Grib2ShowLabels")]
+        public bool Grib2ShowLabels { get; set; } = true;
+
+        [JsonPropertyName("Grib2ShowWindBarbs")]
+        public bool Grib2ShowWindBarbs { get; set; } = true;
+
+        [JsonPropertyName("Grib2ShowIsobars")]
+        public bool Grib2ShowIsobars { get; set; } = false;
     }
 }

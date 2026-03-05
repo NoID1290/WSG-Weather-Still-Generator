@@ -9,8 +9,11 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using ECCC.Services;
+using Grib2.Models;
 using OpenMap;
 using OpenMeteo;
+using WeatherImageGenerator.Models;
+using WeatherImageGenerator.Services;
 
 namespace WeatherImageGenerator.Rendering.Common
 {
@@ -56,6 +59,29 @@ namespace WeatherImageGenerator.Rendering.Common
         public bool ShowTemperatureLabels { get; set; } = true;
         public float RadarOpacity { get; set; } = 0.75f;
         public float TemperatureOpacity { get; set; } = 0.6f;
+
+        // ═══ GRIB2 forecast overlay ═══
+        private byte[]? _grib2Overlay;
+        private DateTime _lastGrib2Update = DateTime.MinValue;
+        private double _lastGrib2Lat;
+        private double _lastGrib2Lon;
+        private int _lastGrib2Zoom;
+        private Grib2FieldType _lastGrib2FieldType;
+        private int _lastGrib2ForecastHour;
+        private readonly TimeSpan _grib2UpdateInterval = TimeSpan.FromMinutes(30);
+
+        private Grib2DataService? _grib2DataService;
+        private readonly Grib2OverlayRenderer _grib2Renderer = new();
+
+        public bool Grib2Enabled { get; set; } = false;
+        public float Grib2Opacity { get; set; } = 0.6f;
+        public Grib2FieldType Grib2FieldType { get; set; } = Grib2FieldType.Temperature;
+        public Grib2ModelSource Grib2Model { get; set; } = Grib2ModelSource.GDPS;
+        public int Grib2ForecastHour { get; set; } = 0;
+        public bool Grib2ShowLabels { get => _grib2Renderer.ShowLabels; set => _grib2Renderer.ShowLabels = value; }
+        public bool Grib2ShowWindBarbs { get => _grib2Renderer.ShowWindBarbs; set => _grib2Renderer.ShowWindBarbs = value; }
+        public bool Grib2ShowIsobars { get => _grib2Renderer.ShowIsobars; set => _grib2Renderer.ShowIsobars = value; }
+        public (double MinLat, double MinLon, double MaxLat, double MaxLon)? LastGrib2BBox { get; private set; }
 
         // Configurable radar layer and WMS style
         public string RadarLayer { get; set; } = "RADAR_1KM_RRAI";
@@ -866,9 +892,103 @@ namespace WeatherImageGenerator.Rendering.Common
             return TimeSpan.Zero;
         }
 
+        /// <summary>
+        /// Fetches GRIB2 forecast data from ECCC Datamart and renders it as a positioned overlay.
+        /// </summary>
+        public async Task<byte[]?> UpdateGrib2OverlayAsync(
+            double centerLat,
+            double centerLon,
+            int width,
+            int height,
+            int mapZoom)
+        {
+            if (!Grib2Enabled)
+                return null;
+
+            bool positionChanged = Math.Abs(centerLat - _lastGrib2Lat) > 0.5 || Math.Abs(centerLon - _lastGrib2Lon) > 0.5;
+            bool zoomChanged = mapZoom != _lastGrib2Zoom;
+            bool fieldChanged = Grib2FieldType != _lastGrib2FieldType;
+            bool hourChanged = Grib2ForecastHour != _lastGrib2ForecastHour;
+            bool cacheExpired = DateTime.UtcNow - _lastGrib2Update >= _grib2UpdateInterval;
+
+            if (_grib2Overlay != null && !positionChanged && !zoomChanged && !fieldChanged && !hourChanged && !cacheExpired)
+                return _grib2Overlay;
+
+            if (positionChanged || zoomChanged || fieldChanged || hourChanged)
+            {
+                _grib2Overlay = null;
+                Console.WriteLine($"[WeatherOverlay] GRIB2 cache invalidated: pos={positionChanged}, zoom={zoomChanged}, field={fieldChanged}, hour={hourChanged}");
+            }
+
+            try
+            {
+                // Lazy-init the data service on first use
+                if (_grib2DataService == null)
+                {
+                    var cacheDir = Path.Combine(
+                        Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? ".",
+                        "MapCache", "Grib2");
+                    _grib2DataService = new Grib2DataService(cacheDir);
+                }
+
+                await _grib2DataService.SetModelAsync(Grib2Model);
+
+                var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
+                LastGrib2BBox = bbox;
+
+                byte[]? overlayPng = null;
+
+                if (Grib2FieldType == Models.Grib2FieldType.Wind)
+                {
+                    // Wind needs U + V components
+                    var (uField, vField) = await _grib2DataService.FetchWindComponentsAsync(Grib2ForecastHour);
+                    if (uField != null && vField != null)
+                    {
+                        overlayPng = _grib2Renderer.RenderWindOverlay(uField, vField, bbox, width, height);
+                    }
+                }
+                else
+                {
+                    var field = await _grib2DataService.FetchFieldAsync(Grib2FieldType, Grib2ForecastHour);
+                    if (field != null)
+                    {
+                        overlayPng = _grib2Renderer.RenderOverlay(field, Grib2FieldType, bbox, width, height);
+                    }
+                }
+
+                if (overlayPng != null && !IsOverlayEmpty(overlayPng))
+                {
+                    _grib2Overlay = overlayPng;
+                    _lastGrib2Update = DateTime.UtcNow;
+                    _lastGrib2Lat = centerLat;
+                    _lastGrib2Lon = centerLon;
+                    _lastGrib2Zoom = mapZoom;
+                    _lastGrib2FieldType = Grib2FieldType;
+                    _lastGrib2ForecastHour = Grib2ForecastHour;
+                    OverlayStatusChanged?.Invoke($"GRIB2 {Grib2FieldType} +{Grib2ForecastHour}h loaded");
+                }
+
+                return _grib2Overlay;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherOverlay] GRIB2 update error: {ex.Message}");
+                return _grib2Overlay;
+            }
+        }
+
+        /// <summary>
+        /// Invalidates the GRIB2 overlay cache, forcing a re-fetch on the next update.
+        /// </summary>
+        public void InvalidateGrib2Cache()
+        {
+            _grib2Overlay = null;
+            _lastGrib2Update = DateTime.MinValue;
+        }
+
         public void Dispose()
         {
-            // Cleanup
+            _grib2DataService?.Dispose();
         }
 
         /// <summary>

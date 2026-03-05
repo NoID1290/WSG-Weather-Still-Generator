@@ -33,6 +33,16 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudButtonGroup _grpMapStyle;
         private HudDropdown _ddRadarLayer;
         private HudDropdown _ddRadarStyle;
+
+        // GRIB2 controls
+        private HudCheckbox? _chkGrib2;
+        private HudDropdown? _ddGrib2Field;
+        private HudDropdown? _ddGrib2Model;
+        private HudSlider? _sldGrib2Opacity;
+        private HudSlider? _sldGrib2ForecastHour;
+        private HudCheckbox? _chkGrib2Labels;
+        private HudCheckbox? _chkGrib2WindBarbs;
+        private HudCheckbox? _chkGrib2Isobars;
         private HudLabel _lblZoom;
         private HudLabel _lblPosition;
         private HudLabel _lblCacheStats;
@@ -555,6 +565,118 @@ namespace WeatherImageGenerator.Rendering.Common
                 }
             };
             overlayPanel.Elements.Add(chkTempLabels);
+
+            // ── GRIB2 Forecast Overlay ──
+            overlayPanel.Elements.Add(new HudSeparator());
+
+            _chkGrib2 = new HudCheckbox
+            {
+                Id = "grib2",
+                Text = "GRIB2 Forecast",
+                Checked = false,
+                OnChanged = chk => { _ = UpdateOverlays(); }
+            };
+            overlayPanel.Elements.Add(_chkGrib2);
+
+            _ddGrib2Field = new HudDropdown
+            {
+                Id = "grib2Field",
+                Text = "Field",
+                Options = new List<string> { "Temperature", "Wind", "Precipitation", "Cloud Cover", "Pressure", "CAPE" },
+                SelectedIndex = 0,
+                OnSelectionChanged = idx =>
+                {
+                    _overlayManager.Grib2FieldType = (Models.Grib2FieldType)idx;
+                    _overlayManager.InvalidateGrib2Cache();
+                    _ = UpdateOverlays();
+                }
+            };
+            overlayPanel.Elements.Add(_ddGrib2Field);
+
+            _ddGrib2Model = new HudDropdown
+            {
+                Id = "grib2Model",
+                Text = "Model",
+                Options = new List<string> { "GDPS (15 km)", "HRDPS (2.5 km)" },
+                SelectedIndex = 0,
+                OnSelectionChanged = idx =>
+                {
+                    _overlayManager.Grib2Model = (Models.Grib2ModelSource)idx;
+                    _overlayManager.InvalidateGrib2Cache();
+                    _ = UpdateOverlays();
+                }
+            };
+            overlayPanel.Elements.Add(_ddGrib2Model);
+
+            _sldGrib2Opacity = new HudSlider
+            {
+                Id = "grib2Opacity",
+                Text = "Forecast Opacity",
+                Value = 60, Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _overlayManager.Grib2Opacity = val / 100f;
+                    _glControl.Overlay3Opacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            };
+            overlayPanel.Elements.Add(_sldGrib2Opacity);
+
+            _sldGrib2ForecastHour = new HudSlider
+            {
+                Id = "grib2ForecastHour",
+                Text = "Forecast Hour",
+                Value = 0, Min = 0, Max = 240, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _overlayManager.Grib2ForecastHour = (int)val;
+                    _overlayManager.InvalidateGrib2Cache();
+                    _ = UpdateOverlays();
+                }
+            };
+            overlayPanel.Elements.Add(_sldGrib2ForecastHour);
+
+            _chkGrib2Labels = new HudCheckbox
+            {
+                Id = "grib2Labels",
+                Text = "Show Labels",
+                Checked = true,
+                OnChanged = on =>
+                {
+                    _overlayManager.Grib2ShowLabels = on;
+                    _overlayManager.InvalidateGrib2Cache();
+                    _ = UpdateOverlays();
+                }
+            };
+            overlayPanel.Elements.Add(_chkGrib2Labels);
+
+            _chkGrib2WindBarbs = new HudCheckbox
+            {
+                Id = "grib2WindBarbs",
+                Text = "Wind Barbs",
+                Checked = true,
+                OnChanged = on =>
+                {
+                    _overlayManager.Grib2ShowWindBarbs = on;
+                    _overlayManager.InvalidateGrib2Cache();
+                    _ = UpdateOverlays();
+                }
+            };
+            overlayPanel.Elements.Add(_chkGrib2WindBarbs);
+
+            _chkGrib2Isobars = new HudCheckbox
+            {
+                Id = "grib2Isobars",
+                Text = "Isobars",
+                Checked = false,
+                OnChanged = on =>
+                {
+                    _overlayManager.Grib2ShowIsobars = on;
+                    _overlayManager.InvalidateGrib2Cache();
+                    _ = UpdateOverlays();
+                }
+            };
+            overlayPanel.Elements.Add(_chkGrib2Isobars);
 
             _hudSystem.AddPanel(overlayPanel);
 
@@ -1230,6 +1352,17 @@ namespace WeatherImageGenerator.Rendering.Common
                 config.WeatherMapView.TemperatureOpacity = (int)(_sldTempOpacity?.Value ?? 60);
                 config.WeatherMapView.RadarLayerIndex = _ddRadarLayer?.SelectedIndex ?? 0;
                 config.WeatherMapView.RadarStyleIndex = _ddRadarStyle?.SelectedIndex ?? 0;
+
+                // GRIB2 settings
+                config.WeatherMapView.Grib2Enabled = _chkGrib2?.Checked ?? false;
+                config.WeatherMapView.Grib2FieldTypeIndex = _ddGrib2Field?.SelectedIndex ?? 0;
+                config.WeatherMapView.Grib2ModelIndex = _ddGrib2Model?.SelectedIndex ?? 0;
+                config.WeatherMapView.Grib2Opacity = (int)(_sldGrib2Opacity?.Value ?? 60);
+                config.WeatherMapView.Grib2ForecastHour = (int)(_sldGrib2ForecastHour?.Value ?? 0);
+                config.WeatherMapView.Grib2ShowLabels = _chkGrib2Labels?.Checked ?? true;
+                config.WeatherMapView.Grib2ShowWindBarbs = _chkGrib2WindBarbs?.Checked ?? true;
+                config.WeatherMapView.Grib2ShowIsobars = _chkGrib2Isobars?.Checked ?? false;
+
                 config.WeatherMapView.PanelPosition = "Right";
                 config.WeatherMapView.ShowStatusBar = _glControl?.ShowStatusBar ?? true;
                 config.WeatherMapView.ShowRuler = _glControl?.ShowRuler ?? true;
@@ -1277,6 +1410,20 @@ namespace WeatherImageGenerator.Rendering.Common
 
                     if (_ddRadarStyle != null && s.RadarStyleIndex >= 0 && s.RadarStyleIndex < _ddRadarStyle.Options.Count)
                         _ddRadarStyle.SelectedIndex = s.RadarStyleIndex;
+
+                    // GRIB2 controls
+                    if (_chkGrib2 != null) _chkGrib2.Checked = s.Grib2Enabled;
+                    if (_ddGrib2Field != null && s.Grib2FieldTypeIndex >= 0 && s.Grib2FieldTypeIndex < _ddGrib2Field.Options.Count)
+                        _ddGrib2Field.SelectedIndex = s.Grib2FieldTypeIndex;
+                    if (_ddGrib2Model != null && s.Grib2ModelIndex >= 0 && s.Grib2ModelIndex < _ddGrib2Model.Options.Count)
+                        _ddGrib2Model.SelectedIndex = s.Grib2ModelIndex;
+                    if (_sldGrib2Opacity != null && s.Grib2Opacity >= 0 && s.Grib2Opacity <= 100)
+                        _sldGrib2Opacity.Value = s.Grib2Opacity;
+                    if (_sldGrib2ForecastHour != null)
+                        _sldGrib2ForecastHour.Value = s.Grib2ForecastHour;
+                    if (_chkGrib2Labels != null) _chkGrib2Labels.Checked = s.Grib2ShowLabels;
+                    if (_chkGrib2WindBarbs != null) _chkGrib2WindBarbs.Checked = s.Grib2ShowWindBarbs;
+                    if (_chkGrib2Isobars != null) _chkGrib2Isobars.Checked = s.Grib2ShowIsobars;
                 }
                 finally
                 {
@@ -1333,6 +1480,20 @@ namespace WeatherImageGenerator.Rendering.Common
                 if (_overlayManager != null)
                 {
                     _overlayManager.ShowTemperatureLabels = config.ShowTemperatureLabels;
+
+                    // Apply GRIB2 overlay manager state
+                    _overlayManager.Grib2Enabled = _chkGrib2?.Checked ?? false;
+                    _overlayManager.Grib2FieldType = (Models.Grib2FieldType)(s.Grib2FieldTypeIndex);
+                    _overlayManager.Grib2Model = (Models.Grib2ModelSource)(s.Grib2ModelIndex);
+                    _overlayManager.Grib2Opacity = (s.Grib2Opacity) / 100f;
+                    _overlayManager.Grib2ForecastHour = s.Grib2ForecastHour;
+                    _overlayManager.Grib2ShowLabels = s.Grib2ShowLabels;
+                    _overlayManager.Grib2ShowWindBarbs = s.Grib2ShowWindBarbs;
+                    _overlayManager.Grib2ShowIsobars = s.Grib2ShowIsobars;
+                }
+                if (_glControl != null)
+                {
+                    _glControl.Overlay3Opacity = s.Grib2Opacity / 100f;
                 }
             }
             catch (Exception ex)
@@ -1522,8 +1683,9 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 _overlayManager.RadarEnabled = _chkRadar.Checked;
                 _overlayManager.TemperatureEnabled = _chkTemperature.Checked;
+                _overlayManager.Grib2Enabled = _chkGrib2?.Checked ?? false;
 
-                if (!_overlayManager.RadarEnabled && !_overlayManager.TemperatureEnabled)
+                if (!_overlayManager.RadarEnabled && !_overlayManager.TemperatureEnabled && !_overlayManager.Grib2Enabled)
                 {
                     _glControl.ClearOverlay();
                     return;
@@ -1586,6 +1748,29 @@ namespace WeatherImageGenerator.Rendering.Common
                 else if (!_overlayManager.TemperatureEnabled)
                 {
                     _glControl.ClearPositionedOverlay2();
+                }
+
+                // Upload GRIB2 forecast overlay to third overlay slot
+                byte[]? grib2Data = null;
+                if (_overlayManager.Grib2Enabled)
+                {
+                    grib2Data = await _overlayManager.UpdateGrib2OverlayAsync(
+                        _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
+                }
+
+                if (grib2Data != null && grib2Data.Length > 0)
+                {
+                    _glControl.Overlay3Opacity = _overlayManager.Grib2Opacity;
+                    var grib2BBox = _overlayManager.LastGrib2BBox;
+                    if (grib2BBox.HasValue)
+                    {
+                        Console.WriteLine($"[WeatherMap] Setting GRIB2 overlay (slot 3) with bbox: ({grib2BBox.Value.MinLat:F4},{grib2BBox.Value.MinLon:F4}) to ({grib2BBox.Value.MaxLat:F4},{grib2BBox.Value.MaxLon:F4})");
+                        _glControl.SetOverlay3Bytes(grib2Data, grib2BBox.Value.MinLat, grib2BBox.Value.MinLon, grib2BBox.Value.MaxLat, grib2BBox.Value.MaxLon, _currentZoom);
+                    }
+                }
+                else if (!_overlayManager.Grib2Enabled)
+                {
+                    _glControl.ClearPositionedOverlay3();
                 }
 
                 // If only temperature (no radar), use primary slot for it instead

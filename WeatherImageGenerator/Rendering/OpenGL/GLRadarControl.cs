@@ -209,6 +209,16 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private bool _hasPositionedOverlay2 = false;
         private float _overlay2Opacity = 0.6f;
 
+        // Third overlay slot for GRIB2 forecast data
+        private int _overlay3Texture = 0;
+        private double _overlay3MinLat = 0.0;
+        private double _overlay3MinLon = 0.0;
+        private double _overlay3MaxLat = 0.0;
+        private double _overlay3MaxLon = 0.0;
+        private int _overlay3Zoom = 0;
+        private bool _hasPositionedOverlay3 = false;
+        private float _overlay3Opacity = 0.6f;
+
         /// <summary>Opacity for the second positioned overlay (0.0â€“1.0)</summary>
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -216,6 +226,15 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         {
             get => _overlay2Opacity;
             set { _overlay2Opacity = Math.Max(0f, Math.Min(1f, value)); Invalidate(); }
+        }
+
+        /// <summary>Opacity for the third positioned overlay / GRIB2 (0.0–1.0)</summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public float Overlay3Opacity
+        {
+            get => _overlay3Opacity;
+            set { _overlay3Opacity = Math.Max(0f, Math.Min(1f, value)); Invalidate(); }
         }
 
         // PBO pool for async texture uploads â€” avoids CPU stall during glTexImage2D
@@ -1012,6 +1031,64 @@ void main() {
                     GL.Uniform1(ov2OpacityLoc, 1.0f);
             } // positioned overlay 2
 
+            // Draw third positioned overlay (GRIB2 forecast) — same GPU compositing pattern
+            if (_hasPositionedOverlay3 && _overlay3Texture != 0)
+            {
+                GL.Enable(EnableCap.Blend);
+                var ov3Shader = _weatherOverlayShader ?? _tileShader;
+                ov3Shader.Use();
+                int ov3TransformLoc = _woShaderTransformLoc >= 0 ? _woShaderTransformLoc : GL.GetUniformLocation(ov3Shader.Handle, "uTransform");
+                int ov3OpacityLoc = _woShaderOpacityLoc >= 0 ? _woShaderOpacityLoc : GL.GetUniformLocation(ov3Shader.Handle, "uOpacity");
+                int ov3TimeLoc = _woShaderTimeLoc >= 0 ? _woShaderTimeLoc : GL.GetUniformLocation(ov3Shader.Handle, "uTime");
+                if (ov3OpacityLoc >= 0)
+                    GL.Uniform1(ov3OpacityLoc, _overlay3Opacity);
+                if (ov3TimeLoc >= 0)
+                    GL.Uniform1(ov3TimeLoc, (float)_elapsedTimer.Elapsed.TotalSeconds);
+                if (_woShaderGlowLoc >= 0)
+                    GL.Uniform1(_woShaderGlowLoc, EnableRadarGlow ? 1 : 0);
+                GL.ActiveTexture(TextureUnit.Texture0);
+
+                int z3 = _mapZoom;
+                double cx3 = LonToPixelX(_centerLon, z3);
+                double cy3 = LatToPixelY(_centerLat, z3);
+
+                double leftPx3 = LonToPixelX(_overlay3MinLon, z3);
+                double rightPx3 = LonToPixelX(_overlay3MaxLon, z3);
+                double topPy3 = LatToPixelY(_overlay3MaxLat, z3);
+                double bottomPy3 = LatToPixelY(_overlay3MinLat, z3);
+
+                double imgW3 = Math.Abs(rightPx3 - leftPx3);
+                double imgH3 = Math.Abs(bottomPy3 - topPy3);
+                double imgCx3 = (leftPx3 + rightPx3) / 2.0;
+                double imgCy3 = (topPy3 + bottomPy3) / 2.0;
+
+                double sCx3 = (imgCx3 - cx3) + Width / 2.0;
+                double sCy3 = (imgCy3 - cy3) + Height / 2.0;
+
+                float wNdc3 = (float)(imgW3 / (Width / 2.0)) * _zoom;
+                float hNdc3 = (float)(imgH3 / (Height / 2.0)) * _zoom;
+
+                float sx3 = wNdc3 / 2f;
+                float sy3 = hNdc3 / 2f;
+                float ndcX3 = ((float)(sCx3 / (Width / 2.0) - 1.0)) * _zoom + _pan.X;
+                float ndcY3 = ((float)(1.0 - sCy3 / (Height / 2.0))) * _zoom + _pan.Y;
+
+                float[] tmat3 = { sx3, 0f, 0f, 0f, sy3, 0f, ndcX3, ndcY3, 1f };
+                if (ov3TransformLoc >= 0)
+                    GL.UniformMatrix3(ov3TransformLoc, 1, false, tmat3);
+                else
+                    ov3Shader.SetMatrix3("uTransform", tmat3);
+
+                GL.BindTexture(TextureTarget.Texture2D, _overlay3Texture);
+                GL.BindVertexArray(_vao);
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+                GL.BindTexture(TextureTarget.Texture2D, 0);
+
+                if (ov3OpacityLoc >= 0)
+                    GL.Uniform1(ov3OpacityLoc, 1.0f);
+            } // positioned overlay 3 (GRIB2)
+
             // Draw radar frames (oldest first) with fading alpha
             if (_radarFrames.Count > 0)
             {
@@ -1625,9 +1702,10 @@ void main() {
             }
             _radarFrames.Clear();
 
-            // Clear both positioned overlays
+            // Clear all positioned overlays
             ClearPositionedOverlay();
             ClearPositionedOverlay2();
+            ClearPositionedOverlay3();
             
             Invalidate();
         }
@@ -1672,6 +1750,76 @@ void main() {
             }
             _hasPositionedOverlay2 = false;
             Invalidate();
+        }
+
+        /// <summary>
+        /// Clears the third positioned overlay (GRIB2 forecast layer)
+        /// </summary>
+        public void ClearPositionedOverlay3()
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => ClearPositionedOverlay3()));
+                return;
+            }
+
+            MakeCurrent();
+            if (_overlay3Texture != 0)
+            {
+                try { GL.DeleteTexture(_overlay3Texture); } catch { }
+                _overlay3Texture = 0;
+            }
+            _hasPositionedOverlay3 = false;
+            Invalidate();
+        }
+
+        /// <summary>
+        /// Sets a third overlay texture (GRIB2 forecast) with geographic bounding box
+        /// </summary>
+        public void SetOverlay3Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom)
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => SetOverlay3Bytes(data, minLat, minLon, maxLat, maxLon, sourceZoom)));
+                return;
+            }
+
+            if (minLat >= maxLat || minLon >= maxLon)
+            {
+                Console.WriteLine($"[GLRadarControl] ERROR: Invalid bbox for overlay3");
+                return;
+            }
+
+            try
+            {
+                MakeCurrent();
+                if (_overlay3Texture != 0)
+                {
+                    try { GL.DeleteTexture(_overlay3Texture); } catch { }
+                    _overlay3Texture = 0;
+                }
+
+                using var ms = new MemoryStream(data);
+                using var bmp = new Bitmap(ms);
+                _overlay3Texture = UploadBitmapToOverlayTexture(bmp);
+
+                if (_overlay3Texture != 0)
+                {
+                    _overlay3MinLat = minLat;
+                    _overlay3MinLon = minLon;
+                    _overlay3MaxLat = maxLat;
+                    _overlay3MaxLon = maxLon;
+                    _overlay3Zoom = sourceZoom;
+                    _hasPositionedOverlay3 = true;
+                    Console.WriteLine($"[GLRadarControl] Overlay3 (GRIB2) uploaded: texture={_overlay3Texture}");
+                    Invalidate();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Overlay3 upload error: {ex.Message}");
+                _hasPositionedOverlay3 = false;
+            }
         }
 
         /// <summary>

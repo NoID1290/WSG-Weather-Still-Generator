@@ -107,6 +107,9 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <summary>Secondary overlay opacity (0.0-1.0) for temperature layer.</summary>
         float Overlay2Opacity { get; set; }
 
+        /// <summary>Tertiary overlay opacity (0.0-1.0) for GRIB2 forecast layer.</summary>
+        float Overlay3Opacity { get; set; }
+
         /// <summary>Show debug bounding boxes for overlays.</summary>
         bool DebugOverlayBounds { get; set; }
 
@@ -151,6 +154,9 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <summary>Set the secondary overlay from raw image bytes with explicit bounding box.</summary>
         void SetOverlay2Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom);
 
+        /// <summary>Set the tertiary overlay (GRIB2 forecast) from raw image bytes with explicit bounding box.</summary>
+        void SetOverlay3Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom);
+
         /// <summary>Clear all overlays.</summary>
         void ClearOverlay();
 
@@ -159,6 +165,9 @@ namespace WeatherImageGenerator.Rendering.Common
 
         /// <summary>Clear only the secondary positioned overlay.</summary>
         void ClearPositionedOverlay2();
+
+        /// <summary>Clear only the tertiary positioned overlay (GRIB2).</summary>
+        void ClearPositionedOverlay3();
 
         // ═══════════════════════════════════════════════════════════════════
         // Map navigation

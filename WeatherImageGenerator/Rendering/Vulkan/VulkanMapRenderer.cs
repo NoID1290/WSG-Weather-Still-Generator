@@ -150,6 +150,11 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         private bool _hasPositionedOverlay2;
         private double _overlay2MinLat, _overlay2MinLon, _overlay2MaxLat, _overlay2MaxLon;
 
+        // Positioned overlay 3 (GRIB2 forecast)
+        private VulkanTexture _overlay3Tex;
+        private bool _hasPositionedOverlay3;
+        private double _overlay3MinLat, _overlay3MinLon, _overlay3MaxLat, _overlay3MaxLon;
+
         // Radar frames
         private readonly List<VulkanTexture> _radarFrames = new();
         private const int MAX_RADAR_FRAMES = 6;
@@ -190,6 +195,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         // Overlay opacity
         private float _overlayOpacity = 0.75f;
         private float _overlay2Opacity = 0.6f;
+        private float _overlay3Opacity = 0.6f;
 
         // ═══════════════════════════════════════════════════════════════════
         // IMapRenderer properties
@@ -222,6 +228,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
 
         public float OverlayOpacity { get => _overlayOpacity; set { _overlayOpacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public float Overlay2Opacity { get => _overlay2Opacity; set { _overlay2Opacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
+        public float Overlay3Opacity { get => _overlay3Opacity; set { _overlay3Opacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public bool DebugOverlayBounds { get; set; }
         public bool UsePboUploads { get; set; } = true;
 
@@ -236,6 +243,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 int count = _tileTextures.Count;
                 if (_overlayTex.Image.Handle != 0) count++;
                 if (_overlay2Tex.Image.Handle != 0) count++;
+                if (_overlay3Tex.Image.Handle != 0) count++;
                 if (_backgroundTex.Image.Handle != 0) count++;
                 if (_fallbackTile.Image.Handle != 0) count++;
                 count += _radarFrames.Count;
@@ -1243,6 +1251,10 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                     RenderPositionedOverlay(cmd, _overlay2Tex, _overlay2MinLat, _overlay2MinLon,
                         _overlay2MaxLat, _overlay2MaxLon, _overlay2Opacity, time, w, h);
 
+                if (_hasPositionedOverlay3 && _overlay3Tex.Image.Handle != 0)
+                    RenderPositionedOverlay(cmd, _overlay3Tex, _overlay3MinLat, _overlay3MinLon,
+                        _overlay3MaxLat, _overlay3MaxLon, _overlay3Opacity, time, w, h);
+
                 RenderRadarFrames(cmd, time, w, h);
                 RenderCrosshair(cmd, time, w, h);
                 RenderUserMarker(cmd, w, h);
@@ -1809,6 +1821,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         {
             ClearPositionedOverlay();
             ClearPositionedOverlay2();
+            ClearPositionedOverlay3();
             if (_backgroundTex.Image.Handle != 0) { _backgroundTex.Dispose(); _backgroundTex = default; }
             _hasBackgroundTexture = false;
             BackgroundTextureChanged?.Invoke(false);
@@ -1826,6 +1839,34 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         {
             _hasPositionedOverlay2 = false;
             if (_overlay2Tex.Image.Handle != 0) { _overlay2Tex.Dispose(); _overlay2Tex = default; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetOverlay3Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom)
+        {
+            try
+            {
+                using var ms = new MemoryStream(data);
+                using var bmp = new Bitmap(ms);
+
+                if (_overlay3Tex.Image.Handle != 0) _overlay3Tex.Dispose();
+                _overlay3Tex = UploadBitmapToTexture(bmp);
+                _hasPositionedOverlay3 = true;
+                _overlay3MinLat = minLat; _overlay3MinLon = minLon;
+                _overlay3MaxLat = maxLat; _overlay3MaxLon = maxLon;
+
+                _hostPanel.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VulkanMapRenderer] SetOverlay3Bytes error: {ex.Message}");
+            }
+        }
+
+        public void ClearPositionedOverlay3()
+        {
+            _hasPositionedOverlay3 = false;
+            if (_overlay3Tex.Image.Handle != 0) { _overlay3Tex.Dispose(); _overlay3Tex = default; }
             _hostPanel.Invalidate();
         }
 

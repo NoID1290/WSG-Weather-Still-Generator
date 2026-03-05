@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -104,6 +104,11 @@ namespace WeatherImageGenerator.Rendering.DirectX
         private bool _hasPositionedOverlay2;
         private double _overlay2MinLat, _overlay2MinLon, _overlay2MaxLat, _overlay2MaxLon;
 
+        // Positioned overlay 3 (GRIB2 forecast)
+        private ComPtr<ID3D11ShaderResourceView> _overlay3Srv;
+        private bool _hasPositionedOverlay3;
+        private double _overlay3MinLat, _overlay3MinLon, _overlay3MaxLat, _overlay3MaxLon;
+
         // Radar frames
         private readonly List<ComPtr<ID3D11ShaderResourceView>> _radarFrames = new();
         private const int MAX_RADAR_FRAMES = 6;
@@ -144,6 +149,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
         // Overlay opacity
         private float _overlayOpacity = 0.75f;
         private float _overlay2Opacity = 0.6f;
+        private float _overlay3Opacity = 0.6f;
 
         // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // IMapRenderer properties
@@ -177,6 +183,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
 
         public float OverlayOpacity { get => _overlayOpacity; set { _overlayOpacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public float Overlay2Opacity { get => _overlay2Opacity; set { _overlay2Opacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
+        public float Overlay3Opacity { get => _overlay3Opacity; set { _overlay3Opacity = Math.Clamp(value, 0f, 1f); _hostPanel.Invalidate(); } }
         public bool DebugOverlayBounds { get; set; }
         public bool UsePboUploads { get; set; } = true;
 
@@ -193,6 +200,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
                     int count = _tileTextures.Count;
                     if (_overlaySrv.Handle != null) count++;
                     if (_overlay2Srv.Handle != null) count++;
+                    if (_overlay3Srv.Handle != null) count++;
                     if (_backgroundSrv.Handle != null) count++;
                     if (_fallbackTileSrv.Handle != null) count++;
                     count += _radarFrames.Count;
@@ -210,6 +218,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
                     long bytes = (long)_tileTextures.Count * 256 * 256 * 4;
                     if (_overlaySrv.Handle != null) bytes += 1024L * 1024 * 4;
                     if (_overlay2Srv.Handle != null) bytes += 1024L * 1024 * 4;
+                    if (_overlay3Srv.Handle != null) bytes += 1024L * 1024 * 4;
                     if (_backgroundSrv.Handle != null) bytes += (long)_bgPixelWidth * _bgPixelHeight * 4;
                     if (_fallbackTileSrv.Handle != null) bytes += 256L * 256 * 4;
                     bytes += (long)_radarFrames.Count * 1024 * 1024 * 4;
@@ -784,6 +793,9 @@ namespace WeatherImageGenerator.Rendering.DirectX
             // â”€â”€â”€ Step 5: Positioned overlay 2 (temperature) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (_hasPositionedOverlay2 && _overlay2Srv.Handle != null)
                 RenderPositionedOverlay(_overlay2Srv, _overlay2MinLat, _overlay2MinLon, _overlay2MaxLat, _overlay2MaxLon, _overlay2Opacity, time, w, h);
+            // ── Step 5b: Positioned overlay 3 (GRIB2 forecast) ──────────
+            if (_hasPositionedOverlay3 && _overlay3Srv.Handle != null)
+                RenderPositionedOverlay(_overlay3Srv, _overlay3MinLat, _overlay3MinLon, _overlay3MaxLat, _overlay3MaxLon, _overlay3Opacity, time, w, h);
 
             // â”€â”€â”€ Step 6: Radar frames â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             RenderRadarFrames(time, w, h);
@@ -1426,6 +1438,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
             foreach (var f in _radarFrames) f.Dispose(); _radarFrames.Clear();
             ClearPositionedOverlay();
             ClearPositionedOverlay2();
+            ClearPositionedOverlay3();
             _hostPanel.Invalidate();
         }
 
@@ -1442,6 +1455,41 @@ namespace WeatherImageGenerator.Rendering.DirectX
             if (_hostPanel.InvokeRequired) { _hostPanel.BeginInvoke(new Action(ClearPositionedOverlay2)); return; }
             _overlay2Srv.Dispose(); _overlay2Srv = default;
             _hasPositionedOverlay2 = false;
+            _hostPanel.Invalidate();
+        }
+
+        public void SetOverlay3Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom)
+        {
+            if (_hostPanel.InvokeRequired)
+            {
+                _hostPanel.BeginInvoke(new Action(() => SetOverlay3Bytes(data, minLat, minLon, maxLat, maxLon, sourceZoom)));
+                return;
+            }
+            try
+            {
+                using var ms = new MemoryStream(data);
+                using var bmp = new Bitmap(ms);
+                _overlay3Srv.Dispose(); _overlay3Srv = default;
+                _overlay3Srv = UploadBitmapToSrv(bmp);
+                unsafe
+                {
+                    if (_overlay3Srv.Handle != null)
+                    {
+                        _overlay3MinLat = minLat; _overlay3MinLon = minLon;
+                        _overlay3MaxLat = maxLat; _overlay3MaxLon = maxLon;
+                        _hasPositionedOverlay3 = true;
+                    }
+                }
+                _hostPanel.Invalidate();
+            }
+            catch (Exception ex) { Console.WriteLine($"[DXMapRenderer] SetOverlay3Bytes error: {ex.Message}"); }
+        }
+
+        public void ClearPositionedOverlay3()
+        {
+            if (_hostPanel.InvokeRequired) { _hostPanel.BeginInvoke(new Action(ClearPositionedOverlay3)); return; }
+            _overlay3Srv.Dispose(); _overlay3Srv = default;
+            _hasPositionedOverlay3 = false;
             _hostPanel.Invalidate();
         }
 
