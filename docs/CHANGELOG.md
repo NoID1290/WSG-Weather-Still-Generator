@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.14.17.0306] - 2026-03-06
 
-- Introducing GRID2 Forecast
+- Introducing GRIB2 Forecast
 
 ## [1.13.17.0305] - 2026-03-05
 
