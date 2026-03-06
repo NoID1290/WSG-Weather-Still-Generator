@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.17.0305] - 2026-03-05
+
+- Enhance GRIB2 handling with step size support for sliders and update packing templates for JPEG2000 and PNG
+- Add GRIB2 Overlay Renderer and Integration Guide
+- Add GRIB2 decoder with ILGPU support and various packing templates
+- Enhance documentation and project structure for Grib2 library integration
+- Add initial Grib2 library project structure and documentation
+
 ## [1.13.16.0303] - 2026-03-03
 
 - Fixing DirectX11 back buffer issues
