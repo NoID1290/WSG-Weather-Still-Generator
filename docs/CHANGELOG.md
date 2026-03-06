@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.17.0306] - 2026-03-06
+
+- Introducing GRID2 Forecast
+
 ## [1.13.17.0305] - 2026-03-05
 
 - Enhance GRIB2 handling with step size support for sliders and update packing templates for JPEG2000 and PNG
