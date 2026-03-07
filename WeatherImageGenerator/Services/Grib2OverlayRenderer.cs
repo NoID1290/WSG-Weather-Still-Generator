@@ -202,14 +202,19 @@ namespace WeatherImageGenerator.Services
                         // Convert lat/lon to grid indices
                         var (gi, gj) = MapToGridCoords(lat, lon, grid);
 
+                        // Skip pixels outside the grid domain (prevents arc artifacts)
+                        if (gi < 0 || gi > ni - 1 || gj < 0 || gj > nj - 1)
+                            continue;
+
                         // Bilinear interpolation
                         int i0 = (int)Math.Floor(gi);
                         int j0 = (int)Math.Floor(gj);
                         float fx = (float)(gi - i0);
                         float fy = (float)(gj - j0);
 
-                        i0 = Math.Clamp(i0, 0, ni - 2);
-                        j0 = Math.Clamp(j0, 0, nj - 2);
+                        // Clamp to valid interpolation range (only needed for edge pixels where gi/gj == ni-1)
+                        i0 = Math.Min(i0, ni - 2);
+                        j0 = Math.Min(j0, nj - 2);
 
                         float v00 = GetGridValue(displayValues, i0, j0, ni);
                         float v10 = GetGridValue(displayValues, i0 + 1, j0, ni);
