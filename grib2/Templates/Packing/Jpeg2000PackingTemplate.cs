@@ -47,7 +47,34 @@ namespace Grib2.Templates.Packing
             var values = new float[numberOfDataPoints];
 
             // GRIB2 J2K is single-component (grayscale); each pixel is a raw integer
+            int numComponents = image.NumberOfComponents;
             var component0 = image.GetComponent(0);
+
+            if (component0 == null || component0.Length == 0)
+                throw new InvalidOperationException(
+                    $"JPEG2000 component0 empty. Components={numComponents}, PackedLen={packedData.Length}, Expected={numberOfDataPoints}");
+
+            // Validate decoded size matches expected; log mismatch
+            if (component0.Length != numberOfDataPoints)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[J2K] Size mismatch: component0={component0.Length}, expected={numberOfDataPoints}, BPV={field.BitsPerValue}");
+            }
+
+            // Detect all-zero component (CSJ2K decode failure symptom)
+            bool allZero = true;
+            int checkCount = Math.Min(100, component0.Length);
+            for (int i = 0; i < checkCount; i++)
+            {
+                if (component0[i] != 0) { allZero = false; break; }
+            }
+            if (allZero && component0.Length > 1)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[J2K] WARNING: All component0 values are 0 — possible decode failure. " +
+                    $"R={R}, E={field.BinaryScaleFactor}, D={field.DecimalScaleFactor}, BPV={field.BitsPerValue}, " +
+                    $"PackedBytes={packedData.Length}, Pixels={component0.Length}");
+            }
 
             for (int i = 0; i < numberOfDataPoints; i++)
             {

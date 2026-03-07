@@ -117,7 +117,8 @@ namespace ECCC.Services
             try
             {
                 var radarUrl = BuildRadarUrl(bbox, width, height, radarLayer, wmsStyle, time);
-                Console.WriteLine($"[RadarImageService] Fetching radar overlay (layer={radarLayer}, time={time ?? "latest"})...");
+                Console.WriteLine($"[RadarImageService] Fetching radar overlay (layer={radarLayer}, style={wmsStyle ?? "(default)"}, time={time ?? "latest"})");
+                Console.WriteLine($"[RadarImageService] URL: {radarUrl}");
 
                 var response = await _httpClient.GetAsync(radarUrl);
                 if (response.IsSuccessStatusCode)

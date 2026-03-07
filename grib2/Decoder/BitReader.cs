@@ -255,6 +255,20 @@ namespace Grib2.Decoder
         }
 
         /// <summary>
+        /// Read a signed 16-bit value using GRIB2 sign-magnitude representation.
+        /// MSB = sign (1 = negative), remaining 15 bits = magnitude.
+        /// Used for binary/decimal scale factors in Section 5.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static short ReadSignedMagnitude16BE(this ReadOnlySpan<byte> data, int offset)
+        {
+            ushort raw = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset, 2));
+            bool negative = (raw & 0x8000u) != 0;
+            short magnitude = (short)(raw & 0x7FFF);
+            return negative ? (short)-magnitude : magnitude;
+        }
+
+        /// <summary>
         /// Read a signed 32-bit value using GRIB2 sign-magnitude representation.
         /// MSB = sign (1 = negative), remaining 31 bits = magnitude.
         /// </summary>

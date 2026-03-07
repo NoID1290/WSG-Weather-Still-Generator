@@ -26,12 +26,13 @@ namespace Grib2.Templates.Packing
         public static float[] Unpack(ReadOnlySpan<byte> packedData, ReadOnlySpan<byte> sec5Template,
             Grib2Field field, int numberOfDataPoints)
         {
-            if (sec5Template.Length < 37)
+            if (sec5Template.Length < 38)
                 throw new InvalidOperationException("Section 5 template too short for Complex Spatial Packing");
 
             // Parse spatial differencing parameters
-            byte spatialOrder = sec5Template[35];
-            byte extraDescriptors = sec5Template[36];
+            // Template byte [9] = Type of original field values, so spatial fields start at [36]/[37]
+            byte spatialOrder = sec5Template[36];
+            byte extraDescriptors = sec5Template[37];
 
             if (spatialOrder != 1 && spatialOrder != 2)
                 throw new InvalidOperationException($"Unsupported spatial differencing order: {spatialOrder}");
@@ -63,14 +64,15 @@ namespace Grib2.Templates.Packing
             int bitsPerValue = field.BitsPerValue;
 
             // Parse group parameters (same as Template 5.2)
-            byte missingValueMgmt = sec5Template[10];
-            int numberOfGroups = (int)sec5Template.ReadUInt32BE(19);
-            byte refGroupWidths = sec5Template[23];
-            byte bitsGroupWidths = sec5Template[24];
-            uint refGroupLength = sec5Template.ReadUInt32BE(25);
-            byte lengthIncrement = sec5Template[29];
-            int lastGroupLength = (int)sec5Template.ReadUInt32BE(30);
-            byte bitsGroupLengths = sec5Template[34];
+            // Template byte [9] = Type of original field values, complex fields start at [10]+1
+            byte missingValueMgmt = sec5Template[11];
+            int numberOfGroups = (int)sec5Template.ReadUInt32BE(20);
+            byte refGroupWidths = sec5Template[24];
+            byte bitsGroupWidths = sec5Template[25];
+            uint refGroupLength = sec5Template.ReadUInt32BE(26);
+            byte lengthIncrement = sec5Template[30];
+            int lastGroupLength = (int)sec5Template.ReadUInt32BE(31);
+            byte bitsGroupLengths = sec5Template[35];
 
             if (numberOfGroups == 0)
             {

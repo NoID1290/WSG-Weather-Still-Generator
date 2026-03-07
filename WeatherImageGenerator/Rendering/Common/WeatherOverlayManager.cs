@@ -103,7 +103,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 "RADAR_1KM_RRAI" => "RADARURPPRECIPR14-LINEAR",   // Rain rate
                 "RADAR_1KM_RSNO" => "RADARURPPRECIPS14-LINEAR",   // Snow rate
-                "RADAR_1KM_RDBR" => null,                          // Combined (server default palette)
+                "RADAR_1KM_RDBR" => null,                          // Combined reflectivity (server default)
                 "RADAR_COVERAGE_RRAI.INV" => null,                 // Coverage (server default)
                 _ => "RADARURPPRECIPR14-LINEAR"
             };
@@ -947,6 +947,8 @@ namespace WeatherImageGenerator.Rendering.Common
                     var (uField, vField) = await _grib2DataService.FetchWindComponentsAsync(forecastHour);
                     if (uField != null && vField != null)
                     {
+                        LogGrib2Diagnostics("Wind-U", uField);
+                        LogGrib2Diagnostics("Wind-V", vField);
                         overlayPng = _grib2Renderer.RenderWindOverlay(uField, vField, bbox, width, height);
                     }
                 }
@@ -955,6 +957,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     var field = await _grib2DataService.FetchFieldAsync(Grib2FieldType, forecastHour);
                     if (field != null)
                     {
+                        LogGrib2Diagnostics(Grib2FieldType.ToString(), field);
                         overlayPng = _grib2Renderer.RenderOverlay(field, Grib2FieldType, bbox, width, height);
                     }
                 }
@@ -987,6 +990,44 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             _grib2Overlay = null;
             _lastGrib2Update = DateTime.MinValue;
+        }
+
+        private static void LogGrib2Diagnostics(string label, Grib2.Models.Grib2Message msg)
+        {
+            var grid = msg.Grid;
+            var field = msg.Field;
+            var vals = field?.Values;
+            Console.WriteLine($"[GRIB2 Diag] === {label} ===");
+            Console.WriteLine($"  Grid: Template={grid?.TemplateNumber}, {grid?.Ni}x{grid?.Nj}, " +
+                $"FirstLat={grid?.FirstLatitude:F4}, FirstLon={grid?.FirstLongitude:F4}, " +
+                $"LastLat={grid?.LastLatitude:F4}, LastLon={grid?.LastLongitude:F4}, " +
+                $"Di={grid?.DiDegrees:F6}, Dj={grid?.DjDegrees:F6}, ScanMode=0x{grid?.ScanningMode:X2}");
+            if (grid?.RotatedPoleLat.HasValue == true)
+                Console.WriteLine($"  Rotated: PoleLat={grid.RotatedPoleLat:F4}, PoleLon={grid.RotatedPoleLon:F4}, Angle={grid.RotationAngle:F4}");
+            Console.WriteLine($"  Field: PackingTemplate={field?.PackingTemplateNumber}, BitsPerValue={field?.BitsPerValue}, " +
+                $"R={field?.ReferenceValue}, E={field?.BinaryScaleFactor}, D={field?.DecimalScaleFactor}");
+            if (vals != null && vals.Length > 0)
+            {
+                float min = float.MaxValue, max = float.MinValue;
+                int nanCount = 0;
+                double sum = 0;
+                int validCount = 0;
+                for (int i = 0; i < vals.Length; i++)
+                {
+                    if (float.IsNaN(vals[i])) { nanCount++; continue; }
+                    if (vals[i] < min) min = vals[i];
+                    if (vals[i] > max) max = vals[i];
+                    sum += vals[i];
+                    validCount++;
+                }
+                Console.WriteLine($"  Data: Length={vals.Length}, Valid={validCount}, NaN={nanCount}, " +
+                    $"Min={min:F4}, Max={max:F4}, Avg={(validCount > 0 ? sum / validCount : 0):F4}");
+                Console.WriteLine($"  Sample[0..4]: {string.Join(", ", vals.Take(5).Select(v => v.ToString("F4")))}");
+            }
+            else
+            {
+                Console.WriteLine($"  Data: EMPTY or null");
+            }
         }
 
         public void Dispose()

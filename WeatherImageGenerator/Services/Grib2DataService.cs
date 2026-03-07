@@ -145,7 +145,7 @@ namespace WeatherImageGenerator.Services
         public async Task<Grib2Message?> FetchFieldAsync(Grib2FieldType fieldType, int forecastHour, CancellationToken ct = default)
         {
             // Clamp and snap forecast hour to model's valid range/steps
-            forecastHour = SnapForecastHour(forecastHour);
+            forecastHour = SnapForecastHour(forecastHour, fieldType);
 
             string cacheKey = $"{_currentModel}_{LatestRunDate:yyyyMMdd}_{LatestRunHour}_{fieldType}_{forecastHour:D3}";
 
@@ -349,12 +349,17 @@ namespace WeatherImageGenerator.Services
         #region Private helpers
 
         /// <summary>Clamps and snaps a forecast hour to the nearest valid step for the current model.</summary>
-        private int SnapForecastHour(int forecastHour)
+        private int SnapForecastHour(int forecastHour, Grib2FieldType fieldType = Grib2FieldType.Temperature)
         {
             forecastHour = Math.Clamp(forecastHour, 0, MaxForecastHours);
             int step = ForecastHourStep;
             if (step > 1)
                 forecastHour = (int)(Math.Round((double)forecastHour / step) * step);
+
+            // APCP (Accumulated Precipitation) doesn't exist at hour 0 — ECCC doesn't publish it
+            if (fieldType == Grib2FieldType.Precipitation && forecastHour < step)
+                forecastHour = step;
+
             return Math.Clamp(forecastHour, 0, MaxForecastHours);
         }
 

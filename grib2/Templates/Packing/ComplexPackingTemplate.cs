@@ -43,28 +43,30 @@ namespace Grib2.Templates.Packing
             int bitsPerValue = field.BitsPerValue;
 
             // Parse complex packing parameters from Section 5 template
-            // Offsets are relative to template data start (after common 9-byte header)
-            byte groupSplittingMethod = sec5Template[9];
-            byte missingValueMgmt = sec5Template[10];
+            // Offsets are relative to template data start (section byte 11 = template byte 0)
+            // Template layout: [0-3]=R, [4-5]=E, [6-7]=D, [8]=BitsPerValue, [9]=TypeOfOriginalValues
+            // Complex packing fields start at template byte 10:
+            byte groupSplittingMethod = sec5Template[10];
+            byte missingValueMgmt = sec5Template[11];
 
-            float primaryMissing = sec5Template.ReadFloat32BE(11);
-            float secondaryMissing = sec5Template.ReadFloat32BE(15);
+            float primaryMissing = sec5Template.ReadFloat32BE(12);
+            float secondaryMissing = sec5Template.ReadFloat32BE(16);
 
-            int numberOfGroups = (int)sec5Template.ReadUInt32BE(19);
-            byte refGroupWidths = sec5Template[23];
-            byte bitsGroupWidths = sec5Template[24];
+            int numberOfGroups = (int)sec5Template.ReadUInt32BE(20);
+            byte refGroupWidths = sec5Template[24];
+            byte bitsGroupWidths = sec5Template[25];
 
             uint refGroupLength = 0;
             byte lengthIncrement = 0;
             int lastGroupLength = 0;
             byte bitsGroupLengths = 0;
 
-            if (sec5Template.Length >= 35)
+            if (sec5Template.Length >= 36)
             {
-                refGroupLength = sec5Template.ReadUInt32BE(25);
-                lengthIncrement = sec5Template[29];
-                lastGroupLength = (int)sec5Template.ReadUInt32BE(30);
-                bitsGroupLengths = sec5Template[34];
+                refGroupLength = sec5Template.ReadUInt32BE(26);
+                lengthIncrement = sec5Template[30];
+                lastGroupLength = (int)sec5Template.ReadUInt32BE(31);
+                bitsGroupLengths = sec5Template[35];
             }
 
             if (numberOfGroups == 0)

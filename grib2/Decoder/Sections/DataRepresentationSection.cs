@@ -55,15 +55,16 @@ namespace Grib2.Decoder.Sections
         /// Parse the common packing fields shared by templates 5.0, 5.2, 5.3, 5.40, 5.41.
         /// Template layout (0-indexed from template start):
         ///   Octets 0–3:  Reference value R (IEEE 754 float)
-        ///   Octets 4–5:  Binary scale factor E (signed 16-bit)
-        ///   Octets 6–7:  Decimal scale factor D (signed 16-bit)
+        ///   Octets 4–5:  Binary scale factor E (signed 16-bit, sign-magnitude per WMO)
+        ///   Octets 6–7:  Decimal scale factor D (signed 16-bit, sign-magnitude per WMO)
         ///   Octet 8:     Number of bits used for each packed value
         /// </summary>
         private static void ParseCommonPackingFields(ReadOnlySpan<byte> template, Grib2Field field)
         {
             field.ReferenceValue = template.ReadFloat32BE(0);
-            field.BinaryScaleFactor = template.ReadInt16BE(4);
-            field.DecimalScaleFactor = template.ReadInt16BE(6);
+            // GRIB2 WMO standard: signed integers use sign-magnitude (MSB = sign bit)
+            field.BinaryScaleFactor = template.ReadSignedMagnitude16BE(4);
+            field.DecimalScaleFactor = template.ReadSignedMagnitude16BE(6);
             field.BitsPerValue = template[8];
         }
 
