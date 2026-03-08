@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 
 namespace Grib2.Integration
@@ -203,5 +204,72 @@ namespace Grib2.Integration
                 _ => (0f, 100f)
             };
         }
+
+        /// <summary>
+        /// Generates a 1D RGBA palette texture (256 texels) for GPU-based color mapping.
+        /// The returned byte array is 256×4 bytes (R,G,B,A per texel), sampled by
+        /// normalizing a field value to [0,1] within its range.
+        /// </summary>
+        /// <param name="fieldType">Field name (Temperature, Wind, Precipitation, CloudCover, Pressure, CAPE)</param>
+        /// <param name="alpha">Alpha for non-transparent stops (0–255). Default 200.</param>
+        /// <returns>byte[1024] — 256 texels × 4 channels (RGBA)</returns>
+        public static byte[] GeneratePaletteTexture(string fieldType, int alpha = 200)
+        {
+            var (min, max) = GetValueRange(fieldType);
+            var texture = new byte[256 * 4];
+
+            for (int i = 0; i < 256; i++)
+            {
+                float t = i / 255f;
+                float val = min + t * (max - min);
+                var c = GetColor(fieldType, val, alpha);
+
+                int offset = i * 4;
+                texture[offset]     = c.R;
+                texture[offset + 1] = c.G;
+                texture[offset + 2] = c.B;
+                texture[offset + 3] = c.A;
+            }
+
+            return texture;
+        }
+
+        /// <summary>
+        /// Gets the raw color stops for a field type as arrays suitable for GPU uniform upload.
+        /// Returns parallel arrays of (values, r, g, b) normalized to [0,1] for colors.
+        /// </summary>
+        public static (float[] values, float[] r, float[] g, float[] b) GetStopsNormalized(string fieldType)
+        {
+            var stops = fieldType switch
+            {
+                "Temperature" => TemperatureStops,
+                "Wind" => WindStops,
+                "Precipitation" => PrecipStops,
+                "CloudCover" => CloudStops,
+                "Pressure" => PressureStops,
+                "CAPE" => CapeStops,
+                _ => TemperatureStops
+            };
+
+            var values = new float[stops.Length];
+            var r = new float[stops.Length];
+            var g = new float[stops.Length];
+            var b = new float[stops.Length];
+
+            for (int i = 0; i < stops.Length; i++)
+            {
+                values[i] = stops[i].val;
+                r[i] = stops[i].r / 255f;
+                g[i] = stops[i].g / 255f;
+                b[i] = stops[i].b / 255f;
+            }
+
+            return (values, r, g, b);
+        }
+
+        /// <summary>
+        /// All supported field type names.
+        /// </summary>
+        public static readonly string[] AllFieldTypes = { "Temperature", "Wind", "Precipitation", "CloudCover", "Pressure", "CAPE" };
     }
 }

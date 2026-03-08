@@ -170,6 +170,19 @@ namespace WeatherImageGenerator.Rendering.Common
         void ClearPositionedOverlay3();
 
         // ═══════════════════════════════════════════════════════════════════
+        // GPU GRIB2 data pipeline
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>Upload raw GRIB2 float grid data for GPU shader-based visualization.</summary>
+        void SetGrib2GpuData(Grib2GpuRenderData data) { }
+
+        /// <summary>Clear GPU GRIB2 data and disable the GPU overlay pipeline.</summary>
+        void ClearGrib2GpuData() { }
+
+        /// <summary>Whether the GPU GRIB2 overlay pipeline is active.</summary>
+        bool Grib2GpuActive { get => false; }
+
+        // ═══════════════════════════════════════════════════════════════════
         // Map navigation
         // ═══════════════════════════════════════════════════════════════════
 

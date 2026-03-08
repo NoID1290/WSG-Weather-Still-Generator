@@ -219,6 +219,9 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private bool _hasPositionedOverlay3 = false;
         private float _overlay3Opacity = 0.6f;
 
+        // GRIB2 GPU pipeline render data
+        private Grib2GpuRenderData? _grib2GpuRenderData;
+
         /// <summary>Opacity for the second positioned overlay (0.0â€“1.0)</summary>
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -269,6 +272,9 @@ namespace WeatherImageGenerator.Rendering.OpenGL
 
         // Dedicated overlay shader for weather data (no saturation/contrast/vignette)
         private GLShader? _weatherOverlayShader;
+
+        // GRIB2 GPU shader pipeline for raw data visualization
+        private Grib2GpuPipelineGL? _grib2GpuPipeline;
 
         // Radar frame buffer for ghosting/animation
         private readonly System.Collections.Generic.List<int> _radarFrames = new System.Collections.Generic.List<int>();
@@ -566,6 +572,10 @@ void main() {
             _woShaderGlowLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uEnableGlow");
             _overlayShaderPulseLoc = GL.GetUniformLocation(_overlayShader.Handle, "uEnablePulse");
 
+            // Initialize GRIB2 GPU shader pipeline
+            _grib2GpuPipeline = new Grib2GpuPipelineGL();
+            _grib2GpuPipeline.Initialize();
+
             // Setup overlay buffers (we'll fill data on resize)\n            // Format: [x, y, lineEdge] per vertex â€” lineEdge is 0 at center, 1 at edge (for AA)
             _overlayVao = GL.GenVertexArray();
             _overlayVbo = GL.GenBuffer();
@@ -615,6 +625,9 @@ void main() {
 
             // Animation refresh timer â€” triggers repaints at ~60fps for crosshair pulse
             // and shader time-based effects. Low overhead (just Invalidate, no work until Paint).
+            // Drain any residual GL errors from initialization so the first paint starts clean
+            while (GL.GetError() != ErrorCode.NoError) { }
+
             _animRefreshTimer = new System.Threading.Timer(_ =>
             {
                 try
@@ -1030,6 +1043,38 @@ void main() {
                 if (ov2OpacityLoc >= 0)
                     GL.Uniform1(ov2OpacityLoc, 1.0f);
             } // positioned overlay 2
+
+            // Draw GRIB2 via GPU shader pipeline (raw float data → shader color mapping)
+            if (_grib2GpuPipeline != null && _grib2GpuPipeline.IsActive && _grib2GpuRenderData != null)
+            {
+                int z3g = _mapZoom;
+                double cx3g = LonToPixelX(_centerLon, z3g);
+                double cy3g = LatToPixelY(_centerLat, z3g);
+
+                double leftPx3g = LonToPixelX(_grib2GpuRenderData.MinLon, z3g);
+                double rightPx3g = LonToPixelX(_grib2GpuRenderData.MaxLon, z3g);
+                double topPy3g = LatToPixelY(_grib2GpuRenderData.MaxLat, z3g);
+                double bottomPy3g = LatToPixelY(_grib2GpuRenderData.MinLat, z3g);
+
+                double imgW3g = Math.Abs(rightPx3g - leftPx3g);
+                double imgH3g = Math.Abs(bottomPy3g - topPy3g);
+                double imgCx3g = (leftPx3g + rightPx3g) / 2.0;
+                double imgCy3g = (topPy3g + bottomPy3g) / 2.0;
+
+                double sCx3g = (imgCx3g - cx3g) + Width / 2.0;
+                double sCy3g = (imgCy3g - cy3g) + Height / 2.0;
+
+                float wNdc3g = (float)(imgW3g / (Width / 2.0)) * _zoom;
+                float hNdc3g = (float)(imgH3g / (Height / 2.0)) * _zoom;
+
+                float sx3g = wNdc3g / 2f;
+                float sy3g = hNdc3g / 2f;
+                float ndcX3g = ((float)(sCx3g / (Width / 2.0) - 1.0)) * _zoom + _pan.X;
+                float ndcY3g = ((float)(1.0 - sCy3g / (Height / 2.0))) * _zoom + _pan.Y;
+
+                float[] tmat3g = { sx3g, 0f, 0f, 0f, sy3g, 0f, ndcX3g, ndcY3g, 1f };
+                _grib2GpuPipeline.Render(tmat3g, (float)_elapsedTimer.Elapsed.TotalSeconds, _vao);
+            }
 
             // Draw third positioned overlay (GRIB2 forecast) — same GPU compositing pattern
             if (_hasPositionedOverlay3 && _overlay3Texture != 0)
@@ -1773,9 +1818,60 @@ void main() {
             Invalidate();
         }
 
-        /// <summary>
-        /// Sets a third overlay texture (GRIB2 forecast) with geographic bounding box
-        /// </summary>
+        // ═══════════════════════════════════════════════════════════════════
+        // GPU GRIB2 data pipeline
+        // ═══════════════════════════════════════════════════════════════════
+
+        public bool Grib2GpuActive => _grib2GpuPipeline?.IsActive == true;
+
+        public void SetGrib2GpuData(Grib2GpuRenderData data)
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => SetGrib2GpuData(data)));
+                return;
+            }
+
+            try
+            {
+                MakeCurrent();
+                _grib2GpuPipeline?.UploadData(data);
+                _grib2GpuRenderData = data;
+                // Clear old CPU-rendered overlay3 since GPU pipeline is now active
+                if (_overlay3Texture != 0)
+                {
+                    try { GL.DeleteTexture(_overlay3Texture); } catch { }
+                    _overlay3Texture = 0;
+                }
+                _hasPositionedOverlay3 = false;
+                Invalidate();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] SetGrib2GpuData failed: {ex.Message}");
+            }
+        }
+
+        public void ClearGrib2GpuData()
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => ClearGrib2GpuData()));
+                return;
+            }
+
+            try
+            {
+                MakeCurrent();
+                _grib2GpuPipeline?.Clear();
+                _grib2GpuRenderData = null;
+                Invalidate();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] ClearGrib2GpuData failed: {ex.Message}");
+            }
+        }
         public void SetOverlay3Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom)
         {
             if (InvokeRequired)
@@ -2149,6 +2245,7 @@ void main() {
                 if (_tileShader != null) _tileShader.Dispose();
                 if (_overlayShader != null) _overlayShader.Dispose();
                 if (_weatherOverlayShader != null) _weatherOverlayShader.Dispose();
+                _grib2GpuPipeline?.Dispose();
                 _uiRenderer?.Dispose();
 
                 // delete tile textures

@@ -50,6 +50,19 @@ $shaders = @(
     @{ Name = "fragment.glsl";               Stage = "frag" }
     @{ Name = "ui.vert.glsl";               Stage = "vert" }
     @{ Name = "ui.frag.glsl";               Stage = "frag" }
+    # GRIB2 weather data visualization shaders
+    @{ Name = "grib2_data.vert.glsl";       Stage = "vert" }
+    @{ Name = "grib2_data.frag.glsl";       Stage = "frag" }
+    @{ Name = "grib2_particles.vert.glsl";  Stage = "vert" }
+    @{ Name = "grib2_particles.frag.glsl";  Stage = "frag" }
+    @{ Name = "grib2_wind.vert.glsl";       Stage = "vert" }
+    @{ Name = "grib2_wind.frag.glsl";       Stage = "frag" }
+    @{ Name = "grib2_clouds.vert.glsl";     Stage = "vert" }
+    @{ Name = "grib2_clouds.frag.glsl";     Stage = "frag" }
+    @{ Name = "grib2_contour.vert.glsl";    Stage = "vert" }
+    @{ Name = "grib2_contour.frag.glsl";    Stage = "frag" }
+    @{ Name = "grib2_atmosphere.vert.glsl"; Stage = "vert" }
+    @{ Name = "grib2_atmosphere.frag.glsl"; Stage = "frag" }
 )
 
 $errors = 0

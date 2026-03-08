@@ -992,6 +992,101 @@ namespace WeatherImageGenerator.Rendering.Common
             _lastGrib2Update = DateTime.MinValue;
         }
 
+        /// <summary>
+        /// Fetches GRIB2 data and produces a GPU-ready render package (raw float grid + palette).
+        /// Used by the GPU shader pipeline instead of the CPU-rendered PNG path.
+        /// </summary>
+        public async Task<Grib2GpuRenderData?> GetGrib2GpuDataAsync(
+            double centerLat,
+            double centerLon,
+            int width,
+            int height,
+            int mapZoom)
+        {
+            if (!Grib2Enabled)
+                return null;
+
+            try
+            {
+                if (_grib2DataService == null)
+                {
+                    var cacheDir = Path.Combine(
+                        Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? ".",
+                        "MapCache", "Grib2");
+                    _grib2DataService = new Grib2DataService(cacheDir);
+                }
+
+                await _grib2DataService.SetModelAsync(Grib2Model);
+                int forecastHour = Math.Min(Grib2ForecastHour, _grib2DataService.MaxForecastHours);
+                var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
+                LastGrib2BBox = bbox;
+
+                var palette = new Grib2ShaderPalette();
+                var uploader = new Grib2TextureUploader(palette);
+                string fieldName = Grib2FieldType.ToString();
+                var paletteData = palette.GetPalette(fieldName);
+                var (dataMin, dataMax) = Grib2ShaderPalette.GetNormalizationRange(fieldName);
+
+                if (Grib2FieldType == Models.Grib2FieldType.Wind)
+                {
+                    var (uField, vField) = await _grib2DataService.FetchWindComponentsAsync(forecastHour);
+                    if (uField == null || vField == null) return null;
+
+                    var windData = uploader.PrepareWindUpload(uField, vField);
+                    if (windData == null) return null;
+
+                    return new Grib2GpuRenderData
+                    {
+                        GridData = windData.SpeedData,
+                        GridWidth = windData.GridWidth,
+                        GridHeight = windData.GridHeight,
+                        PaletteData = paletteData,
+                        DataMin = dataMin,
+                        DataMax = dataMax,
+                        FieldType = Grib2FieldType,
+                        MinLat = bbox.MinLat,
+                        MinLon = bbox.MinLon,
+                        MaxLat = bbox.MaxLat,
+                        MaxLon = bbox.MaxLon,
+                        WindU = windData.UComponentData,
+                        WindV = windData.VComponentData,
+                        Opacity = Grib2Opacity,
+                        EnableGlow = true
+                    };
+                }
+                else
+                {
+                    var field = await _grib2DataService.FetchFieldAsync(Grib2FieldType, forecastHour);
+                    if (field == null) return null;
+
+                    var gpuData = uploader.PrepareForUpload(field, Grib2FieldType);
+                    if (gpuData == null) return null;
+
+                    return new Grib2GpuRenderData
+                    {
+                        GridData = gpuData.GridData,
+                        GridWidth = gpuData.GridWidth,
+                        GridHeight = gpuData.GridHeight,
+                        PaletteData = paletteData,
+                        DataMin = gpuData.DataMin,
+                        DataMax = gpuData.DataMax,
+                        FieldType = Grib2FieldType,
+                        MinLat = bbox.MinLat,
+                        MinLon = bbox.MinLon,
+                        MaxLat = bbox.MaxLat,
+                        MaxLon = bbox.MaxLon,
+                        Opacity = Grib2Opacity,
+                        EnableGlow = true
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherOverlay] GRIB2 GPU data error: {ex.Message}");
+                return null;
+            }
+        }
+
         private static void LogGrib2Diagnostics(string label, Grib2.Models.Grib2Message msg)
         {
             var grid = msg.Grid;

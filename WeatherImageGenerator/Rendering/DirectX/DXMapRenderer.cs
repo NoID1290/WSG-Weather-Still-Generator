@@ -654,10 +654,13 @@ namespace WeatherImageGenerator.Rendering.DirectX
             if (shaderPath.EndsWith(".ps.hlsl", StringComparison.OrdinalIgnoreCase))
             {
                 yield return shaderPath[..^8] + ".frag.hlsl";
+                // MSBuild strips ".ps" (Pashto culture code) from embedded resource names
+                yield return shaderPath[..^8] + ".hlsl";
             }
             else if (shaderPath.EndsWith(".vs.hlsl", StringComparison.OrdinalIgnoreCase))
             {
                 yield return shaderPath[..^8] + ".vert.hlsl";
+                yield return shaderPath[..^8] + ".hlsl";
             }
         }
 

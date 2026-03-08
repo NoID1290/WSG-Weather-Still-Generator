@@ -1771,15 +1771,29 @@ namespace WeatherImageGenerator.Rendering.Common
                     _glControl.ClearPositionedOverlay2();
                 }
 
-                // Upload GRIB2 forecast overlay to third overlay slot
+                // Upload GRIB2 forecast overlay — try GPU data pipeline first, fall back to CPU-rendered PNG
                 byte[]? grib2Data = null;
                 if (_overlayManager.Grib2Enabled)
                 {
-                    grib2Data = await _overlayManager.UpdateGrib2OverlayAsync(
+                    // Try GPU pipeline: upload raw float grid + palette for shader-based rendering
+                    var gpuRenderData = await _overlayManager.GetGrib2GpuDataAsync(
                         _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
+
+                    if (gpuRenderData != null)
+                    {
+                        _glControl.SetGrib2GpuData(gpuRenderData);
+                        Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline active: {gpuRenderData.FieldType} ({gpuRenderData.GridWidth}x{gpuRenderData.GridHeight})");
+                    }
+                    else
+                    {
+                        // Fall back to CPU-rendered PNG path
+                        _glControl.ClearGrib2GpuData();
+                        grib2Data = await _overlayManager.UpdateGrib2OverlayAsync(
+                            _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
+                    }
                 }
 
-                if (grib2Data != null && grib2Data.Length > 0)
+                if (grib2Data != null && grib2Data.Length > 0 && !_glControl.Grib2GpuActive)
                 {
                     _glControl.Overlay3Opacity = _overlayManager.Grib2Opacity;
                     var grib2BBox = _overlayManager.LastGrib2BBox;
@@ -1791,6 +1805,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 }
                 else if (!_overlayManager.Grib2Enabled)
                 {
+                    _glControl.ClearGrib2GpuData();
                     _glControl.ClearPositionedOverlay3();
                 }
 
