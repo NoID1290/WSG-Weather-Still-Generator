@@ -160,7 +160,123 @@ namespace WeatherImageGenerator.Services
             }
         }
 
-        #region Heatmap rendering
+        /// <summary>
+        /// Renders only annotations (labels, wind barbs, isobars) without the heatmap.
+        /// Used when the GPU shader pipeline handles the heatmap rendering.
+        /// </summary>
+        public byte[]? RenderAnnotationsOnly(
+            Grib2Message message,
+            Grib2FieldType fieldType,
+            (double MinLat, double MinLon, double MaxLat, double MaxLon) viewportBBox,
+            int width,
+            int height)
+        {
+            var field = message?.Field;
+            var grid = message?.Grid;
+            if (field?.Values == null || field.Values.Length == 0 || grid == null)
+                return null;
+
+            bool hasAnything = ShowLabels ||
+                (ShowWindBarbs && fieldType == Grib2FieldType.Wind) ||
+                (ShowIsobars && fieldType == Grib2FieldType.Pressure);
+            if (!hasAnything) return null;
+
+            try
+            {
+                using var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                using var g = Graphics.FromImage(bitmap);
+                g.Clear(Color.Transparent);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.Bilinear;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+
+                string fieldName = fieldType.ToString();
+                float[] displayValues = ConvertToDisplayUnits(field.Values, fieldType);
+
+                switch (fieldType)
+                {
+                    case Grib2FieldType.Wind:
+                        if (ShowWindBarbs)
+                            RenderWindBarbs(g, grid, displayValues, viewportBBox, width, height);
+                        break;
+                    case Grib2FieldType.Pressure:
+                        if (ShowIsobars)
+                            RenderIsobars(g, grid, displayValues, viewportBBox, width, height);
+                        break;
+                }
+
+                if (ShowLabels)
+                    RenderLabels(g, grid, displayValues, fieldName, viewportBBox, width, height);
+
+                using var ms = new MemoryStream();
+                bitmap.Save(ms, ImageFormat.Png);
+                return ms.ToArray();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Grib2OverlayRenderer] Annotations render error: {ex.Message}", Logger.LogLevel.Error);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Renders only wind annotations (barbs + labels) without the heatmap.
+        /// Used when the GPU shader pipeline handles the heatmap rendering.
+        /// </summary>
+        public byte[]? RenderWindAnnotationsOnly(
+            Grib2Message uMessage,
+            Grib2Message vMessage,
+            (double MinLat, double MinLon, double MaxLat, double MaxLon) viewportBBox,
+            int width,
+            int height)
+        {
+            var uField = uMessage?.Field;
+            var vField = vMessage?.Field;
+            var grid = uMessage?.Grid;
+            if (uField?.Values == null || vField?.Values == null || grid == null)
+                return null;
+
+            if (!ShowLabels && !ShowWindBarbs) return null;
+
+            int len = Math.Min(uField.Values.Length, vField.Values.Length);
+            float[] windSpeed = new float[len];
+            float[] windDir = new float[len];
+
+            for (int i = 0; i < len; i++)
+            {
+                float u = uField.Values[i];
+                float v = vField.Values[i];
+                windSpeed[i] = MathF.Sqrt(u * u + v * v) * 3.6f;
+                windDir[i] = (MathF.Atan2(-u, -v) * 180f / MathF.PI + 360f) % 360f;
+            }
+
+            try
+            {
+                using var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                using var g = Graphics.FromImage(bitmap);
+                g.Clear(Color.Transparent);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.Bilinear;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+
+                if (ShowWindBarbs)
+                    RenderWindBarbsFromComponents(g, grid, windSpeed, windDir, viewportBBox, width, height);
+
+                if (ShowLabels)
+                    RenderLabels(g, grid, windSpeed, "Wind", viewportBBox, width, height);
+
+                using var ms = new MemoryStream();
+                bitmap.Save(ms, ImageFormat.Png);
+                return ms.ToArray();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Grib2OverlayRenderer] Wind annotations render error: {ex.Message}", Logger.LogLevel.Error);
+                return null;
+            }
+        }
+
+        #region Heatmap rendering (private)
 
         private void RenderHeatmap(
             Graphics g,

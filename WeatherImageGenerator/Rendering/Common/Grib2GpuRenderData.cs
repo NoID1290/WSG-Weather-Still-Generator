@@ -35,9 +35,9 @@ namespace WeatherImageGenerator.Rendering.Common
         public required double MaxLat { get; init; }
         public required double MaxLon { get; init; }
 
-        /// <summary>GRIB2 data grid geographic extent (may differ from viewport bbox).</summary>
-        public double GridMinLat { get; init; }
-        public double GridMaxLat { get; init; }
+        /// <summary>GRIB2 data grid geographic extent (preserves scanning order for correct texture mapping).</summary>
+        public double GridFirstLat { get; init; }
+        public double GridLastLat { get; init; }
         public double GridMinLon { get; init; }
         public double GridMaxLon { get; init; }
 

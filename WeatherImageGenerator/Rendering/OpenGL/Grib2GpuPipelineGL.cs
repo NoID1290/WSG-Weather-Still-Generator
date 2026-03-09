@@ -35,8 +35,8 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _dsDataMaxLoc = -1;
         private int _dsViewMercMinLoc = -1;
         private int _dsViewMercMaxLoc = -1;
-        private int _dsGridMinLatLoc = -1;
-        private int _dsGridLatRangeLoc = -1;
+        private int _dsGridFirstLatLoc = -1;
+        private int _dsGridLatExtentLoc = -1;
         private int _dsGridMinLonLoc = -1;
         private int _dsGridLonRangeLoc = -1;
         private int _dsViewMinLonLoc = -1;
@@ -53,8 +53,8 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _csColorLoc = -1;
         private int _csViewMercMinLoc = -1;
         private int _csViewMercMaxLoc = -1;
-        private int _csGridMinLatLoc = -1;
-        private int _csGridLatRangeLoc = -1;
+        private int _csGridFirstLatLoc = -1;
+        private int _csGridLatExtentLoc = -1;
         private int _csGridMinLonLoc = -1;
         private int _csGridLonRangeLoc = -1;
         private int _csViewMinLonLoc = -1;
@@ -122,8 +122,8 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             _dsDataMaxLoc = GL.GetUniformLocation(h, "uDataMax");
             _dsViewMercMinLoc = GL.GetUniformLocation(h, "uViewMercMin");
             _dsViewMercMaxLoc = GL.GetUniformLocation(h, "uViewMercMax");
-            _dsGridMinLatLoc = GL.GetUniformLocation(h, "uGridMinLat");
-            _dsGridLatRangeLoc = GL.GetUniformLocation(h, "uGridLatRange");
+            _dsGridFirstLatLoc = GL.GetUniformLocation(h, "uGridFirstLat");
+            _dsGridLatExtentLoc = GL.GetUniformLocation(h, "uGridLatExtent");
             _dsGridMinLonLoc = GL.GetUniformLocation(h, "uGridMinLon");
             _dsGridLonRangeLoc = GL.GetUniformLocation(h, "uGridLonRange");
             _dsViewMinLonLoc = GL.GetUniformLocation(h, "uViewMinLon");
@@ -144,8 +144,8 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             _csColorLoc = GL.GetUniformLocation(h, "uContourColor");
             _csViewMercMinLoc = GL.GetUniformLocation(h, "uViewMercMin");
             _csViewMercMaxLoc = GL.GetUniformLocation(h, "uViewMercMax");
-            _csGridMinLatLoc = GL.GetUniformLocation(h, "uGridMinLat");
-            _csGridLatRangeLoc = GL.GetUniformLocation(h, "uGridLatRange");
+            _csGridFirstLatLoc = GL.GetUniformLocation(h, "uGridFirstLat");
+            _csGridLatExtentLoc = GL.GetUniformLocation(h, "uGridLatExtent");
             _csGridMinLonLoc = GL.GetUniformLocation(h, "uGridMinLon");
             _csGridLonRangeLoc = GL.GetUniformLocation(h, "uGridLonRange");
             _csViewMinLonLoc = GL.GetUniformLocation(h, "uViewMinLon");
@@ -205,9 +205,11 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         /// <param name="transformMatrix">3x3 geo-to-screen transform (column-major float[9]).</param>
         /// <param name="time">Elapsed time in seconds for animation effects.</param>
         /// <param name="vaoHandle">VAO handle for the fullscreen quad.</param>
-        public void Render(float[] transformMatrix, float time, int vaoHandle)
+        public void Render(float[] transformMatrix, float time, int vaoHandle, float opacity = -1f)
         {
             if (!IsActive || _dataShader == null) return;
+
+            float effectiveOpacity = opacity >= 0f ? opacity : _currentData!.Opacity;
 
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -233,7 +235,7 @@ namespace WeatherImageGenerator.Rendering.OpenGL
 
             // Set uniforms
             if (_dsOpacityLoc >= 0)
-                GL.Uniform1(_dsOpacityLoc, _currentData!.Opacity);
+                GL.Uniform1(_dsOpacityLoc, effectiveOpacity);
             if (_dsTimeLoc >= 0)
                 GL.Uniform1(_dsTimeLoc, time);
             if (_dsGlowLoc >= 0)
@@ -274,7 +276,7 @@ namespace WeatherImageGenerator.Rendering.OpenGL
                 if (_csWidthLoc >= 0)
                     GL.Uniform1(_csWidthLoc, 1.5f);
                 if (_csOpacityLoc >= 0)
-                    GL.Uniform1(_csOpacityLoc, _currentData.Opacity * 0.8f);
+                    GL.Uniform1(_csOpacityLoc, effectiveOpacity * 0.8f);
                 if (_csColorLoc >= 0)
                     GL.Uniform4(_csColorLoc, 0.15f, 0.15f, 0.15f, 0.85f);
 
@@ -337,12 +339,13 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             if (_dsViewMercMaxLoc >= 0)
                 GL.Uniform1(_dsViewMercMaxLoc, (float)viewMercMax);
 
-            // Grid latitude extent (for mapping lat → grid texture V)
-            // The grid data is stored N→S (row 0 = MaxLat, last row = MinLat)
-            if (_dsGridMinLatLoc >= 0)
-                GL.Uniform1(_dsGridMinLatLoc, (float)data.GridMinLat);
-            if (_dsGridLatRangeLoc >= 0)
-                GL.Uniform1(_dsGridLatRangeLoc, (float)(data.GridMaxLat - data.GridMinLat));
+            // Grid latitude extent (preserves scanning order: FirstLat→LastLat)
+            // S→N grids: FirstLat=-90, LastLat=90, extent=+180
+            // N→S grids: FirstLat=90, LastLat=-90, extent=-180
+            if (_dsGridFirstLatLoc >= 0)
+                GL.Uniform1(_dsGridFirstLatLoc, (float)data.GridFirstLat);
+            if (_dsGridLatExtentLoc >= 0)
+                GL.Uniform1(_dsGridLatExtentLoc, (float)(data.GridLastLat - data.GridFirstLat));
 
             // Grid longitude extent (for mapping lon → grid texture U)
             // Handle GDPS 0-360° range; viewport may use -180 to +180°
@@ -372,10 +375,10 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             if (_csViewMercMaxLoc >= 0)
                 GL.Uniform1(_csViewMercMaxLoc, (float)viewMercMax);
 
-            if (_csGridMinLatLoc >= 0)
-                GL.Uniform1(_csGridMinLatLoc, (float)data.GridMinLat);
-            if (_csGridLatRangeLoc >= 0)
-                GL.Uniform1(_csGridLatRangeLoc, (float)(data.GridMaxLat - data.GridMinLat));
+            if (_csGridFirstLatLoc >= 0)
+                GL.Uniform1(_csGridFirstLatLoc, (float)data.GridFirstLat);
+            if (_csGridLatExtentLoc >= 0)
+                GL.Uniform1(_csGridLatExtentLoc, (float)(data.GridLastLat - data.GridFirstLat));
 
             double gridMinLon = data.GridMinLon;
             double gridLonRange = data.GridMaxLon - data.GridMinLon;

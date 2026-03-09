@@ -1786,6 +1786,23 @@ namespace WeatherImageGenerator.Rendering.Common
                         if (_glControl.Grib2GpuActive)
                         {
                             Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline active: {gpuRenderData.FieldType} ({gpuRenderData.GridWidth}x{gpuRenderData.GridHeight})");
+
+                            // Generate labels/barbs/isobars as a separate CPU overlay on top of GPU heatmap
+                            var annotationsPng = await _overlayManager.RenderGrib2AnnotationsAsync(
+                                _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
+                            if (annotationsPng != null && annotationsPng.Length > 0)
+                            {
+                                var annBbox = _overlayManager.LastGrib2BBox;
+                                if (annBbox.HasValue)
+                                {
+                                    _glControl.Overlay3Opacity = 1.0f;
+                                    _glControl.SetOverlay3Bytes(annotationsPng, annBbox.Value.MinLat, annBbox.Value.MinLon, annBbox.Value.MaxLat, annBbox.Value.MaxLon, _currentZoom);
+                                }
+                            }
+                            else
+                            {
+                                _glControl.ClearPositionedOverlay3();
+                            }
                         }
                         else
                         {

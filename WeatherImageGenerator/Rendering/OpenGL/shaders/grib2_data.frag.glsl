@@ -23,8 +23,8 @@ uniform float uViewMercMin;     // Mercator Y at viewport bottom (MinLat)
 uniform float uViewMercMax;     // Mercator Y at viewport top (MaxLat)
 uniform float uViewMinLon;      // Viewport minimum longitude (degrees)
 uniform float uViewLonRange;    // Viewport longitude range (degrees)
-uniform float uGridMinLat;      // Grid minimum latitude (degrees)
-uniform float uGridLatRange;    // Grid latitude range: MaxLat - MinLat
+uniform float uGridFirstLat;    // Grid first latitude (row 0 of texture)
+uniform float uGridLatExtent;   // Grid lat extent: LastLat - FirstLat (can be negative for N->S)
 uniform float uGridMinLon;      // Grid minimum longitude (degrees, e.g. 0 for GDPS)
 uniform float uGridLonRange;    // Grid longitude range (degrees, e.g. 359.75 for GDPS)
 
@@ -38,9 +38,9 @@ void main() {
     float lon = uViewMinLon + vTex.x * uViewLonRange;
 
     // -- Map geographic coords to data grid texture UV --
-    // Grid V: row 0 = MaxLat (north), last row = MinLat (south)
-    float gridMaxLat = uGridMinLat + uGridLatRange;
-    float gridV = (gridMaxLat - lat) / max(uGridLatRange, 0.001);
+    // Grid V: texture V=0 is row 0 = FirstLat, V=1 is last row = LastLat
+    // Works for both S->N (extent > 0) and N->S (extent < 0) scanning
+    float gridV = (lat - uGridFirstLat) / uGridLatExtent;
 
     // Grid U: Normalize longitude to grid range (handles wrapping grids like FirstLon=180)
     float gridLon = lon;

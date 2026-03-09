@@ -1003,6 +1003,48 @@ namespace WeatherImageGenerator.Rendering.Common
         }
 
         /// <summary>
+        /// Renders only GRIB2 annotations (labels, wind barbs, isobars) as a transparent PNG.
+        /// Used alongside the GPU shader pipeline which handles the heatmap.
+        /// </summary>
+        public async Task<byte[]?> RenderGrib2AnnotationsAsync(
+            double centerLat,
+            double centerLon,
+            int width,
+            int height,
+            int mapZoom)
+        {
+            if (!Grib2Enabled) return null;
+            if (!_grib2Renderer.ShowLabels && !_grib2Renderer.ShowWindBarbs && !_grib2Renderer.ShowIsobars)
+                return null;
+
+            try
+            {
+                if (_grib2DataService == null) return null;
+
+                int forecastHour = Math.Min(Grib2ForecastHour, _grib2DataService.MaxForecastHours);
+                var bbox = CalculateBoundingBox(centerLat, centerLon, mapZoom, width, height);
+
+                if (Grib2FieldType == Models.Grib2FieldType.Wind)
+                {
+                    var (uField, vField) = await _grib2DataService.FetchWindComponentsAsync(forecastHour);
+                    if (uField != null && vField != null)
+                        return _grib2Renderer.RenderWindAnnotationsOnly(uField, vField, bbox, width, height);
+                }
+                else
+                {
+                    var field = await _grib2DataService.FetchFieldAsync(Grib2FieldType, forecastHour);
+                    if (field != null)
+                        return _grib2Renderer.RenderAnnotationsOnly(field, Grib2FieldType, bbox, width, height);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherOverlay] GRIB2 annotations error: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Fetches GRIB2 data and produces a GPU-ready render package (raw float grid + palette).
         /// Used by the GPU shader pipeline instead of the CPU-rendered PNG path.
         /// </summary>
@@ -1059,8 +1101,8 @@ namespace WeatherImageGenerator.Rendering.Common
                         MinLon = bbox.MinLon,
                         MaxLat = bbox.MaxLat,
                         MaxLon = bbox.MaxLon,
-                        GridMinLat = windGrid != null ? Math.Min(windGrid.FirstLatitude, windGrid.LastLatitude) : bbox.MinLat,
-                        GridMaxLat = windGrid != null ? Math.Max(windGrid.FirstLatitude, windGrid.LastLatitude) : bbox.MaxLat,
+                        GridFirstLat = windGrid != null ? windGrid.FirstLatitude : bbox.MinLat,
+                        GridLastLat = windGrid != null ? windGrid.LastLatitude : bbox.MaxLat,
                         GridMinLon = windGrid != null ? windGrid.FirstLongitude : bbox.MinLon,
                         GridMaxLon = windGrid != null ? windGrid.LastLongitude : bbox.MaxLon,
                         WindU = windData.UComponentData,
@@ -1077,6 +1119,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     var gpuData = uploader.PrepareForUpload(field, Grib2FieldType);
                     if (gpuData == null) return null;
 
+                    var grid = field.Grid;
                     return new Grib2GpuRenderData
                     {
                         GridData = gpuData.GridData,
@@ -1090,8 +1133,8 @@ namespace WeatherImageGenerator.Rendering.Common
                         MinLon = bbox.MinLon,
                         MaxLat = bbox.MaxLat,
                         MaxLon = bbox.MaxLon,
-                        GridMinLat = gpuData.MinLat,
-                        GridMaxLat = gpuData.MaxLat,
+                        GridFirstLat = grid?.FirstLatitude ?? gpuData.MinLat,
+                        GridLastLat = grid?.LastLatitude ?? gpuData.MaxLat,
                         GridMinLon = gpuData.MinLon,
                         GridMaxLon = gpuData.MaxLon,
                         Opacity = Grib2Opacity,

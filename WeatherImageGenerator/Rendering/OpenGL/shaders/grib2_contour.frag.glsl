@@ -20,8 +20,8 @@ uniform float uViewMercMin;
 uniform float uViewMercMax;
 uniform float uViewMinLon;
 uniform float uViewLonRange;
-uniform float uGridMinLat;
-uniform float uGridLatRange;
+uniform float uGridFirstLat;
+uniform float uGridLatExtent;
 uniform float uGridMinLon;
 uniform float uGridLonRange;
 
@@ -31,8 +31,7 @@ void main() {
     float lat = atan(sinh(mercY)) * (180.0 / 3.14159265);
     float lon = uViewMinLon + vTex.x * uViewLonRange;
 
-    float gridMaxLat = uGridMinLat + uGridLatRange;
-    float gridV = (gridMaxLat - lat) / max(uGridLatRange, 0.001);
+    float gridV = (lat - uGridFirstLat) / uGridLatExtent;
     float gridLon = lon;
     if (gridLon < uGridMinLon)
         gridLon += 360.0;

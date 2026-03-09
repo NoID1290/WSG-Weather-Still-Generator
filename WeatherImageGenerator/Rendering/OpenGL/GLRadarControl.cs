@@ -1073,7 +1073,7 @@ void main() {
                 float ndcY3g = ((float)(1.0 - sCy3g / (Height / 2.0))) * _zoom + _pan.Y;
 
                 float[] tmat3g = { sx3g, 0f, 0f, 0f, sy3g, 0f, ndcX3g, ndcY3g, 1f };
-                _grib2GpuPipeline.Render(tmat3g, (float)_elapsedTimer.Elapsed.TotalSeconds, _vao);
+                _grib2GpuPipeline.Render(tmat3g, (float)_elapsedTimer.Elapsed.TotalSeconds, _vao, _overlay3Opacity);
             }
 
             // Draw third positioned overlay (GRIB2 forecast) — same GPU compositing pattern
@@ -1837,13 +1837,6 @@ void main() {
                 MakeCurrent();
                 _grib2GpuPipeline?.UploadData(data);
                 _grib2GpuRenderData = data;
-                // Clear old CPU-rendered overlay3 since GPU pipeline is now active
-                if (_overlay3Texture != 0)
-                {
-                    try { GL.DeleteTexture(_overlay3Texture); } catch { }
-                    _overlay3Texture = 0;
-                }
-                _hasPositionedOverlay3 = false;
                 Invalidate();
             }
             catch (Exception ex)
