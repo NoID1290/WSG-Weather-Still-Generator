@@ -1155,7 +1155,7 @@ namespace WeatherImageGenerator.Forms
             _notifyIcon = new NotifyIcon
             {
                 Text = "WSG - WeatherStillGenerator",
-                Visible = false
+                Visible = true
             };
 
             // Use application icon or a default system icon
@@ -1217,7 +1217,7 @@ namespace WeatherImageGenerator.Forms
             this.WindowState = FormWindowState.Normal;
             if (_notifyIcon != null)
             {
-                _notifyIcon.Visible = false;
+                _notifyIcon.Visible = true;
                 _isMinimizedToTray = false;
             }
             this.Activate();
