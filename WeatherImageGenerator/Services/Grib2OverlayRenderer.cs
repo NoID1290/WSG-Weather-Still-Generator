@@ -189,10 +189,14 @@ namespace WeatherImageGenerator.Services
             try
             {
 
+                double mercTop = LatToMercatorY(viewBBox.MaxLat);
+                double mercBot = LatToMercatorY(viewBBox.MinLat);
+
                 for (int py = 0; py < rasterH; py++)
                 {
-                    // Map raster pixel to grid coordinate
-                    double lat = viewBBox.MaxLat - (double)py / rasterH * (viewBBox.MaxLat - viewBBox.MinLat);
+                    // Map raster pixel to grid coordinate using Mercator Y
+                    double mercY = mercTop + (double)py / rasterH * (mercBot - mercTop);
+                    double lat = MercatorYToLat(mercY);
                     int rowPtr = py * bits.Stride;
 
                     for (int px = 0; px < rasterW; px++)
@@ -289,12 +293,16 @@ namespace WeatherImageGenerator.Services
             using var pen = new Pen(Color.FromArgb(220, 40, 40, 40), 1.8f);
             pen.EndCap = LineCap.ArrowAnchor;
 
+            double barbMercTop = LatToMercatorY(viewBBox.MaxLat);
+            double barbMercBot = LatToMercatorY(viewBBox.MinLat);
+
             for (int py = stepPx / 2; py < height; py += stepPx)
             {
                 for (int px = stepPx / 2; px < width; px += stepPx)
                 {
-                    // Map pixel to lat/lon
-                    double lat = viewBBox.MaxLat - (double)py / height * (viewBBox.MaxLat - viewBBox.MinLat);
+                    // Map pixel to lat/lon using Mercator Y
+                    double mercY = barbMercTop + (double)py / height * (barbMercBot - barbMercTop);
+                    double lat = MercatorYToLat(mercY);
                     double lon = viewBBox.MinLon + (double)px / width * (viewBBox.MaxLon - viewBBox.MinLon);
 
                     // Find nearest grid point
@@ -352,6 +360,9 @@ namespace WeatherImageGenerator.Services
             using var brush = new SolidBrush(Color.FromArgb(200, 30, 30, 30));
             using var bgBrush = new SolidBrush(Color.FromArgb(140, 255, 255, 255));
 
+            double isoMercTop = LatToMercatorY(viewBBox.MaxLat);
+            double isoMercBot = LatToMercatorY(viewBBox.MinLat);
+
             for (float isoVal = minVal; isoVal <= maxVal; isoVal += isobarInterval)
             {
                 var contourPoints = new List<PointF>();
@@ -361,10 +372,12 @@ namespace WeatherImageGenerator.Services
                 {
                     for (int px = 0; px < width - 1; px += 3)
                     {
-                        double lat = viewBBox.MaxLat - (double)py / height * (viewBBox.MaxLat - viewBBox.MinLat);
+                        double mercY1 = isoMercTop + (double)py / height * (isoMercBot - isoMercTop);
+                        double lat = MercatorYToLat(mercY1);
                         double lon = viewBBox.MinLon + (double)px / width * (viewBBox.MaxLon - viewBBox.MinLon);
 
-                        double lat2 = viewBBox.MaxLat - (double)(py + 3) / height * (viewBBox.MaxLat - viewBBox.MinLat);
+                        double mercY2 = isoMercTop + (double)(py + 3) / height * (isoMercBot - isoMercTop);
+                        double lat2 = MercatorYToLat(mercY2);
                         double lon2 = viewBBox.MinLon + (double)(px + 3) / width * (viewBBox.MaxLon - viewBBox.MinLon);
 
                         float v1 = SampleGrid(displayValues, lat, lon, grid, ni, nj);
@@ -433,11 +446,15 @@ namespace WeatherImageGenerator.Services
 
             using var font = new Font("Segoe UI", 10, FontStyle.Bold);
 
+            double labelMercTop = LatToMercatorY(viewBBox.MaxLat);
+            double labelMercBot = LatToMercatorY(viewBBox.MinLat);
+
             for (int py = stepPx / 2; py < height; py += stepPx)
             {
                 for (int px = stepPx / 2; px < width; px += stepPx)
                 {
-                    double lat = viewBBox.MaxLat - (double)py / height * (viewBBox.MaxLat - viewBBox.MinLat);
+                    double mercY = labelMercTop + (double)py / height * (labelMercBot - labelMercTop);
+                    double lat = MercatorYToLat(mercY);
                     double lon = viewBBox.MinLon + (double)px / width * (viewBBox.MaxLon - viewBBox.MinLon);
 
                     float value = SampleGrid(displayValues, lat, lon, grid, ni, nj);
@@ -529,7 +546,19 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         private static double NormalizeLon(double lon, Grib2Grid grid)
         {
-            if (grid.FirstLongitude >= 0 && grid.LastLongitude > 180 && lon < 0)
+            // Detect global wrapping grids (e.g., GDPS: FirstLon=180, LastLon=179.85)
+            double totalRange = grid.Ni * grid.DiDegrees;
+            if (totalRange >= 359.0)
+            {
+                // Normalize lon into [FirstLon, FirstLon + 360)
+                double first = grid.FirstLongitude;
+                if (lon < first) lon += 360.0;
+                else if (lon >= first + 360.0) lon -= 360.0;
+                return lon;
+            }
+
+            // Non-wrapping regional grid: shift if grid uses positive longitudes
+            if (grid.FirstLongitude >= 0 && lon < 0)
                 return lon + 360.0;
             return lon;
         }
@@ -584,6 +613,37 @@ namespace WeatherImageGenerator.Services
             path.AddArc(x, y + h - r * 2, r * 2, r * 2, 90, 90);
             path.CloseFigure();
             return path;
+        }
+
+        /// <summary>
+        /// Convert latitude (degrees) to Web Mercator Y coordinate.
+        /// Used to align CPU-rendered overlay pixels with the Mercator-projected map.
+        /// </summary>
+        private static double LatToMercatorY(double lat)
+        {
+            double latRad = Math.Clamp(lat, -85.0, 85.0) * Math.PI / 180.0;
+            return Math.Log(Math.Tan(Math.PI / 4.0 + latRad / 2.0));
+        }
+
+        /// <summary>
+        /// Convert Web Mercator Y coordinate back to latitude (degrees).
+        /// </summary>
+        private static double MercatorYToLat(double y)
+        {
+            return Math.Atan(Math.Sinh(y)) * 180.0 / Math.PI;
+        }
+
+        /// <summary>
+        /// Convert a pixel row (0=top) to latitude using Mercator projection,
+        /// matching how the GPU positions the overlay on the map.
+        /// </summary>
+        private static double PixelToLatMercator(int py, int totalHeight,
+            (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox)
+        {
+            double mercTop = LatToMercatorY(bbox.MaxLat);
+            double mercBot = LatToMercatorY(bbox.MinLat);
+            double mercY = mercTop + (double)py / totalHeight * (mercBot - mercTop);
+            return MercatorYToLat(mercY);
         }
 
         #endregion

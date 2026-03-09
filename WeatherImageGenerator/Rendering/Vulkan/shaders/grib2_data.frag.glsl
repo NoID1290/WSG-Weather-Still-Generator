@@ -66,7 +66,7 @@ void main() {
     else if (fieldType == 3) alphaScale = smoothstep(0.0, 0.08, t) * 0.85;
 
     float opacity = pc.uOpacity > 0.0 ? pc.uOpacity : 1.0;
-    float finalAlpha = paletteColor.a / 255.0 * opacity * edgeFade * alphaScale;
+    float finalAlpha = paletteColor.a * opacity * edgeFade * alphaScale;
 
     FragColor = vec4(color, finalAlpha);
 }

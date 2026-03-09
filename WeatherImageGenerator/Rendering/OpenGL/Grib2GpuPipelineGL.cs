@@ -33,6 +33,14 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _dsFieldTypeLoc = -1;
         private int _dsDataMinLoc = -1;
         private int _dsDataMaxLoc = -1;
+        private int _dsViewMercMinLoc = -1;
+        private int _dsViewMercMaxLoc = -1;
+        private int _dsGridMinLatLoc = -1;
+        private int _dsGridLatRangeLoc = -1;
+        private int _dsGridMinLonLoc = -1;
+        private int _dsGridLonRangeLoc = -1;
+        private int _dsViewMinLonLoc = -1;
+        private int _dsViewLonRangeLoc = -1;
 
         // Cached uniform locations for _contourShader
         private int _csTransformLoc = -1;
@@ -43,6 +51,14 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _csWidthLoc = -1;
         private int _csOpacityLoc = -1;
         private int _csColorLoc = -1;
+        private int _csViewMercMinLoc = -1;
+        private int _csViewMercMaxLoc = -1;
+        private int _csGridMinLatLoc = -1;
+        private int _csGridLatRangeLoc = -1;
+        private int _csGridMinLonLoc = -1;
+        private int _csGridLonRangeLoc = -1;
+        private int _csViewMinLonLoc = -1;
+        private int _csViewLonRangeLoc = -1;
 
         // Current data state
         private Grib2GpuRenderData? _currentData;
@@ -104,6 +120,14 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             _dsFieldTypeLoc = GL.GetUniformLocation(h, "uFieldType");
             _dsDataMinLoc = GL.GetUniformLocation(h, "uDataMin");
             _dsDataMaxLoc = GL.GetUniformLocation(h, "uDataMax");
+            _dsViewMercMinLoc = GL.GetUniformLocation(h, "uViewMercMin");
+            _dsViewMercMaxLoc = GL.GetUniformLocation(h, "uViewMercMax");
+            _dsGridMinLatLoc = GL.GetUniformLocation(h, "uGridMinLat");
+            _dsGridLatRangeLoc = GL.GetUniformLocation(h, "uGridLatRange");
+            _dsGridMinLonLoc = GL.GetUniformLocation(h, "uGridMinLon");
+            _dsGridLonRangeLoc = GL.GetUniformLocation(h, "uGridLonRange");
+            _dsViewMinLonLoc = GL.GetUniformLocation(h, "uViewMinLon");
+            _dsViewLonRangeLoc = GL.GetUniformLocation(h, "uViewLonRange");
         }
 
         private void CacheContourShaderUniforms()
@@ -118,6 +142,14 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             _csWidthLoc = GL.GetUniformLocation(h, "uContourWidth");
             _csOpacityLoc = GL.GetUniformLocation(h, "uOpacity");
             _csColorLoc = GL.GetUniformLocation(h, "uContourColor");
+            _csViewMercMinLoc = GL.GetUniformLocation(h, "uViewMercMin");
+            _csViewMercMaxLoc = GL.GetUniformLocation(h, "uViewMercMax");
+            _csGridMinLatLoc = GL.GetUniformLocation(h, "uGridMinLat");
+            _csGridLatRangeLoc = GL.GetUniformLocation(h, "uGridLatRange");
+            _csGridMinLonLoc = GL.GetUniformLocation(h, "uGridMinLon");
+            _csGridLonRangeLoc = GL.GetUniformLocation(h, "uGridLonRange");
+            _csViewMinLonLoc = GL.GetUniformLocation(h, "uViewMinLon");
+            _csViewLonRangeLoc = GL.GetUniformLocation(h, "uViewLonRange");
         }
 
         /// <summary>
@@ -213,9 +245,12 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             if (_dsDataMaxLoc >= 0)
                 GL.Uniform1(_dsDataMaxLoc, _currentData!.DataMax);
 
-            // Draw
+            // Set viewport-to-grid mapping uniforms (Mercator-corrected)
+            SetMappingUniforms(_currentData!);
+
+            // Draw (use indexed triangles matching the shared quad VAO's EBO)
             GL.BindVertexArray(vaoHandle);
-            GL.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
+            GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
 
             // ── Contour lines pass ──
             if (_currentData!.EnableContours && _contourShader != null)
@@ -243,7 +278,10 @@ namespace WeatherImageGenerator.Rendering.OpenGL
                 if (_csColorLoc >= 0)
                     GL.Uniform4(_csColorLoc, 0.15f, 0.15f, 0.15f, 0.85f);
 
-                GL.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
+                // Set mapping uniforms for contour shader too
+                SetContourMappingUniforms(_currentData);
+
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
             }
 
             // Reset state
@@ -284,6 +322,81 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             Grib2FieldType.CAPE => 5,
             _ => 0
         };
+
+        /// <summary>
+        /// Set shader uniforms that map from screen UV (Mercator) to GRIB2 data grid texture UV.
+        /// </summary>
+        private void SetMappingUniforms(Grib2GpuRenderData data)
+        {
+            // Mercator Y for viewport top/bottom (vTex.y goes 0=bottom to 1=top)
+            double viewMercMin = LatToMercatorY(data.MinLat); // bottom of viewport
+            double viewMercMax = LatToMercatorY(data.MaxLat); // top of viewport
+
+            if (_dsViewMercMinLoc >= 0)
+                GL.Uniform1(_dsViewMercMinLoc, (float)viewMercMin);
+            if (_dsViewMercMaxLoc >= 0)
+                GL.Uniform1(_dsViewMercMaxLoc, (float)viewMercMax);
+
+            // Grid latitude extent (for mapping lat → grid texture V)
+            // The grid data is stored N→S (row 0 = MaxLat, last row = MinLat)
+            if (_dsGridMinLatLoc >= 0)
+                GL.Uniform1(_dsGridMinLatLoc, (float)data.GridMinLat);
+            if (_dsGridLatRangeLoc >= 0)
+                GL.Uniform1(_dsGridLatRangeLoc, (float)(data.GridMaxLat - data.GridMinLat));
+
+            // Grid longitude extent (for mapping lon → grid texture U)
+            // Handle GDPS 0-360° range; viewport may use -180 to +180°
+            double gridMinLon = data.GridMinLon;
+            double gridLonRange = data.GridMaxLon - data.GridMinLon;
+            if (gridLonRange <= 0) gridLonRange = 360.0; // full globe wrap
+
+            if (_dsGridMinLonLoc >= 0)
+                GL.Uniform1(_dsGridMinLonLoc, (float)gridMinLon);
+            if (_dsGridLonRangeLoc >= 0)
+                GL.Uniform1(_dsGridLonRangeLoc, (float)gridLonRange);
+
+            // Viewport longitude bounds (vTex.x 0→1 maps to this range)
+            if (_dsViewMinLonLoc >= 0)
+                GL.Uniform1(_dsViewMinLonLoc, (float)data.MinLon);
+            if (_dsViewLonRangeLoc >= 0)
+                GL.Uniform1(_dsViewLonRangeLoc, (float)(data.MaxLon - data.MinLon));
+        }
+
+        private void SetContourMappingUniforms(Grib2GpuRenderData data)
+        {
+            double viewMercMin = LatToMercatorY(data.MinLat);
+            double viewMercMax = LatToMercatorY(data.MaxLat);
+
+            if (_csViewMercMinLoc >= 0)
+                GL.Uniform1(_csViewMercMinLoc, (float)viewMercMin);
+            if (_csViewMercMaxLoc >= 0)
+                GL.Uniform1(_csViewMercMaxLoc, (float)viewMercMax);
+
+            if (_csGridMinLatLoc >= 0)
+                GL.Uniform1(_csGridMinLatLoc, (float)data.GridMinLat);
+            if (_csGridLatRangeLoc >= 0)
+                GL.Uniform1(_csGridLatRangeLoc, (float)(data.GridMaxLat - data.GridMinLat));
+
+            double gridMinLon = data.GridMinLon;
+            double gridLonRange = data.GridMaxLon - data.GridMinLon;
+            if (gridLonRange <= 0) gridLonRange = 360.0;
+
+            if (_csGridMinLonLoc >= 0)
+                GL.Uniform1(_csGridMinLonLoc, (float)gridMinLon);
+            if (_csGridLonRangeLoc >= 0)
+                GL.Uniform1(_csGridLonRangeLoc, (float)gridLonRange);
+
+            if (_csViewMinLonLoc >= 0)
+                GL.Uniform1(_csViewMinLonLoc, (float)data.MinLon);
+            if (_csViewLonRangeLoc >= 0)
+                GL.Uniform1(_csViewLonRangeLoc, (float)(data.MaxLon - data.MinLon));
+        }
+
+        private static double LatToMercatorY(double lat)
+        {
+            double latRad = Math.Clamp(lat, -85.0, 85.0) * Math.PI / 180.0;
+            return Math.Log(Math.Tan(Math.PI / 4.0 + latRad / 2.0));
+        }
 
         public void Dispose()
         {

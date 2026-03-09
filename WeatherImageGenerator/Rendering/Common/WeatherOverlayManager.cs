@@ -643,8 +643,18 @@ namespace WeatherImageGenerator.Rendering.Common
             int width, int height)
         {
             double x = (lon - bbox.MinLon) / (bbox.MaxLon - bbox.MinLon) * width;
-            double y = (1.0 - (lat - bbox.MinLat) / (bbox.MaxLat - bbox.MinLat)) * height;
+            // Use Mercator Y for latitude to match how the GPU positions the overlay on the map
+            double mercTop = LatToMercatorY(bbox.MaxLat);
+            double mercBot = LatToMercatorY(bbox.MinLat);
+            double mercLat = LatToMercatorY(lat);
+            double y = (mercTop - mercLat) / (mercTop - mercBot) * height;
             return ((int)x, (int)y);
+        }
+
+        private static double LatToMercatorY(double lat)
+        {
+            double latRad = Math.Clamp(lat, -85.0, 85.0) * Math.PI / 180.0;
+            return Math.Log(Math.Tan(Math.PI / 4.0 + latRad / 2.0));
         }
 
         private double CalculateRadiusFromZoom(int zoom, int width, int height)
@@ -1035,6 +1045,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     var windData = uploader.PrepareWindUpload(uField, vField);
                     if (windData == null) return null;
 
+                    var windGrid = uField.Grid;
                     return new Grib2GpuRenderData
                     {
                         GridData = windData.SpeedData,
@@ -1048,6 +1059,10 @@ namespace WeatherImageGenerator.Rendering.Common
                         MinLon = bbox.MinLon,
                         MaxLat = bbox.MaxLat,
                         MaxLon = bbox.MaxLon,
+                        GridMinLat = windGrid != null ? Math.Min(windGrid.FirstLatitude, windGrid.LastLatitude) : bbox.MinLat,
+                        GridMaxLat = windGrid != null ? Math.Max(windGrid.FirstLatitude, windGrid.LastLatitude) : bbox.MaxLat,
+                        GridMinLon = windGrid != null ? windGrid.FirstLongitude : bbox.MinLon,
+                        GridMaxLon = windGrid != null ? windGrid.LastLongitude : bbox.MaxLon,
                         WindU = windData.UComponentData,
                         WindV = windData.VComponentData,
                         Opacity = Grib2Opacity,
@@ -1075,6 +1090,10 @@ namespace WeatherImageGenerator.Rendering.Common
                         MinLon = bbox.MinLon,
                         MaxLat = bbox.MaxLat,
                         MaxLon = bbox.MaxLon,
+                        GridMinLat = gpuData.MinLat,
+                        GridMaxLat = gpuData.MaxLat,
+                        GridMinLon = gpuData.MinLon,
+                        GridMaxLon = gpuData.MaxLon,
                         Opacity = Grib2Opacity,
                         EnableGlow = true
                     };

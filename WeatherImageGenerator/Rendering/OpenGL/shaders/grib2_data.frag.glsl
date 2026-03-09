@@ -2,7 +2,7 @@
 // GRIB2 Data Visualization - Fragment Shader (OpenGL 3.3)
 // Samples a single-channel float (R32F) data texture containing weather grid values,
 // normalizes to [0,1], and looks up color from a 1D RGBA palette texture.
-// Provides smooth bilinear interpolation, edge blending, glow, and gamma correction.
+// Uses Mercator-corrected UV mapping to align data sampling with map tiles.
 
 in vec2 vTex;
 in vec2 vScreenPos;
@@ -18,8 +18,37 @@ uniform float uTime;            // Elapsed seconds for animation
 uniform float uEnableGlow;      // 1.0 = glow on, 0.0 = off
 uniform int   uFieldType;       // 0=Temp, 1=Wind, 2=Precip, 3=Cloud, 4=Pressure, 5=CAPE
 
+// Viewport-to-grid mapping (Mercator projection)
+uniform float uViewMercMin;     // Mercator Y at viewport bottom (MinLat)
+uniform float uViewMercMax;     // Mercator Y at viewport top (MaxLat)
+uniform float uViewMinLon;      // Viewport minimum longitude (degrees)
+uniform float uViewLonRange;    // Viewport longitude range (degrees)
+uniform float uGridMinLat;      // Grid minimum latitude (degrees)
+uniform float uGridLatRange;    // Grid latitude range: MaxLat - MinLat
+uniform float uGridMinLon;      // Grid minimum longitude (degrees, e.g. 0 for GDPS)
+uniform float uGridLonRange;    // Grid longitude range (degrees, e.g. 359.75 for GDPS)
+
 void main() {
-    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
+    // -- Convert screen UV to geographic coordinates --
+    // vTex.y: 0 = bottom (MinLat), 1 = top (MaxLat) in Mercator space
+    float mercY = mix(uViewMercMin, uViewMercMax, vTex.y);
+    float lat = atan(sinh(mercY)) * (180.0 / 3.14159265);
+
+    // vTex.x: 0 = left (MinLon), 1 = right (MaxLon) - longitude is linear
+    float lon = uViewMinLon + vTex.x * uViewLonRange;
+
+    // -- Map geographic coords to data grid texture UV --
+    // Grid V: row 0 = MaxLat (north), last row = MinLat (south)
+    float gridMaxLat = uGridMinLat + uGridLatRange;
+    float gridV = (gridMaxLat - lat) / max(uGridLatRange, 0.001);
+
+    // Grid U: Normalize longitude to grid range (handles wrapping grids like FirstLon=180)
+    float gridLon = lon;
+    if (gridLon < uGridMinLon)
+        gridLon += 360.0;
+    float gridU = (gridLon - uGridMinLon) / max(uGridLonRange, 0.001);
+
+    vec2 uv = clamp(vec2(gridU, gridV), vec2(0.001), vec2(0.999));
 
     // Sample raw data value from R32F texture (GPU bilinear interpolation)
     float rawValue = texture(uDataTex, uv).r;
@@ -34,11 +63,11 @@ void main() {
     // Sample color palette
     vec4 paletteColor = texture(uPaletteTex, t);
 
-    // --- Smooth edge blending ---
+    // --- Smooth edge blending (use screen-space vTex, not grid UV) ---
     float edgeFade = 1.0;
     float border = 0.012;
-    edgeFade *= smoothstep(0.0, border, uv.x) * smoothstep(0.0, border, 1.0 - uv.x);
-    edgeFade *= smoothstep(0.0, border, uv.y) * smoothstep(0.0, border, 1.0 - uv.y);
+    edgeFade *= smoothstep(0.0, border, vTex.x) * smoothstep(0.0, border, 1.0 - vTex.x);
+    edgeFade *= smoothstep(0.0, border, vTex.y) * smoothstep(0.0, border, 1.0 - vTex.y);
 
     vec3 color = paletteColor.rgb;
 
@@ -78,7 +107,7 @@ void main() {
     }
 
     float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
-    float finalAlpha = paletteColor.a / 255.0 * opacity * edgeFade * alphaScale;
+    float finalAlpha = paletteColor.a * opacity * edgeFade * alphaScale;
 
     FragColor = vec4(color, finalAlpha);
 }

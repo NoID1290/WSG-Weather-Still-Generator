@@ -1782,7 +1782,18 @@ namespace WeatherImageGenerator.Rendering.Common
                     if (gpuRenderData != null)
                     {
                         _glControl.SetGrib2GpuData(gpuRenderData);
-                        Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline active: {gpuRenderData.FieldType} ({gpuRenderData.GridWidth}x{gpuRenderData.GridHeight})");
+
+                        if (_glControl.Grib2GpuActive)
+                        {
+                            Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline active: {gpuRenderData.FieldType} ({gpuRenderData.GridWidth}x{gpuRenderData.GridHeight})");
+                        }
+                        else
+                        {
+                            // GPU pipeline not supported by this renderer — fall back to CPU
+                            Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline not available, falling back to CPU rendering");
+                            grib2Data = await _overlayManager.UpdateGrib2OverlayAsync(
+                                _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
+                        }
                     }
                     else
                     {

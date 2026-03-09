@@ -74,7 +74,7 @@ float4 main(PSInput input) : SV_TARGET
     else if (fieldType == 3) alphaScale = smoothstep(0.0, 0.08, t) * 0.85;
 
     float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
-    float finalAlpha = (paletteColor.a / 255.0) * opacity * edgeFade * alphaScale;
+    float finalAlpha = paletteColor.a * opacity * edgeFade * alphaScale;
 
     return float4(color, finalAlpha);
 }

@@ -29,11 +29,17 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <summary>GRIB2 field type (Temperature, Wind, Precipitation, etc.)</summary>
         public required Grib2FieldType FieldType { get; init; }
 
-        /// <summary>Bounding box for geo-positioning the overlay.</summary>
+        /// <summary>Viewport bounding box for geo-positioning the overlay on screen.</summary>
         public required double MinLat { get; init; }
         public required double MinLon { get; init; }
         public required double MaxLat { get; init; }
         public required double MaxLon { get; init; }
+
+        /// <summary>GRIB2 data grid geographic extent (may differ from viewport bbox).</summary>
+        public double GridMinLat { get; init; }
+        public double GridMaxLat { get; init; }
+        public double GridMinLon { get; init; }
+        public double GridMaxLon { get; init; }
 
         /// <summary>Wind U-component grid (only for Wind field type).</summary>
         public float[]? WindU { get; init; }

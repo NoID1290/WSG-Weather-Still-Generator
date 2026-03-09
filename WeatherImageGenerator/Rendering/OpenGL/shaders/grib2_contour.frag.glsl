@@ -1,7 +1,7 @@
 #version 330 core
 // GRIB2 Contour Lines - Fragment Shader (OpenGL 3.3)
 // GPU-rendered isobar and isotherm contour lines using screen-space derivatives.
-// Antialiased contour lines with optional value labels.
+// Uses Mercator-corrected UV mapping to align contours with map tiles.
 
 in vec2 vTex;
 out vec4 FragColor;
@@ -15,8 +15,29 @@ uniform float uContourWidth;      // Line width in texels (1.0-3.0)
 uniform float uOpacity;
 uniform int   uFieldType;         // 0=Temp, 4=Pressure
 
+// Viewport-to-grid mapping (Mercator projection) - same as data shader
+uniform float uViewMercMin;
+uniform float uViewMercMax;
+uniform float uViewMinLon;
+uniform float uViewLonRange;
+uniform float uGridMinLat;
+uniform float uGridLatRange;
+uniform float uGridMinLon;
+uniform float uGridLonRange;
+
 void main() {
-    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
+    // Mercator-corrected UV mapping (same as data shader)
+    float mercY = mix(uViewMercMin, uViewMercMax, vTex.y);
+    float lat = atan(sinh(mercY)) * (180.0 / 3.14159265);
+    float lon = uViewMinLon + vTex.x * uViewLonRange;
+
+    float gridMaxLat = uGridMinLat + uGridLatRange;
+    float gridV = (gridMaxLat - lat) / max(uGridLatRange, 0.001);
+    float gridLon = lon;
+    if (gridLon < uGridMinLon)
+        gridLon += 360.0;
+    float gridU = (gridLon - uGridMinLon) / max(uGridLonRange, 0.001);
+    vec2 uv = clamp(vec2(gridU, gridV), vec2(0.001), vec2(0.999));
 
     // Sample raw data value
     float value = texture(uDataTex, uv).r;
@@ -49,10 +70,10 @@ void main() {
     vec4 lineColor = uContourColor.a > 0.0 ? uContourColor : vec4(0.2, 0.2, 0.2, 0.85);
     float alpha = mix(contour * 0.6, max(contour, majorContour), majorContour) * lineColor.a;
 
-    // Edge blending
+    // Edge blending (screen-space)
     float border = 0.015;
-    float edgeFade = smoothstep(0.0, border, uv.x) * smoothstep(0.0, border, 1.0 - uv.x)
-                   * smoothstep(0.0, border, uv.y) * smoothstep(0.0, border, 1.0 - uv.y);
+    float edgeFade = smoothstep(0.0, border, vTex.x) * smoothstep(0.0, border, 1.0 - vTex.x)
+                   * smoothstep(0.0, border, vTex.y) * smoothstep(0.0, border, 1.0 - vTex.y);
 
     float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
     FragColor = vec4(lineColor.rgb, alpha * edgeFade * opacity);
