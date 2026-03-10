@@ -1,0 +1,58 @@
+# CI workflow for Weather Still Generator (WSG)
+# Builds the Windows Forms solution on every push and pull request to main.
+
+name: WSG Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  build:
+
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    runs-on: windows-latest
+
+    env:
+      Solution_Name: WSG.sln
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # Install .NET 10
+    - name: Install .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    # Restore NuGet packages
+    - name: Restore dependencies
+      run: dotnet restore $env:Solution_Name
+
+    # Build the solution
+    - name: Build
+      run: dotnet build $env:Solution_Name --no-restore -c $env:Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    # Publish the main executable (Release only)
+    - name: Publish
+      if: matrix.configuration == 'Release'
+      run: dotnet publish WeatherImageGenerator\WeatherImageGenerator.csproj --no-restore -c Release -r win-x64 --self-contained false -o publish\
+
+    # Upload build artifacts (Release only)
+    - name: Upload build artifacts
+      if: matrix.configuration == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: WSG-${{ github.sha }}
+        path: publish\
