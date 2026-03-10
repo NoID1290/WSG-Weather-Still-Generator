@@ -129,7 +129,7 @@ namespace WeatherImageGenerator.Forms
         private TabPage? _logTab;
         private Panel? _topPanel;
         private Panel? _logPanel;
-        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn, _toggleLogsBtn;
+        private Button? _startBtn, _stopBtn, _fetchBtn, _stillBtn, _videoBtn, _openOutputBtn, _clearDirBtn, _locationsBtn, _musicBtn, _cycleControlBtn, _settingsBtn, _aboutBtn, _clearLogBtn, _cancelBtn, _galleryBtn, _testAlertBtn, _toggleLogsBtn;
         
         // UI controls for log line spacing (user adjustable)
         private ComboBox? _cmbLineSpacing;
@@ -233,13 +233,16 @@ namespace WeatherImageGenerator.Forms
             // Group 1: Control Cycle (Start/Stop)
             int g1Left = 15;
             int g1BtnWidth = 70;
+            int g1CycleWidth = 110;
             _groupLabel1 = new Label { Text = "CONTROL CYCLE", Left = g1Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
             _startBtn = CreateStyledButton("Start", g1Left, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(39, 174, 96), Color.White);
             _stopBtn = CreateStyledButton("Stop", g1Left + g1BtnWidth + btnSpacing, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(192, 57, 43), Color.White);
+            int g1CycleLeft = g1Left + (g1BtnWidth + btnSpacing) * 2;
+            _cycleControlBtn = CreateStyledButton("Cycle Settings", g1CycleLeft, row1Top, g1CycleWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
             SetButtonEnabled(_stopBtn, false);
             
             // Group 2: Generate (Fetch, Still, Video, Cancel, Test Alert)
-            int g2Left = g1Left + (g1BtnWidth * 2) + btnSpacing + groupSpacing;
+            int g2Left = g1CycleLeft + g1CycleWidth + groupSpacing;
             int g2BtnWidth = 75;
             _groupLabel2 = new Label { Text = "GENERATE", Left = g2Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
             _fetchBtn = CreateStyledButton("Fetch", g2Left, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
@@ -694,6 +697,17 @@ namespace WeatherImageGenerator.Forms
                 }
             };
 
+            _cycleControlBtn.Click += (s, e) =>
+            {
+                using (var f = new CycleControlForm())
+                {
+                    if (f.ShowDialog(this) == DialogResult.OK)
+                    {
+                        Logger.Log("Cycle control settings updated.");
+                    }
+                }
+            };
+
             _aboutBtn.Click += (s, e) =>
             {
                 using (var f = new AboutDialog())
@@ -733,6 +747,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_startBtn);
             _topPanel.Controls.Add(_locationsBtn);
             _topPanel.Controls.Add(_musicBtn);
+            _topPanel.Controls.Add(_cycleControlBtn);
             _topPanel.Controls.Add(_galleryBtn);
             _topPanel.Controls.Add(_settingsBtn);
             _topPanel.Controls.Add(_aboutBtn);
@@ -1038,6 +1053,7 @@ namespace WeatherImageGenerator.Forms
             SetBtn(_clearDirBtn, warningColor, warningBtnText);
             SetBtn(_locationsBtn, buttonColor, neutralBtnText);
             SetBtn(_musicBtn, buttonColor, neutralBtnText);
+            SetBtn(_cycleControlBtn, buttonColor, neutralBtnText);
             SetBtn(_galleryBtn, buttonColor, neutralBtnText);
             SetBtn(_settingsBtn, buttonColor, neutralBtnText);
             SetBtn(_aboutBtn, buttonColor, neutralBtnText);
@@ -3872,7 +3888,7 @@ namespace WeatherImageGenerator.Forms
                 var updateGroup = new GroupBox
                 {
                     Text = "🔄 Updates",
-                    Left = 25, Top = 140, Width = 620, Height = 145,
+                    Left = 25, Top = 140, Width = 620, Height = 175,
                     Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                     ForeColor = accentColor
                 };
@@ -4111,7 +4127,7 @@ namespace WeatherImageGenerator.Forms
                            "• High-quality text-to-speech for Canadian French and English\n" +
                            "• Video generation with background music and transitions\n" +
                            "• Multiple themes and customizable layouts",
-                    Left = 25, Top = 295, Width = 620, Height = 200,
+                    Left = 25, Top = 325, Width = 620, Height = 200,
                     Font = new Font("Segoe UI", 10F),
                     ForeColor = textColor
                 };

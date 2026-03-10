@@ -60,15 +60,12 @@ namespace WeatherImageGenerator.Forms
         NumericUpDown numImgHeight;
         ComboBox cmbImgFormat;
         ComboBox cmbFontFamily;
-        CheckBox chkEnableProvinceRadar;
-        CheckBox chkEnableWeatherMaps;
         PictureBox _alertPreviewPanel;
         PictureBox _weatherPreviewPanel;
 
         // ═══════════════════════════════════════════════════════════════════
         // Controls — Video
         // ═══════════════════════════════════════════════════════════════════
-        CheckBox chkVideoGeneration;
         CheckBox chkSkipDetailedWeatherOnAlert;
         NumericUpDown numPlayRadarAnimationCountOnAlert;
         NumericUpDown numAlertDisplayDurationSeconds;
@@ -681,12 +678,6 @@ namespace WeatherImageGenerator.Forms
             }
             y += rowHeight;
 
-            chkEnableProvinceRadar = CreateCheckBox("Enable Province Radar Animation", labelX, y, 300);
-            y += 28;
-
-            chkEnableWeatherMaps = CreateCheckBox("Enable Weather Maps Generation", labelX, y, 300);
-            y += 32;
-
             var btnRegenIcons = CreateSecondaryButton("🔄 Regenerate Icons", labelX, y, 160, 28);
             btnRegenIcons.Click += (s, e) => RegenerateIcons(btnRegenIcons);
             y += 38;
@@ -722,12 +713,6 @@ namespace WeatherImageGenerator.Forms
             // ═════════════════════════════════════════════
             var lblVideoHeader = CreateSectionHeader("Video Generation", labelX, y, "🎥");
             y += 35;
-
-            chkVideoGeneration = CreateCheckBox("  Enable Video Generation", labelX, y, 280);
-            chkVideoGeneration.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-            chkVideoGeneration.ForeColor = AccentColor;
-            chkVideoGeneration.Tag = "accent";
-            y += 38;
 
             // Dual-column group boxes
             int leftCol = labelX;
@@ -1069,11 +1054,11 @@ namespace WeatherImageGenerator.Forms
                 lblImgSettings, lblImgSize, numImgWidth, lblX, numImgHeight, lblPixels,
                 lblFormat, cmbImgFormat, lblFormatHelp,
                 lblFontFamily, cmbFontFamily,
-                chkEnableProvinceRadar, chkEnableWeatherMaps, btnRegenIcons,
+                btnRegenIcons,
                 lblPreview, _alertPreviewPanel, _weatherPreviewPanel,
                 imgDivider,
                 // Video
-                lblVideoHeader, chkVideoGeneration,
+                lblVideoHeader,
                 grpAlerts, grpFormat, grpTiming, grpEncoding, grpDebug,
                 videoDivider,
                 // FFmpeg
@@ -2211,11 +2196,7 @@ namespace WeatherImageGenerator.Forms
                 if (cmbFontFamily.Items.Contains(fontFamily)) cmbFontFamily.SelectedItem = fontFamily;
                 else cmbFontFamily.SelectedIndex = 0;
 
-                chkEnableProvinceRadar.Checked = cfg.ECCC?.EnableProvinceRadar ?? true;
-                chkEnableWeatherMaps.Checked = cfg.ImageGeneration?.EnableWeatherMaps ?? true;
-
                 // ── Video (Output Tab) ──
-                chkVideoGeneration.Checked = cfg.Video?.doVideoGeneration ?? true;
                 chkSkipDetailedWeatherOnAlert.Checked = cfg.Video?.SkipDetailedWeatherOnAlert ?? false;
                 numPlayRadarAnimationCountOnAlert.Value = cfg.Video?.PlayRadarAnimationCountOnAlert ?? 1;
                 numAlertDisplayDurationSeconds.Value = (decimal)(cfg.Video?.AlertDisplayDurationSeconds ?? 10);
@@ -2515,11 +2496,9 @@ namespace WeatherImageGenerator.Forms
                 imageGen.ImageHeight = (int)numImgHeight.Value;
                 imageGen.ImageFormat = cmbImgFormat.SelectedItem?.ToString() ?? "png";
                 imageGen.FontFamily = cmbFontFamily.SelectedItem?.ToString() ?? "Arial";
-                imageGen.EnableWeatherMaps = chkEnableWeatherMaps.Checked;
                 cfg.ImageGeneration = imageGen;
 
                 var eccc = cfg.ECCC ?? new ECCCSettings();
-                eccc.EnableProvinceRadar = chkEnableProvinceRadar.Checked;
                 cfg.ECCC = eccc;
 
                 var alertReady = cfg.AlertReady ?? new EAS.AlertReady.AlertReadyOptions();
@@ -2623,7 +2602,6 @@ namespace WeatherImageGenerator.Forms
 
                 v.Container = cmbContainer.SelectedItem?.ToString() ?? "mp4";
                 v.OutputDirectory = ToRelative(txtVideoOutputDir.Text, imageGen.OutputDirectory ?? "WeatherImages");
-                v.doVideoGeneration = chkVideoGeneration.Checked;
                 v.SkipDetailedWeatherOnAlert = chkSkipDetailedWeatherOnAlert.Checked;
                 v.PlayRadarAnimationCountOnAlert = (int)numPlayRadarAnimationCountOnAlert.Value;
                 v.AlertDisplayDurationSeconds = (double)numAlertDisplayDurationSeconds.Value;

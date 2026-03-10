@@ -126,6 +126,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("Video")]
         public VideoSettings? Video { get; set; }
 
+        [JsonPropertyName("CycleControl")]
+        public CycleControlSettings CycleControl { get; set; } = new CycleControlSettings();
+
         [JsonPropertyName("Alerts")]
         public AlertsSettings? Alerts { get; set; }
 
@@ -216,6 +219,33 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("ShowTemperatureLabels")]
         public bool ShowTemperatureLabels { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Top-level cycle step toggles for the automatic update cycle.
+    /// </summary>
+    public class CycleControlSettings
+    {
+        [JsonPropertyName("EnableWeatherDataFetch")]
+        public bool EnableWeatherDataFetch { get; set; } = true;
+
+        [JsonPropertyName("EnableAlertsFetch")]
+        public bool EnableAlertsFetch { get; set; } = true;
+
+        [JsonPropertyName("EnableRadarAnimation")]
+        public bool EnableRadarAnimation { get; set; } = true;
+
+        [JsonPropertyName("EnableAlertsImage")]
+        public bool EnableAlertsImage { get; set; } = true;
+
+        [JsonPropertyName("EnableDetailedWeatherImages")]
+        public bool EnableDetailedWeatherImages { get; set; } = true;
+
+        [JsonPropertyName("EnableGlobalWeatherMap")]
+        public bool EnableGlobalWeatherMap { get; set; } = true;
+
+        [JsonPropertyName("EnableVideoGeneration")]
+        public bool EnableVideoGeneration { get; set; } = true;
     }
 
     /// <summary>
