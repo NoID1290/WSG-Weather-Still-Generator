@@ -137,7 +137,7 @@ namespace WeatherImageGenerator.Forms
         private int _logLineSpacingDy = 220; // line height in twips (rule 4). 220 = Relaxed for 9pt Consolas
         private CancellationTokenSource? _operationCts;
         private Services.VideoGenerator? _runningVideoGenerator; 
-        private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _progressLabel, _statusLabel2, _lblLog;
+        private Label? _groupLabel1, _groupLabel2, _groupLabel3, _groupLabel4, _groupLabel5, _progressLabel, _statusLabel2, _lblLog;
         private System.Threading.Timer? _logArchiveTimer;
         private Button? _openWebUIBtn;
         private Button? _weatherMapBtn;
@@ -194,7 +194,7 @@ namespace WeatherImageGenerator.Forms
         public MainForm()
         {
             this.Text = "WSG - WeatherStillGenerator";
-            this.Width = 1220;
+            this.Width = 1340;
             this.Height = 700;
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
@@ -221,57 +221,59 @@ namespace WeatherImageGenerator.Forms
                 try { TryArchiveLogsIfNeededSafe(); } catch { }
             }, null, 30000, 30000); // every 30s
             
-            // === CONTROL GROUPS - Professional Aligned Layout ===
-            // Constants for consistent spacing and sizing
+            // === CONTROL GROUPS - Professional 5-Group Toolbar Layout ===
+            // Divider x-positions: 252, 556, 798, 1004 (drawn via TopPanel_Paint)
             int btnHeight = 32;
             int btnSpacing = 6;
-            int groupSpacing = 20;
             int row1Top = 22;
             int row2Top = 58;
             int labelTop = 6;
-            
-            // Group 1: Control Cycle (Start/Stop)
+            var groupLabelFont = new Font("Segoe UI", 7F, FontStyle.Bold);
+            var groupLabelColor = Color.FromArgb(180, 180, 180);
+
+            // ── Group 1: CYCLE ─────────────────────────────── x: 15–240
             int g1Left = 15;
-            int g1BtnWidth = 70;
-            int g1CycleWidth = 110;
-            _groupLabel1 = new Label { Text = "CONTROL CYCLE", Left = g1Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
-            _startBtn = CreateStyledButton("Start", g1Left, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(39, 174, 96), Color.White);
-            _stopBtn = CreateStyledButton("Stop", g1Left + g1BtnWidth + btnSpacing, row1Top, g1BtnWidth, btnHeight, Color.FromArgb(192, 57, 43), Color.White);
-            int g1CycleLeft = g1Left + (g1BtnWidth + btnSpacing) * 2;
-            _cycleControlBtn = CreateStyledButton("Cycle Settings", g1CycleLeft, row1Top, g1CycleWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _groupLabel1 = new Label { Text = "CYCLE", Left = g1Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
+            _startBtn        = CreateStyledButton("Start",    g1Left,      row1Top, 62, btnHeight, Color.FromArgb(39, 174, 96),  Color.White);
+            _stopBtn         = CreateStyledButton("Stop",     g1Left + 68, row1Top, 62, btnHeight, Color.FromArgb(192, 57, 43),  Color.White);
+            _cycleControlBtn = CreateStyledButton("Schedule", g1Left + 136, row1Top, 90, btnHeight, Color.FromArgb(52, 73, 94),  Color.White);
             SetButtonEnabled(_stopBtn, false);
-            
-            // Group 2: Generate (Fetch, Still, Video, Cancel, Test Alert)
-            int g2Left = g1CycleLeft + g1CycleWidth + groupSpacing;
-            int g2BtnWidth = 75;
-            _groupLabel2 = new Label { Text = "GENERATE", Left = g2Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
-            _fetchBtn = CreateStyledButton("Fetch", g2Left, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
-            _stillBtn = CreateStyledButton("Still", g2Left + (g2BtnWidth + btnSpacing), row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
-            _videoBtn = CreateStyledButton("Video", g2Left + (g2BtnWidth + btnSpacing) * 2, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
-            _cancelBtn = CreateStyledButton("Cancel", g2Left + (g2BtnWidth + btnSpacing) * 3, row1Top, g2BtnWidth, btnHeight, Color.FromArgb(192, 57, 43), Color.White);
+
+            // ── Group 2: GENERATE ──────────────────────────── x: 263–544
+            int g2Left = 263;
+            int g2BtnW = 64;
+            _groupLabel2 = new Label { Text = "GENERATE", Left = g2Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
+            _fetchBtn  = CreateStyledButton("Fetch",  g2Left,                          row1Top, g2BtnW, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
+            _stillBtn  = CreateStyledButton("Image",  g2Left + (g2BtnW + btnSpacing),  row1Top, g2BtnW, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
+            _videoBtn  = CreateStyledButton("Video",  g2Left + (g2BtnW + btnSpacing)*2, row1Top, g2BtnW, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
+            _cancelBtn = CreateStyledButton("Cancel", g2Left + (g2BtnW + btnSpacing)*3, row1Top, g2BtnW, btnHeight, Color.FromArgb(192, 57, 43),  Color.White);
             SetButtonEnabled(_cancelBtn, false);
-            _testAlertBtn = CreateStyledButton("Test Alert", g2Left, row2Top, (g2BtnWidth * 2) + btnSpacing, btnHeight, Color.FromArgb(230, 126, 34), Color.White);
-            
-            // Group 3: Files (Open, Clear, Gallery, WebUI)
-            int g3Left = g2Left + (g2BtnWidth + btnSpacing) * 4 + groupSpacing;
-            int g3BtnWidth = 70;
-            _groupLabel3 = new Label { Text = "FILES", Left = g3Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
-            _openOutputBtn = CreateStyledButton("Open", g3Left, row1Top, g3BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _clearDirBtn = CreateStyledButton("Clear", g3Left + g3BtnWidth + btnSpacing, row1Top, g3BtnWidth, btnHeight, Color.FromArgb(127, 140, 141), Color.White);
-            _galleryBtn = CreateStyledButton("Gallery", g3Left, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _openWebUIBtn = CreateStyledButton("WebUI", g3Left + g3BtnWidth + btnSpacing, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
-            _weatherMapBtn = CreateStyledButton("Map", g3Left + (g3BtnWidth + btnSpacing) * 2, row2Top, g3BtnWidth, btnHeight, Color.FromArgb(39, 174, 96), Color.White);
-            
-            // Group 4: Settings (Locations, Music, Settings, About)
-            int g4Left = g3Left + (g3BtnWidth + btnSpacing) * 2 + groupSpacing;
-            int g4BtnWidth = 90;
-            _groupLabel4 = new Label { Text = "SETTINGS", Left = g4Left, Top = labelTop, AutoSize = true, Font = new Font("Segoe UI", 7F, FontStyle.Bold), ForeColor = Color.FromArgb(180, 180, 180) };
-            _locationsBtn = CreateStyledButton("Locations", g4Left, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _musicBtn = CreateStyledButton("Music", g4Left + g4BtnWidth + btnSpacing, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _settingsBtn = CreateStyledButton("Settings", g4Left + (g4BtnWidth + btnSpacing) * 2, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _aboutBtn = CreateStyledButton("About", g4Left + (g4BtnWidth + btnSpacing) * 3, row1Top, g4BtnWidth, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _toggleLogsBtn = CreateStyledButton("▼ Logs", g4Left + (g4BtnWidth + btnSpacing) * 4 + 5, row1Top, 80, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
+            _testAlertBtn = CreateStyledButton("Preview Alert", g2Left, row2Top, (g2BtnW * 2) + btnSpacing, btnHeight, Color.FromArgb(230, 126, 34), Color.White);
+
+            // ── Group 3: VIEW ──────────────────────────────── x: 567–796
+            int g3Left = 567;
+            int g3BtnW = 68;
+            _groupLabel3 = new Label { Text = "VIEW", Left = g3Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
+            _galleryBtn    = CreateStyledButton("Gallery", g3Left,              row1Top, g3BtnW,     btnHeight, Color.FromArgb(52, 73, 94),   Color.White);
+            _openWebUIBtn  = CreateStyledButton("Web UI",  g3Left + (g3BtnW+btnSpacing), row1Top, 72, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
+            _weatherMapBtn = CreateStyledButton("Radar",   g3Left + (g3BtnW+btnSpacing)+78, row1Top, g3BtnW, btnHeight, Color.FromArgb(39, 174, 96),  Color.White);
+            _toggleLogsBtn = CreateStyledButton("▼ Logs",  g3Left,              row2Top, 80,         btnHeight, Color.FromArgb(155, 89, 182), Color.White);
             _toggleLogsBtn.Click += (s, e) => ToggleLogsVisibility();
+
+            // ── Group 4: FILES ─────────────────────────────── x: 809–992
+            int g4Left = 809;
+            _groupLabel4 = new Label { Text = "FILES", Left = g4Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
+            _openOutputBtn = CreateStyledButton("Output Folder", g4Left,       row1Top, 100, btnHeight, Color.FromArgb(52, 73, 94),   Color.White);
+            _clearDirBtn   = CreateStyledButton("Clear Files",   g4Left + 106, row1Top, 82,  btnHeight, Color.FromArgb(127, 140, 141), Color.White);
+
+            // ── Group 5: CONFIGURE ─────────────────────────── x: 1015–1317
+            int g5Left = 1015;
+            int g5BtnW = 82;
+            _groupLabel5 = new Label { Text = "CONFIGURE", Left = g5Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
+            _locationsBtn = CreateStyledButton("Locations", g5Left,                           row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _musicBtn     = CreateStyledButton("Music",     g5Left + (g5BtnW + btnSpacing),   row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _settingsBtn  = CreateStyledButton("Settings",  g5Left + (g5BtnW + btnSpacing)*2, row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _aboutBtn     = CreateStyledButton("About",     g5Left + (g5BtnW + btnSpacing)*3, row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
 
 
             // Progress & Status Section (Below buttons - properly spaced below row2)
@@ -730,11 +732,13 @@ namespace WeatherImageGenerator.Forms
 
 
             _topPanel = new Panel { Dock = DockStyle.Top, Height = 178, Padding = new Padding(8, 4, 8, 4) };
+            _topPanel.Paint += TopPanel_Paint;
             // Add group labels
             _topPanel.Controls.Add(_groupLabel1);
             _topPanel.Controls.Add(_groupLabel2);
             _topPanel.Controls.Add(_groupLabel3);
             _topPanel.Controls.Add(_groupLabel4);
+            _topPanel.Controls.Add(_groupLabel5);
             // Add buttons
             _topPanel.Controls.Add(_videoBtn);
             _topPanel.Controls.Add(_stillBtn);
@@ -1020,6 +1024,7 @@ namespace WeatherImageGenerator.Forms
             SetLabel(_groupLabel2, labelTextColor);
             SetLabel(_groupLabel3, labelTextColor);
             SetLabel(_groupLabel4, labelTextColor);
+            SetLabel(_groupLabel5, labelTextColor);
             SetLabel(_progressLabel, labelTextColor);
             SetLabel(_statusLabel2, labelTextColor);
             SetLabel(_lblLog, headerTextColor);
@@ -1195,6 +1200,14 @@ namespace WeatherImageGenerator.Forms
 
             // Double-click to restore
             _notifyIcon.DoubleClick += (s, e) => RestoreFromTray();
+        }
+
+        private void TopPanel_Paint(object? sender, PaintEventArgs e)
+        {
+            // Draw subtle vertical divider lines between the 5 button groups
+            using var pen = new Pen(Color.FromArgb(80, 180, 180, 180), 1);
+            foreach (int x in new[] { 252, 556, 798, 1004 })
+                e.Graphics.DrawLine(pen, x, 4, x, 96);
         }
 
         private void MainForm_Resize(object? sender, EventArgs e)
