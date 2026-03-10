@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.21.0310] - 2026-03-10
+
+- Enhance MainForm layout
+- Update CHANGELOG.md for version 1.16.20.0310: document cycle control settings and UI enhancements
+- Add cycle control settings and UI for automatic update configuration
+
 ## [1.16.20.0310] - 2026-03-10
 
 Add cycle control settings and UI for automatic update configuration
