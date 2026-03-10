@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.16.20.0310] - 2026-03-10
 
-- Version bump
+Add cycle control settings and UI for automatic update configuration
+
+- Introduced CycleControlSettings to manage update cycle options.
+- Added CycleControlForm for user interface to configure cycle steps.
+- Updated MainForm to include a button for accessing cycle control settings.
+- Enhanced Program.cs to utilize cycle control settings during data fetch and image generation processes.
+- Removed unused settings from SettingsForm.
 
 ## [1.15.20.0309] - 2026-03-09
 
