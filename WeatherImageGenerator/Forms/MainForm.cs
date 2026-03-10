@@ -223,6 +223,17 @@ namespace WeatherImageGenerator.Forms
             
             // === CONTROL GROUPS - Professional 5-Group Toolbar Layout ===
             // Divider x-positions: 252, 556, 798, 1004 (drawn via TopPanel_Paint)
+            // Color semantics:
+            //   Forest green  = GO/active        → Start
+            //   Deep crimson  = HALT/danger       → Stop, Cancel
+            //   Steel blue    = DATA action       → Fetch, Image, Video
+            //   Blue-slate    = TIMING/planning   → Schedule
+            //   Deep amber    = CAUTION/alert     → Preview Alert
+            //   Teal          = GEO/map data      → Radar
+            //   Indigo        = WEB interface     → Web UI
+            //   Slate blue    = BROWSE/view       → Gallery
+            //   Brick red     = DESTRUCTIVE       → Clear Files
+            //   Dark neutral  = PASSIVE/config    → all others
             int btnHeight = 32;
             int btnSpacing = 6;
             int row1Top = 22;
@@ -234,46 +245,46 @@ namespace WeatherImageGenerator.Forms
             // ── Group 1: CYCLE ─────────────────────────────── x: 15–240
             int g1Left = 15;
             _groupLabel1 = new Label { Text = "CYCLE", Left = g1Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
-            _startBtn        = CreateStyledButton("Start",    g1Left,      row1Top, 62, btnHeight, Color.FromArgb(39, 174, 96),  Color.White);
-            _stopBtn         = CreateStyledButton("Stop",     g1Left + 68, row1Top, 62, btnHeight, Color.FromArgb(192, 57, 43),  Color.White);
-            _cycleControlBtn = CreateStyledButton("Schedule", g1Left + 136, row1Top, 90, btnHeight, Color.FromArgb(52, 73, 94),  Color.White);
+            _startBtn        = CreateStyledButton("Start",    g1Left,       row1Top, 62, btnHeight, Color.FromArgb(21, 128, 61),   Color.White); // Forest green — GO
+            _stopBtn         = CreateStyledButton("Stop",     g1Left + 68,  row1Top, 62, btnHeight, Color.FromArgb(176, 34, 34),   Color.White); // Deep crimson — HALT
+            _cycleControlBtn = CreateStyledButton("Schedule", g1Left + 136, row1Top, 90, btnHeight, Color.FromArgb(55, 88, 118),   Color.White); // Blue-slate — timing
             SetButtonEnabled(_stopBtn, false);
 
             // ── Group 2: GENERATE ──────────────────────────── x: 263–544
             int g2Left = 263;
             int g2BtnW = 64;
             _groupLabel2 = new Label { Text = "GENERATE", Left = g2Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
-            _fetchBtn  = CreateStyledButton("Fetch",  g2Left,                          row1Top, g2BtnW, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
-            _stillBtn  = CreateStyledButton("Image",  g2Left + (g2BtnW + btnSpacing),  row1Top, g2BtnW, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
-            _videoBtn  = CreateStyledButton("Video",  g2Left + (g2BtnW + btnSpacing)*2, row1Top, g2BtnW, btnHeight, Color.FromArgb(41, 128, 185), Color.White);
-            _cancelBtn = CreateStyledButton("Cancel", g2Left + (g2BtnW + btnSpacing)*3, row1Top, g2BtnW, btnHeight, Color.FromArgb(192, 57, 43),  Color.White);
+            _fetchBtn  = CreateStyledButton("Fetch",  g2Left,                           row1Top, g2BtnW, btnHeight, Color.FromArgb(37, 99, 205),  Color.White); // Steel blue
+            _stillBtn  = CreateStyledButton("Image",  g2Left + (g2BtnW + btnSpacing),   row1Top, g2BtnW, btnHeight, Color.FromArgb(37, 99, 205),  Color.White); // Steel blue
+            _videoBtn  = CreateStyledButton("Video",  g2Left + (g2BtnW + btnSpacing)*2, row1Top, g2BtnW, btnHeight, Color.FromArgb(37, 99, 205),  Color.White); // Steel blue
+            _cancelBtn = CreateStyledButton("Cancel", g2Left + (g2BtnW + btnSpacing)*3, row1Top, g2BtnW, btnHeight, Color.FromArgb(176, 34, 34),  Color.White); // Deep crimson
             SetButtonEnabled(_cancelBtn, false);
-            _testAlertBtn = CreateStyledButton("Preview Alert", g2Left, row2Top, (g2BtnW * 2) + btnSpacing, btnHeight, Color.FromArgb(230, 126, 34), Color.White);
+            _testAlertBtn = CreateStyledButton("Preview Alert", g2Left, row2Top, (g2BtnW * 2) + btnSpacing, btnHeight, Color.FromArgb(180, 83, 9), Color.White); // Deep amber
 
             // ── Group 3: VIEW ──────────────────────────────── x: 567–796
             int g3Left = 567;
             int g3BtnW = 68;
             _groupLabel3 = new Label { Text = "VIEW", Left = g3Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
-            _galleryBtn    = CreateStyledButton("Gallery", g3Left,              row1Top, g3BtnW,     btnHeight, Color.FromArgb(52, 73, 94),   Color.White);
-            _openWebUIBtn  = CreateStyledButton("Web UI",  g3Left + (g3BtnW+btnSpacing), row1Top, 72, btnHeight, Color.FromArgb(155, 89, 182), Color.White);
-            _weatherMapBtn = CreateStyledButton("Radar",   g3Left + (g3BtnW+btnSpacing)+78, row1Top, g3BtnW, btnHeight, Color.FromArgb(39, 174, 96),  Color.White);
-            _toggleLogsBtn = CreateStyledButton("▼ Logs",  g3Left,              row2Top, 80,         btnHeight, Color.FromArgb(155, 89, 182), Color.White);
+            _galleryBtn    = CreateStyledButton("Gallery", g3Left,                          row1Top, g3BtnW, btnHeight, Color.FromArgb(52, 78, 110),  Color.White); // Slate blue — browse
+            _openWebUIBtn  = CreateStyledButton("Web UI",  g3Left + (g3BtnW+btnSpacing),    row1Top, 72,    btnHeight, Color.FromArgb(79, 70, 229),   Color.White); // Indigo — web
+            _weatherMapBtn = CreateStyledButton("Radar",   g3Left + (g3BtnW+btnSpacing)+78, row1Top, g3BtnW, btnHeight, Color.FromArgb(13, 140, 127), Color.White); // Teal — geo/map
+            _toggleLogsBtn = CreateStyledButton("▼ Logs",  g3Left,                          row2Top, 80,    btnHeight, Color.FromArgb(50, 62, 78),    Color.White); // Neutral — passive
             _toggleLogsBtn.Click += (s, e) => ToggleLogsVisibility();
 
             // ── Group 4: FILES ─────────────────────────────── x: 809–992
             int g4Left = 809;
             _groupLabel4 = new Label { Text = "FILES", Left = g4Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
-            _openOutputBtn = CreateStyledButton("Output Folder", g4Left,       row1Top, 100, btnHeight, Color.FromArgb(52, 73, 94),   Color.White);
-            _clearDirBtn   = CreateStyledButton("Clear Files",   g4Left + 106, row1Top, 82,  btnHeight, Color.FromArgb(127, 140, 141), Color.White);
+            _openOutputBtn = CreateStyledButton("Output Folder", g4Left,       row1Top, 100, btnHeight, Color.FromArgb(50, 62, 78),   Color.White); // Neutral — passive
+            _clearDirBtn   = CreateStyledButton("Clear Files",   g4Left + 106, row1Top, 82,  btnHeight, Color.FromArgb(130, 45, 40),  Color.White); // Brick red — destructive
 
             // ── Group 5: CONFIGURE ─────────────────────────── x: 1015–1317
             int g5Left = 1015;
             int g5BtnW = 82;
             _groupLabel5 = new Label { Text = "CONFIGURE", Left = g5Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
-            _locationsBtn = CreateStyledButton("Locations", g5Left,                           row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _musicBtn     = CreateStyledButton("Music",     g5Left + (g5BtnW + btnSpacing),   row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _settingsBtn  = CreateStyledButton("Settings",  g5Left + (g5BtnW + btnSpacing)*2, row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
-            _aboutBtn     = CreateStyledButton("About",     g5Left + (g5BtnW + btnSpacing)*3, row1Top, g5BtnW, btnHeight, Color.FromArgb(52, 73, 94), Color.White);
+            _locationsBtn = CreateStyledButton("Locations", g5Left,                           row1Top, g5BtnW, btnHeight, Color.FromArgb(50, 62, 78), Color.White);
+            _musicBtn     = CreateStyledButton("Music",     g5Left + (g5BtnW + btnSpacing),   row1Top, g5BtnW, btnHeight, Color.FromArgb(50, 62, 78), Color.White);
+            _settingsBtn  = CreateStyledButton("Settings",  g5Left + (g5BtnW + btnSpacing)*2, row1Top, g5BtnW, btnHeight, Color.FromArgb(50, 62, 78), Color.White);
+            _aboutBtn     = CreateStyledButton("About",     g5Left + (g5BtnW + btnSpacing)*3, row1Top, g5BtnW, btnHeight, Color.FromArgb(50, 62, 78), Color.White);
 
 
             // Progress & Status Section (Below buttons - properly spaced below row2)
