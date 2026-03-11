@@ -75,6 +75,14 @@ namespace WeatherImageGenerator.Rendering.Common
         private System.Threading.Timer? _animationRefreshDebounce;
         private bool _animationRefreshInProgress = false;
 
+        // Frame interpolation (smooth animation via optical flow + bidirectional warp)
+        // _displayFrames contains real + synthetic interleaved; _animationFrames are the raw real ones.
+        private int _interpolationFactor = 0;            // 0 = off, 2, 4, or 8
+        private List<byte[]> _displayFrames = new List<byte[]>();
+        private HashSet<int> _realFrameIndices = new HashSet<int>();
+        private HudDropdown? _ddInterp;
+        private System.Threading.CancellationTokenSource? _interpBuildCts;
+
         // Periodic status bar refresh timer (updates FPS, VRAM, cache stats even when idle)
         private Timer _statusUpdateTimer;
         private System.Threading.Timer? _hudClearTimer;
@@ -721,21 +729,23 @@ namespace WeatherImageGenerator.Rendering.Common
             mapStylePanel.Elements.Add(_grpMapStyle);
             _hudSystem.AddPanel(mapStylePanel);
 
-            // === Animation Panel (bottom-center, always visible, slim toolbar) ===
+            // === Animation Panel (bottom-center, grouped readable layout) ===
             var animPanel = new HudPanel
             {
                 Id = "animation",
-                Title = "",
+                Title = "Radar Animation",
                 Anchor = HudAnchor.BottomCenter,
-                Width = 500f,
+                Width = 620f,
                 MarginX = 0, MarginY = 38,
                 Visible = true,
                 Collapsible = false,
-                TitleVisible = false
+                TitleVisible = true
             };
 
-            // Row 1: transport controls + frame info + load
+            // Row 1: transport controls + status
             var transportRow = new HudInlineRow { Id = "animTransport" };
+            transportRow.Children.Add(new HudLabel { Id = "animPlaybackLabel", Text = "Playback", IsDim = false });
+            transportRow.Children.Add(new HudSeparator());
             _btnStepBack = new HudButton { Id = "animStepBack", Text = "\u23EE", IsCompact = true, IsDisabled = true, OnClick = () => StepAnimationBackward() };
             transportRow.Children.Add(_btnStepBack);
             _btnPlayPause = new HudButton { Id = "animPlayPause", Text = "\u25B6", IsCompact = true, IsAccent = true, IsDisabled = true, OnClick = () => PlayPauseAnimation() };
@@ -746,12 +756,12 @@ namespace WeatherImageGenerator.Rendering.Common
             _lblFrameInfo = new HudLabel { Id = "frameInfo", Text = "No radar loaded", IsDim = true };
             transportRow.Children.Add(_lblFrameInfo);
             transportRow.Children.Add(new HudSeparator());
-            transportRow.Children.Add(new HudButton { Id = "animLoadBtn", Text = "Load", IsCompact = false, IsAccent = true, OnClick = async () => await LoadRadarAnimation() });
+            transportRow.Children.Add(new HudButton { Id = "animClose", Text = "Close", IsCompact = false, OnClick = () => CloseRadarAnimation() });
             animPanel.Elements.Add(transportRow);
 
-            // Row 2: frame count selector (session-only)
+            // Row 2: frame fetch selector
             var frameCountRow = new HudInlineRow { Id = "animFrameCountRow" };
-            frameCountRow.Children.Add(new HudLabel { Id = "animFrameCountLabel", Text = "Frames", IsDim = true });
+            frameCountRow.Children.Add(new HudLabel { Id = "animFrameCountLabel", Text = "Frames To Fetch", IsDim = false });
             _btnFrameMinusFive = new HudButton { Id = "animFrameMinus5", Text = "-5", IsCompact = false, OnClick = () => ChangeAnimationFrameCount(-5) };
             frameCountRow.Children.Add(_btnFrameMinusFive);
             _btnFrameMinusOne = new HudButton { Id = "animFrameMinus1", Text = "−", IsCompact = true, OnClick = () => ChangeAnimationFrameCount(-1) };
@@ -767,6 +777,8 @@ namespace WeatherImageGenerator.Rendering.Common
             frameCountRow.Children.Add(_btnFramePlusOne);
             _btnFramePlusFive = new HudButton { Id = "animFramePlus5", Text = "+5", IsCompact = false, OnClick = () => ChangeAnimationFrameCount(5) };
             frameCountRow.Children.Add(_btnFramePlusFive);
+            frameCountRow.Children.Add(new HudSeparator());
+            frameCountRow.Children.Add(new HudButton { Id = "animLoadBtn", Text = "Load / Reload", IsCompact = false, IsAccent = true, OnClick = async () => await LoadRadarAnimation() });
             animPanel.Elements.Add(frameCountRow);
 
             // Row 3: timeline scrub bar with tick marks
@@ -781,9 +793,9 @@ namespace WeatherImageGenerator.Rendering.Common
                 ShowTicks = false,
                 OnChanged = (val) =>
                 {
-                    if (_animationFrames.Count > 0)
+                    if (_displayFrames.Count > 0)
                     {
-                        int idx = Math.Clamp((int)Math.Round(val * (_animationFrames.Count - 1)), 0, _animationFrames.Count - 1);
+                        int idx = Math.Clamp((int)Math.Round(val * (_displayFrames.Count - 1)), 0, _displayFrames.Count - 1);
                         if (idx != _currentFrameIndex)
                             ShowAnimationFrame(idx);
                     }
@@ -791,8 +803,9 @@ namespace WeatherImageGenerator.Rendering.Common
             };
             animPanel.Elements.Add(_sldTimeline);
 
-            // Row 4: speed + loop + follow + close
+            // Row 4: playback behavior + interpolation settings
             var settingsRow = new HudInlineRow { Id = "animSettings" };
+            settingsRow.Children.Add(new HudLabel { Id = "animSpeedLabel", Text = "Speed", IsDim = false });
             settingsRow.Children.Add(new HudButton { Id = "animSpeedDown", Text = "\u2212", IsCompact = true, OnClick = () => AdjustAnimationSpeed(200) });
             _lblSpeed = new HudLabel { Id = "lblSpeed", Text = "0.5s", IsDim = true };
             settingsRow.Children.Add(_lblSpeed);
@@ -813,10 +826,19 @@ namespace WeatherImageGenerator.Rendering.Common
                 }
             });
             settingsRow.Children.Add(new HudSeparator());
-            _chkAnimFollowMap = new HudCheckbox { Id = "animFollow", Text = "Follow", Checked = true };
-            settingsRow.Children.Add(_chkAnimFollowMap);
+            settingsRow.Children.Add(new HudLabel { Id = "animInterpLabel", Text = "Interpolation", IsDim = false });
+            _ddInterp = new HudDropdown
+            {
+                Id = "animInterp",
+                Text = "Interp",
+                Options = new System.Collections.Generic.List<string> { "Off", "2x", "4x", "8x" },
+                SelectedIndex = 0,
+                OnSelectionChanged = (idx) => ApplyInterpolationFactor(idx)
+            };
+            settingsRow.Children.Add(_ddInterp);
             settingsRow.Children.Add(new HudSeparator());
-            settingsRow.Children.Add(new HudButton { Id = "animClose", Text = "X", IsCompact = true, OnClick = () => CloseRadarAnimation() });
+            _chkAnimFollowMap = new HudCheckbox { Id = "animFollow", Text = "Follow Map", Checked = true };
+            settingsRow.Children.Add(_chkAnimFollowMap);
             animPanel.Elements.Add(settingsRow);
 
             _hudSystem.AddPanel(animPanel);
@@ -915,22 +937,69 @@ namespace WeatherImageGenerator.Rendering.Common
                 return;
 
             _sldTimeline.TickLabels = _animationTimestamps.Select(ts => FormatTimeOnly(ts)).ToList();
-            _sldTimeline.ShowTicks = _animationFrames.Count > 0;
+
+            if (_interpolationFactor > 1 && _realFrameIndices.Count > 1)
+            {
+                // Place tick marks at the real-frame positions within the larger display list
+                int total = _displayFrames.Count;
+                _sldTimeline.TickNormalizedPositions = _realFrameIndices
+                    .OrderBy(i => i)
+                    .Select(i => total <= 1 ? 0f : (float)i / (total - 1))
+                    .ToList();
+            }
+            else
+            {
+                _sldTimeline.TickNormalizedPositions = null; // evenly spaced (default)
+            }
+
+            _sldTimeline.ShowTicks = _displayFrames.Count > 0;
             _sldTimeline.Max = 1f;
-            _sldTimeline.Value = _animationFrames.Count <= 1
+            _sldTimeline.Value = _displayFrames.Count <= 1
                 ? 0f
-                : (float)_currentFrameIndex / (_animationFrames.Count - 1);
+                : (float)_currentFrameIndex / (_displayFrames.Count - 1);
         }
 
         private string BuildFrameInfoText(int frameIndex)
         {
-            string ts = frameIndex < _animationTimestamps.Count ? FormatTimestamp(_animationTimestamps[frameIndex]) : "";
-            string loaded = $"{frameIndex + 1}/{_animationFrames.Count}";
+            string loaded = $"{frameIndex + 1}/{_displayFrames.Count}";
+
+            if (_interpolationFactor > 1 && _realFrameIndices.Count > 0 &&
+                !_realFrameIndices.Contains(frameIndex))
+            {
+                // Synthetic frame: show interpolated timestamp with [~] marker
+                return $"{loaded} {GetInterpolatedTimestamp(frameIndex)} [~]";
+            }
+
+            // Real frame: map display index back to real-frame index for timestamp lookup
+            int realIdx = _interpolationFactor > 1 && _realFrameIndices.Count > 0
+                ? frameIndex / _interpolationFactor
+                : frameIndex;
+            string ts = realIdx < _animationTimestamps.Count
+                ? FormatTimestamp(_animationTimestamps[realIdx]) : "";
+
             if (_animationFrames.Count != _lastRequestedAnimationFrames)
                 return $"{loaded} ({_animationFrames.Count}/{_lastRequestedAnimationFrames} fetched) {ts}";
             if (_animationFrameCount != _lastRequestedAnimationFrames)
                 return $"{loaded} {ts} • Next: {_animationFrameCount}";
             return $"{loaded} {ts}";
+        }
+
+        private string GetInterpolatedTimestamp(int displayIndex)
+        {
+            if (_animationTimestamps.Count < 2 || _interpolationFactor < 2) return "";
+            int prevRealDisp = (displayIndex / _interpolationFactor) * _interpolationFactor;
+            int prevRealIdx  = prevRealDisp / _interpolationFactor;
+            int nextRealIdx  = prevRealIdx + 1;
+            if (nextRealIdx >= _animationTimestamps.Count)
+                return prevRealIdx < _animationTimestamps.Count
+                    ? "~" + FormatTimeOnly(_animationTimestamps[prevRealIdx]) : "";
+            if (!DateTime.TryParse(_animationTimestamps[prevRealIdx], null,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var dtA)) return "";
+            if (!DateTime.TryParse(_animationTimestamps[nextRealIdx], null,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var dtB)) return "";
+            float t = (float)(displayIndex - prevRealDisp) / _interpolationFactor;
+            var lerped = dtA + (dtB - dtA) * t;
+            return "~" + lerped.ToLocalTime().ToString("HH:mm");
         }
 
         private async Task LoadRadarAnimation()
@@ -996,17 +1065,14 @@ namespace WeatherImageGenerator.Rendering.Common
                     loadBtnLoaded.IsDisabled = false;
                 }
 
-                // Populate timeline from fetched frames only
-                UpdateTimelineUiFromFrames();
-
-                // Show animation HUD panel
+                // Show animation HUD panel before rebuilding display frames
                 var animPanel = _hudSystem.GetPanel("animation");
                 if (animPanel != null) animPanel.Visible = true;
 
-                // Show first frame
-                ShowAnimationFrame(0);
+                // Build display frames (runs interpolation if factor > 0)
+                // This also calls UpdateTimelineUiFromFrames and ShowAnimationFrame(0)
+                await RebuildDisplayFramesAsync();
 
-                _lblFrameInfo.Text = BuildFrameInfoText(0);
                 _glControl?.InvalidateView();
             }
             catch (Exception ex)
@@ -1039,7 +1105,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private void PlayPauseAnimation()
         {
-            if (_animationFrames.Count == 0) return;
+            if (_displayFrames.Count == 0) return;
 
             _isAnimating = !_isAnimating;
 
@@ -1047,7 +1113,7 @@ namespace WeatherImageGenerator.Rendering.Common
             if (_isAnimating)
             {
                 if (ppBtn != null) { ppBtn.Text = "⏸"; ppBtn.IsAccent = false; }
-                _animationTimer.Interval = _animationSpeedMs;
+                _animationTimer.Interval = GetEffectiveIntervalMs();
                 _animationTimer.Start();
             }
             else
@@ -1060,28 +1126,30 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private void StepAnimationForward()
         {
-            if (_animationFrames.Count == 0) return;
+            if (_displayFrames.Count == 0) return;
             if (_isAnimating) { PlayPauseAnimation(); } // Pause first
-            _currentFrameIndex = (_currentFrameIndex + 1) % _animationFrames.Count;
+            _currentFrameIndex = (_currentFrameIndex + 1) % _displayFrames.Count;
             ShowAnimationFrame(_currentFrameIndex);
         }
 
         private void StepAnimationBackward()
         {
-            if (_animationFrames.Count == 0) return;
+            if (_displayFrames.Count == 0) return;
             if (_isAnimating) { PlayPauseAnimation(); } // Pause first
-            _currentFrameIndex = (_currentFrameIndex - 1 + _animationFrames.Count) % _animationFrames.Count;
+            _currentFrameIndex = (_currentFrameIndex - 1 + _displayFrames.Count) % _displayFrames.Count;
             ShowAnimationFrame(_currentFrameIndex);
         }
 
         private void ShowAnimationFrame(int index)
         {
-            if (index < 0 || index >= _animationFrames.Count) return;
+            if (index < 0 || index >= _displayFrames.Count) return;
             _currentFrameIndex = index;
 
-            var frameData = _animationFrames[index];
-            // Use the saved bbox from when frames were loaded/refreshed,
-            // so frames stay anchored to their original position when follow-map is off
+            // _displayFrames contains both real and synthetic frames; all share the same
+            // geo-bounding box because synthetics are pixel-interpolated from the real frames.
+            // SetImageBytes accepts byte[] PNG — each GPU backend (OpenGL, DirectX, Vulkan)
+            // decodes it internally, so interpolated frames work for all rendering APIs.
+            var frameData = _displayFrames[index];
             var bbox = (_chkAnimFollowMap?.Checked ?? true)
                 ? _overlayManager.LastRadarBBox
                 : _animationBBox;
@@ -1099,17 +1167,17 @@ namespace WeatherImageGenerator.Rendering.Common
 
             // Update timeline slider position (avoid re-triggering OnChanged)
             if (_sldTimeline != null)
-                _sldTimeline.Value = _animationFrames.Count <= 1 ? 0f : (float)index / (_animationFrames.Count - 1);
+                _sldTimeline.Value = _displayFrames.Count <= 1 ? 0f : (float)index / (_displayFrames.Count - 1);
 
             _glControl?.InvalidateView();
         }
 
         private void AnimationTimer_Tick(object? sender, EventArgs e)
         {
-            if (_animationFrames.Count == 0) return;
+            if (_displayFrames.Count == 0) return;
 
             int nextFrame = _currentFrameIndex + 1;
-            if (nextFrame >= _animationFrames.Count)
+            if (nextFrame >= _displayFrames.Count)
             {
                 if (_animationLoop)
                 {
@@ -1135,10 +1203,9 @@ namespace WeatherImageGenerator.Rendering.Common
             _animationSpeedMs = Math.Max(100, Math.Min(2000, _animationSpeedMs + deltaMs));
             // Update live speed label
             if (_lblSpeed != null) _lblSpeed.Text = $"{_animationSpeedMs / 1000.0:F1}s";
-            // Speed is shown via frame info label
             if (_isAnimating)
             {
-                _animationTimer.Interval = _animationSpeedMs;
+                _animationTimer.Interval = GetEffectiveIntervalMs();
             }
         }
 
@@ -1190,12 +1257,8 @@ namespace WeatherImageGenerator.Rendering.Common
                     _animationTimestamps = validTimestamps;
                     _animationBBox = _overlayManager.LastRadarBBox;
 
-                    // Clamp frame index
-                    _currentFrameIndex = Math.Min(_currentFrameIndex, _animationFrames.Count - 1);
-                    UpdateTimelineUiFromFrames();
-
-                    // Show current frame at new viewport position
-                    ShowAnimationFrame(_currentFrameIndex);
+                    // Rebuild display frames (interpolation if factor > 0), then show
+                    await RebuildDisplayFramesAsync();
                 }
             }
             catch (Exception ex)
@@ -1208,10 +1271,10 @@ namespace WeatherImageGenerator.Rendering.Common
                 _animationRefreshInProgress = false;
 
                 // Resume playback if it was playing
-                if (wasPlaying && _animationFrames.Count > 0)
+                if (wasPlaying && _displayFrames.Count > 0)
                 {
                     _isAnimating = true;
-                    _animationTimer.Interval = _animationSpeedMs;
+                    _animationTimer.Interval = GetEffectiveIntervalMs();
                     _animationTimer.Start();
                 }
             }
@@ -1317,9 +1380,15 @@ namespace WeatherImageGenerator.Rendering.Common
                 if (ppBtn != null) { ppBtn.Text = "▶"; ppBtn.IsAccent = true; }
             }
 
+            // Cancel any in-flight interpolation build
+            _interpBuildCts?.Cancel();
+            _interpBuildCts = null;
+
             // Clear frames
             _animationFrames.Clear();
             _animationTimestamps.Clear();
+            _displayFrames.Clear();
+            _realFrameIndices.Clear();
             _animationBBox = null;
             _currentFrameIndex = 0;
 
@@ -1342,6 +1411,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 _sldTimeline.ShowTicks = false;
                 _sldTimeline.TickLabels.Clear();
+                _sldTimeline.TickNormalizedPositions = null;
                 _sldTimeline.Value = 0f;
                 _sldTimeline.Max = 1f;
             }
@@ -1354,6 +1424,116 @@ namespace WeatherImageGenerator.Rendering.Common
             _glControl.ClearPositionedOverlay();
 
             _lblFrameInfo.Text = $"No radar loaded • Fetch: {_animationFrameCount} frame{(_animationFrameCount == 1 ? "" : "s")}";
+            _glControl?.InvalidateView();
+        }
+
+        // ──────────────────────────────────────────────────────────────────
+        // Frame interpolation helpers
+        // ──────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns the effective animation timer interval in ms.
+        /// When interpolation is active the interval is divided by the factor so that
+        /// total loop wall-clock duration stays the same regardless of how many synthetic
+        /// frames are added between real frames.
+        /// </summary>
+        private int GetEffectiveIntervalMs()
+        {
+            int factor = Math.Max(1, _interpolationFactor == 0 ? 1 : _interpolationFactor);
+            return Math.Max(16, _animationSpeedMs / factor);
+        }
+
+        /// <summary>
+        /// Builds <c>_displayFrames</c> from <c>_animationFrames</c> using the current
+        /// interpolation factor.  If factor == 0 the display list is just a reference copy
+        /// of the real frames.  Otherwise optical-flow interpolation runs in a background
+        /// task with a HUD progress indicator.
+        ///
+        /// Safe to call concurrently — each call cancels the previous in-flight build.
+        /// Called by <c>LoadRadarAnimation</c> and <c>RefreshAnimationFrames</c>.
+        /// </summary>
+        private async Task RebuildDisplayFramesAsync()
+        {
+            // Cancel any previous in-flight build
+            _interpBuildCts?.Cancel();
+            _interpBuildCts = new System.Threading.CancellationTokenSource();
+            var ct = _interpBuildCts.Token;
+
+            if (_interpolationFactor <= 1 || _animationFrames.Count < 2)
+            {
+                // Off — use real frames directly (zero extra memory)
+                _displayFrames    = new List<byte[]>(_animationFrames);
+                _realFrameIndices = new HashSet<int>(Enumerable.Range(0, _displayFrames.Count));
+                _currentFrameIndex = Math.Min(_currentFrameIndex, Math.Max(0, _displayFrames.Count - 1));
+                UpdateTimelineUiFromFrames();
+                ShowAnimationFrame(_currentFrameIndex);
+                return;
+            }
+
+            _hudSystem.LoadingMessage = "Interpolating frames…";
+            _glControl?.InvalidateView();
+
+            try
+            {
+                var progress = new Progress<string>(msg =>
+                {
+                    if (!ct.IsCancellationRequested && _hudSystem != null)
+                        _hudSystem.LoadingMessage = msg;
+                });
+
+                var (frames, realIndices) = await Utilities.RadarFrameInterpolator.InterpolateAsync(
+                    _animationFrames, _interpolationFactor, ct, progress);
+
+                if (!ct.IsCancellationRequested)
+                {
+                    _displayFrames    = frames;
+                    _realFrameIndices = realIndices;
+                    _currentFrameIndex = Math.Min(_currentFrameIndex, Math.Max(0, _displayFrames.Count - 1));
+                    UpdateTimelineUiFromFrames();
+                    ShowAnimationFrame(_currentFrameIndex);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // A newer build was started — it will handle the UI update.
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherMap] Frame interpolation error: {ex.Message}");
+                // Fallback: show real frames without interpolation
+                _displayFrames    = new List<byte[]>(_animationFrames);
+                _realFrameIndices = new HashSet<int>(Enumerable.Range(0, _displayFrames.Count));
+                _currentFrameIndex = Math.Min(_currentFrameIndex, Math.Max(0, _displayFrames.Count - 1));
+                UpdateTimelineUiFromFrames();
+                ShowAnimationFrame(_currentFrameIndex);
+            }
+            finally
+            {
+                if (!ct.IsCancellationRequested)
+                {
+                    _hudSystem.LoadingMessage = null;
+                    _glControl?.InvalidateView();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Applies the interpolation factor from the HUD dropdown selection index.
+        /// Triggers a background rebuild of <c>_displayFrames</c> if frames are loaded.
+        /// </summary>
+        private void ApplyInterpolationFactor(int idx)
+        {
+            _interpolationFactor = idx switch { 1 => 2, 2 => 4, 3 => 8, _ => 0 };
+            UpdateInterpDropdown();
+
+            if (_animationFrames.Count > 0)
+                _ = RebuildDisplayFramesAsync();
+        }
+
+        private void UpdateInterpDropdown()
+        {
+            if (_ddInterp == null) return;
+            _ddInterp.SelectedIndex = _interpolationFactor switch { 2 => 1, 4 => 2, 8 => 3, _ => 0 };
             _glControl?.InvalidateView();
         }
 
@@ -1390,6 +1570,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 config.WeatherMapView.PanelOpacity = (int)(((_hudSystem?.PanelOpacityMultiplier ?? 1f) * 75f));
                 config.WeatherMapView.StatusBarOpacity = (int)((_glControl?.StatusBarOpacity ?? 0.55f) * 100f);
                 config.WeatherMapView.AnimationBarOpacity = (int)(((_hudSystem?.AnimationPanelOpacity ?? 1f) * 75f));
+                config.WeatherMapView.AnimationInterpolationFactor = _interpolationFactor;
                 ConfigManager.SaveConfig(config, silent: true);
             }
             catch (Exception ex)
@@ -1498,6 +1679,10 @@ namespace WeatherImageGenerator.Rendering.Common
                 if (sldSB != null) sldSB.Value = s.StatusBarOpacity;
                 var sldAnim = FindHudElement<HudSlider>("animBarOpacity");
                 if (sldAnim != null) sldAnim.Value = s.AnimationBarOpacity;
+
+                // Restore interpolation factor
+                _interpolationFactor = s.AnimationInterpolationFactor;
+                UpdateInterpDropdown();
                 if (_overlayManager != null)
                 {
                     _overlayManager.ShowTemperatureLabels = config.ShowTemperatureLabels;

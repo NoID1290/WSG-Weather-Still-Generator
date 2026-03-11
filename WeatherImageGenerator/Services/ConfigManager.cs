@@ -1097,5 +1097,12 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("Grib2ShowIsobars")]
         public bool Grib2ShowIsobars { get; set; } = false;
+
+        /// <summary>
+        /// Radar animation frame interpolation factor.
+        /// 0 = off, 2 = 2× smoother (1 inserted), 4 = 4× (3 inserted), 8 = 8× (7 inserted).
+        /// </summary>
+        [JsonPropertyName("AnimationInterpolationFactor")]
+        public int AnimationInterpolationFactor { get; set; } = 0;
     }
 }

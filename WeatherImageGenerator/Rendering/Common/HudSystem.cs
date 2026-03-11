@@ -13,16 +13,16 @@ namespace WeatherImageGenerator.Rendering.Common
     public class HudSystem
     {
         // â•â•â• Color constants â•â•â•
-        private static readonly HudColor PanelBg = new(15, 15, 20, 0.75f);
-        private static readonly HudColor PanelBgLight = new(25, 25, 35, 0.80f);
-        private static readonly HudColor ButtonBg = new(45, 45, 60, 0.85f);
-        private static readonly HudColor ButtonHover = new(65, 65, 90, 0.90f);
+        private static readonly HudColor PanelBg = new(15, 15, 20, 0.82f);
+        private static readonly HudColor PanelBgLight = new(26, 26, 36, 0.88f);
+        private static readonly HudColor ButtonBg = new(48, 48, 64, 0.90f);
+        private static readonly HudColor ButtonHover = new(72, 72, 98, 0.95f);
         private static readonly HudColor ButtonActive = new(40, 120, 255, 0.85f);
         private static readonly HudColor AccentColor = new(40, 120, 255, 1.0f);
         private static readonly HudColor DangerColor = new(200, 60, 50, 1.0f);
         private static readonly HudColor TextPrimary = new(240, 240, 240, 0.95f);
-        private static readonly HudColor TextSecondary = new(170, 170, 180, 0.75f);
-        private static readonly HudColor TextDim = new(165, 165, 175, 0.80f);
+        private static readonly HudColor TextSecondary = new(200, 200, 212, 0.90f);
+        private static readonly HudColor TextDim = new(184, 184, 198, 0.88f);
         private static readonly HudColor SliderTrack = new(80, 80, 100, 0.6f);
         private static readonly HudColor SliderThumb = new(40, 120, 255, 1.0f);
         private static readonly HudColor SeparatorColor = new(80, 80, 100, 0.35f);
@@ -41,15 +41,15 @@ namespace WeatherImageGenerator.Rendering.Common
 
         // Layout constants
         private const float Padding = 10f;
-        private const float ItemSpacing = 4f;
+        private const float ItemSpacing = 8f;
         private const float SectionSpacing = 8f;
         private const float ButtonHeight = 26f;
         private const float CheckboxHeight = 22f;
         private const float SliderHeight = 20f;
         private const float DropdownHeight = 26f;
         private const float PanelTitleHeight = 22f;
-        private const float InlineItemSpacing = 4f;
-        private const float InlineButtonSize = 28f;
+        private const float InlineItemSpacing = 8f;
+        private const float InlineButtonSize = 34f;
 
         // UI opacity multipliers
         public float PanelOpacityMultiplier { get; set; } = 1.0f;
@@ -383,18 +383,39 @@ namespace WeatherImageGenerator.Rendering.Common
             if (sld.ShowTicks && sld.TickLabels.Count > 1)
             {
                 int count = sld.TickLabels.Count;
+                bool hasCustomPositions = sld.TickNormalizedPositions != null &&
+                                          sld.TickNormalizedPositions.Count == count;
+
                 // Determine which tick is the active (current) one
                 float range2 = sld.Max - sld.Min;
-                int activeTick = range2 > 0f
-                    ? (int)Math.Round((sld.Value - sld.Min) / range2 * (count - 1))
-                    : 0;
+                float currentNorm = range2 > 0f ? (sld.Value - sld.Min) / range2 : 0f;
+                int activeTick;
+                if (hasCustomPositions)
+                {
+                    // Find closest tick to the current slider position
+                    activeTick = 0;
+                    float bestDist = float.MaxValue;
+                    for (int i = 0; i < count; i++)
+                    {
+                        float dist = Math.Abs(sld.TickNormalizedPositions![i] - currentNorm);
+                        if (dist < bestDist) { bestDist = dist; activeTick = i; }
+                    }
+                }
+                else
+                {
+                    activeTick = range2 > 0f
+                        ? (int)Math.Round(currentNorm * (count - 1))
+                        : 0;
+                }
 
                 float labelLineH = r.LineHeight;
                 float labelAreaY = sliderY - 18f;  // area above the track
 
                 for (int i = 0; i < count; i++)
                 {
-                    float tickRatio = (float)i / (count - 1);
+                    float tickRatio = hasCustomPositions
+                        ? sld.TickNormalizedPositions![i]
+                        : (float)i / (count - 1);
                     float tickX = x + tickRatio * w;
 
                     bool isActive = (i == activeTick);
@@ -750,6 +771,24 @@ namespace WeatherImageGenerator.Rendering.Common
                         cx += 6f + InlineItemSpacing;
                         break;
                     }
+                    case HudDropdown ddInline:
+                    {
+                        string selText = ddInline.SelectedIndex >= 0 && ddInline.SelectedIndex < ddInline.Options.Count
+                            ? ddInline.Options[ddInline.SelectedIndex] : ddInline.Text;
+                        float arrowW   = r.MeasureTextWidth("\u25be") + 4f;  // ▾
+                        float ddTextW  = r.MeasureTextWidth(selText);
+                        float ddW      = Math.Max(110f, ddTextW + arrowW + 22f);
+                        bool ddHover   = ddInline == _hoveredElement;
+                        var  ddBg      = ddInline.IsOpen ? ButtonActive : ddHover ? ButtonHover : ButtonBg;
+                        r.DrawRect(cx, y, ddW, rowH, ddBg.R, ddBg.G, ddBg.B, ddBg.A);
+                        float dty = y + (rowH - r.LineHeight) / 2f;
+                        r.DrawText(selText, cx + 8f, dty, TextPrimary.R, TextPrimary.G, TextPrimary.B, TextPrimary.A);
+                        r.DrawText("\u25be", cx + ddW - arrowW - 4f, dty, TextSecondary.R, TextSecondary.G, TextSecondary.B, TextSecondary.A);
+                        child.ComputedBounds = new RectangleF(cx, y, ddW, rowH);
+                        row.ChildBounds.Add(new RectangleF(cx, y, ddW, rowH));
+                        cx += ddW + InlineItemSpacing;
+                        break;
+                    }
                     case HudSlider sld:
                     {
                         // Inline slider: fixed width
@@ -899,6 +938,18 @@ namespace WeatherImageGenerator.Rendering.Common
                                     case HudSlider sld2:
                                         _draggingSlider = sld2;
                                         UpdateSliderValue(sld2, mx);
+                                        return true;
+                                    case HudDropdown dd2:
+                                        if (dd2.IsOpen)
+                                        {
+                                            dd2.IsOpen = false;
+                                            _openDropdown = null;
+                                        }
+                                        else
+                                        {
+                                            dd2.IsOpen = true;
+                                            _openDropdown = dd2;
+                                        }
                                         return true;
                                 }
                             }
@@ -1190,6 +1241,12 @@ namespace WeatherImageGenerator.Rendering.Common
         public bool ShowTicks { get; set; } = false;
         /// <summary>Labels for each tick (one per frame). Shown above the track when ShowTicks is true.</summary>
         public List<string> TickLabels { get; set; } = new();
+        /// <summary>
+        /// Optional explicit normalized positions (0.0–1.0) for each tick label.
+        /// When set, ticks are drawn at these positions instead of being evenly spaced.
+        /// Used when interpolated display frames outnumber real frames on the timeline.
+        /// </summary>
+        public List<float>? TickNormalizedPositions { get; set; } = null;
         public RectangleF TrackBounds { get; set; }
         public Action<float>? OnChanged { get; set; }
     }
