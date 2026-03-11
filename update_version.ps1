@@ -1,51 +1,58 @@
-# Auto-increment version on push
+# Auto-increment version date on project files
 # Version format: a.b.c.MMDD where:
 #   a = frontend update (GUI)
 #   b = backend update
 #   c = little fix
 #   MMDD = month and day of push
 
-$projectFilePath = "s:\VScodeProjects\weather-still-api\WeatherImageGenerator\WeatherImageGenerator.csproj"
+$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectFilePaths = @(
+    (Join-Path $repoRoot "WeatherImageGenerator\WeatherImageGenerator.csproj"),
+    (Join-Path $repoRoot "Grib2\Grib2.csproj")
+)
 
-# Read the project file
-[xml]$projectFile = Get-Content $projectFilePath
+function Update-ProjectVersionDate {
+    param(
+        [string]$ProjectPath,
+        [string]$NewVersion
+    )
 
-# Get current version
-$currentVersion = $projectFile.Project.PropertyGroup.Version
+    if (-not (Test-Path $ProjectPath)) {
+        Write-Host "Project not found: $ProjectPath" -ForegroundColor Yellow
+        return
+    }
+
+    [xml]$projectFile = Get-Content $ProjectPath
+    $projectFile.Project.PropertyGroup.Version = $NewVersion
+    $projectFile.Project.PropertyGroup.AssemblyVersion = $NewVersion
+    $projectFile.Project.PropertyGroup.FileVersion = $NewVersion
+    $projectFile.Save($ProjectPath)
+
+    Write-Host "Version updated: $ProjectPath -> $NewVersion"
+}
+
+# Use the main app version as the source for the shared date-stamped version.
+[xml]$mainProjectFile = Get-Content $projectFilePaths[0]
+$currentVersion = $mainProjectFile.Project.PropertyGroup.Version
 Write-Host "Current version: $currentVersion"
 
-# Parse version parts
 $versionParts = $currentVersion -split '\.'
 $a = [int]$versionParts[0]
 $b = [int]$versionParts[1]
 $c = [int]$versionParts[2]
 
-# Get today's date in MMDD format
 $today = Get-Date
 $dateString = $today.ToString("MMdd")
-
-# Create new version: a.b.c.MMDD
 $newVersion = "$a.$b.$c.$dateString"
 
-# Update Version, AssemblyVersion, and FileVersion
-$projectFile.Project.PropertyGroup.Version = $newVersion
-$projectFile.Project.PropertyGroup.AssemblyVersion = $newVersion
-$projectFile.Project.PropertyGroup.FileVersion = $newVersion
+foreach ($projectFilePath in $projectFilePaths) {
+    Update-ProjectVersionDate -ProjectPath $projectFilePath -NewVersion $newVersion
+}
 
-# Save the project file
-$projectFile.Save($projectFilePath)
-
-Write-Host "Version updated to: $newVersion"
-
-# Also update AssemblyInfo.cs to keep it in sync
-$assemblyInfoPath = "s:\VScodeProjects\weather-still-api\WeatherImageGenerator\AssemblyInfo.cs"
+$assemblyInfoPath = Join-Path $repoRoot "WeatherImageGenerator\AssemblyInfo.cs"
 if (Test-Path $assemblyInfoPath) {
     $assemblyInfoContent = Get-Content $assemblyInfoPath -Raw
-    
-    # Update AssemblyVersion
     $assemblyInfoContent = $assemblyInfoContent -replace '(\[assembly: AssemblyVersion\(")[^"]*("\)\])', "`$1$newVersion`$2"
-    
-    # Write back to file
     Set-Content $assemblyInfoPath $assemblyInfoContent
     Write-Host "AssemblyInfo.cs updated with version: $newVersion"
 }

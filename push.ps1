@@ -14,7 +14,7 @@
 #   On "backend":  b++, c=0
 #   On "fix":      c++
 #
-#   Library projects (ECCC, EAS, WeatherShared, OpenMap) skip frontend-only bumps.
+#   Library projects (ECCC, EAS, WeatherShared, OpenMap, Grib2) skip frontend-only bumps.
 #   Copyright year in AssemblyInfo.cs is updated automatically.
 # ============================================================================
 
@@ -42,6 +42,7 @@ $ecccProjectFilePath = "ECCC\ECCC.csproj"
 $easProjectFilePath = "EAS\EAS.csproj"
 $weatherSharedProjectFilePath = "WeatherShared\WeatherShared.csproj"
 $openMapProjectFilePath = "OpenMap\OpenMap.csproj"
+$grib2ProjectFilePath = "Grib2\Grib2.csproj"
 $updaterProjectFilePath = "WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj"
 $solutionPath = "WSG.sln"
 
@@ -79,8 +80,8 @@ function Update-ProjectVersion {
     if (-not $ver) { $ver = "1.0.0.0101" } # Default if missing
     
     # Check if this update type applies to this project
-    # ECCC, EAS, OpenMap, WeatherShared, and WSG.Updater (Libs/Tools) shouldn't update on Frontend changes
-    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "WeatherShared" -or $Name -eq "OpenMap" -or $Name -eq "WSG.Updater") -and $UpdateType -eq "frontend") {
+    # ECCC, EAS, OpenMap, WeatherShared, Grib2, and WSG.Updater (Libs/Tools) shouldn't update on Frontend changes
+    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "WeatherShared" -or $Name -eq "OpenMap" -or $Name -eq "Grib2" -or $Name -eq "WSG.Updater") -and $UpdateType -eq "frontend") {
         Write-Host "[INFO] Skipping $Name version update (Frontend change only)" -ForegroundColor Gray
         return $ver
     }
@@ -172,6 +173,7 @@ if (-not $SkipVersion) {
     $null = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
     $null = Update-ProjectVersion -Path $weatherSharedProjectFilePath -Name "WeatherShared" -UpdateType $Type
     $null = Update-ProjectVersion -Path $openMapProjectFilePath -Name "OpenMap" -UpdateType $Type
+    $null = Update-ProjectVersion -Path $grib2ProjectFilePath -Name "Grib2" -UpdateType $Type
     $null = Update-ProjectVersion -Path $updaterProjectFilePath -Name "WSG.Updater" -UpdateType $Type
     
     # Use WSG version for global tagging/changelog as it's the main app
@@ -353,6 +355,7 @@ git add $ecccProjectFilePath
 git add $easProjectFilePath
 git add $weatherSharedProjectFilePath
 git add $openMapProjectFilePath
+git add $grib2ProjectFilePath
 git add $updaterProjectFilePath
 git add $solutionPath
 if (-not $SkipVersion) {
