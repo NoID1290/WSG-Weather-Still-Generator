@@ -3912,7 +3912,7 @@ namespace WeatherImageGenerator.Forms
                 var updateGroup = new GroupBox
                 {
                     Text = "🔄 Updates",
-                    Left = 25, Top = 140, Width = 620, Height = 175,
+                        Left = 25, Top = 140, Width = 620, Height = 175,
                     Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                     ForeColor = accentColor
                 };
@@ -4002,6 +4002,33 @@ namespace WeatherImageGenerator.Forms
                     catch { /* Ignore save errors */ }
                 };
 
+                Label? lblDesc = null;
+
+                void LayoutUpdateSection()
+                {
+                    updateProgress.Top = Math.Max(btnCheckUpdate.Bottom, btnDownloadUpdate.Bottom) + 8;
+                    lblUpdateProgress.Top = updateProgress.Bottom + 8;
+
+                    int contentBottom = lblUpdateStatus.Bottom;
+                    if (updateProgress.Visible)
+                    {
+                        contentBottom = Math.Max(contentBottom, updateProgress.Bottom);
+                    }
+
+                    if (lblUpdateProgress.Visible)
+                    {
+                        contentBottom = Math.Max(contentBottom, lblUpdateProgress.Bottom);
+                    }
+
+                    chkAutoUpdate.Top = contentBottom + 12;
+                    updateGroup.Height = chkAutoUpdate.Bottom + 18;
+
+                    if (lblDesc != null)
+                    {
+                        lblDesc.Top = updateGroup.Bottom + 10;
+                    }
+                }
+
                 string? pendingDownloadUrl = null;
 
                 // Check for updates action
@@ -4080,6 +4107,7 @@ namespace WeatherImageGenerator.Forms
                     updateProgress.Visible = true;
                     lblUpdateProgress.Visible = true;
                     updateProgress.Value = 0;
+                    LayoutUpdateSection();
 
                     var progress = new Progress<(int Percent, string Status)>(p =>
                     {
@@ -4117,6 +4145,7 @@ namespace WeatherImageGenerator.Forms
                     {
                         updateProgress.Visible = false;
                         lblUpdateProgress.Visible = false;
+                        LayoutUpdateSection();
                         btnCheckUpdate.Enabled = true;
                         btnDownloadUpdate.Enabled = true;
                     }
@@ -4143,7 +4172,7 @@ namespace WeatherImageGenerator.Forms
                     };
                 }
 
-                var lblDesc = new Label 
+                lblDesc = new Label 
                 { 
                     Text = "A comprehensive tool to generate beautiful weather forecast images and videos with support for:\n\n" +
                            "• Real-time weather data from Open-Meteo and Environment Canada\n" +
@@ -4155,6 +4184,8 @@ namespace WeatherImageGenerator.Forms
                     Font = new Font("Segoe UI", 10F),
                     ForeColor = textColor
                 };
+
+                LayoutUpdateSection();
 
                 tabGeneral.Controls.AddRange(new Control[] { lblProduct, lblVersion, lblCopyright, linkGithub, updateGroup, lblDesc });
 
