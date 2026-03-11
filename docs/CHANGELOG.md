@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.23.0311] - 2026-03-11
+
+- - Introduced an interpolation factor to enable smooth animations by generating synthetic frames between real radar frames. - Updated radar animation HUD elements
+
 ## [1.16.23.0310] - 2026-03-10
 
 - Add CI workflow for building Weather Still Generator on push and pull request

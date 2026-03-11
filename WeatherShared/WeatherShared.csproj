@@ -9,9 +9,9 @@
     <Company>NoID Softwork</Company>
     <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
     <Description>Shared data models and utilities for weather applications.</Description>
-    <Version>1.13.23.0310</Version>
-    <AssemblyVersion>1.13.23.0310</AssemblyVersion>
-    <FileVersion>1.13.23.0310</FileVersion>
+    <Version>1.14.23.0311</Version>
+    <AssemblyVersion>1.14.23.0311</AssemblyVersion>
+    <FileVersion>1.14.23.0311</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>
