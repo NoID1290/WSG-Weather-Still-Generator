@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.17.23.0311] - 2026-03-11
 
-- - Introduced an interpolation factor to enable smooth animations by generating synthetic frames between real radar frames. - Updated radar animation HUD elements
+- Introduced an interpolation factor to enable smooth animations by generating synthetic frames between real radar frames. -
+- Updated radar animation HUD elements
 
 ## [1.16.23.0310] - 2026-03-10
 
