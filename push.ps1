@@ -69,6 +69,39 @@ Write-Host "[START] Auto-push process..." -ForegroundColor Cyan
 Write-Host "[TYPE] Update type: $Type" -ForegroundColor Yellow
 Write-Host "[FLAGS] NoRelease: $NoRelease   AttachAssets: $AttachAssets   SkipVersion: $SkipVersion" -ForegroundColor Yellow
 
+$trackedGitPaths = @(git ls-files --full-name)
+
+function Resolve-GitPath {
+    param (
+        [string]$Path
+    )
+
+    $normalizedPath = $Path -replace '\\', '/'
+    $trackedPath = $trackedGitPaths | Where-Object {
+        $_.ToLowerInvariant() -eq $normalizedPath.ToLowerInvariant()
+    } | Select-Object -First 1
+
+    if ($trackedPath) {
+        return $trackedPath
+    }
+
+    return $normalizedPath
+}
+
+function Stage-GitPath {
+    param (
+        [string]$Path
+    )
+
+    $gitPath = Resolve-GitPath -Path $Path
+    git add -- $gitPath
+
+    if (-not $?) {
+        Write-Host "[ERROR] Failed to stage $Path (resolved to $gitPath)" -ForegroundColor Red
+        exit 1
+    }
+}
+
 function Update-ProjectVersion {
     param (
         [string]$Path,
@@ -359,17 +392,17 @@ $categorySection
 # Stage the updated files
 Write-Host "[STAGING] Changes..." -ForegroundColor Cyan
 foreach ($managedProject in $versionManagedProjects) {
-    git add $managedProject.Path
+    Stage-GitPath -Path $managedProject.Path
 }
-git add $solutionPath
+Stage-GitPath -Path $solutionPath
 if (-not $SkipVersion) {
-    git add $changelogPath
-    git add $assemblyInfoPath
-    git add $updaterAssemblyInfoPath
+    Stage-GitPath -Path $changelogPath
+    Stage-GitPath -Path $assemblyInfoPath
+    Stage-GitPath -Path $updaterAssemblyInfoPath
     
     # Include README.md in staging if AttachAssets was requested
     if ($AttachAssets) {
-        git add "README.md"
+        Stage-GitPath -Path "README.md"
     }
 }
 
