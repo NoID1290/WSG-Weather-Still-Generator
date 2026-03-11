@@ -45,6 +45,15 @@ $openMapProjectFilePath = "OpenMap\OpenMap.csproj"
 $grib2ProjectFilePath = "Grib2\Grib2.csproj"
 $updaterProjectFilePath = "WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj"
 $solutionPath = "WSG.sln"
+$versionManagedProjects = @(
+    @{ Path = $projectFilePath; Name = "WSG"; UseForTag = $true },
+    @{ Path = $easProjectFilePath; Name = "EAS" },
+    @{ Path = $ecccProjectFilePath; Name = "ECCC" },
+    @{ Path = $weatherSharedProjectFilePath; Name = "WeatherShared" },
+    @{ Path = $openMapProjectFilePath; Name = "OpenMap" },
+    @{ Path = $grib2ProjectFilePath; Name = "Grib2" },
+    @{ Path = $updaterProjectFilePath; Name = "WSG.Updater" }
+)
 
 #$repoRoot = git rev-parse --show-toplevel
 
@@ -168,13 +177,12 @@ function Update-ReadmeVersionBadge {
 
 # Update Versions
 if (-not $SkipVersion) {
-    $newWsgVersion = Update-ProjectVersion -Path $projectFilePath -Name "WSG" -UpdateType $Type
-    $null = Update-ProjectVersion -Path $easProjectFilePath -Name "EAS" -UpdateType $Type
-    $null = Update-ProjectVersion -Path $ecccProjectFilePath -Name "ECCC" -UpdateType $Type
-    $null = Update-ProjectVersion -Path $weatherSharedProjectFilePath -Name "WeatherShared" -UpdateType $Type
-    $null = Update-ProjectVersion -Path $openMapProjectFilePath -Name "OpenMap" -UpdateType $Type
-    $null = Update-ProjectVersion -Path $grib2ProjectFilePath -Name "Grib2" -UpdateType $Type
-    $null = Update-ProjectVersion -Path $updaterProjectFilePath -Name "WSG.Updater" -UpdateType $Type
+    foreach ($managedProject in $versionManagedProjects) {
+        $updatedVersion = Update-ProjectVersion -Path $managedProject.Path -Name $managedProject.Name -UpdateType $Type
+        if ($managedProject.UseForTag) {
+            $newWsgVersion = $updatedVersion
+        }
+    }
     
     # Use WSG version for global tagging/changelog as it's the main app
     $newVersion = $newWsgVersion
@@ -350,13 +358,9 @@ $categorySection
 
 # Stage the updated files
 Write-Host "[STAGING] Changes..." -ForegroundColor Cyan
-git add $projectFilePath
-git add $ecccProjectFilePath
-git add $easProjectFilePath
-git add $weatherSharedProjectFilePath
-git add $openMapProjectFilePath
-git add $grib2ProjectFilePath
-git add $updaterProjectFilePath
+foreach ($managedProject in $versionManagedProjects) {
+    git add $managedProject.Path
+}
 git add $solutionPath
 if (-not $SkipVersion) {
     git add $changelogPath
