@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -92,6 +93,24 @@ namespace WeatherImageGenerator.Models
         [JsonPropertyName("HlsSegmentDurationSeconds")]
         public int HlsSegmentDurationSeconds { get; set; } = 4;
 
+        // ── HLS Relay (read-only Tunarr cache relay with EAS injection) ──
+
+        /// <summary>
+        /// When enabled, starts an HTTP HLS relay server that reads Tunarr's stream cache
+        /// read-only and serves modified manifests with EAS segments injected at segment
+        /// boundaries. Tunarr's cache files are never modified.
+        /// Point TvMate's M3U source at: http://server:{HlsRelayPort}/m3u
+        /// </summary>
+        [JsonPropertyName("HlsRelayEnabled")]
+        public bool HlsRelayEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Port for the HLS relay HTTP server. Default: 8090.
+        /// Must be different from TunarrPublicPort and TunarrInternalPort.
+        /// </summary>
+        [JsonPropertyName("HlsRelayPort")]
+        public int HlsRelayPort { get; set; } = 8090;
+
         // ── Computed helpers (not serialized) ──────────────────────────
 
         /// <summary>The internal Tunarr base URL (derived from TunarrInternalPort).</summary>
@@ -123,5 +142,39 @@ namespace WeatherImageGenerator.Models
         /// <summary>Whether EAS alert interruption is enabled for this channel.</summary>
         [JsonPropertyName("AlertInterruptEnabled")]
         public bool AlertInterruptEnabled { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Stream parameters discovered by probing a live Tunarr channel via ffprobe.
+    /// Used to generate splice-compatible alert .ts files that match the upstream
+    /// codec, resolution, framerate, bitrate, and PID structure exactly.
+    /// Not serialized — populated at runtime by StreamPipeService.
+    /// </summary>
+    public class ChannelStreamProfile
+    {
+        // ── Codec parameters ───────────────────────────────────────────
+        public string VideoCodec { get; set; } = "h264";
+        public string AudioCodec { get; set; } = "aac";
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public string FrameRate { get; set; } = "24/1";
+        public string? VideoProfile { get; set; }
+        public string? VideoLevel { get; set; }
+        public int VideoBitrateBps { get; set; }
+        public int AudioSampleRate { get; set; } = 48000;
+        public int AudioChannels { get; set; } = 2;
+
+        // ── MPEG-TS PID structure (learned from UpstreamPidMap) ────────
+        public int PmtPid { get; set; } = -1;
+        public int PcrPid { get; set; } = -1;
+        public int VideoPid { get; set; } = -1;
+        public int AudioPid { get; set; } = -1;
+        public int ServiceId { get; set; } = 1;
+
+        // ── Probe metadata ─────────────────────────────────────────────
+        public DateTime LastProbed { get; set; } = DateTime.MinValue;
+
+        /// <summary>True when we have enough data to generate a matched alert .ts.</summary>
+        public bool IsComplete => Width > 0 && Height > 0 && VideoPid > 0;
     }
 }

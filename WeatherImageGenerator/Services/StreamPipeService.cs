@@ -72,6 +72,9 @@ namespace WeatherImageGenerator.Services
         // ── Shared HttpClient for short-lived API proxy requests ───────────
         private static readonly HttpClient _apiProxyClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
+        // ── Per-channel stream profiles (learned via ffprobe + PID parsing) ──
+        private readonly ConcurrentDictionary<string, ChannelStreamProfile> _channelProfiles = new();
+
         // ────────────────────────────────────────────────────────────────────
         // Construction
         // ────────────────────────────────────────────────────────────────────
@@ -155,6 +158,186 @@ namespace WeatherImageGenerator.Services
             }
 
             await Task.CompletedTask;
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Stream probing — learn upstream codec/resolution/fps via ffprobe
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns the best available stream profile across all alert-enabled channels,
+        /// or null if no channels have been probed yet.
+        /// </summary>
+        public ChannelStreamProfile? GetBestStreamProfile()
+        {
+            return _channelProfiles.Values
+                .Where(p => p.IsComplete)
+                .OrderByDescending(p => p.LastProbed)
+                .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Probes a Tunarr channel's live stream via ffprobe to discover codec parameters.
+        /// Merges result with PID data already learned from UpstreamPidMap.
+        /// </summary>
+        private async Task ProbeChannelStreamAsync(ProxyChannelConfig chConfig, UpstreamPidMap pidMap)
+        {
+            string channelId = chConfig.TunarrChannelId;
+
+            // Skip if recently probed (within 1 hour)
+            if (_channelProfiles.TryGetValue(channelId, out var existing) &&
+                existing.IsComplete &&
+                (DateTime.UtcNow - existing.LastProbed).TotalHours < 1)
+            {
+                // Just refresh PIDs from the live map in case they shifted
+                if (pidMap.IsLearned)
+                {
+                    existing.PmtPid = pidMap.PmtPid;
+                    existing.PcrPid = pidMap.PcrPid;
+                    existing.VideoPid = pidMap.VideoPid;
+                    existing.AudioPid = pidMap.AudioPid;
+                }
+                return;
+            }
+
+            string probeUrl = $"{_settings.TunarrBaseUrl.TrimEnd('/')}/stream/channels/{channelId}.ts";
+
+            try
+            {
+                Logger.Log($"[StreamPipe] Probing channel {chConfig.ProxyChannelNumber} ({chConfig.DisplayName}) via ffprobe...", Logger.LogLevel.Debug);
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "ffprobe",
+                    Arguments = $"-v quiet -print_format json -show_streams -show_programs -read_intervals \"%+3\" \"{probeUrl}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    Logger.Log("[StreamPipe] Failed to start ffprobe.", Logger.LogLevel.Warning);
+                    return;
+                }
+
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                bool exited = process.WaitForExit(15000);
+
+                if (!exited)
+                {
+                    try { process.Kill(); } catch { }
+                    Logger.Log("[StreamPipe] ffprobe timed out.", Logger.LogLevel.Warning);
+                    return;
+                }
+
+                string json = await stdoutTask;
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    Logger.Log("[StreamPipe] ffprobe returned empty output.", Logger.LogLevel.Warning);
+                    return;
+                }
+
+                var profile = ParseFfprobeJson(json);
+                if (profile == null)
+                {
+                    Logger.Log("[StreamPipe] Failed to parse ffprobe output.", Logger.LogLevel.Warning);
+                    return;
+                }
+
+                // Merge PID data from the live UpstreamPidMap
+                if (pidMap.IsLearned)
+                {
+                    profile.PmtPid = pidMap.PmtPid;
+                    profile.PcrPid = pidMap.PcrPid;
+                    profile.VideoPid = pidMap.VideoPid;
+                    profile.AudioPid = pidMap.AudioPid;
+                }
+
+                profile.LastProbed = DateTime.UtcNow;
+                _channelProfiles[channelId] = profile;
+
+                Logger.Log($"[StreamPipe] ✓ Channel {chConfig.ProxyChannelNumber} probed: {profile.Width}x{profile.Height} " +
+                           $"{profile.FrameRate}fps {profile.VideoCodec} profile={profile.VideoProfile} level={profile.VideoLevel} " +
+                           $"bitrate={profile.VideoBitrateBps / 1000}kbps PIDs: V={profile.VideoPid} A={profile.AudioPid} PMT={profile.PmtPid}",
+                           Logger.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[StreamPipe] ffprobe failed for channel {chConfig.ProxyChannelNumber}: {ex.Message}", Logger.LogLevel.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Parses ffprobe JSON output into a ChannelStreamProfile.
+        /// </summary>
+        private static ChannelStreamProfile? ParseFfprobeJson(string json)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                if (!root.TryGetProperty("streams", out var streams))
+                    return null;
+
+                var profile = new ChannelStreamProfile();
+
+                foreach (var stream in streams.EnumerateArray())
+                {
+                    string codecType = stream.TryGetProperty("codec_type", out var ct) ? ct.GetString() ?? "" : "";
+
+                    if (codecType == "video")
+                    {
+                        profile.VideoCodec = stream.TryGetProperty("codec_name", out var cn) ? cn.GetString() ?? "h264" : "h264";
+                        profile.Width = stream.TryGetProperty("width", out var w) ? w.GetInt32() : 0;
+                        profile.Height = stream.TryGetProperty("height", out var h) ? h.GetInt32() : 0;
+                        profile.VideoProfile = stream.TryGetProperty("profile", out var pr) ? pr.GetString() : null;
+                        profile.VideoLevel = stream.TryGetProperty("level", out var lv) ? lv.GetInt32().ToString() : null;
+
+                        // Parse frame rate from r_frame_rate (e.g. "24/1", "30000/1001")
+                        if (stream.TryGetProperty("r_frame_rate", out var rfr))
+                            profile.FrameRate = rfr.GetString() ?? "24/1";
+
+                        // Bitrate
+                        if (stream.TryGetProperty("bit_rate", out var br) && br.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            if (int.TryParse(br.GetString(), out int bps))
+                                profile.VideoBitrateBps = bps;
+                        }
+
+                        // Service ID from programs
+                        if (root.TryGetProperty("programs", out var programs))
+                        {
+                            foreach (var prog in programs.EnumerateArray())
+                            {
+                                if (prog.TryGetProperty("program_id", out var pid))
+                                {
+                                    profile.ServiceId = pid.GetInt32();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    else if (codecType == "audio")
+                    {
+                        profile.AudioCodec = stream.TryGetProperty("codec_name", out var cn) ? cn.GetString() ?? "aac" : "aac";
+                        profile.AudioSampleRate = stream.TryGetProperty("sample_rate", out var sr) && sr.ValueKind == System.Text.Json.JsonValueKind.String
+                            ? (int.TryParse(sr.GetString(), out int rate) ? rate : 48000) : 48000;
+                        profile.AudioChannels = stream.TryGetProperty("channels", out var ch) ? ch.GetInt32() : 2;
+                    }
+                }
+
+                return profile.Width > 0 && profile.Height > 0 ? profile : null;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[StreamPipe] ffprobe JSON parse error: {ex.Message}", Logger.LogLevel.Warning);
+                return null;
+            }
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -530,6 +713,7 @@ namespace WeatherImageGenerator.Services
 
             // ── Upstream PID map (learned from PAT/PMT) for splice PID remapping ──
             var upstreamPidMap = new UpstreamPidMap();
+            bool probeTriggered = false; // fire-once: trigger ffprobe after PIDs learned
 
             // ── Discontinuity tracking: after an alert splice, the first N packets
             //    from Tunarr get the discontinuity_indicator set so clients re-lock ──
@@ -580,7 +764,7 @@ namespace WeatherImageGenerator.Services
 
                                     try
                                     {
-                                        var spliceResult = await SpliceAlertTs(alertPath, clientStream, clientId, alertDur, ct);
+                                        var spliceResult = await SpliceAlertTs(alertPath, clientStream, clientId, alertDur, ct, upstreamPidMap, ccTracker);
 
                                         // Mark this generation as spliced so we don't re-splice
                                         // the same alert in a tight loop
@@ -596,12 +780,20 @@ namespace WeatherImageGenerator.Services
                                     }
 
                                     // After the splice the stream switches back to
-                                    // Tunarr's program. Mark the first batch of Tunarr
-                                    // packets with the discontinuity indicator so the
-                                    // client's decoder re-locks on the PAT/PMT and
-                                    // resets its CC / timestamp state cleanly.
-                                    ccTracker.Clear();
-                                    discontinuityRemaining = 200; // ~200 packets ≈ 2-3 PAT/PMT cycles
+                                    // Tunarr's program. If this was a hard splice (no PID match),
+                                    // mark packets with discontinuity so clients re-lock.
+                                    // For soft splice (PIDs matched), CC is already continuous
+                                    // so only a small burst is needed as safety net.
+                                    if (!upstreamPidMap.IsLearned)
+                                    {
+                                        ccTracker.Clear();
+                                        discontinuityRemaining = 200;
+                                    }
+                                    else
+                                    {
+                                        // Soft splice: small safety burst (decoder should already be in sync)
+                                        discontinuityRemaining = 20;
+                                    }
 
                                     continue; // resume inner loop — read from upstream
                                 }
@@ -688,6 +880,13 @@ namespace WeatherImageGenerator.Services
 
                             // ── Learn upstream PID structure from PAT/PMT ──
                             upstreamPidMap.LearnFromPacket(workBuf, pos);
+
+                            // ── Trigger background probe once PIDs are learned ──
+                            if (!probeTriggered && upstreamPidMap.IsLearned)
+                            {
+                                probeTriggered = true;
+                                _ = ProbeChannelStreamAsync(chConfig, upstreamPidMap);
+                            }
 
                             pos += MpegTsHelper.PacketSize;
                         }
@@ -796,60 +995,127 @@ namespace WeatherImageGenerator.Services
         ///      Tunarr stream (a second "channel change") is about to resume.
         /// This is the same approach used by real broadcast EAS systems (SCTE-35).
         /// </summary>
-        private static async Task<(double ElapsedSeconds, string Diag)> SpliceAlertTs(
+        /// <summary>
+        /// Splices an alert .ts into the client stream.
+        /// When a ChannelStreamProfile is available (matched mode), performs PID remapping
+        /// at the TS header level and continues CC from the upstream's last values —
+        /// making the alert appear as part of the same program (no channel change).
+        /// When no profile is available, falls back to the original hard-splice approach.
+        ///
+        /// PID remapping is safe because only the 13-bit PID field in bytes 1-2 of
+        /// each 188-byte TS packet header is modified. The compressed video/audio
+        /// payload is never touched, avoiding the HEVC PPS corruption observed in
+        /// earlier tests with RewritePacket (which modified PES headers).
+        /// PAT and PMT tables are also rewritten — these are structured data, not
+        /// compressed bitstream, so modification is safe.
+        /// </summary>
+        private async Task<(double ElapsedSeconds, string Diag)> SpliceAlertTs(
             string alertTsPath,
             Stream clientStream,
             string clientId,
             double alertDurationSeconds,
-            CancellationToken ct)
+            CancellationToken ct,
+            UpstreamPidMap? upstreamPidMap = null,
+            ConcurrentDictionary<int, int>? ccTracker = null)
         {
             var spliceStopwatch = Stopwatch.StartNew();
 
-            // ── Step 1: Discontinuity null gap ──
-            // Send 20 null packets, each with the discontinuity indicator set.
-            // This drains any partial PES in the demuxer and tells the decoder
-            // to expect a CC / timestamp reset on the next real data.
-            var nullPkt = MpegTsHelper.CreateNullPacket();
-            MpegTsHelper.SetDiscontinuityIndicator(nullPkt, 0);
-            const int nullGapCount = 20;
-            var nullBurst = new byte[MpegTsHelper.PacketSize * nullGapCount];
-            for (int i = 0; i < nullGapCount; i++)
-                Buffer.BlockCopy(nullPkt, 0, nullBurst, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
+            // ── Determine if we can do a matched (soft) splice ──
+            // Learn the alert file's PID structure
+            UpstreamPidMap? alertPidMap = null;
+            Dictionary<int, int>? pidRemap = null;
+            bool softSplice = false;
 
-            await clientStream.WriteAsync(nullBurst, 0, nullBurst.Length, ct);
-            await clientStream.FlushAsync(ct);
+            if (upstreamPidMap?.IsLearned == true)
+            {
+                alertPidMap = LearnPidsFromFile(alertTsPath);
+                if (alertPidMap?.IsLearned == true)
+                {
+                    pidRemap = BuildPidRemapTable(alertPidMap, upstreamPidMap);
+                    softSplice = true;
+                    Logger.Log($"[StreamPipe] {clientId}: Soft splice — PID remap: {string.Join(", ", pidRemap.Select(kv => $"0x{kv.Key:X}→0x{kv.Value:X}"))}", Logger.LogLevel.Debug);
+                }
+            }
 
-            // ── Step 2: Read alert .ts and write paced — NO packet modification ──
-            // The alert .ts is sent byte-for-byte as FFmpeg encoded it.
-            // Its PAT/PMT/video/audio are self-contained and valid.
-            // Any CC or timestamp rewriting risks corrupting the compressed
-            // video bitstream (HEVC PPS corruption was observed in testing).
+            if (!softSplice)
+            {
+                // ── Hard splice fallback: send null gap with discontinuity ──
+                var nullPkt = MpegTsHelper.CreateNullPacket();
+                MpegTsHelper.SetDiscontinuityIndicator(nullPkt, 0);
+                const int nullGapCount = 20;
+                var nullBurst = new byte[MpegTsHelper.PacketSize * nullGapCount];
+                for (int i = 0; i < nullGapCount; i++)
+                    Buffer.BlockCopy(nullPkt, 0, nullBurst, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
+
+                await clientStream.WriteAsync(nullBurst, 0, nullBurst.Length, ct);
+                await clientStream.FlushAsync(ct);
+                Logger.Log($"[StreamPipe] {clientId}: Hard splice (unmatched) — sent discontinuity null gap", Logger.LogLevel.Debug);
+            }
+
+            // ── Read alert .ts and write paced ──
             var fileInfo = new FileInfo(alertTsPath);
             long totalFileBytes = fileInfo.Length;
             double safeDuration = Math.Max(alertDurationSeconds, 1.0);
             double targetBytesPerSecond = (totalFileBytes / safeDuration) * 1.05;
 
             using var fs = new FileStream(alertTsPath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536);
-            // Use a larger read buffer (~188KB) to reduce syscall overhead during paced writes
             var buffer = new byte[MpegTsHelper.PacketSize * 1000];
             var paceClock = Stopwatch.StartNew();
             long totalBytesWritten = 0;
             bool firstChunk = true;
 
-            Logger.Log($"[StreamPipe] {clientId}: Paced splice (raw passthrough) — {totalFileBytes / 1024}KB over ~{safeDuration:F1}s at {targetBytesPerSecond / 1024:F0} KB/s", Logger.LogLevel.Debug);
+            string spliceMode = softSplice ? "PID-remapped soft splice" : "raw passthrough (hard splice)";
+            Logger.Log($"[StreamPipe] {clientId}: Paced splice ({spliceMode}) — {totalFileBytes / 1024}KB over ~{safeDuration:F1}s at {targetBytesPerSecond / 1024:F0} KB/s", Logger.LogLevel.Debug);
 
             int bytesRead;
             while ((bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
             {
-                // Set discontinuity indicator on the very first few packets
-                // of the alert so the decoder knows to re-lock.
-                if (firstChunk)
+                if (softSplice && pidRemap != null && pidRemap.Count > 0)
                 {
+                    // ── PID remap + CC continuation (TS header only — payload untouched) ──
+                    int syncOff = MpegTsHelper.FindSyncOffset(buffer, 0, bytesRead);
+                    if (syncOff >= 0)
+                    {
+                        int p = syncOff;
+                        while (p + MpegTsHelper.PacketSize <= bytesRead)
+                        {
+                            if (buffer[p] != MpegTsHelper.SyncByte) { p += MpegTsHelper.PacketSize; continue; }
+
+                            int origPid = MpegTsHelper.GetPid(buffer, p);
+
+                            // Remap PID in the TS header (bytes 1-2 only)
+                            if (pidRemap.TryGetValue(origPid, out int newPid))
+                                MpegTsHelper.SetPid(buffer, p, newPid);
+
+                            // Continue CC from upstream's last value for this PID
+                            int effectivePid = pidRemap.TryGetValue(origPid, out int mapped) ? mapped : origPid;
+                            if (MpegTsHelper.HasPayload(buffer, p) && ccTracker != null)
+                            {
+                                int nextCc = ccTracker.AddOrUpdate(effectivePid,
+                                    _ => 0,
+                                    (_, prev) => (prev + 1) & 0x0F);
+                                MpegTsHelper.SetContinuityCounter(buffer, p, nextCc);
+                            }
+
+                            // Rewrite PAT: update PMT PID reference
+                            if (origPid == MpegTsHelper.PidPat && MpegTsHelper.HasPayloadUnitStart(buffer, p))
+                                RewritePatPmtPid(buffer, p, alertPidMap!.PmtPid, upstreamPidMap!.PmtPid);
+
+                            // Rewrite PMT: update ES PIDs
+                            if (origPid == alertPidMap!.PmtPid && MpegTsHelper.HasPayloadUnitStart(buffer, p))
+                                RewritePmtEsPids(buffer, p, pidRemap);
+
+                            p += MpegTsHelper.PacketSize;
+                        }
+                    }
+                }
+                else if (firstChunk && !softSplice)
+                {
+                    // ── Hard splice: set discontinuity on first packets ──
                     firstChunk = false;
                     int syncOff = MpegTsHelper.FindSyncOffset(buffer, 0, bytesRead);
                     if (syncOff >= 0)
                     {
-                        // Set discontinuity on first ~10 packets (covers PAT + PMT + first video)
                         int p = syncOff;
                         int marked = 0;
                         while (p + MpegTsHelper.PacketSize <= bytesRead && marked < 10)
@@ -867,7 +1133,7 @@ namespace WeatherImageGenerator.Services
                 await clientStream.WriteAsync(buffer, 0, bytesRead, ct);
                 totalBytesWritten += bytesRead;
 
-                // ── Pace control: throttle if writing faster than target rate ──
+                // ── Pace control ──
                 double expectedElapsed = totalBytesWritten / targetBytesPerSecond;
                 double actualElapsed = paceClock.Elapsed.TotalSeconds;
                 double aheadMs = (expectedElapsed - actualElapsed) * 1000.0;
@@ -879,19 +1145,127 @@ namespace WeatherImageGenerator.Services
 
             await clientStream.FlushAsync(ct);
 
-            // ── Step 3: Trailing discontinuity burst ──
-            // Signals the decoder that a second "channel change" (back to Tunarr) follows.
-            var trailNull = MpegTsHelper.CreateNullPacket();
-            MpegTsHelper.SetDiscontinuityIndicator(trailNull, 0);
-            var trailBurst = new byte[MpegTsHelper.PacketSize * 20];
-            for (int i = 0; i < 20; i++)
-                Buffer.BlockCopy(trailNull, 0, trailBurst, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
-            await clientStream.WriteAsync(trailBurst, 0, trailBurst.Length, ct);
-            await clientStream.FlushAsync(ct);
+            if (!softSplice)
+            {
+                // ── Hard splice: trailing discontinuity burst ──
+                var trailNull = MpegTsHelper.CreateNullPacket();
+                MpegTsHelper.SetDiscontinuityIndicator(trailNull, 0);
+                var trailBurst = new byte[MpegTsHelper.PacketSize * 20];
+                for (int i = 0; i < 20; i++)
+                    Buffer.BlockCopy(trailNull, 0, trailBurst, i * MpegTsHelper.PacketSize, MpegTsHelper.PacketSize);
+                await clientStream.WriteAsync(trailBurst, 0, trailBurst.Length, ct);
+                await clientStream.FlushAsync(ct);
+            }
 
             spliceStopwatch.Stop();
-            string diag = $"{totalBytesWritten / 1024}KB written, {targetBytesPerSecond / 1024:F0} KB/s target";
+            string diag = $"{totalBytesWritten / 1024}KB written, {targetBytesPerSecond / 1024:F0} KB/s target, mode={spliceMode}";
             return (spliceStopwatch.Elapsed.TotalSeconds, diag);
+        }
+
+        /// <summary>
+        /// Learns the PID structure from a .ts file on disk by parsing the first few KB.
+        /// </summary>
+        private static UpstreamPidMap? LearnPidsFromFile(string tsPath)
+        {
+            try
+            {
+                var pidMap = new UpstreamPidMap();
+                var buffer = new byte[MpegTsHelper.PacketSize * 50]; // ~9KB — enough for PAT+PMT
+                using var fs = new FileStream(tsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                int bytesRead = fs.Read(buffer, 0, buffer.Length);
+                int syncOff = MpegTsHelper.FindSyncOffset(buffer, 0, bytesRead);
+                if (syncOff < 0) return null;
+
+                int pos = syncOff;
+                while (pos + MpegTsHelper.PacketSize <= bytesRead)
+                {
+                    if (buffer[pos] == MpegTsHelper.SyncByte)
+                        pidMap.LearnFromPacket(buffer, pos);
+                    pos += MpegTsHelper.PacketSize;
+                    if (pidMap.IsLearned) break;
+                }
+                return pidMap.IsLearned ? pidMap : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Rewrites the PMT PID reference inside a PAT table (in-place).
+        /// Only modifies the structured PAT data, not compressed bitstream.
+        /// </summary>
+        private static void RewritePatPmtPid(byte[] packet, int offset, int oldPmtPid, int newPmtPid)
+        {
+            if (oldPmtPid == newPmtPid) return;
+
+            int payOff = MpegTsHelper.GetPayloadOffset(packet, offset);
+            if (payOff < 0) return;
+
+            int pointer = packet[payOff];
+            int tableStart = payOff + 1 + pointer;
+            if (tableStart + 8 > offset + MpegTsHelper.PacketSize) return;
+            if (packet[tableStart] != 0x00) return; // Not a PAT
+
+            int sectionLength = ((packet[tableStart + 1] & 0x0F) << 8) | packet[tableStart + 2];
+            int dataStart = tableStart + 8;
+            int dataEnd = Math.Min(tableStart + 3 + sectionLength - 4, offset + MpegTsHelper.PacketSize);
+
+            for (int i = dataStart; i + 3 < dataEnd; i += 4)
+            {
+                int programNum = (packet[i] << 8) | packet[i + 1];
+                if (programNum == 0) continue; // NIT
+
+                int pid = ((packet[i + 2] & 0x1F) << 8) | packet[i + 3];
+                if (pid == oldPmtPid)
+                {
+                    packet[i + 2] = (byte)((packet[i + 2] & 0xE0) | ((newPmtPid >> 8) & 0x1F));
+                    packet[i + 3] = (byte)(newPmtPid & 0xFF);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rewrites elementary stream PID references inside a PMT table (in-place).
+        /// Also rewrites the PCR PID. Only modifies structured PMT data.
+        /// </summary>
+        private static void RewritePmtEsPids(byte[] packet, int offset, Dictionary<int, int> pidRemap)
+        {
+            int payOff = MpegTsHelper.GetPayloadOffset(packet, offset);
+            if (payOff < 0) return;
+
+            int pointer = packet[payOff];
+            int tableStart = payOff + 1 + pointer;
+            if (tableStart + 12 > offset + MpegTsHelper.PacketSize) return;
+            if (packet[tableStart] != 0x02) return; // Not a PMT
+
+            int sectionLength = ((packet[tableStart + 1] & 0x0F) << 8) | packet[tableStart + 2];
+
+            // Rewrite PCR PID
+            int pcrPid = ((packet[tableStart + 8] & 0x1F) << 8) | packet[tableStart + 9];
+            if (pidRemap.TryGetValue(pcrPid, out int newPcrPid))
+            {
+                packet[tableStart + 8] = (byte)((packet[tableStart + 8] & 0xE0) | ((newPcrPid >> 8) & 0x1F));
+                packet[tableStart + 9] = (byte)(newPcrPid & 0xFF);
+            }
+
+            int programInfoLength = ((packet[tableStart + 10] & 0x0F) << 8) | packet[tableStart + 11];
+            int esStart = tableStart + 12 + programInfoLength;
+            int esEnd = Math.Min(tableStart + 3 + sectionLength - 4, offset + MpegTsHelper.PacketSize);
+
+            int pos = esStart;
+            while (pos + 5 <= esEnd)
+            {
+                int esPid = ((packet[pos + 1] & 0x1F) << 8) | packet[pos + 2];
+                if (pidRemap.TryGetValue(esPid, out int newEsPid))
+                {
+                    packet[pos + 1] = (byte)((packet[pos + 1] & 0xE0) | ((newEsPid >> 8) & 0x1F));
+                    packet[pos + 2] = (byte)(newEsPid & 0xFF);
+                }
+                int esInfoLength = ((packet[pos + 3] & 0x0F) << 8) | packet[pos + 4];
+                pos += 5 + esInfoLength;
+            }
         }
 
         /// <summary>

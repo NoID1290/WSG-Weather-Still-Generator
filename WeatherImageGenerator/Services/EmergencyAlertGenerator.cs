@@ -146,9 +146,12 @@ namespace WeatherImageGenerator.Services
                 // -t: set total video duration (at least 30s)
                 // Use apad filter to pad audio with silence to match video duration
                 var codecArgs = BuildVideoCodecArgs(videoConfig);
-                
+
+                // Always use software encoder for alerts — NVENC sessions are limited on
+                // consumer GPUs and Tunarr already consumes them for channel transcodes.
+                string alertMp4Codec = "libx264";
                 string ffmpegArgs = $"-y -loop 1 -i \"{alertImagePath}\" -i \"{alertAudioPath}\" " +
-                                   $"-c:v {videoConfig.VideoCodec ?? "libx264"} {codecArgs} " +
+                                   $"-c:v {alertMp4Codec} {codecArgs} " +
                                    $"-af \"apad=whole_dur={videoDuration:F2}\" " +
                                    $"-c:a aac -b:a 192k " +
                                    $"-t {videoDuration:F2} " +
@@ -227,7 +230,8 @@ namespace WeatherImageGenerator.Services
         /// <param name="videoDuration">Total duration in seconds</param>
         /// <returns>Path to the generated .ts file, or null if generation failed</returns>
         public static string? GenerateAlertTransportStream(
-            string alertImagePath, string alertAudioPath, string outputDir, double videoDuration)
+            string alertImagePath, string alertAudioPath, string outputDir, double videoDuration,
+            ChannelStreamProfile? streamProfile = null)
         {
             try
             {
@@ -242,29 +246,95 @@ namespace WeatherImageGenerator.Services
 
                 string tsOutputPath = Path.Combine(outputDir, "alert_video.ts");
 
-                Logger.Log("[EmergencyAlertGenerator] Generating alert MPEG-TS for stream proxy...", Logger.LogLevel.Info);
+                bool matched = streamProfile?.IsComplete == true;
+                if (matched)
+                {
+                    Logger.Log($"[EmergencyAlertGenerator] Generating MATCHED alert .ts ({streamProfile!.Width}x{streamProfile.Height} " +
+                               $"{streamProfile.FrameRate}fps PIDs: V={streamProfile.VideoPid} A={streamProfile.AudioPid})...", Logger.LogLevel.Info);
+                }
+                else
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Generating alert MPEG-TS (unmatched — no stream profile available)...", Logger.LogLevel.Info);
+                }
 
-                // Force keyframe at frame 0 for clean splice entry,
-                // frequent PAT/PMT so decoders can lock quickly mid-stream,
-                // timestamps starting at 0 (the proxy will offset them).
-                // CBR mux rate and frequent keyframes improve splice compatibility.
-                string codec = videoConfig.VideoCodec ?? "libx264";
-                var codecArgs = BuildVideoCodecArgs(videoConfig);
+                // Always use software encoder for alerts — NVENC sessions are limited on
+                // consumer GPUs and Tunarr already consumes them for channel transcodes.
+                string codec = "libx264";
+                string codecArgs;
+                string sizeArgs;
+                string fpsArgs;
+                string tsArgs;
+
+                if (matched)
+                {
+                    // ── Matched mode: mirror upstream parameters exactly ──
+                    int bitrate = streamProfile!.VideoBitrateBps > 0 ? streamProfile.VideoBitrateBps : 4_000_000;
+                    string bitrateStr = $"{bitrate}";
+                    codecArgs = $"-b:v {bitrateStr} -maxrate {bitrateStr} -bufsize {bitrateStr}";
+
+                    // Match profile/level if known
+                    if (!string.IsNullOrEmpty(streamProfile.VideoProfile))
+                    {
+                        string profileLower = streamProfile.VideoProfile.ToLowerInvariant();
+                        codecArgs += $" -profile:v {profileLower}";
+                    }
+                    if (!string.IsNullOrEmpty(streamProfile.VideoLevel))
+                    {
+                        // FFmpeg H.264 level format: "4.0" for level 40, "3.1" for level 31
+                        string level = streamProfile.VideoLevel;
+                        if (int.TryParse(level, out int levelInt) && levelInt > 9)
+                            level = $"{levelInt / 10}.{levelInt % 10}";
+                        codecArgs += $" -level {level}";
+                    }
+
+                    // Always include a preset for encoding speed
+                    if (!string.IsNullOrEmpty(videoConfig.EncoderPreset))
+                        codecArgs += $" -preset {videoConfig.EncoderPreset}";
+
+                    sizeArgs = $"-s {streamProfile.Width}x{streamProfile.Height}";
+                    fpsArgs = $"-r {streamProfile.FrameRate}";
+
+                    // Calculate mpegts_start_pid so that our video PID lands on the upstream's video PID.
+                    // FFmpeg assigns: start_pid → PMT, start_pid+1 → first ES (video), start_pid+2 → second ES (audio).
+                    // So if upstream video PID is e.g. 0x101, we want start_pid = 0x100.
+                    int startPid = streamProfile.VideoPid > 1 ? streamProfile.VideoPid - 1 : 0x100;
+                    int serviceId = streamProfile.ServiceId > 0 ? streamProfile.ServiceId : 1;
+                    int audioSampleRate = streamProfile.AudioSampleRate > 0 ? streamProfile.AudioSampleRate : 48000;
+                    int audioChannels = streamProfile.AudioChannels > 0 ? streamProfile.AudioChannels : 2;
+
+                    tsArgs = $"-f mpegts " +
+                             $"-mpegts_copyts 1 " +
+                             $"-muxrate 3000000 " +
+                             $"-pat_period 0.1 -sdt_period 0.1 " +
+                             $"-mpegts_service_id {serviceId} " +
+                             $"-mpegts_start_pid 0x{startPid:X} " +
+                             $"-ar {audioSampleRate} -ac {audioChannels}";
+                }
+                else
+                {
+                    // ── Unmatched fallback: use config-based encoding ──
+                    codecArgs = BuildVideoCodecArgs(videoConfig);
+                    sizeArgs = "";
+                    fpsArgs = "";
+                    tsArgs = $"-f mpegts " +
+                             $"-mpegts_copyts 1 " +
+                             $"-muxrate 3000000 " +
+                             $"-pat_period 0.1 -sdt_period 0.1 " +
+                             $"-mpegts_service_id 1 " +
+                             $"-mpegts_start_pid 0x100";
+                }
 
                 string ffmpegArgs = $"-y -loop 1 -i \"{alertImagePath}\" -i \"{alertAudioPath}\" " +
                                    $"-c:v {codec} {codecArgs} " +
+                                   (string.IsNullOrEmpty(fpsArgs) ? "" : $"{fpsArgs} ") +
+                                   (string.IsNullOrEmpty(sizeArgs) ? "" : $"{sizeArgs} ") +
                                    $"-force_key_frames \"expr:eq(mod(n,30),0)\" " +
                                    $"-g 30 " +
                                    $"-af \"apad=whole_dur={videoDuration:F2}\" " +
                                    $"-c:a aac -b:a 192k " +
                                    $"-t {videoDuration:F2} " +
                                    $"-pix_fmt yuv420p " +
-                                   $"-f mpegts " +
-                                   $"-mpegts_copyts 1 " +
-                                   $"-muxrate 3000000 " +
-                                   $"-pat_period 0.1 -sdt_period 0.1 " +
-                                   $"-mpegts_service_id 1 " +
-                                   $"-mpegts_start_pid 0x100 " +
+                                   $"{tsArgs} " +
                                    $"\"{tsOutputPath}\"";
 
                 var startInfo = new ProcessStartInfo
@@ -334,7 +404,7 @@ namespace WeatherImageGenerator.Services
         /// Returns generated file list, video path, .ts path, and the actual video duration in seconds.
         /// </summary>
         public static (List<string> GeneratedFiles, string? VideoPath, string? TransportStreamPath, double VideoDurationSeconds) GenerateEmergencyAlertsWithVideo(
-            List<AlertEntry> alerts, string outputDir, string language = "fr-CA")
+            List<AlertEntry> alerts, string outputDir, string language = "fr-CA", ChannelStreamProfile? streamProfile = null)
         {
             // Generate the alert media (images and audio)
             var generatedFiles = GenerateEmergencyAlerts(alerts, outputDir, language);
@@ -381,7 +451,7 @@ namespace WeatherImageGenerator.Services
                     double videoDuration = Math.Max(audioDuration ?? minDuration, minDuration);
                     actualDuration = videoDuration;
 
-                    tsPath = GenerateAlertTransportStream(imagePath, audioPath, outputDir, videoDuration);
+                    tsPath = GenerateAlertTransportStream(imagePath, audioPath, outputDir, videoDuration, streamProfile);
                     if (!string.IsNullOrEmpty(tsPath))
                     {
                         generatedFiles.Add(tsPath);

@@ -30,7 +30,10 @@ namespace WeatherImageGenerator
 
         // Static instance of HLS Alert Injector service
         private static HlsAlertInjectorService? _hlsAlertInjector;
-        
+
+        // Static instance of HLS Relay service (read-only relay with EAS injection)
+        private static HlsRelayService? _hlsRelayService;
+
         // Public accessor for WebUI service (used by SettingsForm)
         public static WebUIService? WebUIService => _webUIService;
         
@@ -39,6 +42,9 @@ namespace WeatherImageGenerator
 
         // Public accessor for HLS Alert Injector service
         public static HlsAlertInjectorService? HlsAlertInjector => _hlsAlertInjector;
+
+        // Public accessor for HLS Relay service
+        public static HlsRelayService? HlsRelayService => _hlsRelayService;
         
         // Method to set the WebUI service instance (used when restarting with new settings)
         public static void SetWebUIService(WebUIService? service)
@@ -56,6 +62,12 @@ namespace WeatherImageGenerator
         public static void SetHlsAlertInjector(HlsAlertInjectorService? service)
         {
             _hlsAlertInjector = service;
+        }
+
+        // Method to set the HLS Relay service instance
+        public static void SetHlsRelayService(HlsRelayService? service)
+        {
+            _hlsRelayService = service;
         }
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
@@ -294,6 +306,18 @@ namespace WeatherImageGenerator
                 Logger.Log($"[Boot] HLS Alert Injector disabled (HlsInjectionEnabled={bootConfig.StreamProxy?.HlsInjectionEnabled ?? false})", Logger.LogLevel.Debug);
             }
 
+            // Initialize HLS Relay if enabled — read-only relay with EAS manifest injection
+            if (bootConfig.StreamProxy?.HlsRelayEnabled ?? false)
+            {
+                Logger.Log("[Boot] HLS Relay enabled — port " + bootConfig.StreamProxy.HlsRelayPort, Logger.LogLevel.Info);
+                _hlsRelayService = new HlsRelayService(bootConfig.StreamProxy);
+                _hlsRelayService.Start();
+            }
+            else
+            {
+                Logger.Log($"[Boot] HLS Relay disabled (HlsRelayEnabled={bootConfig.StreamProxy?.HlsRelayEnabled ?? false})", Logger.LogLevel.Debug);
+            }
+
             Application.Run(new MainForm());
             
             // Stop Stream Pipe service when application closes
@@ -306,6 +330,12 @@ namespace WeatherImageGenerator
             if (_hlsAlertInjector?.IsRunning ?? false)
             {
                 Task.Run(async () => await _hlsAlertInjector.StopAsync()).GetAwaiter().GetResult();
+            }
+
+            // Stop HLS Relay service when application closes
+            if (_hlsRelayService?.IsRunning ?? false)
+            {
+                Task.Run(async () => await _hlsRelayService.StopAsync()).GetAwaiter().GetResult();
             }
 
             // Stop Web UI service when application closes

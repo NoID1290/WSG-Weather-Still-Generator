@@ -499,5 +499,64 @@ namespace WeatherImageGenerator.Utilities
             return streamType == 0x03 || streamType == 0x04 || streamType == 0x0F ||
                    streamType == 0x11 || streamType == 0x81 || streamType == 0x06;
         }
+
+        // ────────────────────────────────────────────────────────────────────
+        // H.264 keyframe (IDR) detection
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Checks if a TS packet on the specified video PID contains an H.264 IDR
+        /// (Instantaneous Decoder Refresh) NAL unit, indicating a keyframe.
+        /// Only inspects the first few payload bytes for the NAL start code + type.
+        /// </summary>
+        public static bool IsH264Keyframe(byte[] packet, int offset, int videoPid)
+        {
+            int pid = GetPid(packet, offset);
+            if (pid != videoPid) return false;
+            if (!HasPayloadUnitStart(packet, offset)) return false;
+
+            int payOff = GetPayloadOffset(packet, offset);
+            if (payOff < 0) return false;
+
+            // PES header: 00 00 01 [stream_id] [length] [flags] [PTS/DTS...] [payload]
+            // Skip PES header to reach the H.264 Access Unit
+            if (payOff + 9 > offset + PacketSize) return false;
+            if (packet[payOff] != 0x00 || packet[payOff + 1] != 0x00 || packet[payOff + 2] != 0x01)
+                return false;
+
+            // PES header data length is at byte 8
+            int pesHeaderDataLen = packet[payOff + 8];
+            int auStart = payOff + 9 + pesHeaderDataLen;
+
+            // Scan for NAL start codes (00 00 01 or 00 00 00 01) followed by IDR NAL type
+            int limit = Math.Min(auStart + 32, offset + PacketSize - 1);
+            for (int i = auStart; i < limit; i++)
+            {
+                // Check for 3-byte start code: 00 00 01
+                if (i + 3 < offset + PacketSize &&
+                    packet[i] == 0x00 && packet[i + 1] == 0x00 && packet[i + 2] == 0x01)
+                {
+                    int nalType = packet[i + 3] & 0x1F;
+                    // NAL type 5 = IDR slice (keyframe)
+                    // NAL type 7 = SPS (often precedes IDR in an Access Unit)
+                    if (nalType == 5) return true;
+                    // If we see an SPS (7) or PPS (8), the IDR might follow — keep scanning
+                    if (nalType == 7 || nalType == 8) continue;
+                    // NAL type 1 = non-IDR (not a keyframe)
+                    if (nalType == 1) return false;
+                }
+                // Check for 4-byte start code: 00 00 00 01
+                if (i + 4 < offset + PacketSize &&
+                    packet[i] == 0x00 && packet[i + 1] == 0x00 && packet[i + 2] == 0x00 && packet[i + 3] == 0x01)
+                {
+                    int nalType = packet[i + 4] & 0x1F;
+                    if (nalType == 5) return true;
+                    if (nalType == 7 || nalType == 8) continue;
+                    if (nalType == 1) return false;
+                }
+            }
+
+            return false;
+        }
     }
 }

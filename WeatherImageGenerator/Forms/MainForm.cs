@@ -2817,10 +2817,12 @@ namespace WeatherImageGenerator.Forms
                             }
 
                             // Use the new method that generates both media AND video automatically
+                            var streamProfile = Program.StreamPipeService?.GetBestStreamProfile();
                             var (generatedFiles, videoPath, tsPath, actualDuration) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(
                                 alerts,
                                 outputDir,
-                                language
+                                language,
+                                streamProfile
                             );
 
                             Logger.Log($"Generated {generatedFiles.Count} file(s) in TestAlerts folder.", Logger.LogLevel.Info);
@@ -2849,6 +2851,14 @@ namespace WeatherImageGenerator.Forms
                                 {
                                     hlsInjector.TriggerAlertSplice(tsPath, duration);
                                     Logger.Log($"HLS alert injection triggered for test alert ({duration:F0}s)", Logger.LogLevel.Info);
+                                }
+
+                                // Trigger HLS relay injection if running
+                                var hlsRelay = Program.HlsRelayService;
+                                if (hlsRelay?.IsRunning == true)
+                                {
+                                    hlsRelay.TriggerAlertSplice(tsPath, duration);
+                                    Logger.Log($"HLS relay alert injection triggered for test alert ({duration:F0}s)", Logger.LogLevel.Info);
                                 }
                             }
 
@@ -3471,7 +3481,8 @@ namespace WeatherImageGenerator.Forms
                 var alerts = new List<AlertEntry> { alert };
                 
                 // Use the new method that generates both media AND video automatically
-                var (generatedFiles, videoPath, tsPath, actualDuration) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language);
+                var streamProfile = Program.StreamPipeService?.GetBestStreamProfile();
+                var (generatedFiles, videoPath, tsPath, actualDuration) = EmergencyAlertGenerator.GenerateEmergencyAlertsWithVideo(alerts, outputDir, language, streamProfile);
 
                 // If stream pipe is running and a .ts was generated, trigger the splice
                 if (!string.IsNullOrEmpty(tsPath))
@@ -3490,6 +3501,13 @@ namespace WeatherImageGenerator.Forms
                     if (hlsInjector?.IsRunning == true)
                     {
                         hlsInjector.TriggerAlertSplice(tsPath, duration);
+                    }
+
+                    // Trigger HLS relay injection if running
+                    var hlsRelay = Program.HlsRelayService;
+                    if (hlsRelay?.IsRunning == true)
+                    {
+                        hlsRelay.TriggerAlertSplice(tsPath, duration);
                     }
                 }
 
