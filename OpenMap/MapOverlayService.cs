@@ -2,6 +2,7 @@ using SkiaSharp;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
+using System.Runtime.Versioning;
 
 namespace OpenMap;
 
@@ -18,6 +19,7 @@ namespace OpenMap;
 /// 
 /// See OpenMap/LEGAL.md for full legal requirements and attribution guidelines.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public class MapOverlayService
 {
     private readonly int _defaultWidth;

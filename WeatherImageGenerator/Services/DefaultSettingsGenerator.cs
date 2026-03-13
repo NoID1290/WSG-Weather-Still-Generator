@@ -198,7 +198,7 @@ namespace WeatherImageGenerator.Services
                     OverlayOpacity = 0.7f,
                     TileDownloadTimeoutSeconds = 30,
                     EnableTileCache = true,
-                    TileCacheDirectory = null,
+                    TileCacheDirectory = string.Empty,
                     CacheDurationHours = 168,
                     UseDarkMode = false,
                     StylePresets = new Dictionary<string, MapStylePreset>

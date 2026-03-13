@@ -5,6 +5,7 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using ECCC.Models;
 using OpenMap;
@@ -15,6 +16,7 @@ namespace ECCC.Services
     /// Service for fetching and compositing radar images with base maps.
     /// Retrieves ECCC radar overlay and combines it with OpenStreetMap base layers.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class RadarImageService
     {
         private readonly HttpClient _httpClient;

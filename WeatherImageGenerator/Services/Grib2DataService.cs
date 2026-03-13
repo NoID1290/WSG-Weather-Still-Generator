@@ -275,12 +275,12 @@ namespace WeatherImageGenerator.Services
             if (results[0] != null)
             {
                 uMsg = results[0];
-                _memoryCache[cacheKeyU] = new CachedGrib2Message(uMsg, DateTime.UtcNow);
+                _memoryCache[cacheKeyU] = new CachedGrib2Message(uMsg!, DateTime.UtcNow);
             }
             if (results[1] != null)
             {
                 vMsg = results[1];
-                _memoryCache[cacheKeyV] = new CachedGrib2Message(vMsg, DateTime.UtcNow);
+                _memoryCache[cacheKeyV] = new CachedGrib2Message(vMsg!, DateTime.UtcNow);
             }
 
             return (uMsg, vMsg);

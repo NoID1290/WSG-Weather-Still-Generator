@@ -2765,8 +2765,9 @@ namespace WeatherImageGenerator.Forms
                     if (string.IsNullOrWhiteSpace(tunarrId)) continue;
 
                     int chNum = 1;
-                    if (row.Cells["Number"].Value != null)
-                        int.TryParse(row.Cells["Number"].Value.ToString(), out chNum);
+                    var numberCell = row.Cells["Number"];
+                    if (numberCell?.Value != null)
+                        int.TryParse(numberCell.Value.ToString(), out chNum);
 
                     proxySettings.Channels.Add(new ProxyChannelConfig
                     {
@@ -3153,8 +3154,9 @@ namespace WeatherImageGenerator.Forms
                         var tunarrId = row.Cells["TunarrId"].Value?.ToString() ?? "";
                         if (string.IsNullOrWhiteSpace(tunarrId)) continue;
                         int chNum = 1;
-                        if (row.Cells["Number"].Value != null)
-                            int.TryParse(row.Cells["Number"].Value.ToString(), out chNum);
+                        var numberCell = row.Cells["Number"];
+                        if (numberCell?.Value != null)
+                            int.TryParse(numberCell.Value.ToString(), out chNum);
                         settings.Channels.Add(new ProxyChannelConfig
                         {
                             TunarrChannelId = tunarrId.Trim(),
@@ -3219,8 +3221,9 @@ namespace WeatherImageGenerator.Forms
                     var tunarrId = row.Cells["TunarrId"].Value?.ToString() ?? "";
                     if (string.IsNullOrWhiteSpace(tunarrId)) continue;
                     int chNum = 1;
-                    if (row.Cells["Number"].Value != null)
-                        int.TryParse(row.Cells["Number"].Value.ToString(), out chNum);
+                    var numberCell = row.Cells["Number"];
+                    if (numberCell?.Value != null)
+                        int.TryParse(numberCell.Value.ToString(), out chNum);
                     settings.Channels.Add(new ProxyChannelConfig
                     {
                         TunarrChannelId = tunarrId.Trim(),
@@ -3495,8 +3498,9 @@ namespace WeatherImageGenerator.Forms
             {
                 foreach (DataGridViewRow row in dgvProxyChannels.Rows)
                 {
-                    if (row.Cells["Number"].Value != null &&
-                        int.TryParse(row.Cells["Number"].Value.ToString(), out int n) && n >= nextNum)
+                    var numberCell = row.Cells["Number"];
+                    if (numberCell?.Value != null &&
+                        int.TryParse(numberCell.Value.ToString(), out int n) && n >= nextNum)
                         nextNum = n + 1;
                 }
             }

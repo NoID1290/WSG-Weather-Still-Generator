@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Net.Http;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using ECCC.Data;
 using ECCC.Models;
@@ -158,6 +159,7 @@ namespace ECCC
         /// <param name="height">Image height in pixels</param>
         /// <param name="mapService">Optional OpenMap service for base map rendering</param>
         /// <returns>Radar image data or null if failed</returns>
+        [SupportedOSPlatform("windows")]
         public static async Task<byte[]?> GetRadarImageAsync(
             System.Net.Http.HttpClient httpClient,
             double latitude,

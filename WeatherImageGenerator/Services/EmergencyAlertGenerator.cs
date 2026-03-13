@@ -958,7 +958,7 @@ namespace WeatherImageGenerator.Services
 
                             Logger.Log($"[GenerateAlertImage] Summary before wrap: length={fullSummary?.Length ?? 0}", Logger.LogLevel.Debug);
                             
-                            string wrappedSummary = WrapText(fullSummary, summaryFont, g, contentWidth - summaryBoxPadding * 2);
+                            string wrappedSummary = WrapText(fullSummary ?? string.Empty, summaryFont, g, contentWidth - summaryBoxPadding * 2);
                             Logger.Log($"[GenerateAlertImage] Summary after wrap: length={wrappedSummary?.Length ?? 0}, lines={wrappedSummary?.Split('\n').Length ?? 0}", Logger.LogLevel.Debug);
                             
                             if (string.IsNullOrWhiteSpace(wrappedSummary))

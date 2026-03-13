@@ -325,7 +325,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 _hudRenderer.Initialize();
 
                 // Tile provider
-                _tileProvider = new TileProvider(_localTileFolder);
+                _tileProvider = new TileProvider(_localTileFolder ?? "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
 
                 // Start repaint timer (60 FPS)
                 _animRefreshTimer = new System.Threading.Timer(_ =>

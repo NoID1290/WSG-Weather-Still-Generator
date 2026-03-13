@@ -1,10 +1,12 @@
 using System.Drawing;
+using System.Runtime.Versioning;
 
 namespace OpenMap;
 
 /// <summary>
 /// Helper class for compositing multiple layers (map + weather overlays)
 /// </summary>
+[SupportedOSPlatform("windows")]
 public class LayerCompositor
 {
     /// <summary>
@@ -82,14 +84,21 @@ public class LayerCompositor
 
     private static Rectangle GetDestinationRectangle(LayerInfo layer, int outputWidth, int outputHeight)
     {
+        if (layer.Image == null)
+        {
+            return new Rectangle(0, 0, outputWidth, outputHeight);
+        }
+
+        var image = layer.Image;
+
         return layer.Alignment switch
         {
             LayerAlignment.Fill => new Rectangle(0, 0, outputWidth, outputHeight),
-            LayerAlignment.Center => CenterRectangle(layer.Image.Width, layer.Image.Height, outputWidth, outputHeight),
-            LayerAlignment.TopLeft => new Rectangle(0, 0, layer.Image.Width, layer.Image.Height),
-            LayerAlignment.TopRight => new Rectangle(outputWidth - layer.Image.Width, 0, layer.Image.Width, layer.Image.Height),
-            LayerAlignment.BottomLeft => new Rectangle(0, outputHeight - layer.Image.Height, layer.Image.Width, layer.Image.Height),
-            LayerAlignment.BottomRight => new Rectangle(outputWidth - layer.Image.Width, outputHeight - layer.Image.Height, layer.Image.Width, layer.Image.Height),
+            LayerAlignment.Center => CenterRectangle(image.Width, image.Height, outputWidth, outputHeight),
+            LayerAlignment.TopLeft => new Rectangle(0, 0, image.Width, image.Height),
+            LayerAlignment.TopRight => new Rectangle(outputWidth - image.Width, 0, image.Width, image.Height),
+            LayerAlignment.BottomLeft => new Rectangle(0, outputHeight - image.Height, image.Width, image.Height),
+            LayerAlignment.BottomRight => new Rectangle(outputWidth - image.Width, outputHeight - image.Height, image.Width, image.Height),
             _ => new Rectangle(0, 0, outputWidth, outputHeight)
         };
     }
@@ -105,6 +114,7 @@ public class LayerCompositor
 /// <summary>
 /// Information about a layer to be composited
 /// </summary>
+[SupportedOSPlatform("windows")]
 public class LayerInfo : IDisposable
 {
     public Bitmap? Image { get; set; }

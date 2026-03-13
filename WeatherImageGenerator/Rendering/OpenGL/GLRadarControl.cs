@@ -726,6 +726,12 @@ void main() {
                 return;
             }
 
+            if (_tileShader == null)
+            {
+                SwapBuffers();
+                return;
+            }
+
             // Draw map tiles using tile shader.
             // If a pre-composited background (`_texture`) is present, draw it full-screen instead
             // of iterating map tiles â€” the background was produced by RadarImageService and

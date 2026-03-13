@@ -800,6 +800,12 @@ namespace WeatherImageGenerator.Forms
                 if (Application.OpenForms.Count > 0)
                 {
                     var mainForm = Application.OpenForms[0];
+                    if (mainForm == null)
+                    {
+                        ShowAlertOnUiThread(alert, language, autoCloseSeconds);
+                        return;
+                    }
+
                     if (mainForm.InvokeRequired)
                     {
                         mainForm.BeginInvoke(new Action(() => ShowAlertOnUiThread(alert, language, autoCloseSeconds)));

@@ -758,7 +758,10 @@ namespace WeatherImageGenerator
 
             using (HttpClient httpClient = new HttpClient())
             {
-                string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
+                string[] locations = (config.Locations?.GetLocationsArray() ?? Array.Empty<string>())
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Select(l => l!)
+                    .ToArray();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 var globalApi = config.DefaultWeatherApi;
                 Logger.Section($"Fetch Only  ·  {globalApi} API");
@@ -827,7 +830,10 @@ namespace WeatherImageGenerator
 
             using (HttpClient httpClient = new HttpClient())
             {
-                string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
+                string[] locations = (config.Locations?.GetLocationsArray() ?? Array.Empty<string>())
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Select(l => l!)
+                    .ToArray();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 var globalApi = config.DefaultWeatherApi;
                 Logger.Section($"Stills Only  ·  {globalApi} API");
@@ -1004,7 +1010,10 @@ namespace WeatherImageGenerator
             using (HttpClient httpClient = new HttpClient())
             {
                 // Load locations into an array for easier handling
-                string?[] locations = config.Locations?.GetLocationsArray() ?? Array.Empty<string>();
+                string[] locations = (config.Locations?.GetLocationsArray() ?? Array.Empty<string>())
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Select(l => l!)
+                    .ToArray();
                 var apiPreferences = config.Locations?.GetApiPreferencesArray() ?? new WeatherApiType[0];
                 var globalApi = config.DefaultWeatherApi;
 

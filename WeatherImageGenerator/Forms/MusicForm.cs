@@ -333,8 +333,20 @@ namespace WeatherImageGenerator.Forms
                 DialogResult = DialogResult.OK
             };
             btnSave.FlatAppearance.BorderSize = 0;
-            btnSave.MouseEnter += (s, e) => ((Button)s).BackColor = Color.FromArgb(67, 160, 71);
-            btnSave.MouseLeave += (s, e) => ((Button)s).BackColor = Color.FromArgb(76, 175, 80);
+            btnSave.MouseEnter += (s, e) =>
+            {
+                if (s is Button btn)
+                {
+                    btn.BackColor = Color.FromArgb(67, 160, 71);
+                }
+            };
+            btnSave.MouseLeave += (s, e) =>
+            {
+                if (s is Button btn)
+                {
+                    btn.BackColor = Color.FromArgb(76, 175, 80);
+                }
+            };
             btnSave.Click += BtnSave_Click;
 
             btnCancel = new Button
@@ -352,8 +364,20 @@ namespace WeatherImageGenerator.Forms
                 DialogResult = DialogResult.Cancel
             };
             btnCancel.FlatAppearance.BorderSize = 0;
-            btnCancel.MouseEnter += (s, e) => ((Button)s).BackColor = Color.FromArgb(200, 200, 200);
-            btnCancel.MouseLeave += (s, e) => ((Button)s).BackColor = Color.FromArgb(220, 220, 220);
+            btnCancel.MouseEnter += (s, e) =>
+            {
+                if (s is Button btn)
+                {
+                    btn.BackColor = Color.FromArgb(200, 200, 200);
+                }
+            };
+            btnCancel.MouseLeave += (s, e) =>
+            {
+                if (s is Button btn)
+                {
+                    btn.BackColor = Color.FromArgb(220, 220, 220);
+                }
+            };
 
             this.Controls.AddRange(new Control[]
             {

@@ -1035,9 +1035,16 @@ namespace WeatherImageGenerator.Rendering.Common
                 _hudSystem.LoadingMessage = $"Fetching {timestamps.Count} radar frames...";
                 _glControl?.InvalidateView();
 
+                var hostControl = _glControl?.HostControl;
+                if (hostControl == null)
+                {
+                    MessageBox.Show("Radar view is not ready yet.", "Animation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 // Fetch frames
                 var (frames, validTimestamps) = await _overlayManager.FetchMultipleRadarFramesAsync(
-                    _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom, timestamps);
+                    _currentLat, _currentLon, hostControl.Width, hostControl.Height, _currentZoom, timestamps);
 
                 if (frames.Count == 0)
                 {
@@ -2131,7 +2138,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     progress: progress);
 
                 // Point GL control to local tiles (immediate benefit)
-                _glControl.SetLocalTilesFolder(localTilesRoot);
+                _glControl?.SetLocalTilesFolder(localTilesRoot);
                 UpdateCacheStats();
 
                 MessageBox.Show($"Prefetch complete — fetched {state.Fetched} tiles (processed {state.Completed} total).\nLocal tiles: {localTilesRoot}", "Prefetch Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -2248,7 +2255,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 if (System.IO.File.Exists(primePath))
                 {
                     var data = System.IO.File.ReadAllBytes(primePath);
-                    _glControl.SetImageBytes(data, centerLat, centerLon, 4);
+                    _glControl?.SetImageBytes(data, centerLat, centerLon, 4);
                 }
 
                 MessageBox.Show($"Precomposed composites created in: {outDir}", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
