@@ -19,7 +19,11 @@ namespace EKCA.Services
             new(@"(?:M(?:agnitude)?\s*=?\s*)([0-9]+(?:\.[0-9]+)?)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private static readonly Regex LocationFromTitleRegex =
-            new(@"(?:M(?:agnitude)?\s*=?\s*[0-9.]+)\s*[-–—]\s*(.+)$", RegexOptions.Compiled | RegexOptions.Singleline);
+            new(@"(?:M(?:agnitude)?\s*=?\s*[0-9.]+)\s*[-–—]?\s+(.+)$", RegexOptions.Compiled | RegexOptions.Singleline);
+
+        // Strips leading "YYYY-MM-DD HH:MM:SS UTC:" prefix from Atom feed titles
+        private static readonly Regex DatePrefixRegex =
+            new(@"^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s*(?:UTC)?:?\s*", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private static readonly Regex DepthRegex =
             new(@"depth.*?([0-9]+(?:\.[0-9]+)?)\s*km", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -103,12 +107,14 @@ namespace EKCA.Services
             if (magnitude <= 0) return null; // Truly malformed entry — skip
 
             // Parse location description from title
+            // Strip leading date prefix if present (e.g. "2026-03-13 17:51:25 UTC: M1.93 68 km S of...")
+            string cleanTitle = DatePrefixRegex.Replace(title, "");
             string location = string.Empty;
-            var locMatch = LocationFromTitleRegex.Match(title);
+            var locMatch = LocationFromTitleRegex.Match(cleanTitle);
             if (locMatch.Success)
                 location = locMatch.Groups[1].Value.Trim();
             if (string.IsNullOrEmpty(location))
-                location = title;
+                location = cleanTitle;
 
             // Parse coordinates from <georss:point>LAT LON</georss:point>
             double lat = 0, lon = 0;
@@ -138,9 +144,24 @@ namespace EKCA.Services
                     System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out depth);
 
-            // Parse origin time from <updated> (best approximation since there is no separate <published>)
+            // Parse origin time: prefer precise datetime from title prefix, fall back to <updated>
             DateTime originTime = DateTime.UtcNow;
-            if (!string.IsNullOrEmpty(updatedStr))
+            var titleDateMatch = DatePrefixRegex.Match(title);
+            if (titleDateMatch.Success)
+            {
+                // Strip "UTC" and trailing punctuation before parsing
+                string titleDateStr = titleDateMatch.Value
+                    .Replace("UTC", "", StringComparison.OrdinalIgnoreCase)
+                    .Trim(':', ' ');
+                if (DateTime.TryParse(titleDateStr,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                    out var titleParsed))
+                {
+                    originTime = titleParsed;
+                }
+            }
+            if (originTime == DateTime.UtcNow && !string.IsNullOrEmpty(updatedStr))
             {
                 if (DateTime.TryParse(updatedStr,
                     System.Globalization.CultureInfo.InvariantCulture,

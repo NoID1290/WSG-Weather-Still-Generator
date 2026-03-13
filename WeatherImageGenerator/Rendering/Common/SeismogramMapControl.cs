@@ -132,6 +132,11 @@ namespace WeatherImageGenerator.Rendering.Common
             _glControl.HostControl.BackColor = ThemeManager.Current.Background;
             this.Controls.Add(_glControl.HostControl);
 
+            // WinForms docks controls back-to-front (highest index first).
+            // BringToFront on the Fill control puts it at index 0 (docked last),
+            // pushing the Bottom waveform panel to index 1 (docked first → reserves 165px).
+            _glControl.HostControl.BringToFront();
+
             _hudSystem = new HudSystem();
             _glControl.HudSystem = _hudSystem;
 
@@ -201,7 +206,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 Title = "",
                 Anchor = HudAnchor.BottomRight,
                 Width = 40f,
-                MarginX = 12, MarginY = 40,
+                MarginX = 12, MarginY = 36,
                 Collapsible = false,
                 TitleVisible = false
             };
@@ -309,7 +314,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 Id = "eventInfo",
                 Title = "Event Info",
                 Anchor = HudAnchor.TopLeft,
-                Width = 260f,
+                Width = 320f,
                 MarginX = 10, MarginY = 10,
                 Collapsible = true,
                 Collapsed = false
@@ -317,7 +322,8 @@ namespace WeatherImageGenerator.Rendering.Common
 
             _lblEventInfo = new HudLabel { Id = "lblEventInfo", Text = "No event selected" };
             infoPanel.Elements.Add(_lblEventInfo);
-            _lblStatus = new HudLabel { Id = "lblStatus", Text = "Loading stations…", IsDim = true };
+            infoPanel.Elements.Add(new HudSeparator());
+            _lblStatus = new HudLabel { Id = "lblStatus", Text = "Loading stations\u2026", IsDim = true };
             infoPanel.Elements.Add(_lblStatus);
 
             _hudSystem.AddPanel(infoPanel);
@@ -495,9 +501,16 @@ namespace WeatherImageGenerator.Rendering.Common
                 _lblEventInfo.Text = "No event selected";
                 return;
             }
+            var age = DateTime.UtcNow - _selectedEvent.OriginTime;
+            string ageStr = age.TotalDays >= 1
+                ? $"{(int)age.TotalDays}d ago"
+                : age.TotalHours >= 1
+                    ? $"{(int)age.TotalHours}h ago"
+                    : $"{(int)age.TotalMinutes}m ago";
             _lblEventInfo.Text =
-                $"M{_selectedEvent.Magnitude:F1}  {_selectedEvent.Location}\n" +
-                $"Depth: {_selectedEvent.DepthKm:F0} km   {_selectedEvent.DisplayLabel}";
+                $"M{_selectedEvent.Magnitude:F2}  \u2014  {_selectedEvent.Location}\n" +
+                $"{_selectedEvent.OriginTime:yyyy-MM-dd HH:mm:ss} UTC  \u00b7  {ageStr}\n" +
+                $"Depth: {_selectedEvent.DepthKm:F0} km";
         }
 
         private void SetStatus(string msg)
@@ -515,7 +528,8 @@ namespace WeatherImageGenerator.Rendering.Common
 
             var fps  = _glControl?.CurrentFps ?? 0f;
             var vram = (_glControl?.VramEstimatedBytes ?? 0) / 1_048_576.0;
-            _glControl!.HudStatusBarText = $"FPS: {fps:F0}   VRAM: {vram:F0} MB   Zoom: {_currentZoom}";
+            var api  = _glControl?.ActiveApi.ToString() ?? "Unknown";
+            _glControl!.HudStatusBarText = $"{api}   FPS: {fps:F0}   VRAM: {vram:F0} MB   Zoom: {_currentZoom}";
             _glControl.InvalidateView();
         }
 
