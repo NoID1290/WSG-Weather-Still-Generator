@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.28.0313] - 2026-03-13
+
+- Introducing Seismograph Viewer
+- Remove build_result.txt file
+
 ## [1.17.28.0313] - 2026-03-13
 
 - Add [SupportedOSPlatform("windows")] attribute and improve null checks in various classes
