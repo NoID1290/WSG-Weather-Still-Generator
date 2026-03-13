@@ -23,6 +23,7 @@
     <ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
     <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
     <ProjectReference Include="..\ECCC\ECCC.csproj" />
+    <ProjectReference Include="..\EKCA\EKCA.csproj" />
     <ProjectReference Include="..\EAS\EAS.csproj" />
     <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
     <ProjectReference Include="..\Grib2\Grib2.csproj" />

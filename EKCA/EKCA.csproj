@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AssemblyName>EKCA</AssemblyName>
+    <RootNamespace>EKCA</RootNamespace>
+    <Title>EKCA Earthquake Canada API Wrapper</Title>
+    <Product>EKCA Earthquake Canada API Wrapper</Product>
+    <Company>NoID Softwork</Company>
+    <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
+    <Description>Library for accessing Earthquakes Canada (NRCan) seismic station data, waveforms and earthquake events via FDSN web services.</Description>
+    <Version>1.0.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
+  </ItemGroup>
+</Project>

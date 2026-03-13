@@ -368,15 +368,21 @@ void main() {
         /// </summary>
         public float MeasureTextWidth(string text)
         {
-            float w = 0;
             if (text == null) return 0;
+            float maxW = 0;
+            float w = 0;
             foreach (char c in text)
             {
-                if (c == '\n') continue;
+                if (c == '\n')
+                {
+                    if (w > maxW) maxW = w;
+                    w = 0;
+                    continue;
+                }
                 if (_glyphs.TryGetValue(c, out var g))
                     w += g.AdvanceX;
             }
-            return w;
+            return Math.Max(maxW, w);
         }
 
         /// <summary>

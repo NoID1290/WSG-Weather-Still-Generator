@@ -497,11 +497,17 @@ namespace WeatherImageGenerator.Rendering.Common
             if (dd.ComputedBounds == RectangleF.Empty) return;
 
             float x = dd.ComputedBounds.X;
-            float y = dd.ComputedBounds.Y + dd.ComputedBounds.Height + 2f;
             float w = dd.ComputedBounds.Width;
             float itemH = DropdownHeight;
-            float totalH = dd.Options.Count * itemH;
+            int totalCount = dd.Options.Count;
+            int visibleCount = Math.Min(totalCount, HudDropdown.MaxVisibleItems);
+            float listH = visibleCount * itemH;
+            bool canScrollUp = dd._scrollOffset > 0;
+            bool canScrollDown = dd._scrollOffset + visibleCount < totalCount;
+            float indicatorH = canScrollUp || canScrollDown ? 16f : 0f;
+            float totalH = listH + (canScrollUp ? indicatorH : 0f) + (canScrollDown ? indicatorH : 0f);
 
+            float y = dd.ComputedBounds.Y + dd.ComputedBounds.Height + 2f;
             // Ensure dropdown stays within viewport
             if (y + totalH > vh) y = dd.ComputedBounds.Y - totalH - 2f;
 
@@ -510,16 +516,28 @@ namespace WeatherImageGenerator.Rendering.Common
             // Border
             r.DrawRect(x, y, w, 1f, AccentColor.R, AccentColor.G, AccentColor.B, 0.5f);
 
-            dd.OptionBounds.Clear();
-            for (int i = 0; i < dd.Options.Count; i++)
+            float curY = y;
+
+            // Scroll-up indicator
+            if (canScrollUp)
             {
-                float iy = y + i * itemH;
+                var arrowW = r.MeasureTextWidth("\u25B2");
+                r.DrawRect(x, curY, w, indicatorH, PanelBg.R, PanelBg.G, PanelBg.B, 0.9f);
+                r.DrawText("\u25B2", x + (w - arrowW) / 2f, curY + (indicatorH - r.LineHeight) / 2f,
+                    TextDim.R, TextDim.G, TextDim.B, TextDim.A);
+                curY += indicatorH;
+            }
+
+            dd.OptionBounds.Clear();
+            for (int vi = 0; vi < visibleCount; vi++)
+            {
+                int dataIdx = vi + dd._scrollOffset;
+                float iy = curY + vi * itemH;
                 var optBounds = new RectangleF(x, iy, w, itemH);
                 dd.OptionBounds.Add(optBounds);
 
-                bool isHoverOpt = optBounds.Contains(_hoveredElement?.ComputedBounds.Location ?? PointF.Empty)
-                    || (dd._hoveredOptionIndex == i);
-                bool isSelected = i == dd.SelectedIndex;
+                bool isHoverOpt = dd._hoveredOptionIndex == dataIdx;
+                bool isSelected = dataIdx == dd.SelectedIndex;
 
                 if (isHoverOpt)
                     r.DrawRect(x, iy, w, itemH, ButtonHover.R, ButtonHover.G, ButtonHover.B, ButtonHover.A);
@@ -529,7 +547,17 @@ namespace WeatherImageGenerator.Rendering.Common
                 float tx = x + 8f;
                 float ty = iy + (itemH - r.LineHeight) / 2f;
                 var fg = isSelected ? AccentColor : TextPrimary;
-                r.DrawText(dd.Options[i], tx, ty, fg.R, fg.G, fg.B, fg.A);
+                r.DrawText(dd.Options[dataIdx], tx, ty, fg.R, fg.G, fg.B, fg.A);
+            }
+
+            // Scroll-down indicator
+            if (canScrollDown)
+            {
+                float indY = curY + listH;
+                var arrowW = r.MeasureTextWidth("\u25BC");
+                r.DrawRect(x, indY, w, indicatorH, PanelBg.R, PanelBg.G, PanelBg.B, 0.9f);
+                r.DrawText("\u25BC", x + (w - arrowW) / 2f, indY + (indicatorH - r.LineHeight) / 2f,
+                    TextDim.R, TextDim.G, TextDim.B, TextDim.A);
             }
         }
 
@@ -834,8 +862,9 @@ namespace WeatherImageGenerator.Rendering.Common
                 {
                     if (_openDropdown.OptionBounds[i].Contains(mx, my))
                     {
-                        _openDropdown.SelectedIndex = i;
-                        _openDropdown.OnSelectionChanged?.Invoke(i);
+                        int dataIdx = i + _openDropdown._scrollOffset;
+                        _openDropdown.SelectedIndex = dataIdx;
+                        _openDropdown.OnSelectionChanged?.Invoke(dataIdx);
                         _openDropdown.IsOpen = false;
                         _openDropdown = null;
                         return true;
@@ -897,6 +926,7 @@ namespace WeatherImageGenerator.Rendering.Common
                             else
                             {
                                 dd.IsOpen = true;
+                                dd._scrollOffset = 0;
                                 _openDropdown = dd;
                             }
                             return true;
@@ -948,6 +978,7 @@ namespace WeatherImageGenerator.Rendering.Common
                                         else
                                         {
                                             dd2.IsOpen = true;
+                                            dd2._scrollOffset = 0;
                                             _openDropdown = dd2;
                                         }
                                         return true;
@@ -988,7 +1019,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 {
                     if (_openDropdown.OptionBounds[i].Contains(mx, my))
                     {
-                        _openDropdown._hoveredOptionIndex = i;
+                        _openDropdown._hoveredOptionIndex = i + _openDropdown._scrollOffset;
                         return true;
                     }
                 }
@@ -1082,6 +1113,20 @@ namespace WeatherImageGenerator.Rendering.Common
         /// </summary>
         public bool ProcessMouseWheel(float mx, float my, int delta)
         {
+            // Scroll open dropdown if mouse is in its area
+            if (_openDropdown != null && _openDropdown.IsOpen)
+            {
+                int totalCount = _openDropdown.Options.Count;
+                int maxScroll = Math.Max(0, totalCount - HudDropdown.MaxVisibleItems);
+                if (maxScroll > 0)
+                {
+                    _openDropdown._scrollOffset = Math.Clamp(
+                        _openDropdown._scrollOffset + (delta > 0 ? -2 : 2),
+                        0, maxScroll);
+                    return true;
+                }
+            }
+
             // Check if mouse is over any panel
             for (int pi = _panels.Count - 1; pi >= 0; pi--)
             {
@@ -1259,6 +1304,8 @@ namespace WeatherImageGenerator.Rendering.Common
         public bool IsOpen { get; set; }
         public List<RectangleF> OptionBounds { get; } = new();
         internal int _hoveredOptionIndex = -1;
+        internal int _scrollOffset = 0;
+        internal const int MaxVisibleItems = 14;
         public Action<int>? OnSelectionChanged { get; set; }
     }
 

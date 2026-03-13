@@ -359,10 +359,26 @@ namespace WeatherImageGenerator.Rendering.DirectX
             if (string.IsNullOrEmpty(text)) return;
 
             float cursorX = x;
+            float cursorY = y;
             int startVert = 0;
 
             foreach (char c in text)
             {
+                if (c == '\n')
+                {
+                    // Flush pending glyphs before moving to the next line
+                    _vertexCount = startVert;
+                    if (_vertexCount > 0)
+                    {
+                        FlushBatch(r, g, b, a, 0);
+                        _vertexCount = 0;
+                        startVert = 0;
+                    }
+                    cursorX = x;
+                    cursorY += LineHeight;
+                    continue;
+                }
+
                 if (!_glyphs.TryGetValue(c, out var glyph))
                 {
                     if (_glyphs.TryGetValue('?', out var fallback))
@@ -377,8 +393,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 if (startVert + 6 > MAX_CHARS * VERTS_PER_CHAR) break;
 
                 int i = startVert * FLOATS_PER_VERT;
-                float x1 = cursorX, y1 = y;
-                float x2 = cursorX + glyph.Width, y2 = y + glyph.Height;
+                float x1 = cursorX, y1 = cursorY;
+                float x2 = cursorX + glyph.Width, y2 = cursorY + glyph.Height;
 
                 // Triangle 1
                 _cpuVertexBuffer[i + 0] = x1; _cpuVertexBuffer[i + 1] = y1; _cpuVertexBuffer[i + 2] = glyph.U0; _cpuVertexBuffer[i + 3] = glyph.V0;
@@ -446,15 +462,22 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public float MeasureTextWidth(string text)
         {
             if (string.IsNullOrEmpty(text)) return 0;
+            float maxW = 0;
             float w = 0;
             foreach (char c in text)
             {
+                if (c == '\n')
+                {
+                    if (w > maxW) maxW = w;
+                    w = 0;
+                    continue;
+                }
                 if (_glyphs.TryGetValue(c, out var gInfo))
                     w += gInfo.AdvanceX;
                 else
                     w += 8;
             }
-            return w;
+            return Math.Max(maxW, w);
         }
 
         public void EndFrame()

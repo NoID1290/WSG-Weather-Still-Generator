@@ -486,9 +486,19 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             if (string.IsNullOrEmpty(text)) return;
 
             float curX = x;
+            float curY = y;
 
             foreach (char ch in text)
             {
+                if (ch == '\n')
+                {
+                    // Flush pending glyphs before moving to the next line
+                    FlushBatch(mode: 0, r, g, b, a);
+                    curX = x;
+                    curY += _cellH;
+                    continue;
+                }
+
                 if (!_glyphMap.TryGetValue(ch, out var glyph))
                 {
                     // Fallback to '?' if available, otherwise skip
@@ -500,14 +510,14 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 float u1 = u0 + (float)_cellW / _atlasW;
                 float v1 = v0 + (float)_cellH / _atlasH;
                 float x2 = curX + _cellW;
-                float y2 = y + _cellH;
+                float y2 = curY + _cellH;
 
                 if (_vertexCount + 6 > MAX_VERTICES) break;
 
-                EmitVertex(curX, y, u0, v0);
-                EmitVertex(x2, y, u1, v0);
+                EmitVertex(curX, curY, u0, v0);
+                EmitVertex(x2, curY, u1, v0);
                 EmitVertex(x2, y2, u1, v1);
-                EmitVertex(curX, y, u0, v0);
+                EmitVertex(curX, curY, u0, v0);
                 EmitVertex(x2, y2, u1, v1);
                 EmitVertex(curX, y2, u0, v1);
 
@@ -520,15 +530,22 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         public float MeasureTextWidth(string text)
         {
             if (string.IsNullOrEmpty(text)) return 0f;
+            float maxW = 0;
             float w = 0;
             foreach (char ch in text)
             {
+                if (ch == '\n')
+                {
+                    if (w > maxW) maxW = w;
+                    w = 0;
+                    continue;
+                }
                 if (_glyphMap.TryGetValue(ch, out var glyph))
                     w += glyph.width + 1;
                 else
                     w += _cellW;
             }
-            return w;
+            return Math.Max(maxW, w);
         }
 
         public void EndFrame()

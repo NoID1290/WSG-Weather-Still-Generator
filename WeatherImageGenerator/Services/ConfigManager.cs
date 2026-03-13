@@ -208,6 +208,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("WeatherMapView")]
         public WeatherMapViewSettings? WeatherMapView { get; set; }
 
+        [JsonPropertyName("SeismogramMapView")]
+        public SeismogramMapViewSettings? SeismogramMapView { get; set; }
+
         [JsonPropertyName("FirstBootCompleted")]
         public bool FirstBootCompleted { get; set; } = false;
 
@@ -1104,5 +1107,23 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         [JsonPropertyName("AnimationInterpolationFactor")]
         public int AnimationInterpolationFactor { get; set; } = 0;
+    }
+
+    public class SeismogramMapViewSettings
+    {
+        [JsonPropertyName("ZoomLevel")]
+        public int ZoomLevel { get; set; } = 4;
+
+        [JsonPropertyName("Latitude")]
+        public double Latitude { get; set; } = 56.1304;
+
+        [JsonPropertyName("Longitude")]
+        public double Longitude { get; set; } = -106.3468;
+
+        [JsonPropertyName("MapStyleIndex")]
+        public int MapStyleIndex { get; set; } = 1;
+
+        [JsonPropertyName("WaveformWindowHours")]
+        public int WaveformWindowHours { get; set; } = 1;
     }
 }

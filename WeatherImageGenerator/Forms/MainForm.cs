@@ -141,6 +141,7 @@ namespace WeatherImageGenerator.Forms
         private System.Threading.Timer? _logArchiveTimer;
         private Button? _openWebUIBtn;
         private Button? _weatherMapBtn;
+        private Button? _seismogramBtn;
         // NAAD Status Panel
         private Panel? _naadPanel;
         private Label? _naadTitleLabel;
@@ -222,7 +223,7 @@ namespace WeatherImageGenerator.Forms
             }, null, 30000, 30000); // every 30s
             
             // === CONTROL GROUPS - Professional 5-Group Toolbar Layout ===
-            // Divider x-positions: 252, 556, 798, 1004 (drawn via TopPanel_Paint)
+            // Divider x-positions: 252, 556, 858, 1064 (drawn via TopPanel_Paint)
             // Color semantics:
             //   Forest green  = GO/active        → Start
             //   Deep crimson  = HALT/danger       → Stop, Cancel
@@ -265,20 +266,21 @@ namespace WeatherImageGenerator.Forms
             int g3Left = 567;
             int g3BtnW = 68;
             _groupLabel3 = new Label { Text = "VIEW", Left = g3Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
-            _galleryBtn    = CreateStyledButton("Gallery", g3Left,                          row1Top, g3BtnW, btnHeight, Color.FromArgb(52, 78, 110),  Color.White); // Slate blue — browse
-            _openWebUIBtn  = CreateStyledButton("Web UI",  g3Left + (g3BtnW+btnSpacing),    row1Top, 72,    btnHeight, Color.FromArgb(79, 70, 229),   Color.White); // Indigo — web
-            _weatherMapBtn = CreateStyledButton("Radar",   g3Left + (g3BtnW+btnSpacing)+78, row1Top, g3BtnW, btnHeight, Color.FromArgb(13, 140, 127), Color.White); // Teal — geo/map
-            _toggleLogsBtn = CreateStyledButton("▼ Logs",  g3Left,                          row2Top, 80,    btnHeight, Color.FromArgb(50, 62, 78),    Color.White); // Neutral — passive
+            _weatherMapBtn  = CreateStyledButton("Radar",    g3Left,                          row1Top, g3BtnW, btnHeight, Color.FromArgb(13, 140, 127), Color.White); // Teal — geo/map
+            _seismogramBtn  = CreateStyledButton("Seismograph", g3Left + (g3BtnW + btnSpacing), row1Top, 110, btnHeight, Color.FromArgb(30, 90, 160),  Color.White); // Blue — seismograph
+            _openWebUIBtn   = CreateStyledButton("Web UI",   g3Left + (g3BtnW + btnSpacing) + 110 + btnSpacing, row1Top, 72,    btnHeight, Color.FromArgb(79, 70, 229),   Color.White); // Indigo — web
+            _toggleLogsBtn  = CreateStyledButton("▼ Logs",   g3Left,                          row2Top, 80,    btnHeight, Color.FromArgb(50, 62, 78),    Color.White); // Neutral — passive
             _toggleLogsBtn.Click += (s, e) => ToggleLogsVisibility();
 
-            // ── Group 4: FILES ─────────────────────────────── x: 809–992
-            int g4Left = 809;
+            // ── Group 4: FILES ─────────────────────────────── x: 869–1052
+            int g4Left = 869;
             _groupLabel4 = new Label { Text = "FILES", Left = g4Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
             _openOutputBtn = CreateStyledButton("Output Folder", g4Left,       row1Top, 100, btnHeight, Color.FromArgb(50, 62, 78),   Color.White); // Neutral — passive
             _clearDirBtn   = CreateStyledButton("Clear Files",   g4Left + 106, row1Top, 82,  btnHeight, Color.FromArgb(130, 45, 40),  Color.White); // Brick red — destructive
+            _galleryBtn    = CreateStyledButton("Gallery",       g4Left,       row2Top, 100, btnHeight, Color.FromArgb(52, 78, 110),  Color.White); // Slate blue — browse
 
-            // ── Group 5: CONFIGURE ─────────────────────────── x: 1015–1317
-            int g5Left = 1015;
+            // ── Group 5: CONFIGURE ─────────────────────────── x: 1075–1377
+            int g5Left = 1075;
             int g5BtnW = 82;
             _groupLabel5 = new Label { Text = "CONFIGURE", Left = g5Left, Top = labelTop, AutoSize = true, Font = groupLabelFont, ForeColor = groupLabelColor };
             _locationsBtn = CreateStyledButton("Locations", g5Left,                           row1Top, g5BtnW, btnHeight, Color.FromArgb(50, 62, 78), Color.White);
@@ -658,6 +660,20 @@ namespace WeatherImageGenerator.Forms
                     MessageBox.Show($"Failed to open weather map: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
+
+            _seismogramBtn!.Click += (s, e) =>
+            {
+                try
+                {
+                    var f = new SeismogramViewerForm();
+                    f.Show();
+                    Logger.Log("Opened Seismogram Viewer.", Logger.LogLevel.Info);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to open seismogram viewer: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
             
             // Subscribe to WebUI events if the service is running
             SubscribeToWebUIEvents();
@@ -768,6 +784,7 @@ namespace WeatherImageGenerator.Forms
             _topPanel.Controls.Add(_aboutBtn);
             _topPanel.Controls.Add(_openWebUIBtn);
             _topPanel.Controls.Add(_weatherMapBtn);
+            _topPanel.Controls.Add(_seismogramBtn);
             _topPanel.Controls.Add(_toggleLogsBtn);
             _topPanel.Controls.Add(_txtWebUIUrl);
             // Add progress and status
@@ -1217,7 +1234,7 @@ namespace WeatherImageGenerator.Forms
         {
             // Draw subtle vertical divider lines between the 5 button groups
             using var pen = new Pen(Color.FromArgb(80, 180, 180, 180), 1);
-            foreach (int x in new[] { 252, 556, 798, 1004 })
+            foreach (int x in new[] { 252, 556, 858, 1064 })
                 e.Graphics.DrawLine(pen, x, 4, x, 96);
         }
 
