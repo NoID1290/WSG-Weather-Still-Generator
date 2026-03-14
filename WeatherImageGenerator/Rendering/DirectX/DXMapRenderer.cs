@@ -41,6 +41,14 @@ namespace WeatherImageGenerator.Rendering.DirectX
         private DXShader? _overlayShader;
         private DXShader? _weatherOverlayShader;
         private DXShader? _generalShader;
+        private DXShader? _markerShader;
+
+        // GPU vector station / epicenter markers
+        private StationMarkerEntry[]  _stationMarkers   = Array.Empty<StationMarkerEntry>();
+        private EpicenterMarkerEntry[] _epicenterMarkers = Array.Empty<EpicenterMarkerEntry>();
+        private float _markerEpicenterPhase;
+        private float _markerMostRecentPhase;
+        private readonly object _markerLock = new();
 
         // Shared quad geometry (4 verts + 6 indices)
         private ComPtr<ID3D11Buffer> _quadVB;
@@ -580,6 +588,29 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 "Rendering/DirectX/shaders/vertex.vs.hlsl",
                 "Rendering/DirectX/shaders/fragment.ps.hlsl",
                 GetQuadInputLayout(), genUniforms, "general");
+
+            // === Station / epicenter marker shader ===
+            var markerUniforms = new Dictionary<string, (bool, int, int)>
+            {
+                // VS cbuffer b0
+                ["uNdcX"]        = (true,  0, 4),
+                ["uNdcY"]        = (true,  4, 4),
+                ["uHalfSizeX"]   = (true,  8, 4),
+                ["uHalfSizeY"]   = (true, 12, 4),
+                ["uMarkerType"]  = (true, 16, 4),
+                // PS cbuffer b0
+                ["uColorR"]      = (false,  0, 4),
+                ["uColorG"]      = (false,  4, 4),
+                ["uColorB"]      = (false,  8, 4),
+                ["uColorA"]      = (false, 12, 4),
+                ["uRingPhase"]   = (false, 16, 4),
+                ["uSelected"]    = (false, 20, 4),
+                ["uGlowStrength"]= (false, 24, 4),
+            };
+            _markerShader = CreateShaderFromFiles(
+                "Rendering/DirectX/shaders/station_marker.vs.hlsl",
+                "Rendering/DirectX/shaders/station_marker.ps.hlsl",
+                GetQuadInputLayout(), markerUniforms, "station_marker");
         }
 
         private unsafe DXShader? CreateShaderFromFiles(
@@ -801,6 +832,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 RenderPositionedOverlay(_overlay3Srv, _overlay3MinLat, _overlay3MinLon, _overlay3MaxLat, _overlay3MaxLon, _overlay3Opacity, time, w, h);
 
             // â”€â”€â”€ Step 6: Radar frames â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            RenderStationMarkersPass(w, h);
             RenderRadarFrames(time, w, h);
 
             // â”€â”€â”€ Step 7: Crosshair â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -948,6 +980,86 @@ namespace WeatherImageGenerator.Rendering.DirectX
             _context.Handle->DrawIndexed(6, 0, 0);
 
             shader.SetFloat("uOpacity", 1f);
+        }
+
+        private unsafe void RenderStationMarkersPass(int w, int h)
+        {
+            if (_markerShader == null) return;
+
+            StationMarkerEntry[]   stations;
+            EpicenterMarkerEntry[] epicenters;
+            float epPhase, mrPhase;
+            lock (_markerLock)
+            {
+                stations   = _stationMarkers;
+                epicenters = _epicenterMarkers;
+                epPhase    = _markerEpicenterPhase;
+                mrPhase    = _markerMostRecentPhase;
+            }
+            if (stations.Length == 0 && epicenters.Length == 0) return;
+
+            BindQuadGeometry();
+            int    z  = _mapZoom;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+
+            foreach (var s in stations)
+            {
+                double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
+                double rawSy = LatToPixelY(s.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawSx / (w / 2.0) - 1.0)) * _zoom + _panX;
+                float ndcY = ((float)(1.0 - rawSy / (h / 2.0))) * _zoom + _panY;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+
+                float pxSize    = s.Selected ? 26f : 19f;
+                float halfSizeX = pxSize / (float)(w / 2.0);
+                float halfSizeY = pxSize / (float)(h / 2.0);
+                var   col       = System.Drawing.Color.FromArgb(s.ColorArgb);
+
+                _markerShader.SetFloat("uNdcX",       ndcX);
+                _markerShader.SetFloat("uNdcY",       ndcY);
+                _markerShader.SetFloat("uHalfSizeX",  halfSizeX);
+                _markerShader.SetFloat("uHalfSizeY",  halfSizeY);
+                _markerShader.SetFloat("uMarkerType", 0f);
+                _markerShader.SetFloat("uColorR",     col.R / 255f);
+                _markerShader.SetFloat("uColorG",     col.G / 255f);
+                _markerShader.SetFloat("uColorB",     col.B / 255f);
+                _markerShader.SetFloat("uColorA",     col.A / 255f);
+                _markerShader.SetFloat("uRingPhase",  0f);
+                _markerShader.SetFloat("uSelected",   s.Selected ? 1f : 0f);
+                _markerShader.SetFloat("uGlowStrength", s.Selected ? 1.5f : 1.0f);
+                _markerShader.Use();
+                _context.Handle->DrawIndexed(6, 0, 0);
+            }
+
+            foreach (var e in epicenters)
+            {
+                double rawEx = LonToPixelX(e.Lon, z) - cx + w / 2.0;
+                double rawEy = LatToPixelY(e.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawEx / (w / 2.0) - 1.0)) * _zoom + _panX;
+                float ndcY = ((float)(1.0 - rawEy / (h / 2.0))) * _zoom + _panY;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+
+                float phase     = e.IsMostRecent ? mrPhase : epPhase;
+                float halfSizeX = 95f / (float)(w / 2.0);
+                float halfSizeY = 95f / (float)(h / 2.0);
+                var   col       = System.Drawing.Color.FromArgb(e.ColorArgb);
+
+                _markerShader.SetFloat("uNdcX",       ndcX);
+                _markerShader.SetFloat("uNdcY",       ndcY);
+                _markerShader.SetFloat("uHalfSizeX",  halfSizeX);
+                _markerShader.SetFloat("uHalfSizeY",  halfSizeY);
+                _markerShader.SetFloat("uMarkerType", 1f);
+                _markerShader.SetFloat("uColorR",     col.R / 255f);
+                _markerShader.SetFloat("uColorG",     col.G / 255f);
+                _markerShader.SetFloat("uColorB",     col.B / 255f);
+                _markerShader.SetFloat("uColorA",     col.A / 255f);
+                _markerShader.SetFloat("uRingPhase",  phase);
+                _markerShader.SetFloat("uSelected",   0f);
+                _markerShader.SetFloat("uGlowStrength", 1.0f);
+                _markerShader.Use();
+                _context.Handle->DrawIndexed(6, 0, 0);
+            }
         }
 
         // â”€â”€â”€ Radar frames â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1493,6 +1605,24 @@ namespace WeatherImageGenerator.Rendering.DirectX
             if (_hostPanel.InvokeRequired) { _hostPanel.BeginInvoke(new Action(ClearPositionedOverlay3)); return; }
             _overlay3Srv.Dispose(); _overlay3Srv = default;
             _hasPositionedOverlay3 = false;
+            _hostPanel.Invalidate();
+        }
+
+        public void SetStationMarkers(StationMarkerEntry[] markers)
+        {
+            lock (_markerLock) { _stationMarkers = markers; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetEpicenterMarkers(EpicenterMarkerEntry[] epicenters)
+        {
+            lock (_markerLock) { _epicenterMarkers = epicenters; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetMarkerAnimPhase(float epicenterPhase, float mostRecentPhase)
+        {
+            lock (_markerLock) { _markerEpicenterPhase = epicenterPhase; _markerMostRecentPhase = mostRecentPhase; }
             _hostPanel.Invalidate();
         }
 

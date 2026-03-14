@@ -355,6 +355,20 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _woShaderGlowLoc = -1;
         private int _overlayShaderPulseLoc = -1;
 
+        // Station/epicenter GPU vector marker shader
+        private GLShader? _markerShader;
+        private int _smNdcXLoc = -1, _smNdcYLoc = -1;
+        private int _smHalfSizeXLoc = -1, _smHalfSizeYLoc = -1;
+        private int _smMarkerTypeLoc = -1;
+        private int _smColorRLoc = -1, _smColorGLoc = -1, _smColorBLoc = -1, _smColorALoc = -1;
+        private int _smRingPhaseLoc = -1, _smSelectedLoc = -1, _smGlowStrengthLoc = -1;
+
+        private StationMarkerEntry[]   _stationMarkers   = Array.Empty<StationMarkerEntry>();
+        private EpicenterMarkerEntry[] _epicenterMarkers = Array.Empty<EpicenterMarkerEntry>();
+        private float _markerEpicenterPhase;
+        private float _markerMostRecentPhase;
+        private readonly object _markerLock = new();
+
         // Tile loading deduplication
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task> _pendingLoads 
             = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task>();
@@ -571,6 +585,33 @@ void main() {
             _tileShaderAtmosphereLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableAtmosphere");
             _woShaderGlowLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uEnableGlow");
             _overlayShaderPulseLoc = GL.GetUniformLocation(_overlayShader.Handle, "uEnablePulse");
+
+            // Station/epicenter marker shader
+            if (EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/station_marker.vert.glsl", out var smVert) &&
+                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/station_marker.frag.glsl", out var smFrag))
+            {
+                try
+                {
+                    _markerShader = new GLShader(smVert, smFrag);
+                    int h = _markerShader.Handle;
+                    _smNdcXLoc        = GL.GetUniformLocation(h, "uNdcX");
+                    _smNdcYLoc        = GL.GetUniformLocation(h, "uNdcY");
+                    _smHalfSizeXLoc   = GL.GetUniformLocation(h, "uHalfSizeX");
+                    _smHalfSizeYLoc   = GL.GetUniformLocation(h, "uHalfSizeY");
+                    _smMarkerTypeLoc  = GL.GetUniformLocation(h, "uMarkerType");
+                    _smColorRLoc      = GL.GetUniformLocation(h, "uColorR");
+                    _smColorGLoc      = GL.GetUniformLocation(h, "uColorG");
+                    _smColorBLoc      = GL.GetUniformLocation(h, "uColorB");
+                    _smColorALoc      = GL.GetUniformLocation(h, "uColorA");
+                    _smRingPhaseLoc   = GL.GetUniformLocation(h, "uRingPhase");
+                    _smSelectedLoc    = GL.GetUniformLocation(h, "uSelected");
+                    _smGlowStrengthLoc = GL.GetUniformLocation(h, "uGlowStrength");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GLRadarControl] station_marker shader compile failed: {ex.Message}");
+                }
+            }
 
             // Initialize GRIB2 GPU shader pipeline
             _grib2GpuPipeline = new Grib2GpuPipelineGL();
@@ -1140,6 +1181,8 @@ void main() {
                     GL.Uniform1(ov3OpacityLoc, 1.0f);
             } // positioned overlay 3 (GRIB2)
 
+            RenderStationMarkersPass();
+
             // Draw radar frames (oldest first) with fading alpha
             if (_radarFrames.Count > 0)
             {
@@ -1482,6 +1525,93 @@ void main() {
 
         private GLShader? _tileShader;
 
+        private void RenderStationMarkersPass()
+        {
+            if (_markerShader == null) return;
+
+            StationMarkerEntry[]   stations;
+            EpicenterMarkerEntry[] epicenters;
+            float epPhase, mrPhase;
+            lock (_markerLock)
+            {
+                stations   = _stationMarkers;
+                epicenters = _epicenterMarkers;
+                epPhase    = _markerEpicenterPhase;
+                mrPhase    = _markerMostRecentPhase;
+            }
+            if (stations.Length == 0 && epicenters.Length == 0) return;
+
+            GL.Enable(EnableCap.Blend);
+            _markerShader.Use();
+
+            int z  = _mapZoom;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+            int w = Width, h = Height;
+
+            foreach (var s in stations)
+            {
+                double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
+                double rawSy = LatToPixelY(s.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawSx / (w / 2.0) - 1.0)) * _zoom + _pan.X;
+                float ndcY = ((float)(1.0 - rawSy / (h / 2.0))) * _zoom + _pan.Y;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+
+                float pxSize    = s.Selected ? 26f : 19f;
+                float halfSizeX = pxSize / (float)(w / 2.0);
+                float halfSizeY = pxSize / (float)(h / 2.0);
+                var   col       = System.Drawing.Color.FromArgb(s.ColorArgb);
+
+                if (_smNdcXLoc >= 0)        GL.Uniform1(_smNdcXLoc,       ndcX);
+                if (_smNdcYLoc >= 0)        GL.Uniform1(_smNdcYLoc,       ndcY);
+                if (_smHalfSizeXLoc >= 0)   GL.Uniform1(_smHalfSizeXLoc,  halfSizeX);
+                if (_smHalfSizeYLoc >= 0)   GL.Uniform1(_smHalfSizeYLoc,  halfSizeY);
+                if (_smMarkerTypeLoc >= 0)  GL.Uniform1(_smMarkerTypeLoc, 0f);
+                if (_smColorRLoc >= 0)      GL.Uniform1(_smColorRLoc,     col.R / 255f);
+                if (_smColorGLoc >= 0)      GL.Uniform1(_smColorGLoc,     col.G / 255f);
+                if (_smColorBLoc >= 0)      GL.Uniform1(_smColorBLoc,     col.B / 255f);
+                if (_smColorALoc >= 0)      GL.Uniform1(_smColorALoc,     col.A / 255f);
+                if (_smRingPhaseLoc >= 0)   GL.Uniform1(_smRingPhaseLoc,  0f);
+                if (_smSelectedLoc >= 0)    GL.Uniform1(_smSelectedLoc,   s.Selected ? 1f : 0f);
+                if (_smGlowStrengthLoc >= 0) GL.Uniform1(_smGlowStrengthLoc, s.Selected ? 1.5f : 1.0f);
+
+                GL.BindVertexArray(_vao);
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+            }
+
+            foreach (var e in epicenters)
+            {
+                double rawEx = LonToPixelX(e.Lon, z) - cx + w / 2.0;
+                double rawEy = LatToPixelY(e.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawEx / (w / 2.0) - 1.0)) * _zoom + _pan.X;
+                float ndcY = ((float)(1.0 - rawEy / (h / 2.0))) * _zoom + _pan.Y;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+
+                float phase     = e.IsMostRecent ? mrPhase : epPhase;
+                float halfSizeX = 95f / (float)(w / 2.0);
+                float halfSizeY = 95f / (float)(h / 2.0);
+                var   col       = System.Drawing.Color.FromArgb(e.ColorArgb);
+
+                if (_smNdcXLoc >= 0)        GL.Uniform1(_smNdcXLoc,       ndcX);
+                if (_smNdcYLoc >= 0)        GL.Uniform1(_smNdcYLoc,       ndcY);
+                if (_smHalfSizeXLoc >= 0)   GL.Uniform1(_smHalfSizeXLoc,  halfSizeX);
+                if (_smHalfSizeYLoc >= 0)   GL.Uniform1(_smHalfSizeYLoc,  halfSizeY);
+                if (_smMarkerTypeLoc >= 0)  GL.Uniform1(_smMarkerTypeLoc, 1f);
+                if (_smColorRLoc >= 0)      GL.Uniform1(_smColorRLoc,     col.R / 255f);
+                if (_smColorGLoc >= 0)      GL.Uniform1(_smColorGLoc,     col.G / 255f);
+                if (_smColorBLoc >= 0)      GL.Uniform1(_smColorBLoc,     col.B / 255f);
+                if (_smColorALoc >= 0)      GL.Uniform1(_smColorALoc,     col.A / 255f);
+                if (_smRingPhaseLoc >= 0)   GL.Uniform1(_smRingPhaseLoc,  phase);
+                if (_smSelectedLoc >= 0)    GL.Uniform1(_smSelectedLoc,   0f);
+                if (_smGlowStrengthLoc >= 0) GL.Uniform1(_smGlowStrengthLoc, 1.0f);
+
+                GL.BindVertexArray(_vao);
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+            }
+        }
+
         private void GLRadarControl_MouseWheel(object? sender, MouseEventArgs e)
         {
             // Let HUD consume the event first (e.g., slider adjustments, panel scrolling)
@@ -1821,6 +1951,24 @@ void main() {
                 _overlay3Texture = 0;
             }
             _hasPositionedOverlay3 = false;
+            Invalidate();
+        }
+
+        public void SetStationMarkers(StationMarkerEntry[] markers)
+        {
+            lock (_markerLock) { _stationMarkers = markers; }
+            Invalidate();
+        }
+
+        public void SetEpicenterMarkers(EpicenterMarkerEntry[] epicenters)
+        {
+            lock (_markerLock) { _epicenterMarkers = epicenters; }
+            Invalidate();
+        }
+
+        public void SetMarkerAnimPhase(float epicenterPhase, float mostRecentPhase)
+        {
+            lock (_markerLock) { _markerEpicenterPhase = epicenterPhase; _markerMostRecentPhase = mostRecentPhase; }
             Invalidate();
         }
 
@@ -2244,6 +2392,7 @@ void main() {
                 if (_tileShader != null) _tileShader.Dispose();
                 if (_overlayShader != null) _overlayShader.Dispose();
                 if (_weatherOverlayShader != null) _weatherOverlayShader.Dispose();
+                _markerShader?.Dispose();
                 _grib2GpuPipeline?.Dispose();
                 _uiRenderer?.Dispose();
 

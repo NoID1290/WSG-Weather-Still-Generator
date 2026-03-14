@@ -63,6 +63,9 @@ $shaders = @(
     @{ Name = "grib2_contour.frag.glsl";    Stage = "frag" }
     @{ Name = "grib2_atmosphere.vert.glsl"; Stage = "vert" }
     @{ Name = "grib2_atmosphere.frag.glsl"; Stage = "frag" }
+    # Station / epicenter GPU vector markers
+    @{ Name = "station_marker.vert.glsl";  Stage = "vert" }
+    @{ Name = "station_marker.frag.glsl";  Stage = "frag" }
 )
 
 $errors = 0

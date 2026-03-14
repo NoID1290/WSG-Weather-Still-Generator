@@ -53,9 +53,13 @@ namespace WeatherImageGenerator.Rendering.Common
         private bool _isDisposed;
 
         // ── Animation state ──────────────────────────────────────────────────
-        private float _epicenterRingPhase; // 0..1 cycling
-        private float _waveformScrollPos;  // 0..1 — playback head position
+        private float _epicenterRingPhase;    // 0..1 cycling
+        private float _mostRecentRingPhase;   // 0..1 cycling, faster than selected
+        private float _waveformScrollPos;     // 0..1 — playback head position
         private bool _waveformPlaying;
+
+        // ── Most-recent-event tracking ────────────────────────────────────────
+        private EarthquakeEvent? _mostRecentEvent;
 
         // ── HUD element refs ─────────────────────────────────────────────────
         private HudDropdown? _ddStation;
@@ -65,28 +69,12 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudLabel? _lblEventInfo;
         private HudButtonGroup? _grpMapStyle;
 
-        // ── Overlay bitmap constants (Mercator, zoom-5 reference) ────────────
-        private const double OV_MIN_LAT = 40.0;
-        private const double OV_MAX_LAT = 84.0;
-        private const double OV_MIN_LON = -142.5;
-        private const double OV_MAX_LON = -50.5;
-        private const int OV_ZOOM = 5;
-        private const int OV_W = 1024;
-        private const int OV_H = 700;
-
-        // Pre-computed Mercator pixel origin for the overlay bbox at OV_ZOOM
-        private double _ovOriginX;
-        private double _ovOriginY;
-        private double _ovScaleX; // pixels-per-OV_W
-        private double _ovScaleY; // pixels-per-OV_H
-
         // ── Waveform panel ───────────────────────────────────────────────────
         private WaveformPanel _waveformPanel;
 
         // ────────────────────────────────────────────────────────────────────
         public SeismogramMapControl()
         {
-            PrecomputeOverlayOrigin();
             InitializeComponents();
             InitializeMapControl();
             SetupEventHandlers();
@@ -100,16 +88,6 @@ namespace WeatherImageGenerator.Rendering.Common
         // ════════════════════════════════════════════════════════════════════
         // Initialisation
         // ════════════════════════════════════════════════════════════════════
-
-        private void PrecomputeOverlayOrigin()
-        {
-            _ovOriginX = LonToMercX(OV_MIN_LON, OV_ZOOM);
-            _ovOriginY = LatToMercY(OV_MAX_LAT, OV_ZOOM); // top = max-lat (Mercator Y flipped)
-            double xRight = LonToMercX(OV_MAX_LON, OV_ZOOM);
-            double yBottom = LatToMercY(OV_MIN_LAT, OV_ZOOM);
-            _ovScaleX = (xRight - _ovOriginX) / OV_W;
-            _ovScaleY = (yBottom - _ovOriginY) / OV_H;
-        }
 
         private void InitializeComponents()
         {
@@ -160,8 +138,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 _currentZoom = zoom;
                 UpdateStatusLabels();
-                if (!_suppressOverlayUpdates && !_glControl.IsSmoothZooming)
-                    RebuildAndPushStationOverlay();
+                // GPU markers recalculate per-frame from lat/lon — no rebuild needed
             };
 
             _glControl.MapPositionChanged += (lat, lon) =>
@@ -169,8 +146,6 @@ namespace WeatherImageGenerator.Rendering.Common
                 _currentLat = lat;
                 _currentLon = lon;
                 UpdateStatusLabels();
-                if (!_suppressOverlayUpdates)
-                    RebuildAndPushStationOverlay();
             };
         }
 
@@ -328,6 +303,41 @@ namespace WeatherImageGenerator.Rendering.Common
 
             _hudSystem.AddPanel(infoPanel);
 
+            // ── Legend panel (bottom-left) ────────────────────────────────────
+            var legendPanel = new HudPanel
+            {
+                Id         = "legend",
+                Title      = "Legend",
+                Anchor     = HudAnchor.BottomLeft,
+                Width      = 225f,
+                MarginX    = 10,
+                MarginY    = 14,
+                Collapsible = true,
+                Collapsed   = false
+            };
+
+            // Station colours
+            legendPanel.Elements.Add(new HudLegendRow { IsHeader = true, Label = "Stations" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(0, 210, 210),   Label = "Normal \u2014 no recent events" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(255, 200, 0),   Label = "Elevated \u2014 M\u22652.0 / 24 h" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(255, 80, 0),    Label = "Active \u2014 M\u22653.0 / 24 h" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(120, 130, 150), Label = "Inactive" });
+            legendPanel.Elements.Add(new HudSeparator());
+
+            // Earthquake ring colours
+            legendPanel.Elements.Add(new HudLegendRow { IsHeader = true, Label = "Earthquake rings" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(40, 200, 255),  Label = "M < 3.0" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(255, 200, 0),   Label = "M 3.0 \u2013 5.0" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(255, 80, 0),    Label = "M \u2265 5.0" });
+            legendPanel.Elements.Add(new HudSeparator());
+
+            // Marker symbols
+            legendPanel.Elements.Add(new HudLegendRow { IsHeader = true, Label = "Markers" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(255, 255, 255),  Label = "\u25b2 Selected station" });
+            legendPanel.Elements.Add(new HudLegendRow { DotColor = Color.FromArgb(200, 230, 255),  Label = "\u25cb Most recent event" });
+
+            _hudSystem.AddPanel(legendPanel);
+
             // Apply dark map style by default
             ApplyMapStyle(1);
         }
@@ -361,7 +371,7 @@ namespace WeatherImageGenerator.Rendering.Common
                         if (_isShuttingDown || _isDisposed || IsDisposed || Disposing) return;
                         PopulateStationDropdown();
                         PopulateEventDropdown();
-                        RebuildAndPushStationOverlay();
+                        RebuildStationMarkers();
                         SetStatus($"Loaded {stations.Count} stations · {events.Count} events");
                     }));
                 }
@@ -400,6 +410,12 @@ namespace WeatherImageGenerator.Rendering.Common
                 _ddEvent.Options.Add("— no events —");
             _ddEvent.SelectedIndex = 0;
             _selectedEvent = recent.Count > 0 ? recent[0] : null;
+
+            // Track the most-recent event (by origin time) for the fast-pulse marker
+            _mostRecentEvent = _events.Count > 0
+                ? _events.OrderByDescending(e => e.OriginTime).First()
+                : null;
+
             UpdateEventInfoLabel();
         }
 
@@ -456,7 +472,7 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             var sorted = _stations.OrderBy(s => s.StationCode).ToList();
             _selectedStation = idx >= 0 && idx < sorted.Count ? sorted[idx] : null;
-            RebuildAndPushStationOverlay();
+            RebuildStationMarkers();
         }
 
         private void OnEventSelectionChanged(int idx)
@@ -465,6 +481,7 @@ namespace WeatherImageGenerator.Rendering.Common
             _selectedEvent = idx >= 0 && idx < recent.Count ? recent[idx] : null;
             UpdateEventInfoLabel();
             _epicenterRingPhase = 0f;
+            RebuildEpicenterMarkers();
         }
 
         private void GoToSelectedEvent()
@@ -540,86 +557,56 @@ namespace WeatherImageGenerator.Rendering.Common
         // Station / epicentre overlay rendering
         // ════════════════════════════════════════════════════════════════════
 
-        private void RebuildAndPushStationOverlay()
+        private void RebuildStationMarkers()
         {
             if (_isShuttingDown || _isDisposed || IsDisposed || Disposing) return;
-            if (_stations.Count == 0) return;
-
-            using var bmp = new Bitmap(OV_W, OV_H, PixelFormat.Format32bppArgb);
-            using var g = Graphics.FromImage(bmp);
-            g.Clear(Color.Transparent);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            foreach (var station in _stations)
+            var entries = _stations.Select(s =>
             {
-                bool selected = station == _selectedStation;
-                var color = GetStationColor(station.ActivityLevel, selected);
-                var (px, py) = StationToOverlayPixel(station.Latitude, station.Longitude);
-                if (px < -20 || px > OV_W + 20 || py < -20 || py > OV_H + 20) continue;
-
-                DrawGlowingDot(g, px, py, color, selected ? 6f : 3.5f);
-
-                if (selected)
-                {
-                    // White ring around selected station
-                    using var ringPen = new Pen(Color.FromArgb(200, 255, 255, 255), 1.5f);
-                    g.DrawEllipse(ringPen, px - 9f, py - 9f, 18f, 18f);
-                }
-            }
-
-            using var ms = new MemoryStream();
-            bmp.Save(ms, ImageFormat.Png);
-            _glControl.SetImageBytes(ms.ToArray(), OV_MIN_LAT, OV_MIN_LON, OV_MAX_LAT, OV_MAX_LON, OV_ZOOM);
+                var col = GetStationColor(s.ActivityLevel, s == _selectedStation);
+                return new StationMarkerEntry(
+                    (float)s.Latitude, (float)s.Longitude,
+                    col.ToArgb(),
+                    s == _selectedStation);
+            }).ToArray();
+            _glControl.SetStationMarkers(entries);
         }
 
         private void EpicenterAnimTick(object? sender, EventArgs e)
         {
             if (_isShuttingDown || _isDisposed || IsDisposed || Disposing) return;
-            _epicenterRingPhase = (_epicenterRingPhase + 0.018f) % 1.0f;
-            if (_selectedEvent != null)
-                PushEpicenterOverlay();
+            _epicenterRingPhase    = (_epicenterRingPhase    + 0.018f) % 1.0f;
+            _mostRecentRingPhase   = (_mostRecentRingPhase   + 0.030f) % 1.0f;
+            if (_selectedEvent != null || _mostRecentEvent != null)
+                _glControl.SetMarkerAnimPhase(_epicenterRingPhase, _mostRecentRingPhase);
         }
 
-        private void PushEpicenterOverlay()
+        private void RebuildEpicenterMarkers()
         {
             if (_isShuttingDown || _isDisposed || IsDisposed || Disposing) return;
-            if (_selectedEvent == null)
+            var _epicenterEntries = new System.Collections.Generic.List<EpicenterMarkerEntry>();
+
+            // Most-recent-event (when different from selected)
+            if (_mostRecentEvent != null && _mostRecentEvent != _selectedEvent)
             {
-                _glControl.ClearPositionedOverlay2();
-                return;
+                var mrColor = Color.FromArgb(200, 200, 230, 255);
+                _epicenterEntries.Add(new EpicenterMarkerEntry(
+                    (float)_mostRecentEvent.Latitude, (float)_mostRecentEvent.Longitude,
+                    mrColor.ToArgb(), (float)_mostRecentEvent.Magnitude, true));
             }
 
-            var mag = _selectedEvent.Magnitude;
-            Color ringColor = mag >= 5.0 ? Color.FromArgb(255, 80, 0)
-                            : mag >= 3.0 ? Color.FromArgb(255, 200, 0)
-                            : Color.FromArgb(40, 200, 255);
-
-            using var bmp = new Bitmap(OV_W, OV_H, PixelFormat.Format32bppArgb);
-            using var g = Graphics.FromImage(bmp);
-            g.Clear(Color.Transparent);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            var (px, py) = StationToOverlayPixel(_selectedEvent.Latitude, _selectedEvent.Longitude);
-
-            // Three phase-staggered expanding rings
-            for (int ring = 0; ring < 3; ring++)
+            // Selected event
+            if (_selectedEvent != null)
             {
-                float phase  = (_epicenterRingPhase + ring * 0.333f) % 1.0f;
-                float radius = phase * 85f;
-                if (radius < 1f) continue; // GDI+ rejects zero/near-zero ellipse dimensions
-                float alpha  = (1f - phase) * 190f;
-                float width  = Math.Max(0.5f, 2.2f - phase * 2f);
-                using var pen = new Pen(Color.FromArgb((int)alpha, ringColor.R, ringColor.G, ringColor.B), width);
-                g.DrawEllipse(pen, px - radius, py - radius, radius * 2, radius * 2);
+                var mag = _selectedEvent.Magnitude;
+                var col = mag >= 5.0 ? Color.FromArgb(255, 80, 0)
+                        : mag >= 3.0 ? Color.FromArgb(255, 200, 0)
+                                     : Color.FromArgb(40, 200, 255);
+                _epicenterEntries.Add(new EpicenterMarkerEntry(
+                    (float)_selectedEvent.Latitude, (float)_selectedEvent.Longitude,
+                    col.ToArgb(), (float)mag, false));
             }
 
-            // Centre dot with magnitude-based size
-            float dotR = Math.Min(10f, 3f + (float)mag * 1.2f);
-            DrawGlowingDot(g, px, py, ringColor, dotR);
-
-            using var ms = new MemoryStream();
-            bmp.Save(ms, ImageFormat.Png);
-            _glControl.SetOverlay2Bytes(ms.ToArray(), OV_MIN_LAT, OV_MIN_LON, OV_MAX_LAT, OV_MAX_LON, OV_ZOOM);
+            _glControl.SetEpicenterMarkers(_epicenterEntries.ToArray());
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -698,7 +685,7 @@ namespace WeatherImageGenerator.Rendering.Common
             }
             finally { _suppressOverlayUpdates = false; }
             UpdateStatusLabels();
-            RebuildAndPushStationOverlay();
+            RebuildStationMarkers();
         }
 
         public void SetZoom(int zoom)
@@ -727,8 +714,6 @@ namespace WeatherImageGenerator.Rendering.Common
 
             _waveformPlaying = false;
             _selectedEvent = null;
-
-            try { _glControl?.ClearPositionedOverlay2(); } catch { }
         }
 
         public void ApplyTheme()
@@ -796,17 +781,8 @@ namespace WeatherImageGenerator.Rendering.Common
             return (0.5 - Math.Log((1 + sinLat) / (1 - sinLat)) / (4.0 * Math.PI)) * (1 << zoom) * 256.0;
         }
 
-        private (float x, float y) StationToOverlayPixel(double lat, double lon)
-        {
-            double mercX = LonToMercX(lon, OV_ZOOM);
-            double mercY = LatToMercY(lat, OV_ZOOM);
-            float px = (float)((mercX - _ovOriginX) / _ovScaleX);
-            float py = (float)((mercY - _ovOriginY) / _ovScaleY);
-            return (px, py);
-        }
-
         // ════════════════════════════════════════════════════════════════════
-        // GDI+ drawing helpers
+        // Color helpers
         // ════════════════════════════════════════════════════════════════════
 
         private static Color GetStationColor(ActivityLevel level, bool selected = false)
@@ -819,28 +795,6 @@ namespace WeatherImageGenerator.Rendering.Common
                 ActivityLevel.Normal   => Color.FromArgb(0, 210, 210),
                 _                      => Color.FromArgb(120, 130, 150)
             };
-        }
-
-        private static void DrawGlowingDot(Graphics g, float cx, float cy, Color color, float radius)
-        {
-            // Outer glow rings
-            for (int i = 4; i >= 1; i--)
-            {
-                float r = radius + i * 2.8f;
-                int alpha = 20 * (5 - i);
-                using var brush = new SolidBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
-                g.FillEllipse(brush, cx - r, cy - r, r * 2, r * 2);
-            }
-            // Core dot
-            using var core = new SolidBrush(Color.FromArgb(220, color.R, color.G, color.B));
-            g.FillEllipse(core, cx - radius, cy - radius, radius * 2, radius * 2);
-            // Bright specular highlight
-            float hr = radius * 0.38f;
-            using var hi = new SolidBrush(Color.FromArgb(255,
-                Math.Min(255, color.R + 60),
-                Math.Min(255, color.G + 60),
-                Math.Min(255, color.B + 60)));
-            g.FillEllipse(hi, cx - hr, cy - hr, hr * 2, hr * 2);
         }
 
         // ════════════════════════════════════════════════════════════════════

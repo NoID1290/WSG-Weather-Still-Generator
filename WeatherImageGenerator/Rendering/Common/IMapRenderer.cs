@@ -183,6 +183,28 @@ namespace WeatherImageGenerator.Rendering.Common
         bool Grib2GpuActive { get => false; }
 
         // ═══════════════════════════════════════════════════════════════════
+        // Station / epicenter GPU vector markers
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Upload station marker data for GPU vector rendering.
+        /// Called when station list or selection changes.
+        /// </summary>
+        void SetStationMarkers(StationMarkerEntry[] markers) { }
+
+        /// <summary>
+        /// Upload epicenter marker data for GPU vector rendering.
+        /// Called when event selection changes.
+        /// </summary>
+        void SetEpicenterMarkers(EpicenterMarkerEntry[] epicenters) { }
+
+        /// <summary>
+        /// Update the animation phase clocks for epicenter ring animation.
+        /// Called ~20 times/sec by the seismogram animation timer.
+        /// </summary>
+        void SetMarkerAnimPhase(float epicenterPhase, float mostRecentPhase) { }
+
+        // ═══════════════════════════════════════════════════════════════════
         // Map navigation
         // ═══════════════════════════════════════════════════════════════════
 

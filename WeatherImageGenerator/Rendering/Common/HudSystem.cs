@@ -225,6 +225,7 @@ namespace WeatherImageGenerator.Rendering.Common
             HudSeparator => 6f,
             HudProgressLine => 6f,
             HudButtonGroup g => ButtonHeight,
+            HudLegendRow lr => lr.IsHeader ? 22f : 20f,
             _ => 20f
         };
 
@@ -308,6 +309,9 @@ namespace WeatherImageGenerator.Rendering.Common
                         break;
                     case HudProgressLine prog:
                         RenderProgressLine(r, prog, contentX, ey, contentW, elH);
+                        break;
+                    case HudLegendRow lr:
+                        RenderLegendRow(r, lr, contentX, ey, contentW, elH);
                         break;
                 }
 
@@ -472,6 +476,33 @@ namespace WeatherImageGenerator.Rendering.Common
                 // Bright cap at leading edge
                 r.DrawRect(x + fillW - 1f, trackY - 1f, 2f, trackH + 2f, 1f, 1f, 1f, 0.55f);
             }
+        }
+
+        private void RenderLegendRow(IHudRenderer r, HudLegendRow lr, float x, float y, float w, float h)
+        {
+            float cy = y + h / 2f;
+
+            if (lr.IsHeader)
+            {
+                // Section-style header, no swatch
+                float ty = y + (h - r.LineHeight) / 2f;
+                r.DrawText(lr.Label, x, ty, AccentColor.R, AccentColor.G, AccentColor.B, AccentColor.A);
+                return;
+            }
+
+            // 8×8 filled colour swatch circle (drawn as a filled square — renderers only support DrawRect)
+            const float swatchSize = 8f;
+            float swatchX = x + 2f;
+            float swatchY = cy - swatchSize / 2f;
+            float cr = lr.DotColor.R / 255f;
+            float cg = lr.DotColor.G / 255f;
+            float cb = lr.DotColor.B / 255f;
+            r.DrawRect(swatchX, swatchY, swatchSize, swatchSize, cr, cg, cb, 0.95f);
+
+            // Label text to the right of swatch
+            float tx = swatchX + swatchSize + 7f;
+            float ty2 = y + (h - r.LineHeight) / 2f;
+            r.DrawText(lr.Label, tx, ty2, TextSecondary.R, TextSecondary.G, TextSecondary.B, TextSecondary.A);
         }
 
         private void RenderDropdown(IHudRenderer r, HudDropdown dd, float x, float y, float w, float h, bool hover)
@@ -1319,6 +1350,21 @@ namespace WeatherImageGenerator.Rendering.Common
     }
 
     public class HudSeparator : HudElement { }
+
+    /// <summary>
+    /// A single row in a legend panel: a coloured swatch circle followed by a text label.
+    /// When <see cref="IsHeader"/> is true the swatch is hidden and the text is drawn
+    /// with the section/accent colour, exactly like <see cref="HudLabel.IsSection"/>.
+    /// </summary>
+    public class HudLegendRow : HudElement
+    {
+        /// <summary>Fill colour for the 8×8 px swatch circle.</summary>
+        public Color DotColor { get; set; } = Color.White;
+        /// <summary>Descriptive text shown to the right of the swatch.</summary>
+        public string Label { get; set; } = "";
+        /// <summary>When true, renders as a section header (no swatch, accent text).</summary>
+        public bool IsHeader { get; set; } = false;
+    }
 
     /// <summary>
     /// A thin horizontal progress bar — purely decorative, shows playback progress.

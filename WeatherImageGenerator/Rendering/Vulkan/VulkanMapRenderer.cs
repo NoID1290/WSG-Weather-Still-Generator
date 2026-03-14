@@ -63,6 +63,13 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         private VulkanShader? _overlayShader;
         private VulkanShader? _weatherOverlayShader;
         private VulkanShader? _generalShader;
+        private VulkanShader? _markerShader;
+
+        private StationMarkerEntry[]   _stationMarkers   = Array.Empty<StationMarkerEntry>();
+        private EpicenterMarkerEntry[] _epicenterMarkers = Array.Empty<EpicenterMarkerEntry>();
+        private float _markerEpicenterPhase;
+        private float _markerMostRecentPhase;
+        private readonly object _markerLock = new();
 
         // Shared quad geometry
         private Silk.NET.Vulkan.Buffer _quadVB;
@@ -1081,6 +1088,27 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 hasTexture: true,
                 vertexStride: 16,
                 GetQuadVertexAttributes());
+
+            _markerShader = CreatePipeline(shaderDir, "station_marker",
+                48,
+                new Dictionary<string, (int, int)>
+                {
+                    ["uNdcX"]         = (0,  4),
+                    ["uNdcY"]         = (4,  4),
+                    ["uHalfSizeX"]    = (8,  4),
+                    ["uHalfSizeY"]    = (12, 4),
+                    ["uMarkerType"]   = (16, 4),
+                    ["uColorR"]       = (20, 4),
+                    ["uColorG"]       = (24, 4),
+                    ["uColorB"]       = (28, 4),
+                    ["uColorA"]       = (32, 4),
+                    ["uRingPhase"]    = (36, 4),
+                    ["uSelected"]     = (40, 4),
+                    ["uGlowStrength"] = (44, 4),
+                },
+                hasTexture: false,
+                vertexStride: 16,
+                GetQuadVertexAttributes());
         }
 
         private VulkanShader? CreatePipeline(string shaderDir, string name,
@@ -1255,6 +1283,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                     RenderPositionedOverlay(cmd, _overlay3Tex, _overlay3MinLat, _overlay3MinLon,
                         _overlay3MaxLat, _overlay3MaxLon, _overlay3Opacity, time, w, h);
 
+                RenderStationMarkersPass(cmd, w, h);
                 RenderRadarFrames(cmd, time, w, h);
                 RenderCrosshair(cmd, time, w, h);
                 RenderUserMarker(cmd, w, h);
@@ -1435,6 +1464,90 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 _weatherOverlayShader.LayoutHandle, 0, 1, &descSet, 0, null);
 
             _vk.CmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+        }
+
+        private unsafe void RenderStationMarkersPass(CommandBuffer cmd, int w, int h)
+        {
+            if (_markerShader == null) return;
+
+            StationMarkerEntry[]   stations;
+            EpicenterMarkerEntry[] epicenters;
+            float epPhase, mrPhase;
+            lock (_markerLock)
+            {
+                stations   = _stationMarkers;
+                epicenters = _epicenterMarkers;
+                epPhase    = _markerEpicenterPhase;
+                mrPhase    = _markerMostRecentPhase;
+            }
+            if (stations.Length == 0 && epicenters.Length == 0) return;
+
+            var vb = _quadVB;
+            ulong vbOffset = 0;
+            _vk!.CmdBindVertexBuffers(cmd, 0, 1, &vb, &vbOffset);
+            _vk.CmdBindIndexBuffer(cmd, _quadIB, 0, IndexType.Uint32);
+
+            int    z  = _mapZoom;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+
+            foreach (var s in stations)
+            {
+                double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
+                double rawSy = LatToPixelY(s.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawSx / (w / 2.0) - 1.0)) * _zoom + _panX;
+                float ndcY = ((float)(1.0 - rawSy / (h / 2.0))) * _zoom + _panY;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+
+                float pxSize    = s.Selected ? 26f : 19f;
+                float halfSizeX = pxSize / (float)(w / 2.0);
+                float halfSizeY = pxSize / (float)(h / 2.0);
+                var   col       = System.Drawing.Color.FromArgb(s.ColorArgb);
+
+                _markerShader.SetFloat("uNdcX",       ndcX);
+                _markerShader.SetFloat("uNdcY",       ndcY);
+                _markerShader.SetFloat("uHalfSizeX",  halfSizeX);
+                _markerShader.SetFloat("uHalfSizeY",  halfSizeY);
+                _markerShader.SetFloat("uMarkerType", 0f);
+                _markerShader.SetFloat("uColorR",     col.R / 255f);
+                _markerShader.SetFloat("uColorG",     col.G / 255f);
+                _markerShader.SetFloat("uColorB",     col.B / 255f);
+                _markerShader.SetFloat("uColorA",     col.A / 255f);
+                _markerShader.SetFloat("uRingPhase",  0f);
+                _markerShader.SetFloat("uSelected",   s.Selected ? 1f : 0f);
+                _markerShader.SetFloat("uGlowStrength", s.Selected ? 1.5f : 1.0f);
+                _markerShader.BindAndPush(cmd);
+                _vk.CmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+            }
+
+            foreach (var e in epicenters)
+            {
+                double rawEx = LonToPixelX(e.Lon, z) - cx + w / 2.0;
+                double rawEy = LatToPixelY(e.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawEx / (w / 2.0) - 1.0)) * _zoom + _panX;
+                float ndcY = ((float)(1.0 - rawEy / (h / 2.0))) * _zoom + _panY;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+
+                float phase     = e.IsMostRecent ? mrPhase : epPhase;
+                float halfSizeX = 95f / (float)(w / 2.0);
+                float halfSizeY = 95f / (float)(h / 2.0);
+                var   col       = System.Drawing.Color.FromArgb(e.ColorArgb);
+
+                _markerShader.SetFloat("uNdcX",       ndcX);
+                _markerShader.SetFloat("uNdcY",       ndcY);
+                _markerShader.SetFloat("uHalfSizeX",  halfSizeX);
+                _markerShader.SetFloat("uHalfSizeY",  halfSizeY);
+                _markerShader.SetFloat("uMarkerType", 1f);
+                _markerShader.SetFloat("uColorR",     col.R / 255f);
+                _markerShader.SetFloat("uColorG",     col.G / 255f);
+                _markerShader.SetFloat("uColorB",     col.B / 255f);
+                _markerShader.SetFloat("uColorA",     col.A / 255f);
+                _markerShader.SetFloat("uRingPhase",  phase);
+                _markerShader.SetFloat("uSelected",   0f);
+                _markerShader.SetFloat("uGlowStrength", 1.0f);
+                _markerShader.BindAndPush(cmd);
+                _vk.CmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+            }
         }
 
         private void RenderRadarFrames(CommandBuffer cmd, float time, int w, int h)
@@ -1870,6 +1983,24 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             _hostPanel.Invalidate();
         }
 
+        public void SetStationMarkers(StationMarkerEntry[] markers)
+        {
+            lock (_markerLock) { _stationMarkers = markers; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetEpicenterMarkers(EpicenterMarkerEntry[] epicenters)
+        {
+            lock (_markerLock) { _epicenterMarkers = epicenters; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetMarkerAnimPhase(float epicenterPhase, float mostRecentPhase)
+        {
+            lock (_markerLock) { _markerEpicenterPhase = epicenterPhase; _markerMostRecentPhase = mostRecentPhase; }
+            _hostPanel.Invalidate();
+        }
+
         // ═══════════════════════════════════════════════════════════════════
         // Map navigation
         // ═══════════════════════════════════════════════════════════════════
@@ -2054,6 +2185,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
             _weatherOverlayShader?.Dispose();
             _overlayShader?.Dispose();
             _generalShader?.Dispose();
+            _markerShader?.Dispose();
             _hudRenderer?.Dispose();
 
             // Buffers
