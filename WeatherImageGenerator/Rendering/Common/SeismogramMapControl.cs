@@ -117,7 +117,7 @@ namespace WeatherImageGenerator.Rendering.Common
             this.BackColor = ThemeManager.Current.Background;
 
             // Waveform panel docked at the bottom (carved out first so Fill leaves it alone)
-            _waveformPanel = new WaveformPanel { Height = 165, Dock = DockStyle.Bottom };
+            _waveformPanel = new WaveformPanel { Height = 240, Dock = DockStyle.Bottom };
             this.Controls.Add(_waveformPanel);
         }
 
@@ -422,6 +422,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 // Capture locals so the marshalled callback cannot hit a null _selectedStation.
                 var capturedWaveform = waveform;
                 var capturedStation  = _selectedStation;
+                var capturedEvent    = _selectedEvent;
 
                 if (_glControl.HostControl.IsHandleCreated)
                     _glControl.HostControl.BeginInvoke(new Action(() =>
@@ -429,6 +430,7 @@ namespace WeatherImageGenerator.Rendering.Common
                         if (_isShuttingDown || _isDisposed || IsDisposed || Disposing) return;
                         if (capturedWaveform == null) return;
                         _waveformPanel.SetWaveform(capturedWaveform, capturedStation);
+                        _waveformPanel.SetEvent(capturedEvent);
                         if (capturedStation != null)
                             SetStatus(capturedWaveform.HasData
                                 ? $"{capturedStation.StationCode} · {capturedWaveform.Samples.Length:N0} samples · {capturedWaveform.SampleRateHz:F1} sps"
@@ -511,6 +513,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 $"M{_selectedEvent.Magnitude:F2}  \u2014  {_selectedEvent.Location}\n" +
                 $"{_selectedEvent.OriginTime:yyyy-MM-dd HH:mm:ss} UTC  \u00b7  {ageStr}\n" +
                 $"Depth: {_selectedEvent.DepthKm:F0} km";
+            _waveformPanel.SetEvent(_selectedEvent);
         }
 
         private void SetStatus(string msg)
@@ -872,21 +875,31 @@ namespace WeatherImageGenerator.Rendering.Common
     /// </summary>
     internal class WaveformPanel : Panel
     {
-        private SeismogramData? _waveform;
-        private SeismicStation? _station;
-        private float _scrollPos;   // 0..1 — normalised playback head
-        private bool _playing;
+        private SeismogramData?  _waveform;
+        private SeismicStation?  _station;
+        private EarthquakeEvent? _event;
+        private float            _scrollPos;  // 0..1 — normalised playback head
+        private bool             _playing;
 
         // Visible window: fraction of total samples shown at once
         private const float WindowFraction = 0.25f;
 
-        private static readonly Color BgColor      = Color.FromArgb(18, 22, 30);
-        private static readonly Color GridColor     = Color.FromArgb(32, 45, 62);
-        private static readonly Color BaselineColor = Color.FromArgb(55, 72, 95);
-        private static readonly Color TraceColor    = Color.FromArgb(0, 205, 225);
-        private static readonly Color HighColor     = Color.FromArgb(255, 140, 20);
-        private static readonly Color CursorColor   = Color.FromArgb(230, 240, 255);
-        private static readonly Color TextColor     = Color.FromArgb(165, 185, 210);
+        // Layout zones (pixels)
+        private const int TopHeaderH  = 28;
+        private const int BottomAxisH = 22;
+        private const int LeftAxisW   = 45;
+        private const int RightMargin = 8;
+
+        private static readonly Color BgColor       = Color.FromArgb(18, 22, 30);
+        private static readonly Color GridColor      = Color.FromArgb(32, 45, 62);
+        private static readonly Color BaselineColor  = Color.FromArgb(55, 72, 95);
+        private static readonly Color TraceColor     = Color.FromArgb(0, 205, 225);
+        private static readonly Color HighColor      = Color.FromArgb(255, 140, 20);
+        private static readonly Color CursorColor    = Color.FromArgb(230, 240, 255);
+        private static readonly Color TextColor      = Color.FromArgb(165, 185, 210);
+        private static readonly Color LiveColor      = Color.FromArgb(60, 220, 100);
+        private static readonly Color AxisColor      = Color.FromArgb(55, 72, 95);
+        private static readonly Color HeaderSepColor = Color.FromArgb(36, 52, 72);
 
         internal WaveformPanel()
         {
@@ -898,10 +911,34 @@ namespace WeatherImageGenerator.Rendering.Common
 
         internal void SetWaveform(SeismogramData? data, SeismicStation? station)
         {
-            _waveform = data;
-            _station  = station;
+            _waveform  = data;
+            _station   = station;
             _scrollPos = 0f;
             Invalidate();
+        }
+
+        internal void SetEvent(EarthquakeEvent? ev)
+        {
+            _event = ev;
+            Invalidate();
+        }
+
+        // ── Visible-window helper ───────────────────────────────────────────────
+        private (DateTime windowStart, TimeSpan windowDuration, int startSample, int winLen)?
+            GetVisibleWindow()
+        {
+            if (_waveform == null || !_waveform.HasData || _waveform.SampleRateHz <= 0)
+                return null;
+
+            int total  = _waveform.Samples.Length;
+            int winLen = Math.Max(1, (int)(total * WindowFraction));
+            int start  = (int)(_scrollPos * (total - winLen));
+            start = Math.Clamp(start, 0, Math.Max(0, total - winLen));
+
+            var windowStart    = _waveform.StartTime.AddSeconds(start / _waveform.SampleRateHz);
+            var windowDuration = TimeSpan.FromSeconds(winLen / _waveform.SampleRateHz);
+
+            return (windowStart, windowDuration, start, winLen);
         }
 
         internal void SetScrollPosition(float pos)
@@ -924,83 +961,90 @@ namespace WeatherImageGenerator.Rendering.Common
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            var g = e.Graphics;
+            var g  = e.Graphics;
             g.Clear(BgColor);
             var rc = this.ClientRectangle;
+
+            var contentRect = new Rectangle(
+                LeftAxisW,
+                TopHeaderH + 2,
+                Math.Max(1, rc.Width  - LeftAxisW   - RightMargin),
+                Math.Max(1, rc.Height - TopHeaderH  - BottomAxisH - 4));
+
+            DrawHeaderBar(g, rc, contentRect);
 
             if (_waveform == null || !_waveform.HasData)
             {
                 DrawEmptyState(g, rc);
+                DrawBorder(g, rc);
                 return;
             }
 
-            DrawGrid(g, rc);
-            DrawBaseline(g, rc);
-            DrawTrace(g, rc);
-            DrawCursor(g, rc);
-            DrawMeta(g, rc);
+            DrawGrid(g, contentRect);
+            DrawBaseline(g, contentRect);
+            DrawAmplitudeAxis(g, contentRect);
+            DrawTimestampAxis(g, contentRect);
+            DrawTrace(g, contentRect);
+            DrawEventMarker(g, contentRect);
+            DrawCursor(g, contentRect);
             DrawBorder(g, rc);
         }
 
         private static void DrawEmptyState(Graphics g, Rectangle rc)
         {
-            using var font = new Font("Segoe UI", 11f, FontStyle.Regular);
+            using var font  = new Font("Segoe UI", 11f, FontStyle.Regular);
             using var brush = new SolidBrush(Color.FromArgb(90, 110, 140));
-            string msg = "No waveform data  ·  Select a station and click Load Waveform";
-            var size = g.MeasureString(msg, font);
+            string msg  = "No waveform data  ·  Select a station and click Load Waveform";
+            var    size = g.MeasureString(msg, font);
             g.DrawString(msg, font, brush,
-                (rc.Width - size.Width) / 2f,
-                (rc.Height - size.Height) / 2f);
-            using var borderPen = new Pen(Color.FromArgb(35, 50, 70), 1f);
-            g.DrawLine(borderPen, 0, 0, rc.Width, 0);
+                (rc.Width  - size.Width)  / 2f,
+                TopHeaderH + (rc.Height - TopHeaderH - size.Height) / 2f);
         }
 
-        private static void DrawGrid(Graphics g, Rectangle rc)
+        private static void DrawGrid(Graphics g, Rectangle contentRect)
         {
             using var pen = new Pen(GridColor, 1f);
             int gridCols = 12;
             int gridRows = 4;
             for (int c = 1; c < gridCols; c++)
             {
-                int x = rc.Width * c / gridCols;
-                g.DrawLine(pen, x, 0, x, rc.Height);
+                int x = contentRect.Left + contentRect.Width * c / gridCols;
+                g.DrawLine(pen, x, contentRect.Top, x, contentRect.Bottom);
             }
             for (int r = 1; r < gridRows; r++)
             {
-                int y = rc.Height * r / gridRows;
-                g.DrawLine(pen, 0, y, rc.Width, y);
+                int y = contentRect.Top + contentRect.Height * r / gridRows;
+                g.DrawLine(pen, contentRect.Left, y, contentRect.Right, y);
             }
         }
 
-        private static void DrawBaseline(Graphics g, Rectangle rc)
+        private static void DrawBaseline(Graphics g, Rectangle contentRect)
         {
-            int mid = rc.Height / 2;
+            int mid = contentRect.Top + contentRect.Height / 2;
             using var pen = new Pen(BaselineColor, 1f);
-            g.DrawLine(pen, 0, mid, rc.Width, mid);
+            g.DrawLine(pen, contentRect.Left, mid, contentRect.Right, mid);
         }
 
-        private void DrawTrace(Graphics g, Rectangle rc)
+        private void DrawTrace(Graphics g, Rectangle contentRect)
         {
-            float[] samples = _waveform!.NormalizedSamples();
-            int total  = samples.Length;
-            int winLen = Math.Max(1, (int)(total * WindowFraction));
-            int start  = (int)(_scrollPos * (total - winLen));
-            start = Math.Clamp(start, 0, total - winLen);
+            var win = GetVisibleWindow();
+            if (!win.HasValue) return;
 
-            // Decimate to screen-width pixels for performance
-            int targetCount = rc.Width;
-            var span = new ArraySegment<float>(samples, start, winLen);
-            float[] disp = Decimate(span, targetCount);
+            float[] samples    = _waveform!.NormalizedSamples();
+            int     start      = win.Value.startSample;
+            int     winLen     = win.Value.winLen;
+            int     targetCount = contentRect.Width;
+            var     span       = new ArraySegment<float>(samples, start, winLen);
+            float[] disp       = Decimate(span, targetCount);
 
-            float mid    = rc.Height / 2f;
-            float hRange = rc.Height * 0.44f;
+            float mid          = contentRect.Top + contentRect.Height / 2f;
+            float hRange       = contentRect.Height * 0.44f;
             float ampThreshold = 0.65f;
 
             var points = new PointF[disp.Length];
             for (int i = 0; i < disp.Length; i++)
-                points[i] = new PointF(i, mid - disp[i] * hRange);
+                points[i] = new PointF(contentRect.Left + i, mid - disp[i] * hRange);
 
-            // Draw trace in two passes: normal amplitude (cyan), high amplitude (orange)
             using var tracePen = new Pen(TraceColor, 1.2f) { LineJoin = LineJoin.Round };
             using var highPen  = new Pen(HighColor,  1.5f) { LineJoin = LineJoin.Round };
 
@@ -1016,36 +1060,196 @@ namespace WeatherImageGenerator.Rendering.Common
             if (highPts.Count   > 1) g.DrawLines(highPen,  highPts.ToArray());
         }
 
-        private void DrawCursor(Graphics g, Rectangle rc)
+        // ── Earthquake event origin marker ───────────────────────────────────
+
+        private void DrawEventMarker(Graphics g, Rectangle contentRect)
+        {
+            if (_event == null || _waveform == null || !_waveform.HasData) return;
+
+            var win = GetVisibleWindow();
+            if (!win.HasValue) return;
+
+            double frac = (_event.OriginTime - win.Value.windowStart).TotalSeconds
+                          / win.Value.windowDuration.TotalSeconds;
+            if (frac < 0.0 || frac > 1.0) return;
+
+            float  x   = contentRect.Left + (float)(frac * contentRect.Width);
+            double mag = _event.Magnitude;
+            Color  mc  = mag >= 5.0 ? Color.FromArgb(255, 100, 40)
+                       : mag >= 3.0 ? Color.FromArgb(255, 210, 40)
+                       : Color.FromArgb(80, 210, 255);
+
+            using var dashPen = new Pen(Color.FromArgb(210, mc.R, mc.G, mc.B), 1.5f)
+                { DashStyle = DashStyle.Dash };
+            g.DrawLine(dashPen, x, contentRect.Top, x, contentRect.Bottom);
+
+            using var font  = new Font("Segoe UI", 8f, FontStyle.Bold);
+            using var brush = new SolidBrush(Color.FromArgb(230, mc.R, mc.G, mc.B));
+            string lbl = $"M{mag:F1}";
+            var    sz  = g.MeasureString(lbl, font);
+            float  tx  = Math.Clamp(x - sz.Width / 2f,
+                (float)contentRect.Left,
+                Math.Max((float)contentRect.Left, contentRect.Right - sz.Width));
+            g.DrawString(lbl, font, brush, tx, contentRect.Top + 2f);
+        }
+
+        // ── Playback cursor ───────────────────────────────────────────────────
+
+        private void DrawCursor(Graphics g, Rectangle contentRect)
         {
             if (!_playing) return;
-            float x = _scrollPos * rc.Width;
-            using var glow = new Pen(Color.FromArgb(50, CursorColor.R, CursorColor.G, CursorColor.B), 5f);
+            float x = contentRect.Left + _scrollPos * contentRect.Width;
+            using var glow = new Pen(Color.FromArgb(50,  CursorColor.R, CursorColor.G, CursorColor.B), 5f);
             using var line = new Pen(Color.FromArgb(200, CursorColor.R, CursorColor.G, CursorColor.B), 1.5f);
-            g.DrawLine(glow, x, 0, x, rc.Height);
-            g.DrawLine(line, x, 0, x, rc.Height);
+            g.DrawLine(glow, x, contentRect.Top, x, contentRect.Bottom);
+            g.DrawLine(line, x, contentRect.Top, x, contentRect.Bottom);
         }
 
-        private void DrawMeta(Graphics g, Rectangle rc)
+        // ── Header bar ───────────────────────────────────────────────────────
+
+        private void DrawHeaderBar(Graphics g, Rectangle rc, Rectangle contentRect)
         {
-            if (_waveform == null || _station == null) return;
-            using var font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
-            using var brush = new SolidBrush(TextColor);
+            using var bgBrush = new SolidBrush(Color.FromArgb(24, 30, 42));
+            g.FillRectangle(bgBrush, 0, 0, rc.Width, TopHeaderH);
 
-            string left = $"{_station.StationCode} · {_waveform.Channel} · {_waveform.SampleRateHz:F1} sps";
-            string mid  = _waveform.HasData
-                ? $"{_waveform.StartTime:yyyy-MM-dd HH:mm}  +{_waveform.DurationSeconds / 3600.0:F1} h"
-                : "No data";
-            string right = _playing ? "▶ PLAYING" : "⏸ PAUSED  [SPACE]";
+            using var sepPen = new Pen(HeaderSepColor, 1f);
+            g.DrawLine(sepPen, 0, TopHeaderH, rc.Width, TopHeaderH);
 
-            g.DrawString(left,  font, brush, 6f, 3f);
+            using var fontMain = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+            using var fontDim  = new Font("Segoe UI", 7.5f, FontStyle.Regular);
+            using var fontBold = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            using var brushMain = new SolidBrush(TextColor);
+            using var brushDim  = new SolidBrush(Color.FromArgb(100, 130, 165));
 
-            var midSize = g.MeasureString(mid, font);
-            g.DrawString(mid, font, brush, (rc.Width - midSize.Width) / 2f, 3f);
+            float cy = (TopHeaderH - fontMain.GetHeight(g)) / 2f;
 
-            var rightSize = g.MeasureString(right, font);
-            g.DrawString(right, font, brush, rc.Width - rightSize.Width - 6f, 3f);
+            // ── Left: station identity ──
+            if (_station != null)
+            {
+                string stationLabel = $"{_station.Network}.{_station.StationCode}  \u2013  {_station.SiteName}";
+                g.DrawString(stationLabel, fontBold, brushMain, LeftAxisW + 2f, cy - 1f);
+                if (_waveform != null)
+                {
+                    var    stSize  = g.MeasureString(stationLabel, fontBold);
+                    string chLabel = $"  {_waveform.Channel} \u00b7 {_waveform.SampleRateHz:F1} sps";
+                    g.DrawString(chLabel, fontDim, brushDim, LeftAxisW + 2f + stSize.Width - 4f, cy + 1f);
+                }
+            }
+            else if (_waveform == null)
+            {
+                g.DrawString("No waveform loaded", fontDim, brushDim, LeftAxisW + 2f, cy);
+            }
+
+            // ── Centre: visible UTC time window ──
+            var win = GetVisibleWindow();
+            if (win.HasValue)
+            {
+                var    ws       = win.Value.windowStart;
+                var    we       = ws + win.Value.windowDuration;
+                string datePart = ws.Date == we.Date
+                    ? ws.ToString("yyyy-MM-dd")
+                    : $"{ws:MM/dd} \u2013 {we:MM/dd}";
+                string timeFmt    = win.Value.windowDuration.TotalHours < 1.0 ? "HH:mm:ss" : "HH:mm";
+                string centreText = $"{datePart}  \u00b7  {ws.ToString(timeFmt)} \u2013 {we.ToString(timeFmt)} UTC";
+                var    cSize      = g.MeasureString(centreText, fontMain);
+                g.DrawString(centreText, fontMain, brushMain, (rc.Width - cSize.Width) / 2f, cy);
+            }
+
+            // ── Right: live/age badge + play state ──
+            if (_waveform != null)
+            {
+                bool   isLive = _waveform.EndTime >= DateTime.UtcNow.AddMinutes(-5);
+                string freshStr;
+                Color  freshColor;
+                if (isLive)
+                {
+                    freshStr   = "\u25cf LIVE";
+                    freshColor = LiveColor;
+                }
+                else
+                {
+                    var age = DateTime.UtcNow - _waveform.EndTime;
+                    freshStr = age.TotalDays  >= 1 ? $"\u23f0 {(int)age.TotalDays}d ago"
+                             : age.TotalHours >= 1 ? $"\u23f0 {(int)age.TotalHours}h ago"
+                             : $"\u23f0 {(int)age.TotalMinutes}m ago";
+                    freshColor = Color.FromArgb(140, 160, 185);
+                }
+
+                string playStr = _playing ? "  \u25b6 PLAYING" : "  \u23f8 [SPACE]";
+                using var freshBrush = new SolidBrush(freshColor);
+                using var playBrush  = new SolidBrush(Color.FromArgb(180,
+                    CursorColor.R, CursorColor.G, CursorColor.B));
+                var   freshSize = g.MeasureString(freshStr, fontMain);
+                var   playSize  = g.MeasureString(playStr,  fontMain);
+                float rx        = rc.Width - freshSize.Width - playSize.Width - RightMargin - 4f;
+                g.DrawString(freshStr, fontMain, freshBrush, rx, cy);
+                g.DrawString(playStr,  fontMain, playBrush,  rx + freshSize.Width - 4f, cy);
+            }
         }
+
+        // ── Y-axis amplitude labels ───────────────────────────────────────────
+
+        private static void DrawAmplitudeAxis(Graphics g, Rectangle contentRect)
+        {
+            using var font    = new Font("Segoe UI", 7f, FontStyle.Regular);
+            using var brush   = new SolidBrush(Color.FromArgb(100, 130, 165));
+            using var rulePen = new Pen(AxisColor, 1f);
+
+            g.DrawLine(rulePen, contentRect.Left, contentRect.Top, contentRect.Left, contentRect.Bottom);
+
+            string[] labels = { "+100", "+50", "0", "\u221250", "\u2212100" };
+            for (int i = 0; i < labels.Length; i++)
+            {
+                float frac = i / (float)(labels.Length - 1);
+                float y    = contentRect.Top + frac * contentRect.Height;
+                var   sz   = g.MeasureString(labels[i], font);
+                g.DrawString(labels[i], font, brush,
+                    contentRect.Left - sz.Width - 3f, y - sz.Height / 2f);
+                using var tickPen = new Pen(AxisColor, 1f);
+                g.DrawLine(tickPen, contentRect.Left - 3, (int)y, contentRect.Left, (int)y);
+            }
+        }
+
+        // ── X-axis timestamp labels ───────────────────────────────────────────
+
+        private void DrawTimestampAxis(Graphics g, Rectangle contentRect)
+        {
+            var win = GetVisibleWindow();
+            if (!win.HasValue) return;
+
+            var    windowStart    = win.Value.windowStart;
+            var    windowDuration = win.Value.windowDuration;
+            string fmt = windowDuration.TotalHours >= 4.0 ? "MM/dd HH:mm"
+                       : windowDuration.TotalHours >= 1.0 ? "HH:mm"
+                       : "HH:mm:ss";
+
+            using var font    = new Font("Segoe UI", 7f, FontStyle.Regular);
+            using var brush   = new SolidBrush(Color.FromArgb(100, 130, 165));
+            using var tickPen = new Pen(AxisColor, 1f);
+            using var rulePen = new Pen(AxisColor, 1f);
+
+            int axisY = contentRect.Bottom + 1;
+            g.DrawLine(rulePen, contentRect.Left, axisY, contentRect.Right, axisY);
+
+            const int ticks = 8;
+            for (int i = 0; i <= ticks; i++)
+            {
+                float  frac = i / (float)ticks;
+                float  x    = contentRect.Left + frac * contentRect.Width;
+                var    ts   = windowStart.AddSeconds(frac * windowDuration.TotalSeconds);
+                string lbl  = ts.ToString(fmt);
+
+                g.DrawLine(tickPen, (int)x, axisY, (int)x, axisY + 4);
+
+                var   sz = g.MeasureString(lbl, font);
+                float tx = Math.Clamp(x - sz.Width / 2f,
+                    (float)contentRect.Left,
+                    Math.Max((float)contentRect.Left, contentRect.Right - sz.Width));
+                g.DrawString(lbl, font, brush, tx, axisY + 5f);
+            }
+        }
+
+        // ── Border ────────────────────────────────────────────────────────────
 
         private static void DrawBorder(Graphics g, Rectangle rc)
         {
