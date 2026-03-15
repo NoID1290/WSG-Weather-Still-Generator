@@ -14,7 +14,7 @@
 #   On "backend":  b++, c=0
 #   On "fix":      c++
 #
-#   Library projects (ECCC, EAS, WeatherShared, OpenMap, Grib2) skip frontend-only bumps.
+#   Library projects (ECCC, EAS, EKCA, WeatherShared, OpenMap, Grib2) skip frontend-only bumps.
 #   Copyright year in AssemblyInfo.cs is updated automatically.
 # ============================================================================
 
@@ -40,6 +40,7 @@ param(
 $projectFilePath = "WeatherImageGenerator\WeatherImageGenerator.csproj"
 $ecccProjectFilePath = "ECCC\ECCC.csproj"
 $easProjectFilePath = "EAS\EAS.csproj"
+$ekcaProjectFilePath = "EKCA\EKCA.csproj"
 $weatherSharedProjectFilePath = "WeatherShared\WeatherShared.csproj"
 $openMapProjectFilePath = "OpenMap\OpenMap.csproj"
 $grib2ProjectFilePath = "Grib2\Grib2.csproj"
@@ -49,6 +50,7 @@ $versionManagedProjects = @(
     @{ Path = $projectFilePath; Name = "WSG"; UseForTag = $true },
     @{ Path = $easProjectFilePath; Name = "EAS" },
     @{ Path = $ecccProjectFilePath; Name = "ECCC" },
+    @{ Path = $ekcaProjectFilePath; Name = "EKCA" },
     @{ Path = $weatherSharedProjectFilePath; Name = "WeatherShared" },
     @{ Path = $openMapProjectFilePath; Name = "OpenMap" },
     @{ Path = $grib2ProjectFilePath; Name = "Grib2" },
@@ -122,8 +124,8 @@ function Update-ProjectVersion {
     if (-not $ver) { $ver = "1.0.0.0101" } # Default if missing
     
     # Check if this update type applies to this project
-    # ECCC, EAS, OpenMap, WeatherShared, Grib2, and WSG.Updater (Libs/Tools) shouldn't update on Frontend changes
-    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "WeatherShared" -or $Name -eq "OpenMap" -or $Name -eq "Grib2" -or $Name -eq "WSG.Updater") -and $UpdateType -eq "frontend") {
+    # ECCC, EAS, EKCA, OpenMap, WeatherShared, Grib2, and WSG.Updater (Libs/Tools) shouldn't update on Frontend changes
+    if (($Name -eq "ECCC" -or $Name -eq "EAS" -or $Name -eq "EKCA" -or $Name -eq "WeatherShared" -or $Name -eq "OpenMap" -or $Name -eq "Grib2" -or $Name -eq "WSG.Updater") -and $UpdateType -eq "frontend") {
         Write-Host "[INFO] Skipping $Name version update (Frontend change only)" -ForegroundColor Gray
         return $ver
     }
