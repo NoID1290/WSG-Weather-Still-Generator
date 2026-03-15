@@ -12,7 +12,7 @@ uniform float uRingPhase;
 uniform float uSelected;
 uniform float uGlowStrength;
 
-// ── IQ equilateral-triangle SDF, apex pointing up ────────────────────────
+// IQ equilateral-triangle SDF, apex pointing up
 float sdEquilateralTriangle(vec2 p, float r) {
     const float k = 1.7320508; // sqrt(3)
     p.x = abs(p.x) - r;
@@ -29,7 +29,7 @@ void main() {
     vec3  outColor  = baseColor;
 
     if (vType < 0.5) {
-        // ── Station triangle ──────────────────────────────────────────────
+        // Station triangle
         vec2  p   = vec2(vUv.x, -vUv.y + 0.12);
         float sdf = sdEquilateralTriangle(p, 0.78);
 
@@ -50,7 +50,7 @@ void main() {
         }
 
     } else {
-        // ── Epicenter dot + animated rings ────────────────────────────────
+        // Epicenter dot + animated rings
         float r = length(vUv);
 
         float coreA = smoothstep(0.28, 0.18, r);
