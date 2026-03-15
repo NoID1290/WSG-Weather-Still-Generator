@@ -190,6 +190,10 @@ namespace WeatherImageGenerator.Rendering.Common
                     panel.X = (vw - w) / 2f;
                     panel.Y = vh - h - panel.MarginY;
                     break;
+                case HudAnchor.LeftCenter:
+                    panel.X = panel.MarginX;
+                    panel.Y = (vh - h) / 2f;
+                    break;
                 case HudAnchor.RightCenter:
                     panel.X = vw - w - panel.MarginX;
                     panel.Y = (vh - h) / 2f;
@@ -1250,7 +1254,7 @@ namespace WeatherImageGenerator.Rendering.Common
     {
         TopLeft, TopRight, TopCenter,
         BottomLeft, BottomRight, BottomCenter,
-        RightCenter,
+        LeftCenter, RightCenter,
         Manual
     }
 

@@ -308,7 +308,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 Id         = "legend",
                 Title      = "Legend",
-                Anchor     = HudAnchor.BottomLeft,
+                Anchor     = HudAnchor.LeftCenter,
                 Width      = 225f,
                 MarginX    = 10,
                 MarginY    = 14,
