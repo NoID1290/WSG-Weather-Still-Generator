@@ -114,6 +114,7 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkAlertReadyEnabled;
         TextBox txtAlertReadyFeedUrls;
         CheckBox chkAlertReadyIncludeTests;
+        CheckBox chkAlertReadyGenerateVideoOnAlert;
         NumericUpDown numAlertReadyMaxAgeHours;
         ComboBox cmbAlertReadyLanguage;
         TextBox txtAlertReadyAreaFilters;
@@ -121,6 +122,7 @@ namespace WeatherImageGenerator.Forms
         CheckBox chkAlertReadyHighRiskOnly;
         CheckBox chkAlertReadyExcludeWeather;
         CheckBox chkNwsEnabled;
+        CheckBox chkNwsGenerateVideoOnAlert;
         TextBox txtNwsStates;
         TextBox txtNwsZones;
         TextBox txtNwsPoint;
@@ -133,8 +135,10 @@ namespace WeatherImageGenerator.Forms
         ComboBox cmbTtsVoice;
         TextBox txtTtsRate;
         TextBox txtTtsPitch;
+        CheckBox chkEdgeGenerateVideoOnAlert;
         ComboBox cmbPiperVoice;
         NumericUpDown numPiperLengthScale;
+        CheckBox chkPiperGenerateVideoOnAlert;
         Control[] _edgeTtsControls;
         Control[] _piperTtsControls;
 
@@ -1280,6 +1284,9 @@ namespace WeatherImageGenerator.Forms
             chkAlertReadyEnabled = CreateCheckBox("Enable Alert Ready", labelX, y, 250);
             y += rowHeight;
 
+            chkAlertReadyGenerateVideoOnAlert = CreateCheckBox("Generate video on alert", labelX, y, 250);
+            y += rowHeight;
+
             var lblFeedUrls = CreateLabel("Feed URLs:", labelX, y);
             y += 25;
             txtAlertReadyFeedUrls = new TextBox
@@ -1328,6 +1335,9 @@ namespace WeatherImageGenerator.Forms
             y += 35;
 
             chkNwsEnabled = CreateCheckBox("Enable NWS Alerts", labelX, y, 250);
+            y += rowHeight;
+
+            chkNwsGenerateVideoOnAlert = CreateCheckBox("Generate video on alert", labelX, y, 250);
             y += rowHeight;
 
             var lblNwsStates = CreateLabel("State Codes:", labelX, y);
@@ -1407,6 +1417,9 @@ namespace WeatherImageGenerator.Forms
             var lblPitchHelp = CreateHelpLabel("e.g., +0Hz, +10Hz", fieldX + 110, y + 2);
             y += rowHeight + 5;
 
+            chkEdgeGenerateVideoOnAlert = CreateCheckBox("Generate video on alert", labelX, y, 250);
+            y += rowHeight;
+
             var btnDownloadVoices = CreatePrimaryButton("📥 Download Windows TTS Voices", labelX, y, 260, 32);
             btnDownloadVoices.Click += (s, e) => DownloadWindowsVoices();
             y += 45;
@@ -1437,13 +1450,16 @@ namespace WeatherImageGenerator.Forms
             var lblPiperSpeedHelp = CreateHelpLabel("0.5=faster, 1.0=normal, 2.0=slower", fieldX + 110, y + 2);
             y += rowHeight + 5;
 
+            chkPiperGenerateVideoOnAlert = CreateCheckBox("Generate video on alert", labelX, y, 250);
+            y += rowHeight;
+
             var btnInstallPiper = CreatePrimaryButton("⬇ Install Piper TTS", labelX, y, 260, 32);
             btnInstallPiper.Click += (s, e) => InstallPiperTts();
             y += 45;
 
             // TTS visibility arrays for clean toggling
-            _edgeTtsControls = new Control[] { lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp, lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices };
-            _piperTtsControls = new Control[] { lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, btnInstallPiper };
+            _edgeTtsControls = new Control[] { lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp, lblPitch, txtTtsPitch, lblPitchHelp, chkEdgeGenerateVideoOnAlert, btnDownloadVoices };
+            _piperTtsControls = new Control[] { lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, chkPiperGenerateVideoOnAlert, btnInstallPiper };
 
             var lblTtsNote = new Label
             {
@@ -1453,12 +1469,12 @@ namespace WeatherImageGenerator.Forms
             };
 
             tab.Controls.AddRange(new Control[] {
-                lblAlertReady, chkAlertReadyEnabled, lblFeedUrls, txtAlertReadyFeedUrls,
+                lblAlertReady, chkAlertReadyEnabled, chkAlertReadyGenerateVideoOnAlert, lblFeedUrls, txtAlertReadyFeedUrls,
                 chkAlertReadyIncludeTests, lblMaxAge, numAlertReadyMaxAgeHours, lblMaxAgeUnit,
                 lblLanguage, cmbAlertReadyLanguage, lblAreaFilters, txtAlertReadyAreaFilters, lblAreaHelp,
                 lblJurisdictions, txtAlertReadyJurisdictions, lblJurisHelp,
                 chkAlertReadyHighRiskOnly, chkAlertReadyExcludeWeather, divider1,
-                lblNws, chkNwsEnabled, lblNwsStates, txtNwsStates, lblNwsStatesHelp,
+                lblNws, chkNwsEnabled, chkNwsGenerateVideoOnAlert, lblNwsStates, txtNwsStates, lblNwsStatesHelp,
                 lblNwsZones, txtNwsZones, lblNwsZonesHelp,
                 lblNwsPoint, txtNwsPoint, lblNwsPointHelp,
                 lblNwsMaxAge, numNwsMaxAgeHours, lblNwsMaxAgeUnit,
@@ -1467,8 +1483,8 @@ namespace WeatherImageGenerator.Forms
                 lblNwsUserAgent, txtNwsUserAgent, divider2,
                 lblTts, lblEngine, cmbTtsEngine,
                 lblVoice, cmbTtsVoice, lblRate, txtTtsRate, lblRateHelp,
-                lblPitch, txtTtsPitch, lblPitchHelp, btnDownloadVoices,
-                lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, btnInstallPiper,
+                lblPitch, txtTtsPitch, lblPitchHelp, chkEdgeGenerateVideoOnAlert, btnDownloadVoices,
+                lblPiperVoice, cmbPiperVoice, lblPiperSpeed, numPiperLengthScale, lblPiperSpeedHelp, chkPiperGenerateVideoOnAlert, btnInstallPiper,
                 lblTtsNote
             });
 
@@ -2312,6 +2328,7 @@ namespace WeatherImageGenerator.Forms
                 txtAlertReadyJurisdictions.Text = alertReady.Jurisdictions != null ? string.Join(", ", alertReady.Jurisdictions) : "QC, CA";
                 chkAlertReadyHighRiskOnly.Checked = alertReady.HighRiskOnly;
                 chkAlertReadyExcludeWeather.Checked = alertReady.ExcludeWeatherAlerts;
+                chkAlertReadyGenerateVideoOnAlert.Checked = alertReady.GenerateVideoOnAlert;
 
                 var nws = cfg.Nws ?? new EAS.NWS.NwsOptions();
                 chkNwsEnabled.Checked = nws.Enabled;
@@ -2323,6 +2340,7 @@ namespace WeatherImageGenerator.Forms
                 chkNwsHighRiskOnly.Checked = nws.HighRiskOnly;
                 txtNwsSeverityFilter.Text = nws.SeverityFilter != null ? string.Join(", ", nws.SeverityFilter) : "";
                 txtNwsUserAgent.Text = nws.UserAgent;
+                chkNwsGenerateVideoOnAlert.Checked = nws.GenerateVideoOnAlert;
 
                 var tts = cfg.TTS ?? new TTSSettings();
                 cmbTtsEngine.SelectedIndex = (tts.Engine?.ToLowerInvariant() == "edge") ? 1 : 0;
@@ -2343,6 +2361,7 @@ namespace WeatherImageGenerator.Forms
                 else cmbTtsVoice.SelectedIndex = 0;
                 txtTtsRate.Text = tts.Rate;
                 txtTtsPitch.Text = tts.Pitch;
+                chkEdgeGenerateVideoOnAlert.Checked = tts.EdgeGenerateVideoOnAlert;
 
                 string piperVoice = tts.PiperVoice ?? "fr_FR-siwis-medium";
                 var piperVoiceDisplay = piperVoice switch
@@ -2360,6 +2379,7 @@ namespace WeatherImageGenerator.Forms
                 if (cmbPiperVoice.Items.Contains(piperVoiceDisplay)) cmbPiperVoice.SelectedItem = piperVoiceDisplay;
                 else cmbPiperVoice.SelectedIndex = 0;
                 numPiperLengthScale.Value = (decimal)(tts.PiperLengthScale ?? 1.0f);
+                chkPiperGenerateVideoOnAlert.Checked = tts.PiperGenerateVideoOnAlert;
 
                 UpdateTtsEngineVisibility();
 
@@ -2523,6 +2543,7 @@ namespace WeatherImageGenerator.Forms
                     .ToList();
                 alertReady.HighRiskOnly = chkAlertReadyHighRiskOnly.Checked;
                 alertReady.ExcludeWeatherAlerts = chkAlertReadyExcludeWeather.Checked;
+                alertReady.GenerateVideoOnAlert = chkAlertReadyGenerateVideoOnAlert.Checked;
                 cfg.AlertReady = alertReady;
 
                 var nwsOpt = cfg.Nws ?? new EAS.NWS.NwsOptions();
@@ -2549,6 +2570,7 @@ namespace WeatherImageGenerator.Forms
                 nwsOpt.UserAgent = string.IsNullOrWhiteSpace(txtNwsUserAgent.Text)
                     ? "WSG-Weather-Still-Generator/1.0"
                     : txtNwsUserAgent.Text.Trim();
+                nwsOpt.GenerateVideoOnAlert = chkNwsGenerateVideoOnAlert.Checked;
                 cfg.Nws = nwsOpt;
 
                 var tts = cfg.TTS ?? new TTSSettings();
@@ -2557,9 +2579,11 @@ namespace WeatherImageGenerator.Forms
                 tts.Voice = voiceDisplay.Split(' ')[0];
                 tts.Rate = txtTtsRate.Text.Trim();
                 tts.Pitch = txtTtsPitch.Text.Trim();
+                tts.EdgeGenerateVideoOnAlert = chkEdgeGenerateVideoOnAlert.Checked;
                 var piperVoiceDisplay = cmbPiperVoice.SelectedItem?.ToString() ?? "fr_FR-siwis-medium (French Female)";
                 tts.PiperVoice = piperVoiceDisplay.Split(' ')[0];
                 tts.PiperLengthScale = (float)numPiperLengthScale.Value;
+                tts.PiperGenerateVideoOnAlert = chkPiperGenerateVideoOnAlert.Checked;
                 cfg.TTS = tts;
 
                 var v = cfg.Video ?? new VideoSettings();

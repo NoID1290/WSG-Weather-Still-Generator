@@ -12,6 +12,9 @@ namespace EAS.NWS
         [JsonPropertyName("Enabled")]
         public bool Enabled { get; set; } = false;
 
+        [JsonPropertyName("GenerateVideoOnAlert")]
+        public bool GenerateVideoOnAlert { get; set; } = true;
+
         /// <summary>
         /// Primary NWS API base URL (api.weather.gov).
         /// Set to empty/null to skip the modern API and use only legacy CAP feeds.

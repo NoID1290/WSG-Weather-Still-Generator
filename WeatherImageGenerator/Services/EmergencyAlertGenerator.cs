@@ -1216,34 +1216,75 @@ namespace WeatherImageGenerator.Services
                 var config = ConfigManager.LoadConfig();
                 var ttsSettings = config.TTS ?? new TTSSettings();
                 string preferredEngine = ttsSettings.Engine?.ToLowerInvariant() ?? "piper";
+                bool edgeEnabled = ttsSettings.EdgeGenerateVideoOnAlert;
+                bool piperEnabled = ttsSettings.PiperGenerateVideoOnAlert;
 
-                // Try Piper TTS first (open-source, offline, high-quality)
-                if (preferredEngine != "edge")
+                if (!edgeEnabled && !piperEnabled)
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Edge and Piper TTS generation are disabled for alert videos.", Logger.LogLevel.Warning);
+                    return string.Empty;
+                }
+
+                bool TryPiperPipeline()
                 {
                     Logger.Log("[EmergencyAlertGenerator] Trying Piper TTS (open-source, offline)...", Logger.LogLevel.Info);
                     if (TryGenerateWithPiperTts(text, fullPath, language, alertTonePath))
                     {
                         Logger.Log($"[EmergencyAlertGenerator] Generated audio with Piper TTS: {filename}", Logger.LogLevel.Info);
+                        return true;
+                    }
+                    return false;
+                }
+
+                bool TryEdgePipeline()
+                {
+                    Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS Client...", Logger.LogLevel.Info);
+                    if (TryGenerateWithEdgeTtsClient(text, fullPath, language, alertTonePath))
+                    {
+                        Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS: {filename}", Logger.LogLevel.Info);
+                        return true;
+                    }
+
+                    Logger.Log("[EmergencyAlertGenerator] Edge TTS Client failed, trying CLI...", Logger.LogLevel.Debug);
+                    Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS CLI...", Logger.LogLevel.Info);
+                    if (TryGenerateWithEdgeTTS(text, fullPath, language, alertTonePath))
+                    {
+                        Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS CLI: {filename}", Logger.LogLevel.Info);
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                if (preferredEngine == "edge")
+                {
+                    if (edgeEnabled && TryEdgePipeline())
+                    {
                         return fullPath;
                     }
-                    Logger.Log("[EmergencyAlertGenerator] Piper TTS failed, trying Edge TTS...", Logger.LogLevel.Debug);
-                }
 
-                // Try EdgeTtsClient (high quality neural voices, requires internet)
-                Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS Client...", Logger.LogLevel.Info);
-                if (TryGenerateWithEdgeTtsClient(text, fullPath, language, alertTonePath))
-                {
-                    Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS: {filename}", Logger.LogLevel.Info);
-                    return fullPath;
-                }
-                Logger.Log("[EmergencyAlertGenerator] Edge TTS Client failed, trying CLI...", Logger.LogLevel.Debug);
+                    if (!edgeEnabled)
+                        Logger.Log("[EmergencyAlertGenerator] Edge TTS is disabled for alert video generation. Falling back to Piper.", Logger.LogLevel.Info);
 
-                // Try edge-tts CLI as backup (if Python installed)
-                Logger.Log("[EmergencyAlertGenerator] Trying Edge TTS CLI...", Logger.LogLevel.Info);
-                if (TryGenerateWithEdgeTTS(text, fullPath, language, alertTonePath))
+                    if (piperEnabled && TryPiperPipeline())
+                    {
+                        return fullPath;
+                    }
+                }
+                else
                 {
-                    Logger.Log($"[EmergencyAlertGenerator] Generated audio with Edge TTS CLI: {filename}", Logger.LogLevel.Info);
-                    return fullPath;
+                    if (piperEnabled && TryPiperPipeline())
+                    {
+                        return fullPath;
+                    }
+
+                    if (!piperEnabled)
+                        Logger.Log("[EmergencyAlertGenerator] Piper TTS is disabled for alert video generation. Falling back to Edge.", Logger.LogLevel.Info);
+
+                    if (edgeEnabled && TryEdgePipeline())
+                    {
+                        return fullPath;
+                    }
                 }
 
                 // Try Windows.Media.SpeechSynthesis (more voices than SAPI)

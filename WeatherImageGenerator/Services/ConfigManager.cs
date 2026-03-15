@@ -852,6 +852,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("Pitch")]
         public string Pitch { get; set; } = "+0Hz";
 
+        [JsonPropertyName("EdgeGenerateVideoOnAlert")]
+        public bool EdgeGenerateVideoOnAlert { get; set; } = true;
+
         /// <summary>
         /// Piper voice model name (e.g., fr_FR-siwis-medium, en_US-lessac-medium)
         /// Available French: fr_FR-siwis-medium (female), fr_FR-upmc-medium (male), fr_FR-tom-medium (male)
@@ -865,6 +868,9 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         [JsonPropertyName("PiperLengthScale")]
         public float? PiperLengthScale { get; set; } = 1.0f;
+
+        [JsonPropertyName("PiperGenerateVideoOnAlert")]
+        public bool PiperGenerateVideoOnAlert { get; set; } = true;
     }
 
     /// <summary>

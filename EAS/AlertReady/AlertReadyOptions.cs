@@ -11,6 +11,9 @@ namespace EAS.AlertReady
         [JsonPropertyName("Enabled")]
         public bool Enabled { get; set; } = true;
 
+        [JsonPropertyName("GenerateVideoOnAlert")]
+        public bool GenerateVideoOnAlert { get; set; } = true;
+
         /// <summary>List of CAP-CP feed URLs (Atom or raw CAP documents)</summary>
         [JsonPropertyName("FeedUrls")]
         public List<string>? FeedUrls { get; set; }

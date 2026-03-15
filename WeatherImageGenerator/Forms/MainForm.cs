@@ -1373,8 +1373,16 @@ namespace WeatherImageGenerator.Forms
                     // Only NAAD/AlertReady and NWS alerts trigger emergency media generation
                     if (alert.Provider == "Canada_AlertReady" || alert.Provider == "USA_NWS")
                     {
-                        Logger.Log($"[Cycle Alert] New/changed alert detected — generating media: {alert.Title}", Logger.LogLevel.Info);
-                        _ = Task.Run(() => GenerateAlertMediaAsync(alert));
+                        if (ShouldGenerateAlertMediaForProvider(alert.Provider, cfg))
+                        {
+                            Logger.Log($"[Cycle Alert] New/changed alert detected — generating media: {alert.Title}", Logger.LogLevel.Info);
+                            _ = Task.Run(() => GenerateAlertMediaAsync(alert));
+                        }
+                        else
+                        {
+                            Logger.Log($"[Cycle Alert] Media generation disabled for provider '{alert.Provider}'. Showing alert form only: {alert.Title}", Logger.LogLevel.Info);
+                            AlertDisplayForm.ShowAlert(alert, alertLanguage, autoCloseSeconds: 120);
+                        }
                     }
                     else
                     {
@@ -1448,6 +1456,17 @@ namespace WeatherImageGenerator.Forms
                     }
                 }
             }
+        }
+
+        private static bool ShouldGenerateAlertMediaForProvider(string? provider, AppSettings cfg)
+        {
+            if (provider == "Canada_AlertReady")
+                return cfg.AlertReady?.GenerateVideoOnAlert ?? true;
+
+            if (provider == "USA_NWS")
+                return cfg.Nws?.GenerateVideoOnAlert ?? true;
+
+            return false;
         }
 
         // Helper method to normalize strings for accent-insensitive comparison
@@ -3324,13 +3343,17 @@ namespace WeatherImageGenerator.Forms
                     string nwsLang = nwsCfg.AlertReady?.PreferredLanguage ?? "fr-CA";
                     AlertDisplayForm.ShowAlert(alert, nwsLang, autoCloseSeconds: 120);
 
-                    if (_cts != null)
+                    if (_cts != null && ShouldGenerateAlertMediaForProvider(alert.Provider, nwsCfg))
                     {
                         await GenerateAlertMediaAsync(alert, skipFormDisplay: true);
                     }
+                    else if (_cts == null)
+                    {
+                        Logger.Log($"[NWS] Alert shown: {alert.Title} (video skipped - cycle not running)", Logger.LogLevel.Info);
+                    }
                     else
                     {
-                        Logger.Log($"[NWS] Alert shown: {alert.Title} (video skipped \u2014 cycle not running)", Logger.LogLevel.Info);
+                        Logger.Log($"[NWS] Alert shown: {alert.Title} (media generation disabled for provider)", Logger.LogLevel.Info);
                     }
                 }
 
@@ -3438,13 +3461,17 @@ namespace WeatherImageGenerator.Forms
                 string naadLang = naadCfg.AlertReady?.PreferredLanguage ?? "fr-CA";
                 AlertDisplayForm.ShowAlert(e.Alert, naadLang, autoCloseSeconds: 120);
 
-                if (_cts != null)
+                if (_cts != null && ShouldGenerateAlertMediaForProvider(e.Alert.Provider, naadCfg))
                 {
                     _ = Task.Run(() => GenerateAlertMediaAsync(e.Alert, skipFormDisplay: true));
                 }
+                else if (_cts == null)
+                {
+                    Logger.Log($"[NAAD] Alert shown: {e.Alert.Title} (video skipped - cycle not running)", Logger.LogLevel.Info);
+                }
                 else
                 {
-                    Logger.Log($"[NAAD] Alert shown: {e.Alert.Title} (video skipped \u2014 cycle not running)", Logger.LogLevel.Info);
+                    Logger.Log($"[NAAD] Alert shown: {e.Alert.Title} (media generation disabled for provider)", Logger.LogLevel.Info);
                 }
             }
         }

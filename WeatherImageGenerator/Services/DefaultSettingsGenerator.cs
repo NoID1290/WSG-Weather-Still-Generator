@@ -104,6 +104,7 @@ namespace WeatherImageGenerator.Services
                 AlertReady = new AlertReadyOptions
                 {
                     Enabled = false,
+                    GenerateVideoOnAlert = true,
                     FeedUrls = new List<string>
                     {
                         "tcp://streaming1.naad-adna.pelmorex.com:8080",
@@ -120,6 +121,7 @@ namespace WeatherImageGenerator.Services
                 Nws = new EAS.NWS.NwsOptions
                 {
                     Enabled = false,
+                    GenerateVideoOnAlert = true,
                     ApiBaseUrl = "https://api.weather.gov",
                     States = new List<string>(),
                     Zones = new List<string>(),
@@ -187,8 +189,10 @@ namespace WeatherImageGenerator.Services
                     Voice = "fr-CA-SylvieNeural",
                     Rate = "+0%",
                     Pitch = "+0Hz",
+                    EdgeGenerateVideoOnAlert = true,
                     PiperVoice = "fr_FR-siwis-medium",
-                    PiperLengthScale = 1.0f
+                    PiperLengthScale = 1.0f,
+                    PiperGenerateVideoOnAlert = true
                 },
                 OpenMap = new OpenMapSettings
                 {
