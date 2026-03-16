@@ -369,6 +369,14 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private float _markerMostRecentPhase;
         private readonly object _markerLock = new();
 
+        // Lightning strike GPU vector marker shader
+        private GLShader? _lightningShader;
+        private int _lmNdcXLoc = -1, _lmNdcYLoc = -1;
+        private int _lmHalfSizeXLoc = -1, _lmHalfSizeYLoc = -1;
+        private int _lmAgeLoc = -1, _lmIsCGLoc = -1;
+
+        private LightningStrikeEntry[] _lightningMarkers = Array.Empty<LightningStrikeEntry>();
+
         // Tile loading deduplication
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task> _pendingLoads 
             = new System.Collections.Concurrent.ConcurrentDictionary<(int z,int x,int y), System.Threading.Tasks.Task>();
@@ -613,7 +621,26 @@ void main() {
                 }
             }
 
-            // Initialize GRIB2 GPU shader pipeline
+            // Lightning strike marker shader
+            if (EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/lightning_marker.vert.glsl", out var lmVert) &&
+                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/lightning_marker.frag.glsl", out var lmFrag))
+            {
+                try
+                {
+                    _lightningShader = new GLShader(lmVert, lmFrag);
+                    int lh = _lightningShader.Handle;
+                    _lmNdcXLoc      = GL.GetUniformLocation(lh, "uNdcX");
+                    _lmNdcYLoc      = GL.GetUniformLocation(lh, "uNdcY");
+                    _lmHalfSizeXLoc = GL.GetUniformLocation(lh, "uHalfSizeX");
+                    _lmHalfSizeYLoc = GL.GetUniformLocation(lh, "uHalfSizeY");
+                    _lmAgeLoc       = GL.GetUniformLocation(lh, "uAge");
+                    _lmIsCGLoc      = GL.GetUniformLocation(lh, "uIsCG");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GLRadarControl] lightning_marker shader compile failed: {ex.Message}");
+                }
+            }
             _grib2GpuPipeline = new Grib2GpuPipelineGL();
             _grib2GpuPipeline.Initialize();
 
@@ -1182,8 +1209,7 @@ void main() {
             } // positioned overlay 3 (GRIB2)
 
             RenderStationMarkersPass();
-
-            // Draw radar frames (oldest first) with fading alpha
+            RenderLightningMarkersPass();
             if (_radarFrames.Count > 0)
             {
                 GL.Enable(EnableCap.Blend);
@@ -1612,6 +1638,51 @@ void main() {
             }
         }
 
+        private void RenderLightningMarkersPass()
+        {
+            if (_lightningShader == null) return;
+
+            LightningStrikeEntry[] strikes;
+            lock (_markerLock) { strikes = _lightningMarkers; }
+            if (strikes.Length == 0) return;
+
+            GL.Enable(EnableCap.Blend);
+            _lightningShader.Use();
+
+            int z  = _mapZoom;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+            int w = Width, h = Height;
+
+            // Fixed pixel size — slightly smaller than station markers (14 px, scale with age)
+            const float BaseSize = 14f;
+
+            foreach (var s in strikes)
+            {
+                double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
+                double rawSy = LatToPixelY(s.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawSx / (w / 2.0) - 1.0)) * _zoom + _pan.X;
+                float ndcY = ((float)(1.0 - rawSy / (h / 2.0))) * _zoom + _pan.Y;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+
+                // Recent strikes slightly larger; oldest at minimum size
+                float pxSize    = BaseSize * (1.0f - s.Age * 0.4f);
+                float halfSizeX = pxSize / (float)(w / 2.0);
+                float halfSizeY = pxSize / (float)(h / 2.0);
+
+                if (_lmNdcXLoc >= 0)      GL.Uniform1(_lmNdcXLoc,      ndcX);
+                if (_lmNdcYLoc >= 0)      GL.Uniform1(_lmNdcYLoc,      ndcY);
+                if (_lmHalfSizeXLoc >= 0) GL.Uniform1(_lmHalfSizeXLoc, halfSizeX);
+                if (_lmHalfSizeYLoc >= 0) GL.Uniform1(_lmHalfSizeYLoc, halfSizeY);
+                if (_lmAgeLoc >= 0)       GL.Uniform1(_lmAgeLoc,       s.Age);
+                if (_lmIsCGLoc >= 0)      GL.Uniform1(_lmIsCGLoc,      s.IsCG ? 1f : 0f);
+
+                GL.BindVertexArray(_vao);
+                GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+            }
+        }
+
         private void GLRadarControl_MouseWheel(object? sender, MouseEventArgs e)
         {
             // Let HUD consume the event first (e.g., slider adjustments, panel scrolling)
@@ -1969,6 +2040,12 @@ void main() {
         public void SetMarkerAnimPhase(float epicenterPhase, float mostRecentPhase)
         {
             lock (_markerLock) { _markerEpicenterPhase = epicenterPhase; _markerMostRecentPhase = mostRecentPhase; }
+            Invalidate();
+        }
+
+        public void SetLightningMarkers(LightningStrikeEntry[] markers)
+        {
+            lock (_markerLock) { _lightningMarkers = markers; }
             Invalidate();
         }
 

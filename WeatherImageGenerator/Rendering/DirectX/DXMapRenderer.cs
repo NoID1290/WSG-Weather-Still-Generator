@@ -42,6 +42,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
         private DXShader? _weatherOverlayShader;
         private DXShader? _generalShader;
         private DXShader? _markerShader;
+        private DXShader? _lightningShader;
 
         // GPU vector station / epicenter markers
         private StationMarkerEntry[]  _stationMarkers   = Array.Empty<StationMarkerEntry>();
@@ -49,6 +50,9 @@ namespace WeatherImageGenerator.Rendering.DirectX
         private float _markerEpicenterPhase;
         private float _markerMostRecentPhase;
         private readonly object _markerLock = new();
+
+        // GPU vector lightning markers
+        private LightningStrikeEntry[] _lightningMarkers = Array.Empty<LightningStrikeEntry>();
 
         // Shared quad geometry (4 verts + 6 indices)
         private ComPtr<ID3D11Buffer> _quadVB;
@@ -611,6 +615,22 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 "Rendering/DirectX/shaders/station_marker.vs.hlsl",
                 "Rendering/DirectX/shaders/station_marker.ps.hlsl",
                 GetQuadInputLayout(), markerUniforms, "station_marker");
+
+            // ── Lightning marker shader ──
+            var lightningVsUniforms = new Dictionary<string, (bool, int, int)>
+            {
+                // VS cbuffer b0
+                ["ndcX"]      = (true,  0, 4),
+                ["ndcY"]      = (true,  4, 4),
+                ["halfSizeX"] = (true,  8, 4),
+                ["halfSizeY"] = (true, 12, 4),
+                ["age"]       = (true, 16, 4),
+                ["isCG"]      = (true, 20, 4),
+            };
+            _lightningShader = CreateShaderFromFiles(
+                "Rendering/DirectX/shaders/lightning_marker.vs.hlsl",
+                "Rendering/DirectX/shaders/lightning_marker.ps.hlsl",
+                GetQuadInputLayout(), lightningVsUniforms, "lightning_marker");
         }
 
         private unsafe DXShader? CreateShaderFromFiles(
@@ -833,6 +853,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
 
             // â”€â”€â”€ Step 6: Radar frames â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             RenderStationMarkersPass(w, h);
+            RenderLightningMarkersPass(w, h);
             RenderRadarFrames(time, w, h);
 
             // â”€â”€â”€ Step 7: Crosshair â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1058,6 +1079,38 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 _markerShader.SetFloat("uSelected",   0f);
                 _markerShader.SetFloat("uGlowStrength", 1.0f);
                 _markerShader.Use();
+                _context.Handle->DrawIndexed(6, 0, 0);
+            }
+        }
+
+        private unsafe void RenderLightningMarkersPass(int w, int h)
+        {
+            if (_lightningShader == null) return;
+            LightningStrikeEntry[] strikes;
+            lock (_markerLock) { strikes = _lightningMarkers; }
+            if (strikes.Length == 0) return;
+            BindQuadGeometry();
+            int    z  = _mapZoom;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+            const float BaseSize = 14f;
+            foreach (var s in strikes)
+            {
+                double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
+                double rawSy = LatToPixelY(s.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawSx / (w / 2.0) - 1.0)) * _zoom + _panX;
+                float ndcY = ((float)(1.0 - rawSy / (h / 2.0))) * _zoom + _panY;
+                if (ndcX < -1.5f || ndcX > 1.5f || ndcY < -1.5f || ndcY > 1.5f) continue;
+                float pxSize    = BaseSize * (1.0f - s.Age * 0.4f);
+                float halfSizeX = pxSize / (float)(w / 2.0);
+                float halfSizeY = pxSize / (float)(h / 2.0);
+                _lightningShader.SetFloat("ndcX",      ndcX);
+                _lightningShader.SetFloat("ndcY",      ndcY);
+                _lightningShader.SetFloat("halfSizeX", halfSizeX);
+                _lightningShader.SetFloat("halfSizeY", halfSizeY);
+                _lightningShader.SetFloat("age",       s.Age);
+                _lightningShader.SetFloat("isCG",      s.IsCG ? 1f : 0f);
+                _lightningShader.Use();
                 _context.Handle->DrawIndexed(6, 0, 0);
             }
         }
@@ -1623,6 +1676,12 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public void SetMarkerAnimPhase(float epicenterPhase, float mostRecentPhase)
         {
             lock (_markerLock) { _markerEpicenterPhase = epicenterPhase; _markerMostRecentPhase = mostRecentPhase; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetLightningMarkers(LightningStrikeEntry[] markers)
+        {
+            lock (_markerLock) { _lightningMarkers = markers; }
             _hostPanel.Invalidate();
         }
 

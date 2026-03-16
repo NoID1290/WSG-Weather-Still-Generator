@@ -28,4 +28,15 @@ namespace WeatherImageGenerator.Rendering.Common
         int    ColorArgb,
         float  Magnitude,
         bool   IsMostRecent);
+
+    /// <summary>
+    /// Per-lightning-strike entry passed to the GPU renderer.
+    /// Age is normalised 0.0 (just occurred) → 1.0 (oldest in the window).
+    /// IsCG distinguishes cloud-to-ground (yellow) from in-cloud (blue) strikes.
+    /// </summary>
+    public readonly record struct LightningStrikeEntry(
+        float Lat,
+        float Lon,
+        float Age,
+        bool  IsCG);
 }

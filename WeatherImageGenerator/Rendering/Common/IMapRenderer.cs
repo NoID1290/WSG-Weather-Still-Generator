@@ -204,6 +204,13 @@ namespace WeatherImageGenerator.Rendering.Common
         /// </summary>
         void SetMarkerAnimPhase(float epicenterPhase, float mostRecentPhase) { }
 
+        /// <summary>
+        /// Upload lightning strike marker data for GPU vector rendering.
+        /// Age-fading and CG/IC colours are applied by the lightning_marker shader.
+        /// Called whenever the active time window changes.
+        /// </summary>
+        void SetLightningMarkers(LightningStrikeEntry[] markers) { }
+
         // ═══════════════════════════════════════════════════════════════════
         // Map navigation
         // ═══════════════════════════════════════════════════════════════════

@@ -43,6 +43,14 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudCheckbox? _chkGrib2Labels;
         private HudCheckbox? _chkGrib2WindBarbs;
         private HudCheckbox? _chkGrib2Isobars;
+
+        // Lightning controls
+        private HudCheckbox? _chkLightningCG;
+        private HudCheckbox? _chkLightningIC;
+        private HudDropdown? _ddLightningWindow;
+        private Timer? _lightningPollTimer;
+        private static readonly int[] _lightningWindowOptions = { 5, 10, 20, 30, 60 };
+
         private HudLabel _lblZoom;
         private HudLabel _lblPosition;
         private HudLabel _lblCacheStats;
@@ -707,6 +715,59 @@ namespace WeatherImageGenerator.Rendering.Common
             };
             overlayPanel.Elements.Add(_chkGrib2Isobars);
 
+            // ── Lightning Detection Overlay ──
+            overlayPanel.Elements.Add(new HudSeparator());
+            overlayPanel.Elements.Add(new HudLabel { Id = "lblLightning", Text = "Lightning Detection" });
+
+            _chkLightningCG = new HudCheckbox
+            {
+                Id = "lightningCG",
+                Text = "Cloud-to-Ground (yellow)",
+                Checked = false,
+                OnChanged = on =>
+                {
+                    _overlayManager.ShowLightningCG = on;
+                    bool anyEnabled = on || (_overlayManager.ShowLightningIC);
+                    if (anyEnabled) StartLightningPollTimer();
+                    else StopLightningPollTimer();
+                    if (!_isAnimating)
+                        _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                }
+            };
+            overlayPanel.Elements.Add(_chkLightningCG);
+
+            _chkLightningIC = new HudCheckbox
+            {
+                Id = "lightningIC",
+                Text = "In-Cloud (blue)",
+                Checked = false,
+                OnChanged = on =>
+                {
+                    _overlayManager.ShowLightningIC = on;
+                    bool anyEnabled = on || (_overlayManager.ShowLightningCG);
+                    if (anyEnabled) StartLightningPollTimer();
+                    else StopLightningPollTimer();
+                    if (!_isAnimating)
+                        _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                }
+            };
+            overlayPanel.Elements.Add(_chkLightningIC);
+
+            _ddLightningWindow = new HudDropdown
+            {
+                Id = "lightningWindow",
+                Options = new List<string> { "5 min", "10 min", "20 min", "30 min", "60 min" },
+                SelectedIndex = 3,
+                OnSelectionChanged = idx =>
+                {
+                    _overlayManager.LightningTimeWindowMinutes =
+                        _lightningWindowOptions[Math.Clamp(idx, 0, _lightningWindowOptions.Length - 1)];
+                    if (!_isAnimating)
+                        _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                }
+            };
+            overlayPanel.Elements.Add(_ddLightningWindow);
+
             _hudSystem.AddPanel(overlayPanel);
 
             // === Map Style Panel (top-right, auto-stacked below Overlays) ===
@@ -1176,6 +1237,24 @@ namespace WeatherImageGenerator.Rendering.Common
             if (_sldTimeline != null)
                 _sldTimeline.Value = _displayFrames.Count <= 1 ? 0f : (float)index / (_displayFrames.Count - 1);
 
+            // Sync lightning markers to this animation frame
+            if (_overlayManager.ShowLightningCG || _overlayManager.ShowLightningIC)
+            {
+                int realIdx = _interpolationFactor > 1 && _realFrameIndices.Count > 0
+                    ? index / _interpolationFactor
+                    : index;
+                if (realIdx < _animationTimestamps.Count
+                    && DateTime.TryParse(_animationTimestamps[realIdx], null,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out var frameTime))
+                {
+                    _glControl?.SetLightningMarkers(_overlayManager.GetStrikesForFrame(frameTime));
+                }
+                else
+                {
+                    _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                }
+            }
+
             _glControl?.InvalidateView();
         }
 
@@ -1214,6 +1293,41 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 _animationTimer.Interval = GetEffectiveIntervalMs();
             }
+        }
+
+        private void StartLightningPollTimer()
+        {
+            if (_lightningPollTimer != null) return;
+            _lightningPollTimer = new Timer { Interval = 5 * 60 * 1000 }; // 5 min
+            _lightningPollTimer.Tick += async (s, ev) =>
+            {
+                if (_isAnimating || !(_overlayManager.ShowLightningCG || _overlayManager.ShowLightningIC)) return;
+                try
+                {
+                    var bbox = _overlayManager.LastRadarBBox
+                        ?? (_animationBBox.HasValue ? _animationBBox : null);
+                    if (bbox.HasValue)
+                    {
+                        var from = DateTime.UtcNow - TimeSpan.FromMinutes(_overlayManager.LightningTimeWindowMinutes);
+                        await _overlayManager.FetchAllLightningStrikesAsync(bbox.Value, from, DateTime.UtcNow);
+                    }
+                    _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Lightning] Poll error: {ex.Message}");
+                }
+            };
+            _lightningPollTimer.Start();
+        }
+
+        private void StopLightningPollTimer()
+        {
+            if (_lightningPollTimer == null) return;
+            _lightningPollTimer.Stop();
+            _lightningPollTimer.Dispose();
+            _lightningPollTimer = null;
+            _glControl?.SetLightningMarkers(Array.Empty<LightningStrikeEntry>());
         }
 
         /// <summary>
@@ -1571,6 +1685,12 @@ namespace WeatherImageGenerator.Rendering.Common
                 config.WeatherMapView.Grib2ShowWindBarbs = _chkGrib2WindBarbs?.Checked ?? true;
                 config.WeatherMapView.Grib2ShowIsobars = _chkGrib2Isobars?.Checked ?? false;
 
+                // Lightning settings
+                config.WeatherMapView.LightningCgEnabled = _chkLightningCG?.Checked ?? false;
+                config.WeatherMapView.LightningIcEnabled = _chkLightningIC?.Checked ?? false;
+                config.WeatherMapView.LightningTimeWindowMinutes =
+                    _lightningWindowOptions[Math.Clamp(_ddLightningWindow?.SelectedIndex ?? 3, 0, _lightningWindowOptions.Length - 1)];
+
                 config.WeatherMapView.PanelPosition = "Right";
                 config.WeatherMapView.ShowStatusBar = _glControl?.ShowStatusBar ?? true;
                 config.WeatherMapView.ShowRuler = _glControl?.ShowRuler ?? true;
@@ -1633,6 +1753,15 @@ namespace WeatherImageGenerator.Rendering.Common
                     if (_chkGrib2Labels != null) _chkGrib2Labels.Checked = s.Grib2ShowLabels;
                     if (_chkGrib2WindBarbs != null) _chkGrib2WindBarbs.Checked = s.Grib2ShowWindBarbs;
                     if (_chkGrib2Isobars != null) _chkGrib2Isobars.Checked = s.Grib2ShowIsobars;
+
+                    // Lightning controls
+                    if (_chkLightningCG != null) _chkLightningCG.Checked = s.LightningCgEnabled;
+                    if (_chkLightningIC != null) _chkLightningIC.Checked = s.LightningIcEnabled;
+                    if (_ddLightningWindow != null)
+                    {
+                        int winIdx = Array.IndexOf(_lightningWindowOptions, s.LightningTimeWindowMinutes);
+                        _ddLightningWindow.SelectedIndex = winIdx >= 0 ? winIdx : 3;
+                    }
                 }
                 finally
                 {
@@ -1703,6 +1832,16 @@ namespace WeatherImageGenerator.Rendering.Common
                     _overlayManager.Grib2ShowLabels = s.Grib2ShowLabels;
                     _overlayManager.Grib2ShowWindBarbs = s.Grib2ShowWindBarbs;
                     _overlayManager.Grib2ShowIsobars = s.Grib2ShowIsobars;
+
+                    // lightning overlay manager state
+                    _overlayManager.ShowLightningCG = s.LightningCgEnabled;
+                    _overlayManager.ShowLightningIC = s.LightningIcEnabled;
+                    _overlayManager.LightningTimeWindowMinutes =
+                        _lightningWindowOptions[Math.Clamp(
+                            Array.IndexOf(_lightningWindowOptions, s.LightningTimeWindowMinutes) is int wi && wi >= 0 ? wi : 3,
+                            0, _lightningWindowOptions.Length - 1)];
+                    if (s.LightningCgEnabled || s.LightningIcEnabled)
+                        StartLightningPollTimer();
                 }
                 if (_glControl != null)
                 {

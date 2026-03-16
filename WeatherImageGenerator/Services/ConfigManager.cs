@@ -1113,6 +1113,16 @@ namespace WeatherImageGenerator.Services
         /// </summary>
         [JsonPropertyName("AnimationInterpolationFactor")]
         public int AnimationInterpolationFactor { get; set; } = 0;
+
+        // ── Lightning Detection Overlay ──
+        [JsonPropertyName("LightningCgEnabled")]
+        public bool LightningCgEnabled { get; set; } = false;
+
+        [JsonPropertyName("LightningIcEnabled")]
+        public bool LightningIcEnabled { get; set; } = false;
+
+        [JsonPropertyName("LightningTimeWindowMinutes")]
+        public int LightningTimeWindowMinutes { get; set; } = 30;
     }
 
     public class SeismogramMapViewSettings

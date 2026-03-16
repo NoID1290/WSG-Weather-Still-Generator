@@ -8,6 +8,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using ECCC;
+using ECCC.Models;
 using ECCC.Services;
 using Grib2.Models;
 using OpenMap;
@@ -82,6 +84,17 @@ namespace WeatherImageGenerator.Rendering.Common
         public bool Grib2ShowWindBarbs { get => _grib2Renderer.ShowWindBarbs; set => _grib2Renderer.ShowWindBarbs = value; }
         public bool Grib2ShowIsobars { get => _grib2Renderer.ShowIsobars; set => _grib2Renderer.ShowIsobars = value; }
         public (double MinLat, double MinLon, double MaxLat, double MaxLon)? LastGrib2BBox { get; private set; }
+
+        // ═══ Lightning detection overlay ═══
+        private List<LightningFlash> _allCachedStrikes = new();
+        private DateTime _lightningCacheTimestamp = DateTime.MinValue;
+        private (double MinLat, double MinLon, double MaxLat, double MaxLon)? _lightningCacheBBox;
+        private List<DateTime> _lightningTimestamps = new();
+        private readonly TimeSpan _lightningCacheInterval = TimeSpan.FromMinutes(5);
+
+        public bool ShowLightningCG { get; set; } = false;
+        public bool ShowLightningIC { get; set; } = false;
+        public int LightningTimeWindowMinutes { get; set; } = 30;
 
         // Configurable radar layer and WMS style
         public string RadarLayer { get; set; } = "RADAR_1KM_RRAI";
@@ -1229,6 +1242,72 @@ namespace WeatherImageGenerator.Rendering.Common
                 finally { bmp.UnlockBits(bits); }
             }
             catch { return false; }
+        }
+
+        // ═══ Lightning detection methods ═══
+
+        /// <summary>Fetches available lightning timestamps from ECCC WMS.</summary>
+        public async Task<List<DateTime>> FetchLightningTimestampsAsync(int numFrames = 12)
+        {
+            _lightningTimestamps = await ECCCApi.GetLightningTimestampsAsync(_httpClient, numFrames);
+            return _lightningTimestamps;
+        }
+
+        /// <summary>
+        /// Fetches all lightning strikes within the given bounding box and time window,
+        /// caching the result for <see cref="_lightningCacheInterval"/>.
+        /// </summary>
+        public async Task<List<LightningFlash>> FetchAllLightningStrikesAsync(
+            (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
+            DateTime from,
+            DateTime to)
+        {
+            bool sameBox = _lightningCacheBBox.HasValue
+                && Math.Abs(_lightningCacheBBox.Value.MinLat - bbox.MinLat) < 0.01
+                && Math.Abs(_lightningCacheBBox.Value.MinLon - bbox.MinLon) < 0.01
+                && Math.Abs(_lightningCacheBBox.Value.MaxLat - bbox.MaxLat) < 0.01
+                && Math.Abs(_lightningCacheBBox.Value.MaxLon - bbox.MaxLon) < 0.01;
+
+            if (sameBox && DateTime.UtcNow - _lightningCacheTimestamp < _lightningCacheInterval)
+                return _allCachedStrikes;
+
+            _allCachedStrikes = await ECCCApi.GetLightningStrikesAsync(_httpClient, bbox, from, to);
+            _lightningCacheTimestamp = DateTime.UtcNow;
+            _lightningCacheBBox = bbox;
+            return _allCachedStrikes;
+        }
+
+        /// <summary>
+        /// Filters cached strikes for radar animation - returns strikes within the
+        /// configured time window centred on <paramref name="frameTime"/>, age-normalised.
+        /// </summary>
+        public LightningStrikeEntry[] GetStrikesForFrame(DateTime frameTime)
+        {
+            if (_allCachedStrikes.Count == 0) return Array.Empty<LightningStrikeEntry>();
+            var windowStart = frameTime - TimeSpan.FromMinutes(LightningTimeWindowMinutes);
+            var entries = new List<LightningStrikeEntry>();
+            foreach (var f in _allCachedStrikes)
+            {
+                if (!ShowLightningCG && f.StrikeType == LightningStrikeType.CloudToGround) continue;
+                if (!ShowLightningIC && f.StrikeType == LightningStrikeType.InCloud) continue;
+                if (f.Time < windowStart || f.Time > frameTime) continue;
+                float age = LightningTimeWindowMinutes > 0
+                    ? (float)((frameTime - f.Time).TotalMinutes / LightningTimeWindowMinutes)
+                    : 0f;
+                age = Math.Clamp(age, 0f, 1f);
+                bool isCG = f.StrikeType != LightningStrikeType.InCloud;
+                entries.Add(new LightningStrikeEntry((float)f.Latitude, (float)f.Longitude, age, isCG));
+            }
+            return entries.ToArray();
+        }
+
+        /// <summary>
+        /// Returns strikes that occurred within the last <see cref="LightningTimeWindowMinutes"/>
+        /// minutes from now — used in live (non-animation) mode.
+        /// </summary>
+        public LightningStrikeEntry[] GetRecentStrikes()
+        {
+            return GetStrikesForFrame(DateTime.UtcNow);
         }
     }
 }
