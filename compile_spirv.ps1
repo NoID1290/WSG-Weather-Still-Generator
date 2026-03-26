@@ -66,6 +66,9 @@ $shaders = @(
     # Station / epicenter GPU vector markers
     @{ Name = "station_marker.vert.glsl";  Stage = "vert" }
     @{ Name = "station_marker.frag.glsl";  Stage = "frag" }
+    # Lightning GPU vector markers
+    @{ Name = "lightning_marker.vert.glsl"; Stage = "vert" }
+    @{ Name = "lightning_marker.frag.glsl"; Stage = "frag" }
 )
 
 $errors = 0

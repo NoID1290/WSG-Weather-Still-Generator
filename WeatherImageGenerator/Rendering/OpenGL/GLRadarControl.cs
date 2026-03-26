@@ -374,6 +374,8 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _lmNdcXLoc = -1, _lmNdcYLoc = -1;
         private int _lmHalfSizeXLoc = -1, _lmHalfSizeYLoc = -1;
         private int _lmAgeLoc = -1, _lmIsCGLoc = -1;
+        private int _lmFlashBoostLoc = -1;
+        private float _lightningFlashBoost = 0f;
 
         private LightningStrikeEntry[] _lightningMarkers = Array.Empty<LightningStrikeEntry>();
 
@@ -635,6 +637,7 @@ void main() {
                     _lmHalfSizeYLoc = GL.GetUniformLocation(lh, "uHalfSizeY");
                     _lmAgeLoc       = GL.GetUniformLocation(lh, "uAge");
                     _lmIsCGLoc      = GL.GetUniformLocation(lh, "uIsCG");
+                    _lmFlashBoostLoc = GL.GetUniformLocation(lh, "uFlashBoost");
                 }
                 catch (Exception ex)
                 {
@@ -1649,6 +1652,10 @@ void main() {
             GL.Enable(EnableCap.Blend);
             _lightningShader.Use();
 
+            float flashBoost;
+            lock (_markerLock) { flashBoost = _lightningFlashBoost; }
+            if (_lmFlashBoostLoc >= 0) GL.Uniform1(_lmFlashBoostLoc, flashBoost);
+
             int z  = _mapZoom;
             double cx = LonToPixelX(_centerLon, z);
             double cy = LatToPixelY(_centerLat, z);
@@ -2046,6 +2053,12 @@ void main() {
         public void SetLightningMarkers(LightningStrikeEntry[] markers)
         {
             lock (_markerLock) { _lightningMarkers = markers; }
+            Invalidate();
+        }
+
+        public void SetLightningFlashBoost(float boost)
+        {
+            lock (_markerLock) { _lightningFlashBoost = boost; }
             Invalidate();
         }
 

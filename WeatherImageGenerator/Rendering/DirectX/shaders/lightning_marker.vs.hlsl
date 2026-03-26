@@ -8,9 +8,10 @@ cbuffer LightningVSCB : register(b0)
     float ndcY;
     float halfSizeX;
     float halfSizeY;
-    float age;      // 0.0 = just occurred, 1.0 = oldest in window
-    float isCG;     // 1.0 = cloud-to-ground (yellow), 0.0 = in-cloud (blue)
-    float2 _padVS;
+    float age;        // 0.0 = just occurred, 1.0 = oldest in window
+    float isCG;       // 1.0 = cloud-to-ground (yellow), 0.0 = in-cloud (blue)
+    float flashBoost; // 0.0 = no boost, 1.0 = peak flash
+    float _padVS;
 };
 
 struct VS_INPUT
@@ -25,6 +26,7 @@ struct VS_OUTPUT
     float2 vUv      : TEXCOORD0;  // [-1,+1]
     float  vAge     : TEXCOORD1;
     float  vIsCG    : TEXCOORD2;
+    float  vFlashBoost : TEXCOORD3;
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -34,6 +36,7 @@ VS_OUTPUT main(VS_INPUT input)
     o.vUv     = uv;
     o.vAge    = age;
     o.vIsCG   = isCG;
+    o.vFlashBoost = flashBoost;
     o.Position = float4(ndcX + uv.x * halfSizeX,
                         ndcY + uv.y * halfSizeY,
                         0.0, 1.0);

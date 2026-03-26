@@ -49,6 +49,8 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudCheckbox? _chkLightningIC;
         private HudDropdown? _ddLightningWindow;
         private Timer? _lightningPollTimer;
+        private Timer? _lightningFlashDecayTimer;
+        private float _lightningFlashBoost = 0f;
         private static readonly int[] _lightningWindowOptions = { 5, 10, 20, 30, 60 };
 
         private HudLabel _lblZoom;
@@ -1298,7 +1300,7 @@ namespace WeatherImageGenerator.Rendering.Common
         private void StartLightningPollTimer()
         {
             if (_lightningPollTimer != null) return;
-            _lightningPollTimer = new Timer { Interval = 5 * 60 * 1000 }; // 5 min
+            _lightningPollTimer = new Timer { Interval = 5 * 1000 }; // 5 sec
             _lightningPollTimer.Tick += async (s, ev) =>
             {
                 if (_isAnimating || !(_overlayManager.ShowLightningCG || _overlayManager.ShowLightningIC)) return;
@@ -1311,6 +1313,8 @@ namespace WeatherImageGenerator.Rendering.Common
                         await _overlayManager.FetchAllLightningStrikesAsync(bbox.Value, from, DateTime.UtcNow);
                     }
                     _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                    if (_overlayManager.HadNewStrikesThisFetch)
+                        TriggerLightningFlash();
                 }
                 catch (Exception ex)
                 {
@@ -1403,7 +1407,41 @@ namespace WeatherImageGenerator.Rendering.Common
             _lightningPollTimer.Stop();
             _lightningPollTimer.Dispose();
             _lightningPollTimer = null;
+            StopLightningFlashDecay();
             _glControl?.SetLightningMarkers(Array.Empty<LightningStrikeEntry>());
+        }
+
+        private void TriggerLightningFlash()
+        {
+            _lightningFlashBoost = 1.0f;
+            _glControl?.SetLightningFlashBoost(_lightningFlashBoost);
+
+            if (_lightningFlashDecayTimer == null)
+            {
+                _lightningFlashDecayTimer = new Timer { Interval = 33 }; // ~30 fps decay
+                _lightningFlashDecayTimer.Tick += (s, ev) =>
+                {
+                    _lightningFlashBoost -= 33f / 1500f; // decay to 0 over 1.5 s
+                    if (_lightningFlashBoost <= 0f)
+                    {
+                        _lightningFlashBoost = 0f;
+                        StopLightningFlashDecay();
+                    }
+                    _glControl?.SetLightningFlashBoost(_lightningFlashBoost);
+                };
+            }
+
+            _lightningFlashDecayTimer.Start();
+        }
+
+        private void StopLightningFlashDecay()
+        {
+            if (_lightningFlashDecayTimer == null) return;
+            _lightningFlashDecayTimer.Stop();
+            _lightningFlashDecayTimer.Dispose();
+            _lightningFlashDecayTimer = null;
+            _lightningFlashBoost = 0f;
+            _glControl?.SetLightningFlashBoost(0f);
         }
 
         /// <summary>

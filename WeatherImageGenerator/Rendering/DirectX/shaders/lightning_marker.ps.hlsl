@@ -11,6 +11,7 @@ struct PS_INPUT
     float2 vUv      : TEXCOORD0;
     float  vAge     : TEXCOORD1;
     float  vIsCG    : TEXCOORD2;
+    float  vFlashBoost : TEXCOORD3;
 };
 
 float4 main(PS_INPUT input) : SV_TARGET
@@ -23,7 +24,8 @@ float4 main(PS_INPUT input) : SV_TARGET
     float3 baseColor = lerp(icColor, cgColor, input.vIsCG);
 
     // ── Age fade ──
-    float ageFactor = lerp(1.0, 0.10, input.vAge);
+    // vFlashBoost multiplies brightness of young strikes: at boost=1 a new strike is ~4× brighter.
+    float ageFactor = lerp(1.0, 0.10, input.vAge) * (1.0 + input.vFlashBoost * (1.0 - input.vAge) * 3.0);
 
     // ── Core disc ──
     float coreR = 0.22;

@@ -53,6 +53,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
 
         // GPU vector lightning markers
         private LightningStrikeEntry[] _lightningMarkers = Array.Empty<LightningStrikeEntry>();
+        private float _lightningFlashBoost = 0f;
 
         // Shared quad geometry (4 verts + 6 indices)
         private ComPtr<ID3D11Buffer> _quadVB;
@@ -1087,13 +1088,15 @@ namespace WeatherImageGenerator.Rendering.DirectX
         {
             if (_lightningShader == null) return;
             LightningStrikeEntry[] strikes;
-            lock (_markerLock) { strikes = _lightningMarkers; }
+            float flashBoost;
+            lock (_markerLock) { strikes = _lightningMarkers; flashBoost = _lightningFlashBoost; }
             if (strikes.Length == 0) return;
             BindQuadGeometry();
             int    z  = _mapZoom;
             double cx = LonToPixelX(_centerLon, z);
             double cy = LatToPixelY(_centerLat, z);
             const float BaseSize = 14f;
+            _lightningShader.SetFloat("flashBoost", flashBoost);
             foreach (var s in strikes)
             {
                 double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
@@ -1682,6 +1685,12 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public void SetLightningMarkers(LightningStrikeEntry[] markers)
         {
             lock (_markerLock) { _lightningMarkers = markers; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetLightningFlashBoost(float boost)
+        {
+            lock (_markerLock) { _lightningFlashBoost = boost; }
             _hostPanel.Invalidate();
         }
 

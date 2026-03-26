@@ -211,6 +211,12 @@ namespace WeatherImageGenerator.Rendering.Common
         /// </summary>
         void SetLightningMarkers(LightningStrikeEntry[] markers) { }
 
+        /// <summary>
+        /// Set the animated flash boost (0.0 = no boost, 1.0 = peak brightness).
+        /// Decays from 1.0 to 0.0 over ~1.5 s after new strikes are detected.
+        /// </summary>
+        void SetLightningFlashBoost(float boost) { }
+
         // ═══════════════════════════════════════════════════════════════════
         // Map navigation
         // ═══════════════════════════════════════════════════════════════════

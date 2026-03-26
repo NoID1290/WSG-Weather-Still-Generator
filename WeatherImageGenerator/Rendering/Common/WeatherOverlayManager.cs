@@ -92,7 +92,9 @@ namespace WeatherImageGenerator.Rendering.Common
         private DateTime _lightningCacheTimestamp = DateTime.MinValue;
         private (double MinLat, double MinLon, double MaxLat, double MaxLon)? _lightningCacheBBox;
         private List<DateTime> _lightningTimestamps = new();
-        private readonly TimeSpan _lightningCacheInterval = TimeSpan.FromMinutes(5);
+        private readonly TimeSpan _lightningCacheInterval = TimeSpan.FromSeconds(4);
+        private DateTime _lastSeenMaxStrikeTime = DateTime.MinValue;
+        public bool HadNewStrikesThisFetch { get; private set; } = false;
 
         public bool ShowLightningCG { get; set; } = false;
         public bool ShowLightningIC { get; set; } = false;
@@ -1282,6 +1284,15 @@ namespace WeatherImageGenerator.Rendering.Common
             _allCachedStrikes = await BZTGApi.GetLightningStrikesAsync(_httpClient, bbox, from, to);
             _lightningCacheTimestamp = DateTime.UtcNow;
             _lightningCacheBBox = bbox;
+
+            // Detect if any strike is newer than the last known max strike time
+            DateTime maxTime = _allCachedStrikes.Count > 0
+                ? _allCachedStrikes.Max(f => f.Time)
+                : DateTime.MinValue;
+            HadNewStrikesThisFetch = maxTime > _lastSeenMaxStrikeTime;
+            if (maxTime > _lastSeenMaxStrikeTime)
+                _lastSeenMaxStrikeTime = maxTime;
+
             return _allCachedStrikes;
         }
 

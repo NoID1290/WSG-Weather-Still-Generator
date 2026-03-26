@@ -6,6 +6,7 @@
 layout(location = 0) in  vec2  vUv;
 layout(location = 1) in  float vAge;
 layout(location = 2) in  float vIsCG;
+layout(location = 3) in  float vFlashBoost;
 layout(location = 0) out vec4  FragColor;
 
 void main() {
@@ -17,7 +18,8 @@ void main() {
     vec3 baseColor= mix(icColor, cgColor, vIsCG);
 
     // ── Age fade: recent = full brightness, old = 10 % ──
-    float ageFactor = mix(1.0, 0.10, vAge);
+    // vFlashBoost multiplies brightness of young strikes: at boost=1 a new strike is ~4× brighter.
+    float ageFactor = mix(1.0, 0.10, vAge) * (1.0 + vFlashBoost * (1.0 - vAge) * 3.0);
 
     // ── Core disc ──
     float coreR = 0.22;
