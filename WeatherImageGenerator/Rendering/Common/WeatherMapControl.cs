@@ -48,10 +48,23 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudCheckbox? _chkLightningCG;
         private HudCheckbox? _chkLightningIC;
         private HudDropdown? _ddLightningWindow;
+        private HudDropdown? _ddLightningPollInterval;
+        private HudLabel?    _lblLightningStats;
         private Timer? _lightningPollTimer;
         private Timer? _lightningFlashDecayTimer;
         private float _lightningFlashBoost = 0f;
+        private int _lightningPollIntervalMs = 5_000;
         private static readonly int[] _lightningWindowOptions = { 5, 10, 20, 30, 60 };
+        // (label, interval in ms) — index 1 (5 sec) is the default
+        private static readonly (string Label, int Ms)[] _lightningPollOptions =
+        {
+            ("Realtime",   1_000),
+            ("5 sec",      5_000),
+            ("30 sec",    30_000),
+            ("1 min",     60_000),
+            ("5 min",    300_000),
+            ("10 min",   600_000),
+        };
 
         private HudLabel _lblZoom;
         private HudLabel _lblPosition;
@@ -734,6 +747,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     else StopLightningPollTimer();
                     if (!_isAnimating)
                         _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                    UpdateAttributionText();
                 }
             };
             overlayPanel.Elements.Add(_chkLightningCG);
@@ -751,6 +765,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     else StopLightningPollTimer();
                     if (!_isAnimating)
                         _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                    UpdateAttributionText();
                 }
             };
             overlayPanel.Elements.Add(_chkLightningIC);
@@ -769,6 +784,24 @@ namespace WeatherImageGenerator.Rendering.Common
                 }
             };
             overlayPanel.Elements.Add(_ddLightningWindow);
+
+            _lblLightningStats = new HudLabel
+            {
+                Id   = "lightningStats",
+                Text = "",
+                IsDim = true
+            };
+            overlayPanel.Elements.Add(_lblLightningStats);
+
+            overlayPanel.Elements.Add(new HudLabel { Id = "lblLightningPoll", Text = "Refresh:", IsDim = true });
+            _ddLightningPollInterval = new HudDropdown
+            {
+                Id = "lightningPollInterval",
+                Options = _lightningPollOptions.Select(o => o.Label).ToList(),
+                SelectedIndex = 1, // default: 5 sec
+                OnSelectionChanged = idx => ApplyLightningPollInterval(idx)
+            };
+            overlayPanel.Elements.Add(_ddLightningPollInterval);
 
             _hudSystem.AddPanel(overlayPanel);
 
@@ -949,6 +982,8 @@ namespace WeatherImageGenerator.Rendering.Common
                 lines.Add("Radar: Environment and Climate Change Canada");
             if (_chkTemperature != null && _chkTemperature.Checked)
                 lines.Add("Weather: Open-Meteo.com (CC BY 4.0)");
+            if ((_chkLightningCG?.Checked ?? false) || (_chkLightningIC?.Checked ?? false))
+                lines.Add("Lightning: Blitzortung.org (CC BY-SA 4.0)");
 
             var text = string.Join("  |  ", lines);
 
@@ -1300,7 +1335,7 @@ namespace WeatherImageGenerator.Rendering.Common
         private void StartLightningPollTimer()
         {
             if (_lightningPollTimer != null) return;
-            _lightningPollTimer = new Timer { Interval = 5 * 1000 }; // 5 sec
+            _lightningPollTimer = new Timer { Interval = _lightningPollIntervalMs };
             _lightningPollTimer.Tick += async (s, ev) =>
             {
                 if (_isAnimating || !(_overlayManager.ShowLightningCG || _overlayManager.ShowLightningIC)) return;
@@ -1315,6 +1350,8 @@ namespace WeatherImageGenerator.Rendering.Common
                     _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
                     if (_overlayManager.HadNewStrikesThisFetch)
                         TriggerLightningFlash();
+                    if (_lblLightningStats != null)
+                        _lblLightningStats.Text = _overlayManager.GetLightningStatsText();
                 }
                 catch (Exception ex)
                 {
@@ -1409,6 +1446,23 @@ namespace WeatherImageGenerator.Rendering.Common
             _lightningPollTimer = null;
             StopLightningFlashDecay();
             _glControl?.SetLightningMarkers(Array.Empty<LightningStrikeEntry>());
+            if (_lblLightningStats != null) _lblLightningStats.Text = "";
+        }
+
+        /// <summary>
+        /// Changes the lightning poll interval. If the timer is running, updates it live.
+        /// Also adjusts the WeatherOverlayManager cache guard to be just under the new interval.
+        /// </summary>
+        private void ApplyLightningPollInterval(int idx)
+        {
+            idx = Math.Clamp(idx, 0, _lightningPollOptions.Length - 1);
+            _lightningPollIntervalMs = _lightningPollOptions[idx].Ms;
+            // Cache guard: slightly less than poll interval so each tick sees fresh data.
+            var cacheGuard = TimeSpan.FromMilliseconds(Math.Max(500, _lightningPollIntervalMs - 500));
+            _overlayManager.LightningCacheInterval = cacheGuard;
+            // Update the live timer's interval without stopping/restarting (avoids skipping a beat).
+            if (_lightningPollTimer != null)
+                _lightningPollTimer.Interval = _lightningPollIntervalMs;
         }
 
         private void TriggerLightningFlash()
@@ -1804,6 +1858,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 config.WeatherMapView.LightningIcEnabled = _chkLightningIC?.Checked ?? false;
                 config.WeatherMapView.LightningTimeWindowMinutes =
                     _lightningWindowOptions[Math.Clamp(_ddLightningWindow?.SelectedIndex ?? 3, 0, _lightningWindowOptions.Length - 1)];
+                config.WeatherMapView.LightningPollIntervalMs = _lightningPollIntervalMs;
 
                 config.WeatherMapView.PanelPosition = "Right";
                 config.WeatherMapView.ShowStatusBar = _glControl?.ShowStatusBar ?? true;
@@ -1875,6 +1930,13 @@ namespace WeatherImageGenerator.Rendering.Common
                     {
                         int winIdx = Array.IndexOf(_lightningWindowOptions, s.LightningTimeWindowMinutes);
                         _ddLightningWindow.SelectedIndex = winIdx >= 0 ? winIdx : 3;
+                    }
+                    // Restore poll interval dropdown
+                    {
+                        int pollIdx = Array.FindIndex(_lightningPollOptions, o => o.Ms == s.LightningPollIntervalMs);
+                        if (pollIdx < 0) pollIdx = 1; // default: 5 sec
+                        if (_ddLightningPollInterval != null) _ddLightningPollInterval.SelectedIndex = pollIdx;
+                        _lightningPollIntervalMs = _lightningPollOptions[pollIdx].Ms;
                     }
                 }
                 finally
@@ -1954,6 +2016,8 @@ namespace WeatherImageGenerator.Rendering.Common
                         _lightningWindowOptions[Math.Clamp(
                             Array.IndexOf(_lightningWindowOptions, s.LightningTimeWindowMinutes) is int wi && wi >= 0 ? wi : 3,
                             0, _lightningWindowOptions.Length - 1)];
+                    _overlayManager.LightningCacheInterval =
+                        TimeSpan.FromMilliseconds(Math.Max(500, _lightningPollIntervalMs - 500));
                     if (s.LightningCgEnabled || s.LightningIcEnabled)
                         StartLightningPollTimer();
                 }
@@ -2695,6 +2759,8 @@ namespace WeatherImageGenerator.Rendering.Common
                 _statusUpdateTimer?.Stop();
                 _statusUpdateTimer?.Dispose();
                 _animationRefreshDebounce?.Dispose();
+                StopLightningPollTimer();
+                StopLightningFlashDecay();
                 _tileCache?.Dispose();
                 _overlayManager?.Dispose();
                 _httpClient?.Dispose();

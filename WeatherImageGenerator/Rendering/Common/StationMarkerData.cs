@@ -33,10 +33,13 @@ namespace WeatherImageGenerator.Rendering.Common
     /// Per-lightning-strike entry passed to the GPU renderer.
     /// Age is normalised 0.0 (just occurred) → 1.0 (oldest in the window).
     /// IsCG distinguishes cloud-to-ground (yellow) from in-cloud (blue) strikes.
+    /// IsNew is true only for strikes fetched since the last successful poll — used to
+    /// gate the flash-boost animation so only newly arrived strikes pulse.
     /// </summary>
     public readonly record struct LightningStrikeEntry(
         float Lat,
         float Lon,
         float Age,
-        bool  IsCG);
+        bool  IsCG,
+        bool  IsNew);
 }

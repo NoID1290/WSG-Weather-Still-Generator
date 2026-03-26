@@ -11,7 +11,7 @@ cbuffer LightningVSCB : register(b0)
     float age;        // 0.0 = just occurred, 1.0 = oldest in window
     float isCG;       // 1.0 = cloud-to-ground (yellow), 0.0 = in-cloud (blue)
     float flashBoost; // 0.0 = no boost, 1.0 = peak flash
-    float _padVS;
+    float isNew;      // 1.0 = arrived after last fetch (flash gated); 0.0 = pre-existing
 };
 
 struct VS_INPUT
@@ -27,6 +27,7 @@ struct VS_OUTPUT
     float  vAge     : TEXCOORD1;
     float  vIsCG    : TEXCOORD2;
     float  vFlashBoost : TEXCOORD3;
+    float  vIsNew      : TEXCOORD4;
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -37,6 +38,7 @@ VS_OUTPUT main(VS_INPUT input)
     o.vAge    = age;
     o.vIsCG   = isCG;
     o.vFlashBoost = flashBoost;
+    o.vIsNew      = isNew;
     o.Position = float4(ndcX + uv.x * halfSizeX,
                         ndcY + uv.y * halfSizeY,
                         0.0, 1.0);

@@ -15,6 +15,7 @@ in  float vIsCG;
 out vec4  FragColor;
 
 uniform float uFlashBoost;  // 0.0 = no boost, 1.0 = peak flash
+uniform float uIsNew;       // 1.0 = this strike arrived after the last fetch; 0.0 = pre-existing
 
 void main() {
     float r = length(vUv);
@@ -24,9 +25,13 @@ void main() {
     vec3 icColor = vec3(0.251, 0.784, 1.00);  // #40C8FF electric blue
     vec3 baseColor = mix(icColor, cgColor, vIsCG);
 
+    // -- Color gradient: newest strikes flash white, fading to type color over first 25 % of life --
+    vec3 ageColor = mix(vec3(1.0), baseColor, smoothstep(0.0, 0.25, vAge));
+
     // -- Age fade: recent = full brightness, old = 10 % --
-    // uFlashBoost multiplies brightness of young strikes: at boost=1 a new strike is ~4× brighter.
-    float ageFactor = mix(1.0, 0.10, vAge) * (1.0 + uFlashBoost * (1.0 - vAge) * 3.0);
+    // Flash boost is gated by uIsNew so only brand-new strikes glow bright.
+    float flashAmt = uIsNew * uFlashBoost;
+    float ageFactor = mix(1.0, 0.10, vAge) * (1.0 + flashAmt * (1.0 - vAge) * 3.0);
 
     // -- Core disc (hard bright centre) --
     float coreR = 0.22;
@@ -52,7 +57,7 @@ void main() {
 
     // -- Combine --
     float alpha = clamp(max(coreA, glowA * 0.45) + rayMask, 0.0, 1.0);
-    vec3  color = min(vec3(1.0), baseColor + spec * 0.35);
+    vec3  color = min(vec3(1.0), ageColor + spec * 0.35);
 
     // Apply age fade to both colour and alpha
     FragColor = vec4(color * ageFactor, alpha * ageFactor);

@@ -621,12 +621,14 @@ namespace WeatherImageGenerator.Rendering.DirectX
             var lightningVsUniforms = new Dictionary<string, (bool, int, int)>
             {
                 // VS cbuffer b0
-                ["ndcX"]      = (true,  0, 4),
-                ["ndcY"]      = (true,  4, 4),
-                ["halfSizeX"] = (true,  8, 4),
-                ["halfSizeY"] = (true, 12, 4),
-                ["age"]       = (true, 16, 4),
-                ["isCG"]      = (true, 20, 4),
+                ["ndcX"]       = (true,  0, 4),
+                ["ndcY"]       = (true,  4, 4),
+                ["halfSizeX"]  = (true,  8, 4),
+                ["halfSizeY"]  = (true, 12, 4),
+                ["age"]        = (true, 16, 4),
+                ["isCG"]       = (true, 20, 4),
+                ["flashBoost"] = (true, 24, 4),
+                ["isNew"]      = (true, 28, 4),
             };
             _lightningShader = CreateShaderFromFiles(
                 "Rendering/DirectX/shaders/lightning_marker.vs.hlsl",
@@ -1112,7 +1114,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 _lightningShader.SetFloat("halfSizeX", halfSizeX);
                 _lightningShader.SetFloat("halfSizeY", halfSizeY);
                 _lightningShader.SetFloat("age",       s.Age);
-                _lightningShader.SetFloat("isCG",      s.IsCG ? 1f : 0f);
+                _lightningShader.SetFloat("isCG",      s.IsCG  ? 1f : 0f);
+                _lightningShader.SetFloat("isNew",     s.IsNew ? 1f : 0f);
                 _lightningShader.Use();
                 _context.Handle->DrawIndexed(6, 0, 0);
             }

@@ -14,13 +14,14 @@ layout(push_constant) uniform PC {
     float age;        // 0.0 = just occurred, 1.0 = oldest in window
     float isCG;       // 1.0 = cloud-to-ground, 0.0 = in-cloud
     float flashBoost; // 0.0 = no boost, 1.0 = peak flash
-    float _pad1;
+    float isNew;      // 1.0 = arrived after last fetch (flash gated); 0.0 = pre-existing
 } pc;
 
 layout(location = 0) out vec2  vUv;
 layout(location = 1) out float vAge;
 layout(location = 2) out float vIsCG;
 layout(location = 3) out float vFlashBoost;
+layout(location = 4) out float vIsNew;
 
 void main() {
     vec2 uv = aTex * 2.0 - 1.0;
@@ -28,6 +29,7 @@ void main() {
     vAge = pc.age;
     vIsCG = pc.isCG;
     vFlashBoost = pc.flashBoost;
+    vIsNew      = pc.isNew;
     gl_Position = vec4(pc.ndcX + uv.x * pc.halfSizeX,
                        pc.ndcY + uv.y * pc.halfSizeY,
                        0.0, 1.0);

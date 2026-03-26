@@ -1123,6 +1123,9 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("LightningTimeWindowMinutes")]
         public int LightningTimeWindowMinutes { get; set; } = 30;
+
+        [JsonPropertyName("LightningPollIntervalMs")]
+        public int LightningPollIntervalMs { get; set; } = 5_000;
     }
 
     public class SeismogramMapViewSettings

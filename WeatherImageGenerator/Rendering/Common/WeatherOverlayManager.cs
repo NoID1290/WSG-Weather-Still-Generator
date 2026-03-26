@@ -93,7 +93,12 @@ namespace WeatherImageGenerator.Rendering.Common
         private (double MinLat, double MinLon, double MaxLat, double MaxLon)? _lightningCacheBBox;
         private List<DateTime> _lightningTimestamps = new();
         private readonly TimeSpan _lightningCacheInterval = TimeSpan.FromSeconds(4);
+        /// <summary>Minimum time between full BZTG API re-fetches. Adjusted by the UI poll interval.</summary>
+        public TimeSpan LightningCacheInterval { get; set; } = TimeSpan.FromSeconds(4);
         private DateTime _lastSeenMaxStrikeTime = DateTime.MinValue;
+        // Strikes with Time > _newStrikeThresholdTime are marked IsNew for the flash animation.
+        // Updated just before each fetch so the old max is captured.
+        private DateTime _newStrikeThresholdTime = DateTime.MinValue;
         public bool HadNewStrikesThisFetch { get; private set; } = false;
 
         public bool ShowLightningCG { get; set; } = false;
@@ -1278,18 +1283,22 @@ namespace WeatherImageGenerator.Rendering.Common
                 && Math.Abs(_lightningCacheBBox.Value.MaxLat - bbox.MaxLat) < 0.01
                 && Math.Abs(_lightningCacheBBox.Value.MaxLon - bbox.MaxLon) < 0.01;
 
-            if (sameBox && DateTime.UtcNow - _lightningCacheTimestamp < _lightningCacheInterval)
+            if (sameBox && DateTime.UtcNow - _lightningCacheTimestamp < LightningCacheInterval)
                 return _allCachedStrikes;
 
             _allCachedStrikes = await BZTGApi.GetLightningStrikesAsync(_httpClient, bbox, from, to);
             _lightningCacheTimestamp = DateTime.UtcNow;
             _lightningCacheBBox = bbox;
 
-            // Detect if any strike is newer than the last known max strike time
+            // Detect if any strike is newer than the last known max strike time.
+            // Capture old max as threshold so GetStrikesForFrame can mark IsNew correctly.
             DateTime maxTime = _allCachedStrikes.Count > 0
                 ? _allCachedStrikes.Max(f => f.Time)
                 : DateTime.MinValue;
-            HadNewStrikesThisFetch = maxTime > _lastSeenMaxStrikeTime;
+            // Only fire on subsequent fetches (not the very first load — avoids flashing the entire
+            // initial batch when the user first enables lightning).
+            HadNewStrikesThisFetch = _lastSeenMaxStrikeTime > DateTime.MinValue && maxTime > _lastSeenMaxStrikeTime;
+            _newStrikeThresholdTime = _lastSeenMaxStrikeTime; // snapshot old max for IsNew tagging
             if (maxTime > _lastSeenMaxStrikeTime)
                 _lastSeenMaxStrikeTime = maxTime;
 
@@ -1314,8 +1323,9 @@ namespace WeatherImageGenerator.Rendering.Common
                     ? (float)((frameTime - f.Time).TotalMinutes / LightningTimeWindowMinutes)
                     : 0f;
                 age = Math.Clamp(age, 0f, 1f);
-                bool isCG = f.StrikeType != LightningStrikeType.InCloud;
-                entries.Add(new LightningStrikeEntry((float)f.Latitude, (float)f.Longitude, age, isCG));
+                bool isCG  = f.StrikeType != LightningStrikeType.InCloud;
+                bool isNew = _newStrikeThresholdTime > DateTime.MinValue && f.Time > _newStrikeThresholdTime;
+                entries.Add(new LightningStrikeEntry((float)f.Latitude, (float)f.Longitude, age, isCG, isNew));
             }
             return entries.ToArray();
         }
@@ -1328,5 +1338,37 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             return GetStrikesForFrame(DateTime.UtcNow);
         }
+
+        /// <summary>
+        /// Returns a one-line HUD string with strike counts for the current time window.
+        /// Returns an empty string when there is no data yet.
+        /// </summary>
+        public string GetLightningStatsText()
+        {
+            if (_allCachedStrikes.Count == 0) return "";
+
+            var windowStart = DateTime.UtcNow - TimeSpan.FromMinutes(LightningTimeWindowMinutes);
+            var oneMinAgo   = DateTime.UtcNow - TimeSpan.FromMinutes(1);
+
+            int total = 0, cg = 0, ic = 0, lastMin = 0;
+            foreach (var f in _allCachedStrikes)
+            {
+                if (f.Time < windowStart) continue;
+                if (!ShowLightningCG && f.StrikeType == LightningStrikeType.CloudToGround) continue;
+                if (!ShowLightningIC && f.StrikeType == LightningStrikeType.InCloud)       continue;
+                total++;
+                if (f.StrikeType == LightningStrikeType.CloudToGround) cg++;
+                else ic++;
+                if (f.Time >= oneMinAgo) lastMin++;
+            }
+            if (total == 0) return "";
+
+            var parts = new System.Text.StringBuilder();
+            parts.Append($"⚡ {total} strikes");
+            if (ShowLightningCG && ShowLightningIC) parts.Append($"  CG:{cg}  IC:{ic}");
+            parts.Append($"  +{lastMin}/min");
+            return parts.ToString();
+        }
+
     }
 }

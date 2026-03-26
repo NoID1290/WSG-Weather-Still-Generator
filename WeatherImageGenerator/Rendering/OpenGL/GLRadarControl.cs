@@ -375,6 +375,7 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _lmHalfSizeXLoc = -1, _lmHalfSizeYLoc = -1;
         private int _lmAgeLoc = -1, _lmIsCGLoc = -1;
         private int _lmFlashBoostLoc = -1;
+        private int _lmIsNewLoc       = -1;
         private float _lightningFlashBoost = 0f;
 
         private LightningStrikeEntry[] _lightningMarkers = Array.Empty<LightningStrikeEntry>();
@@ -638,6 +639,7 @@ void main() {
                     _lmAgeLoc       = GL.GetUniformLocation(lh, "uAge");
                     _lmIsCGLoc      = GL.GetUniformLocation(lh, "uIsCG");
                     _lmFlashBoostLoc = GL.GetUniformLocation(lh, "uFlashBoost");
+                    _lmIsNewLoc       = GL.GetUniformLocation(lh, "uIsNew");
                 }
                 catch (Exception ex)
                 {
@@ -1682,7 +1684,8 @@ void main() {
                 if (_lmHalfSizeXLoc >= 0) GL.Uniform1(_lmHalfSizeXLoc, halfSizeX);
                 if (_lmHalfSizeYLoc >= 0) GL.Uniform1(_lmHalfSizeYLoc, halfSizeY);
                 if (_lmAgeLoc >= 0)       GL.Uniform1(_lmAgeLoc,       s.Age);
-                if (_lmIsCGLoc >= 0)      GL.Uniform1(_lmIsCGLoc,      s.IsCG ? 1f : 0f);
+                if (_lmIsCGLoc >= 0)      GL.Uniform1(_lmIsCGLoc,      s.IsCG  ? 1f : 0f);
+                if (_lmIsNewLoc >= 0)     GL.Uniform1(_lmIsNewLoc,     s.IsNew ? 1f : 0f);
 
                 GL.BindVertexArray(_vao);
                 GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);

@@ -12,6 +12,7 @@ struct PS_INPUT
     float  vAge     : TEXCOORD1;
     float  vIsCG    : TEXCOORD2;
     float  vFlashBoost : TEXCOORD3;
+    float  vIsNew      : TEXCOORD4;
 };
 
 float4 main(PS_INPUT input) : SV_TARGET
@@ -23,9 +24,13 @@ float4 main(PS_INPUT input) : SV_TARGET
     float3 icColor = float3(0.251, 0.784, 1.00);   // #40C8FF electric blue
     float3 baseColor = lerp(icColor, cgColor, input.vIsCG);
 
+    // ── Color gradient: newest strikes flash white, fading to type color over first 25 % of life ──
+    float3 ageColor = lerp(float3(1.0, 1.0, 1.0), baseColor, smoothstep(0.0, 0.25, input.vAge));
+
     // ── Age fade ──
-    // vFlashBoost multiplies brightness of young strikes: at boost=1 a new strike is ~4× brighter.
-    float ageFactor = lerp(1.0, 0.10, input.vAge) * (1.0 + input.vFlashBoost * (1.0 - input.vAge) * 3.0);
+    // Flash boost is gated by vIsNew so only brand-new strikes glow bright.
+    float flashAmt  = input.vIsNew * input.vFlashBoost;
+    float ageFactor = lerp(1.0, 0.10, input.vAge) * (1.0 + flashAmt * (1.0 - input.vAge) * 3.0);
 
     // ── Core disc ──
     float coreR = 0.22;
@@ -52,7 +57,7 @@ float4 main(PS_INPUT input) : SV_TARGET
 
     // ── Combine ──
     float alpha = clamp(max(coreA, glowA * 0.45) + rayMask, 0.0, 1.0);
-    float3 color = min(float3(1.0, 1.0, 1.0), baseColor + spec * 0.35);
+    float3 color = min(float3(1.0, 1.0, 1.0), ageColor + spec * 0.35);
 
     return float4(color * ageFactor, alpha * ageFactor);
 }
