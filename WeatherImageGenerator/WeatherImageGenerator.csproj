@@ -27,6 +27,7 @@
     <ProjectReference Include="..\EAS\EAS.csproj" />
     <ProjectReference Include="..\OpenMap\OpenMap.csproj" />
     <ProjectReference Include="..\Grib2\Grib2.csproj" />
+    <ProjectReference Include="..\BZTG\BZTG.csproj" />
     <!-- Include the updater helper executable -->
     <ProjectReference Include="..\WeatherImageGenerator.Updater\WeatherImageGenerator.Updater.csproj" />
   </ItemGroup>
@@ -35,6 +36,9 @@
     <None Include="appsettings.json" />
     <!-- Copy wwwroot files for Web UI -->
     <Content Include="wwwroot\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Rendering\DirectX\shaders\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <EmbeddedResource Include="Rendering\OpenGL\shaders\**\*.*" />

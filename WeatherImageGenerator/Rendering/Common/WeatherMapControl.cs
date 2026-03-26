@@ -1304,8 +1304,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 if (_isAnimating || !(_overlayManager.ShowLightningCG || _overlayManager.ShowLightningIC)) return;
                 try
                 {
-                    var bbox = _overlayManager.LastRadarBBox
-                        ?? (_animationBBox.HasValue ? _animationBBox : null);
+                    var bbox = ResolveLightningFetchBBox();
                     if (bbox.HasValue)
                     {
                         var from = DateTime.UtcNow - TimeSpan.FromMinutes(_overlayManager.LightningTimeWindowMinutes);
@@ -1319,6 +1318,83 @@ namespace WeatherImageGenerator.Rendering.Common
                 }
             };
             _lightningPollTimer.Start();
+            // Immediately fetch without waiting for the first 5-minute interval
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var bbox = ResolveLightningFetchBBox();
+                    if (bbox.HasValue)
+                    {
+                        var from = DateTime.UtcNow - TimeSpan.FromMinutes(_overlayManager.LightningTimeWindowMinutes);
+                        await _overlayManager.FetchAllLightningStrikesAsync(bbox.Value, from, DateTime.UtcNow);
+                    }
+                    if (!this.IsDisposed && this.IsHandleCreated)
+                    {
+                        this.BeginInvoke(new Action(() =>
+                            _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes())));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Lightning] Initial fetch error: {ex.Message}");
+                }
+            });
+        }
+
+        private (double MinLat, double MinLon, double MaxLat, double MaxLon)? ResolveLightningFetchBBox()
+        {
+            // Prefer the same bbox used by active overlays/animation, then fall back to current viewport.
+            var bbox = _overlayManager.LastRadarBBox
+                ?? _overlayManager.LastOverlayBBox
+                ?? (_animationBBox.HasValue ? _animationBBox : null);
+
+            if (bbox.HasValue)
+                return bbox;
+
+            if (_glControl?.HostControl == null)
+                return null;
+
+            int width = Math.Max(1, _glControl.HostControl.Width);
+            int height = Math.Max(1, _glControl.HostControl.Height);
+            return CalculateViewportBoundingBox(_currentLat, _currentLon, _currentZoom, width, height);
+        }
+
+        private static (double MinLat, double MinLon, double MaxLat, double MaxLon) CalculateViewportBoundingBox(
+            double centerLat, double centerLon, int zoom, int width, int height)
+        {
+            // Keep in sync with overlay bbox math (Web Mercator + 2x over-fetch).
+            const double overlayOverfetch = 2.0;
+            double fetchWidth = width * overlayOverfetch;
+            double fetchHeight = height * overlayOverfetch;
+
+            double worldPixels = 256.0 * Math.Pow(2, zoom);
+            double centerPixelX = (centerLon + 180.0) / 360.0 * worldPixels;
+            double latRad = centerLat * Math.PI / 180.0;
+            double centerPixelY = (1.0 - Math.Log(Math.Tan(latRad) + 1.0 / Math.Cos(latRad)) / Math.PI) / 2.0 * worldPixels;
+
+            double minPixelX = centerPixelX - fetchWidth / 2.0;
+            double maxPixelX = centerPixelX + fetchWidth / 2.0;
+            double minPixelY = centerPixelY - fetchHeight / 2.0;
+            double maxPixelY = centerPixelY + fetchHeight / 2.0;
+
+            double minLon = (minPixelX / worldPixels) * 360.0 - 180.0;
+            double maxLon = (maxPixelX / worldPixels) * 360.0 - 180.0;
+
+            double minLatRad = Math.Atan(Math.Sinh(Math.PI * (1.0 - 2.0 * maxPixelY / worldPixels)));
+            double maxLatRad = Math.Atan(Math.Sinh(Math.PI * (1.0 - 2.0 * minPixelY / worldPixels)));
+            double minLat = minLatRad * 180.0 / Math.PI;
+            double maxLat = maxLatRad * 180.0 / Math.PI;
+
+            double latSpan = maxLat - minLat;
+            if (latSpan > 80.0)
+            {
+                double mid = (minLat + maxLat) / 2.0;
+                minLat = mid - 40.0;
+                maxLat = mid + 40.0;
+            }
+
+            return (minLat, minLon, maxLat, maxLon);
         }
 
         private void StopLightningPollTimer()

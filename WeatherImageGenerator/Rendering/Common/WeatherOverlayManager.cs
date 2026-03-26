@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using BZTG;
 using ECCC;
 using ECCC.Models;
 using ECCC.Services;
@@ -16,6 +17,7 @@ using OpenMap;
 using OpenMeteo;
 using WeatherImageGenerator.Models;
 using WeatherImageGenerator.Services;
+using WeatherShared;
 
 namespace WeatherImageGenerator.Rendering.Common
 {
@@ -1246,11 +1248,17 @@ namespace WeatherImageGenerator.Rendering.Common
 
         // ═══ Lightning detection methods ═══
 
-        /// <summary>Fetches available lightning timestamps from ECCC WMS.</summary>
-        public async Task<List<DateTime>> FetchLightningTimestampsAsync(int numFrames = 12)
+        /// <summary>
+        /// Returns synthetic timestamps for the Blitzortung lightning overlay.
+        /// Blitzortung has data for every UTC minute; no remote discovery is needed.
+        /// </summary>
+        public Task<List<DateTime>> FetchLightningTimestampsAsync(int numFrames = 12)
         {
-            _lightningTimestamps = await ECCCApi.GetLightningTimestampsAsync(_httpClient, numFrames);
-            return _lightningTimestamps;
+            var now = DateTime.UtcNow.AddSeconds(-DateTime.UtcNow.Second);
+            _lightningTimestamps = Enumerable.Range(1 - numFrames, numFrames)
+                .Select(i => now.AddMinutes(i))
+                .ToList();
+            return Task.FromResult(_lightningTimestamps);
         }
 
         /// <summary>
@@ -1271,7 +1279,7 @@ namespace WeatherImageGenerator.Rendering.Common
             if (sameBox && DateTime.UtcNow - _lightningCacheTimestamp < _lightningCacheInterval)
                 return _allCachedStrikes;
 
-            _allCachedStrikes = await ECCCApi.GetLightningStrikesAsync(_httpClient, bbox, from, to);
+            _allCachedStrikes = await BZTGApi.GetLightningStrikesAsync(_httpClient, bbox, from, to);
             _lightningCacheTimestamp = DateTime.UtcNow;
             _lightningCacheBBox = bbox;
             return _allCachedStrikes;

@@ -133,56 +133,6 @@ namespace ECCC.Api
         
         #endregion
 
-        #region Lightning OGC API URLs
-
-        /// <summary>
-        /// Expected OGC API collection ID for ECCC lightning flashes.
-        /// The collection name may change with API versions; use
-        /// <see cref="BuildLightningCollectionsUrl"/> to discover the live name.
-        /// </summary>
-        public const string ExpectedLightningCollectionId = "lightning-cldn-flash";
-
-        /// <summary>
-        /// Builds the URL to list all OGC API collections (used for lightning collection discovery).
-        /// </summary>
-        public static string BuildLightningCollectionsUrl()
-            => $"{BaseApiUrl}/collections?f=json";
-
-        /// <summary>
-        /// Builds the URL to fetch lightning flash items from the ECCC OGC API.
-        /// </summary>
-        /// <param name="collectionId">OGC collection ID (e.g., "lightning-cldn-flash")</param>
-        /// <param name="bbox">Bounding box (minLon, minLat, maxLon, maxLat) — OGC axis-order</param>
-        /// <param name="from">Start of the time interval (UTC)</param>
-        /// <param name="to">End of the time interval (UTC)</param>
-        /// <param name="limit">Maximum number of features to return</param>
-        public static string BuildLightningStrikesUrl(
-            string collectionId,
-            (double MinLon, double MinLat, double MaxLon, double MaxLat) bbox,
-            DateTime from,
-            DateTime to,
-            int limit = 5000)
-        {
-            var bboxStr = string.Format(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "{0},{1},{2},{3}",
-                bbox.MinLon, bbox.MinLat, bbox.MaxLon, bbox.MaxLat);
-            var fromStr = from.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
-            var toStr   = to.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
-            return $"{BaseApiUrl}/collections/{Uri.EscapeDataString(collectionId)}/items"
-                 + $"?f=json&bbox={bboxStr}&datetime={Uri.EscapeDataString($"{fromStr}/{toStr}")}&limit={limit}";
-        }
-
-        /// <summary>
-        /// Builds a WMS GetCapabilities URL scoped to the lightning density layer,
-        /// used to discover available time dimension entries.
-        /// </summary>
-        public static string BuildLightningCapabilitiesUrl()
-            => $"{BaseGeoMetUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities"
-             + $"&LAYERS={Uri.EscapeDataString(WmsLayers.LightningFlashDensity)}";
-
-        #endregion
-
         #region Datamart URLs
         
         /// <summary>
