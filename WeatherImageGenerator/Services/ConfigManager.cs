@@ -1038,7 +1038,7 @@ namespace WeatherImageGenerator.Services
         public double Longitude { get; set; } = -106.3468;
 
         [JsonPropertyName("MapStyleIndex")]
-        public int MapStyleIndex { get; set; } = 0;
+        public int MapStyleIndex { get; set; } = -1; // -1 = not yet set; falls back to OpenMap.DefaultMapStyle
 
         [JsonPropertyName("RadarEnabled")]
         public bool RadarEnabled { get; set; } = true;
@@ -1126,6 +1126,12 @@ namespace WeatherImageGenerator.Services
 
         [JsonPropertyName("LightningPollIntervalMs")]
         public int LightningPollIntervalMs { get; set; } = 5_000;
+
+        [JsonPropertyName("Grib2PanelCollapsed")]
+        public bool Grib2PanelCollapsed { get; set; } = true;
+
+        [JsonPropertyName("LightningPanelCollapsed")]
+        public bool LightningPanelCollapsed { get; set; } = true;
     }
 
     public class SeismogramMapViewSettings

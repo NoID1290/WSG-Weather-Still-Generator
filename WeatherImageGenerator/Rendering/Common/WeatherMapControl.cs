@@ -597,8 +597,19 @@ namespace WeatherImageGenerator.Rendering.Common
             };
             overlayPanel.Elements.Add(chkTempLabels);
 
-            // ── GRIB2 Forecast Overlay ──
-            overlayPanel.Elements.Add(new HudSeparator());
+            _hudSystem.AddPanel(overlayPanel);
+
+            // === GRIB2 Forecast Panel (top-right, collapsible, independent of Radar) ===
+            var grib2Panel = new HudPanel
+            {
+                Id = "grib2Forecast",
+                Title = "GRIB2 Forecast",
+                Anchor = HudAnchor.TopRight,
+                Width = 240f,
+                MarginX = 10, MarginY = 10,
+                Collapsible = true,
+                Collapsed = true
+            };
 
             _chkGrib2 = new HudCheckbox
             {
@@ -607,7 +618,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 Checked = false,
                 OnChanged = chk => { _ = UpdateOverlays(); }
             };
-            overlayPanel.Elements.Add(_chkGrib2);
+            grib2Panel.Elements.Add(_chkGrib2);
 
             _ddGrib2Field = new HudDropdown
             {
@@ -622,7 +633,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _ = UpdateOverlays();
                 }
             };
-            overlayPanel.Elements.Add(_ddGrib2Field);
+            grib2Panel.Elements.Add(_ddGrib2Field);
 
             _ddGrib2Model = new HudDropdown
             {
@@ -658,7 +669,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _ = UpdateOverlays();
                 }
             };
-            overlayPanel.Elements.Add(_ddGrib2Model);
+            grib2Panel.Elements.Add(_ddGrib2Model);
 
             _sldGrib2Opacity = new HudSlider
             {
@@ -672,7 +683,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _glControl.InvalidateView();
                 }
             };
-            overlayPanel.Elements.Add(_sldGrib2Opacity);
+            grib2Panel.Elements.Add(_sldGrib2Opacity);
 
             _sldGrib2ForecastHour = new HudSlider
             {
@@ -686,7 +697,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _ = UpdateOverlays();
                 }
             };
-            overlayPanel.Elements.Add(_sldGrib2ForecastHour);
+            grib2Panel.Elements.Add(_sldGrib2ForecastHour);
 
             _chkGrib2Labels = new HudCheckbox
             {
@@ -700,7 +711,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _ = UpdateOverlays();
                 }
             };
-            overlayPanel.Elements.Add(_chkGrib2Labels);
+            grib2Panel.Elements.Add(_chkGrib2Labels);
 
             _chkGrib2WindBarbs = new HudCheckbox
             {
@@ -714,7 +725,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _ = UpdateOverlays();
                 }
             };
-            overlayPanel.Elements.Add(_chkGrib2WindBarbs);
+            grib2Panel.Elements.Add(_chkGrib2WindBarbs);
 
             _chkGrib2Isobars = new HudCheckbox
             {
@@ -728,11 +739,21 @@ namespace WeatherImageGenerator.Rendering.Common
                     _ = UpdateOverlays();
                 }
             };
-            overlayPanel.Elements.Add(_chkGrib2Isobars);
+            grib2Panel.Elements.Add(_chkGrib2Isobars);
 
-            // ── Lightning Detection Overlay ──
-            overlayPanel.Elements.Add(new HudSeparator());
-            overlayPanel.Elements.Add(new HudLabel { Id = "lblLightning", Text = "Lightning Detection" });
+            _hudSystem.AddPanel(grib2Panel);
+
+            // === Lightning Detection Panel (top-right, collapsible, independent of Radar) ===
+            var lightningPanel = new HudPanel
+            {
+                Id = "lightning",
+                Title = "Lightning Detection",
+                Anchor = HudAnchor.TopRight,
+                Width = 240f,
+                MarginX = 10, MarginY = 10,
+                Collapsible = true,
+                Collapsed = true
+            };
 
             _chkLightningCG = new HudCheckbox
             {
@@ -750,7 +771,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     UpdateAttributionText();
                 }
             };
-            overlayPanel.Elements.Add(_chkLightningCG);
+            lightningPanel.Elements.Add(_chkLightningCG);
 
             _chkLightningIC = new HudCheckbox
             {
@@ -768,7 +789,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     UpdateAttributionText();
                 }
             };
-            overlayPanel.Elements.Add(_chkLightningIC);
+            lightningPanel.Elements.Add(_chkLightningIC);
 
             _ddLightningWindow = new HudDropdown
             {
@@ -783,7 +804,7 @@ namespace WeatherImageGenerator.Rendering.Common
                         _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
                 }
             };
-            overlayPanel.Elements.Add(_ddLightningWindow);
+            lightningPanel.Elements.Add(_ddLightningWindow);
 
             _lblLightningStats = new HudLabel
             {
@@ -791,9 +812,9 @@ namespace WeatherImageGenerator.Rendering.Common
                 Text = "",
                 IsDim = true
             };
-            overlayPanel.Elements.Add(_lblLightningStats);
+            lightningPanel.Elements.Add(_lblLightningStats);
 
-            overlayPanel.Elements.Add(new HudLabel { Id = "lblLightningPoll", Text = "Refresh:", IsDim = true });
+            lightningPanel.Elements.Add(new HudLabel { Id = "lblLightningPoll", Text = "Refresh:", IsDim = true });
             _ddLightningPollInterval = new HudDropdown
             {
                 Id = "lightningPollInterval",
@@ -801,11 +822,11 @@ namespace WeatherImageGenerator.Rendering.Common
                 SelectedIndex = 1, // default: 5 sec
                 OnSelectionChanged = idx => ApplyLightningPollInterval(idx)
             };
-            overlayPanel.Elements.Add(_ddLightningPollInterval);
+            lightningPanel.Elements.Add(_ddLightningPollInterval);
 
-            _hudSystem.AddPanel(overlayPanel);
+            _hudSystem.AddPanel(lightningPanel);
 
-            // === Map Style Panel (top-right, auto-stacked below Overlays) ===
+            // === Map Style Panel (top-right, auto-stacked below panels above) ===
             var mapStylePanel = new HudPanel
             {
                 Id = "mapStyle",
@@ -1860,6 +1881,9 @@ namespace WeatherImageGenerator.Rendering.Common
                     _lightningWindowOptions[Math.Clamp(_ddLightningWindow?.SelectedIndex ?? 3, 0, _lightningWindowOptions.Length - 1)];
                 config.WeatherMapView.LightningPollIntervalMs = _lightningPollIntervalMs;
 
+                config.WeatherMapView.Grib2PanelCollapsed = _hudSystem.GetPanel("grib2Forecast")?.Collapsed ?? true;
+                config.WeatherMapView.LightningPanelCollapsed = _hudSystem.GetPanel("lightning")?.Collapsed ?? true;
+
                 config.WeatherMapView.PanelPosition = "Right";
                 config.WeatherMapView.ShowStatusBar = _glControl?.ShowStatusBar ?? true;
                 config.WeatherMapView.ShowRuler = _glControl?.ShowRuler ?? true;
@@ -1891,8 +1915,22 @@ namespace WeatherImageGenerator.Rendering.Common
                 _suppressOverlayUpdates = true;
                 try
                 {
-                    if (_grpMapStyle != null && s.MapStyleIndex >= 0 && s.MapStyleIndex < _grpMapStyle.Options.Count)
-                        _grpMapStyle.SelectedIndex = s.MapStyleIndex;
+                    if (_grpMapStyle != null)
+                    {
+                        int styleIdx = s.MapStyleIndex;
+                        if (styleIdx < 0) // never explicitly saved — fall back to OpenMap.DefaultMapStyle from appsettings
+                        {
+                            styleIdx = config.OpenMap?.DefaultMapStyle switch
+                            {
+                                "TerrainDark" or "Dark" => 1,
+                                "Terrain"               => 2,
+                                "Satellite" or "Sat"    => 3,
+                                _                       => 0
+                            };
+                        }
+                        if (styleIdx >= 0 && styleIdx < _grpMapStyle.Options.Count)
+                            _grpMapStyle.SelectedIndex = styleIdx;
+                    }
 
                     if (_chkRadar != null) _chkRadar.Checked = s.RadarEnabled;
                     if (_chkTemperature != null) _chkTemperature.Checked = s.TemperatureEnabled;
@@ -1938,6 +1976,12 @@ namespace WeatherImageGenerator.Rendering.Common
                         if (_ddLightningPollInterval != null) _ddLightningPollInterval.SelectedIndex = pollIdx;
                         _lightningPollIntervalMs = _lightningPollOptions[pollIdx].Ms;
                     }
+
+                    // Restore panel collapsed state
+                    var grib2PanelRef = _hudSystem.GetPanel("grib2Forecast");
+                    if (grib2PanelRef != null) grib2PanelRef.Collapsed = s.Grib2PanelCollapsed;
+                    var lightningPanelRef = _hudSystem.GetPanel("lightning");
+                    if (lightningPanelRef != null) lightningPanelRef.Collapsed = s.LightningPanelCollapsed;
                 }
                 finally
                 {
@@ -1958,6 +2002,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 if (_glControl != null)
                 {
                     _glControl.OverlayOpacity = (_sldRadarOpacity?.Value ?? 75) / 100f;
+                    _glControl.Overlay2Opacity = (_sldTempOpacity?.Value ?? 60) / 100f;
                 }
 
                 // Viewport display settings

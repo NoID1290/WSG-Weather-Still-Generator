@@ -34,7 +34,7 @@ namespace WeatherImageGenerator.Rendering.Common
             _useBinaryCache = useBinaryCache;
 
             // Provide a minimal User-Agent to be polite to tile servers
-            try { _client.DefaultRequestHeaders.UserAgent.ParseAdd("WSG-Radar/1.0 (+https://example.com)"); } catch { }
+            try { _client.DefaultRequestHeaders.UserAgent.ParseAdd("WSG-Radar/1.0 (+https://github.com/NoID1290/WSG-Weather-Still-Generator)"); } catch { }
 
             // Use existing OpenMap map service if provided so we reuse its cache and timeouts
             _mapService = mapService;
@@ -207,8 +207,11 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             try
             {
+                // Scan raw bytes for ASCII markers — works for HTML responses and PNG tEXt metadata
                 var s = System.Text.Encoding.ASCII.GetString(data);
                 if (s.IndexOf("Access blocked", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                // OSM embeds this URL in uncompressed PNG tEXt chunks when blocking by policy
+                if (s.IndexOf("osm.wiki/Blocked", StringComparison.OrdinalIgnoreCase) >= 0) return true;
             }
             catch { }
             return false;

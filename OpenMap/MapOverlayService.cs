@@ -453,6 +453,10 @@ public class MapOverlayService
             }
 
             var bytes = await response.Content.ReadAsByteArrayAsync();
+            // Detect OSM policy-blocked tiles (returned as 200 OK with a blocked PNG)
+            // before caching to avoid persisting blocked images to disk.
+            if (IsBlockedTileContent(bytes))
+                return (null, 403);
             // Save to cache
             SaveTileToCache(url, bytes);
             return (bytes, 0);
@@ -462,6 +466,20 @@ public class MapOverlayService
             Log?.Invoke($"[MapCache] Download error: {ex.Message}");
             return (null, -1);
         }
+    }
+
+    private static bool IsBlockedTileContent(byte[] data)
+    {
+        try
+        {
+            // Scan raw bytes as ASCII — covers HTML error pages and PNG tEXt metadata chunks
+            var s = System.Text.Encoding.ASCII.GetString(data);
+            if (s.IndexOf("Access blocked", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            // OSM embeds this URL in PNG tEXt chunks when blocking by usage policy
+            if (s.IndexOf("osm.wiki/Blocked", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        }
+        catch { }
+        return false;
     }
 
     private double LonToPixelX(double lon, int zoom)
