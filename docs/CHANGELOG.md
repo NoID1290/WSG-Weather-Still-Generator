@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix Map style dosen't been saved at close
 - Fix OSM tile caching problem GRIB2 and Lightning got their indepndent panels Fixed opacity not loaded propely
+- Expand Credits and License tabs with legal notices for Silk.NET, ILGPU, CSJ2K, Earthquakes Canada, and Blitzortung
 
 ## [1.19.34.0326] - 2026-03-26
 

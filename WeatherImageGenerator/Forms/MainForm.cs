@@ -4340,6 +4340,16 @@ namespace WeatherImageGenerator.Forms
                     MkLbl("Official Canadian weather data and forecasts", false),
                     MkLbl("License: Open Government Licence - Canada", false, true),
                     Spacer(),
+                    MkLbl("Earthquakes Canada (NRCan / EKCA)", true),
+                    MkLink("https://earthquakescanada.nrcan.gc.ca/", "https://earthquakescanada.nrcan.gc.ca/"),
+                    MkLbl("Seismic station waveforms and earthquake event data via FDSN web services", false),
+                    MkLbl("License: Open Government Licence - Canada", false, true),
+                    Spacer(),
+                    MkLbl("Blitzortung.org", true),
+                    MkLink("https://www.blitzortung.org/", "https://www.blitzortung.org/"),
+                    MkLbl("Community lightning detection network with real-time and archived strike data", false),
+                    MkLbl("License: CC BY-SA 4.0 (provider terms apply)", false, true),
+                    Spacer(),
                     MkLbl("National Weather Service (NWS)", true),
                     MkLink("https://www.weather.gov/", "https://www.weather.gov/"),
                     MkLbl("Official U.S. weather data, forecasts and SAME-encoded alerts", false),
@@ -4366,6 +4376,21 @@ namespace WeatherImageGenerator.Forms
                     MkLink("https://github.com/opentk/opentk", "https://github.com/opentk/opentk"),
                     MkLbl("Open Toolkit for OpenGL, OpenAL and OpenCL in .NET", false),
                     MkLbl("License: MIT License", false, true),
+                    Spacer(),
+                    MkLbl("Silk.NET (Vulkan / Direct3D bindings)", true),
+                    MkLink("https://github.com/dotnet/Silk.NET", "https://github.com/dotnet/Silk.NET"),
+                    MkLbl("Native bindings used by the rendering backends (Vulkan, DX11, DXGI)", false),
+                    MkLbl("License: MIT License", false, true),
+                    Spacer(),
+                    MkLbl("ILGPU", true),
+                    MkLink("https://github.com/m4rs-mt/ILGPU", "https://github.com/m4rs-mt/ILGPU"),
+                    MkLbl("GPU compute acceleration for GRIB2 forecast processing", false),
+                    MkLbl("License: University of Illinois/NCSA Open Source License", false, true),
+                    Spacer(),
+                    MkLbl("CSJ2K", true),
+                    MkLink("https://github.com/cureos/csj2k", "https://github.com/cureos/csj2k"),
+                    MkLbl("JPEG2000 decoder used for GRIB2 template 5.41 products", false),
+                    MkLbl("License: BSD 3-Clause License", false, true),
                     Spacer(),
                     MkLbl("System.Drawing.Common", true),
                     MkLbl(".NET cross-platform drawing library based on GDI+", false),
@@ -4672,6 +4697,110 @@ project. This software uses FFmpeg libraries under the LGPL.
 
 
 ────────────────────────────────────────────────────────────────────
+    Silk.NET
+    https://github.com/dotnet/Silk.NET
+────────────────────────────────────────────────────────────────────
+
+MIT License
+
+Copyright (c) 2019-2020 Ultz Limited
+Copyright (c) 2021- .NET Foundation and Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────
+    ILGPU
+    https://github.com/m4rs-mt/ILGPU
+────────────────────────────────────────────────────────────────────
+
+University of Illinois/NCSA Open Source License
+
+Copyright (c) 2016-2025 ILGPU Project
+All rights reserved.
+
+Developed by: Marcel Koester (m4rs@m4rs.net), www.ilgpu.net
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the ""Software""), to
+deal with the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+    * Redistributions of source code must retain the above copyright notice,
+        this list of conditions and the following disclaimers.
+
+    * Redistributions in binary form must reproduce the above copyright notice,
+        this list of conditions and the following disclaimers in the documentation
+        and/or other materials provided with the distribution.
+
+    * Neither the names of ILGPU, Marcel Koester, nor the names of its
+        contributors may be used to endorse or promote products derived from this
+        Software without specific prior written permission.
+
+THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH
+THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────
+    CSJ2K
+    https://github.com/cureos/csj2k
+────────────────────────────────────────────────────────────────────
+
+BSD 3-Clause License
+
+Copyright (c) 2007-2016 CSJ2K contributors
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+     contributors may be used to endorse or promote products derived from
+     this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ""AS IS""
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+────────────────────────────────────────────────────────────────────
   Piper TTS
   https://github.com/rhasspy/piper
 ────────────────────────────────────────────────────────────────────
@@ -4817,6 +4946,49 @@ You must, where you do any of the above:
     Licence - Canada.""
 
 Full license: https://open.canada.ca/en/open-government-licence-canada
+
+
+────────────────────────────────────────────────────────────────────
+    Earthquakes Canada (NRCan) Data
+    https://earthquakescanada.nrcan.gc.ca/
+────────────────────────────────────────────────────────────────────
+
+Open Government Licence - Canada
+
+Earthquake events, station metadata, and waveforms are provided by
+Natural Resources Canada (Earthquakes Canada) and are used under the
+Open Government Licence - Canada.
+
+Required attribution statement:
+    ""Contains information licensed under the Open Government
+    Licence - Canada.""
+
+Source attribution used by this application:
+    ""Data source: Earthquakes Canada (Natural Resources Canada).""
+
+Full license: https://open.canada.ca/en/open-government-licence-canada
+
+
+────────────────────────────────────────────────────────────────────
+    Blitzortung.org Lightning Data
+    https://www.blitzortung.org/en/contact.php#contribution_3
+────────────────────────────────────────────────────────────────────
+
+Copyright (c) 2003-2026 Blitzortung.org Contributors
+
+Lightning data is provided by community contributors of Blitzortung.org.
+The source of the data must be clearly identified in applications using
+the data.
+
+Provider terms (summary):
+    - Data shown by Blitzortung.org is for private and entertainment use.
+    - Use for official storm warning or safety-critical systems is not allowed.
+    - External projects using Blitzortung data must follow provider rules.
+    - Blitzortung indicates that data used in approved external projects
+        remains under CC BY-SA 4.0.
+
+Terms and contribution page:
+    https://www.blitzortung.org/en/contact.php#contribution_3
 
 
 ────────────────────────────────────────────────────────────────────
