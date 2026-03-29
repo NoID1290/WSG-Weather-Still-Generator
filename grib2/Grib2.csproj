@@ -11,9 +11,9 @@
     <Company>NoID Softwork</Company>
     <Copyright>Copyright (c) NoID Softwork 2026</Copyright>
     <Description>Pure C# GRIB2 binary decoder with ILGPU-accelerated forecast computation for ECCC Datamart model data.</Description>
-    <Version>1.2.27.0326</Version>
-    <AssemblyVersion>1.2.27.0326</AssemblyVersion>
-    <FileVersion>1.2.27.0326</FileVersion>
+    <Version>1.2.28.0329</Version>
+    <AssemblyVersion>1.2.28.0329</AssemblyVersion>
+    <FileVersion>1.2.28.0329</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
