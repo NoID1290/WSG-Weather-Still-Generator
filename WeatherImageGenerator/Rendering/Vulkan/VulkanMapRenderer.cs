@@ -109,6 +109,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         // ═══════════════════════════════════════════════════════════════════
         private TileProvider? _tileProvider;
         private string? _localTileFolder;
+        private OpenMap.MapStyle _pendingMapStyle = OpenMap.MapStyle.Standard;
 
         private readonly ConcurrentDictionary<(int z, int x, int y), VulkanTexture> _tileTextures = new();
         private readonly ConcurrentDictionary<(int z, int x, int y), long> _tileLastUsed = new();
@@ -331,8 +332,9 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                 _hudRenderer.SetDevice(_vk, _device, _physicalDevice, _renderPass);
                 _hudRenderer.Initialize();
 
-                // Tile provider
+                // Tile provider, preserving any style set before Vulkan was ready (e.g. from LoadMapSettings)
                 _tileProvider = new TileProvider(_localTileFolder ?? "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+                _tileProvider.CurrentStyle = _pendingMapStyle;
 
                 // Start repaint timer (60 FPS)
                 _animRefreshTimer = new System.Threading.Timer(_ =>
@@ -2023,6 +2025,7 @@ namespace WeatherImageGenerator.Rendering.Vulkan
 
         public void SetMapStyle(OpenMap.MapStyle style)
         {
+            _pendingMapStyle = style; // always store so it survives renderer re-init
             if (_tileProvider != null)
                 _tileProvider.CurrentStyle = style;
             // Clear tile cache when style changes

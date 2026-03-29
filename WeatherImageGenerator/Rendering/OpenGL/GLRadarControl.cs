@@ -516,8 +516,10 @@ void main() {
                     "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }");
             }
 
-            // Initialize tile provider
+            // Initialize tile provider, preserving any style set before GL was ready (e.g. from LoadMapSettings)
+            var pendingStyle = _tileProvider?.CurrentStyle ?? OpenMap.MapStyle.Standard;
             _tileProvider = new TileProvider();
+            _tileProvider.CurrentStyle = pendingStyle;
 
             // If caller set a local tile folder earlier, pass it through
             if (!string.IsNullOrEmpty(_localTileFolder)) _tileProvider.LocalTilesRoot = _localTileFolder;

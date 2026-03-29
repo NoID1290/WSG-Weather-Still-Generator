@@ -350,8 +350,10 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 LoadShaders();
                 CreateFallbackTile();
 
-                // Initialize tile provider
+                // Initialize tile provider, preserving any style set before DX was ready (e.g. from LoadMapSettings)
+                var pendingStyle = _tileProvider?.CurrentStyle ?? OpenMap.MapStyle.Standard;
                 _tileProvider = new TileProvider();
+                _tileProvider.CurrentStyle = pendingStyle;
                 if (!string.IsNullOrEmpty(_localTileFolder))
                     _tileProvider.LocalTilesRoot = _localTileFolder;
 
