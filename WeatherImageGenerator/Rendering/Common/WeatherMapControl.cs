@@ -532,7 +532,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 Id = "radarLayer",
                 Text = "Radar Layer",
-                Options = new List<string> { "Rain (RRAI)", "Snow (RSNO)", "Precip Type", "Coverage" },
+                Options = new List<string> { "Rain (RRAI)", "Snow (RSNO)", "Composite (GPU)", "Precip Type", "Coverage" },
                 SelectedIndex = 0,
                 OnSelectionChanged = _ => OnRadarLayerChanged()
             };
@@ -558,6 +558,8 @@ namespace WeatherImageGenerator.Rendering.Common
                 {
                     _overlayManager.RadarOpacity = val / 100f;
                     _glControl.OverlayOpacity = val / 100f;
+                    if (_overlayManager.RadarLayer == "GPU_COMPOSITE")
+                        _glControl.Overlay2Opacity = val / 100f;
                     _glControl.InvalidateView();
                 }
             };
@@ -1676,8 +1678,9 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 0 => "RADAR_1KM_RRAI",
                 1 => "RADAR_1KM_RSNO",
-                2 => "Radar_1km_SfcPrecipType",
-                3 => "RADAR_COVERAGE_RRAI.INV",
+                2 => "GPU_COMPOSITE",
+                3 => "Radar_1km_SfcPrecipType",
+                4 => "RADAR_COVERAGE_RRAI.INV",
                 _ => "RADAR_1KM_RRAI"
             };
             _overlayManager.RadarWmsStyle = WeatherOverlayManager.GetDefaultStyleForLayer(_overlayManager.RadarLayer);
@@ -1728,6 +1731,15 @@ namespace WeatherImageGenerator.Rendering.Common
                     (System.Drawing.Color.FromArgb(255,140,  0 ), "4 cm/h"),
                     (System.Drawing.Color.FromArgb(255,  0,  0 ), "8+ cm/h"),
                 },
+                "GPU_COMPOSITE" => new (System.Drawing.Color, string)[]
+                {
+                    // Intensity scale shared across the rain (slot 1) and snow (slot 2) layers
+                    (System.Drawing.Color.FromArgb(107,  0, 180), "Trace"),
+                    (System.Drawing.Color.FromArgb(  0,140, 255), "Light"),
+                    (System.Drawing.Color.FromArgb(  0,220,   0), "Moderate"),
+                    (System.Drawing.Color.FromArgb(255,140,   0), "Heavy"),
+                    (System.Drawing.Color.FromArgb(255,  0,   0), "Intense"),
+                },
                 "Radar_1km_SfcPrecipType" => new (System.Drawing.Color, string)[]
                 {
                     (System.Drawing.Color.FromArgb(  0,200,  0), "Rain"),
@@ -1762,6 +1774,7 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             "RADAR_1KM_RRAI" => "Rain \u2014 RRAI",
             "RADAR_1KM_RSNO" => "Snow \u2014 RSNO",
+            "GPU_COMPOSITE" => "Composite \u2014 GPU",
             "Radar_1km_SfcPrecipType" => "Precip Type \u2014 SfcPrecipType",
             "RADAR_COVERAGE_RRAI.INV" => "Coverage",
             _ => layer
@@ -2118,6 +2131,8 @@ namespace WeatherImageGenerator.Rendering.Common
                 {
                     _glControl.OverlayOpacity = (_sldRadarOpacity?.Value ?? 75) / 100f;
                     _glControl.Overlay2Opacity = (_sldTempOpacity?.Value ?? 60) / 100f;
+                    if (_overlayManager?.RadarLayer == "GPU_COMPOSITE")
+                        _glControl.Overlay2Opacity = (_sldRadarOpacity?.Value ?? 75) / 100f;
                 }
 
                 // Viewport display settings
@@ -2414,6 +2429,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
                     byte[]? radarData = null;
                     byte[]? tempData = null;
+                    bool isGpuComposite = _overlayManager.RadarLayer == "GPU_COMPOSITE";
 
                     if (_overlayManager.RadarEnabled)
                     {
@@ -2421,7 +2437,15 @@ namespace WeatherImageGenerator.Rendering.Common
                             requestLat, requestLon, requestWidth, requestHeight, requestZoom);
                     }
 
-                    if (_overlayManager.TemperatureEnabled)
+                    // GPU composite: slot 2 carries RSNO snow; temperature is suppressed while active
+                    if (isGpuComposite && _overlayManager.RadarEnabled)
+                    {
+                        var snowBBox = _overlayManager.LastRadarBBox;
+                        if (snowBBox.HasValue)
+                            tempData = await _overlayManager.FetchRadarSnowComponentAsync(
+                                snowBBox.Value, requestWidth, requestHeight);
+                    }
+                    else if (_overlayManager.TemperatureEnabled)
                     {
                         tempData = await _overlayManager.UpdateTemperatureOverlayAsync(
                             requestLat, requestLon, requestWidth, requestHeight, requestZoom);
@@ -2455,18 +2479,18 @@ namespace WeatherImageGenerator.Rendering.Common
                         _glControl.ClearPositionedOverlay();
                     }
 
-                    // Upload temperature overlay to second overlay slot (GPU composites via alpha blend)
+                    // Upload second overlay slot — temperature normally; RSNO snow when GPU composite active
                     if (tempData != null && tempData.Length > 0)
                     {
-                        _glControl.Overlay2Opacity = _overlayManager.TemperatureOpacity;
-                        var tempBBox = _overlayManager.LastTemperatureBBox;
-                        if (tempBBox.HasValue)
+                        _glControl.Overlay2Opacity = isGpuComposite ? _overlayManager.RadarOpacity : _overlayManager.TemperatureOpacity;
+                        var slot2BBox = isGpuComposite ? _overlayManager.LastRadarBBox : _overlayManager.LastTemperatureBBox;
+                        if (slot2BBox.HasValue)
                         {
-                            Console.WriteLine($"[WeatherMap] Setting temperature overlay (slot 2) with bbox: ({tempBBox.Value.MinLat:F4},{tempBBox.Value.MinLon:F4}) to ({tempBBox.Value.MaxLat:F4},{tempBBox.Value.MaxLon:F4})");
-                            _glControl.SetOverlay2Bytes(tempData, tempBBox.Value.MinLat, tempBBox.Value.MinLon, tempBBox.Value.MaxLat, tempBBox.Value.MaxLon, requestZoom);
+                            Console.WriteLine($"[WeatherMap] Setting {(isGpuComposite ? "snow (GPU composite)" : "temperature")} overlay (slot 2) with bbox: ({slot2BBox.Value.MinLat:F4},{slot2BBox.Value.MinLon:F4}) to ({slot2BBox.Value.MaxLat:F4},{slot2BBox.Value.MaxLon:F4})");
+                            _glControl.SetOverlay2Bytes(tempData, slot2BBox.Value.MinLat, slot2BBox.Value.MinLon, slot2BBox.Value.MaxLat, slot2BBox.Value.MaxLon, requestZoom);
                         }
                     }
-                    else if (!_overlayManager.TemperatureEnabled)
+                    else if (!isGpuComposite && !_overlayManager.TemperatureEnabled)
                     {
                         _glControl.ClearPositionedOverlay2();
                     }

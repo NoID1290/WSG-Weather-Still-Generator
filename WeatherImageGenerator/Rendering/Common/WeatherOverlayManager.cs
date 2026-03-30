@@ -125,6 +125,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 "RADAR_1KM_RRAI" => "RADARURPPRECIPR14-LINEAR",   // Rain rate
                 "RADAR_1KM_RSNO" => "RADARURPPRECIPS14-LINEAR",   // Snow rate
+                "GPU_COMPOSITE" => null,                           // GPU-composited RRAI+RSNO (slot 1=rain, slot 2=snow)
                 "Radar_1km_SfcPrecipType" => null,               // Surface precip type (server default)
                 "RADAR_COVERAGE_RRAI.INV" => null,                 // Coverage (server default)
                 _ => "RADARURPPRECIPR14-LINEAR"
@@ -202,13 +203,15 @@ namespace WeatherImageGenerator.Rendering.Common
                 Console.WriteLine($"[WeatherOverlay] Fetching radar (composite WMS) for viewport: center=({centerLat:F2},{centerLon:F2}), size={width}x{height}, zoom={mapZoom}");
                 Console.WriteLine($"[WeatherOverlay] Radar bbox (viewport): ({bbox.MinLat:F4},{bbox.MinLon:F4}) to ({bbox.MaxLat:F4},{bbox.MaxLon:F4})");
 
-                // Use configurable layer/style for radar overlay
+                // Use configurable layer/style; GPU_COMPOSITE animates RRAI in slot 1
+                string fetchLayer = RadarLayer == "GPU_COMPOSITE" ? "RADAR_1KM_RRAI" : RadarLayer;
+                string? fetchStyle = RadarLayer == "GPU_COMPOSITE" ? "RADARURPPRECIPR14-LINEAR" : RadarWmsStyle;
                 var radarData = await _radarService.FetchRadarOverlayOnlyAsync(
                     (MinLat: bbox.MinLat, MinLon: bbox.MinLon, MaxLat: bbox.MaxLat, MaxLon: bbox.MaxLon),
                     width,
                     height,
-                    RadarLayer,
-                    RadarWmsStyle);
+                    fetchLayer,
+                    fetchStyle);
 
 
                 if (radarData != null)
@@ -221,6 +224,7 @@ namespace WeatherImageGenerator.Rendering.Common
                         {
                             "RADAR_1KM_RRAI" => "Rain",
                             "RADAR_1KM_RSNO" => "Snow",
+                            "GPU_COMPOSITE" => "Rain",
                             "Radar_1km_SfcPrecipType" => "Rain/Snow/Mixed",
                             "RADAR_COVERAGE_RRAI.INV" => "Coverage",
                             _ => "Radar"
@@ -253,6 +257,26 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 Console.WriteLine($"[WeatherOverlay] Radar update error: {ex.Message}");
                 return _radarOverlay; // Return cached version if available
+            }
+        }
+
+        /// <summary>
+        /// Fetches the latest RSNO snow WMS frame for use as the GPU composite snow component (overlay slot 2).
+        /// </summary>
+        public async Task<byte[]?> FetchRadarSnowComponentAsync(
+            (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
+            int width, int height)
+        {
+            try
+            {
+                Console.WriteLine($"[WeatherOverlay] Fetching snow component (RSNO) for GPU composite...");
+                return await _radarService.FetchRadarOverlayOnlyAsync(
+                    bbox, width, height, "RADAR_1KM_RSNO", "RADARURPPRECIPS14-LINEAR").ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherOverlay] Snow component fetch error: {ex.Message}");
+                return null;
             }
         }
 
@@ -817,8 +841,10 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             try
             {
-                var capsUrl = $"{ECCC_GEOMET_WMS}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities&LAYERS={Uri.EscapeDataString(RadarLayer)}";
-                Console.WriteLine($"[WeatherOverlay] Fetching radar timestamps for {RadarLayer}...");
+                // GPU_COMPOSITE uses RRAI timestamps (same 6-min interval)
+                string capsLayer = RadarLayer == "GPU_COMPOSITE" ? "RADAR_1KM_RRAI" : RadarLayer;
+                var capsUrl = $"{ECCC_GEOMET_WMS}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities&LAYERS={Uri.EscapeDataString(capsLayer)}";
+                Console.WriteLine($"[WeatherOverlay] Fetching radar timestamps for {capsLayer}...");
                 var xml = await _httpClient.GetStringAsync(capsUrl);
                 var doc = XDocument.Parse(xml);
                 var ns = doc.Root?.GetDefaultNamespace();
@@ -894,9 +920,12 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 try
                 {
+                    // GPU_COMPOSITE animates RRAI frames; RSNO static backdrop is loaded separately
+                    string animLayer = RadarLayer == "GPU_COMPOSITE" ? "RADAR_1KM_RRAI" : RadarLayer;
+                    string? animStyle = RadarLayer == "GPU_COMPOSITE" ? "RADARURPPRECIPR14-LINEAR" : RadarWmsStyle;
                     var data = await _radarService.FetchRadarOverlayOnlyAsync(
                         (bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon),
-                        width, height, RadarLayer, RadarWmsStyle, time);
+                        width, height, animLayer, animStyle, time);
 
                     if (data != null && data.Length > 0)
                     {
