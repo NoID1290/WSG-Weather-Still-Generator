@@ -262,10 +262,29 @@ namespace WeatherImageGenerator.Rendering.Common
             if (!TemperatureEnabled)
                 return null;
 
-            // Check if position/zoom changed significantly (requires re-fetch)
-            // 0.5° tolerance prevents re-fetching on small pans
-            bool positionChanged = Math.Abs(centerLat - _lastTempLat) > 0.5 || Math.Abs(centerLon - _lastTempLon) > 0.5;
+            // Re-fetch only when the current viewport center drifts into the outer 25% of the
+            // previously-fetched bbox. Because OVERLAY_OVERFETCH=2.0, the fetched area is 2×
+            // the viewport; the inner 50% is the original viewport, so the 25% margin gives a
+            // comfortable pan buffer before needing a new fetch. This prevents the temperature
+            // grid from appearing to "follow" the viewport on every small pan.
+            bool positionChanged;
             bool zoomChanged = mapZoom != _lastTempZoom;
+            if (LastTemperatureBBox.HasValue && !zoomChanged)
+            {
+                var b = LastTemperatureBBox.Value;
+                double lonSpan = b.MaxLon - b.MinLon;
+                double latSpan = b.MaxLat - b.MinLat;
+                bool insideSafeZone =
+                    centerLon > b.MinLon + lonSpan * 0.25 &&
+                    centerLon < b.MaxLon - lonSpan * 0.25 &&
+                    centerLat > b.MinLat + latSpan * 0.25 &&
+                    centerLat < b.MaxLat - latSpan * 0.25;
+                positionChanged = !insideSafeZone;
+            }
+            else
+            {
+                positionChanged = true; // No cached bbox yet — always fetch
+            }
             bool cacheExpired = DateTime.UtcNow - _lastTemperatureUpdate >= _temperatureUpdateInterval;
 
             // Use cached data if available and parameters haven't changed significantly
@@ -491,13 +510,23 @@ namespace WeatherImageGenerator.Rendering.Common
                 int rasterW = Math.Max(gridSize * 8, 64);
                 int rasterH = Math.Max(gridSize * 8, 64);
                 using var heatRaster = new Bitmap(rasterW, rasterH, PixelFormat.Format32bppArgb);
+                // Precompute Mercator bounds so each raster row maps to the correct latitude,
+                // matching how the GPU renderer geo-positions the overlay bitmap via Mercator.
+                double heatMercTop = LatToMercatorY(bbox.MaxLat);
+                double heatMercBot = LatToMercatorY(bbox.MinLat);
                 for (int py = 0; py < rasterH; py++)
                 {
+                    // Map raster row → latitude via Mercator Y (py=0 = top = MaxLat)
+                    double mercY = heatMercTop + (double)py / (rasterH - 1) * (heatMercBot - heatMercTop);
+                    double pixLat = MercatorYToLat(mercY);
+                    float gy = (float)Math.Clamp(
+                        (pixLat - bbox.MinLat) / (bbox.MaxLat - bbox.MinLat) * (gridSize - 1),
+                        0.0, (double)(gridSize - 1));
+
                     for (int px = 0; px < rasterW; px++)
                     {
                         // Map pixel to grid coordinate (fractional)
                         float gx = (float)px / rasterW * (gridSize - 1);
-                        float gy = (float)(rasterH - 1 - py) / rasterH * (gridSize - 1); // flip Y
 
                         // Bilinear sample
                         int x0 = Math.Min((int)gx, gridSize - 2);
@@ -678,6 +707,9 @@ namespace WeatherImageGenerator.Rendering.Common
             double latRad = Math.Clamp(lat, -85.0, 85.0) * Math.PI / 180.0;
             return Math.Log(Math.Tan(Math.PI / 4.0 + latRad / 2.0));
         }
+
+        private static double MercatorYToLat(double mercY)
+            => Math.Atan(Math.Sinh(mercY)) * 180.0 / Math.PI;
 
         private double CalculateRadiusFromZoom(int zoom, int width, int height)
         {

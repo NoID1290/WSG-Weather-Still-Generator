@@ -330,19 +330,33 @@ namespace WeatherImageGenerator.Services
             string layer,
             string time)
         {
-            // WMS 1.3.0 uses lat,lon order for EPSG:4326
-            // Use InvariantCulture to ensure periods as decimal separators in all locales
-            var bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon);
-            
+            // Use Web Mercator (EPSG:3857) to match the tile map projection so animation
+            // frames don't shift or squeeze relative to the underlying map.
+            double minX = LonToWebMercatorX(bbox.MinLon);
+            double minY = LatToWebMercatorY(bbox.MinLat);
+            double maxX = LonToWebMercatorX(bbox.MaxLon);
+            double maxY = LatToWebMercatorY(bbox.MaxLat);
+            var bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", minX, minY, maxX, maxY);
+
             return $"{ECCC_GEOMET_WMS}?" +
                    $"SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap" +
                    $"&LAYERS={Uri.EscapeDataString(layer)}" +
-                   $"&CRS=EPSG:4326" +
+                   $"&CRS=EPSG:3857" +
                    $"&BBOX={bboxStr}" +
                    $"&WIDTH={width}&HEIGHT={height}" +
                    $"&FORMAT=image/png" +
                    $"&TRANSPARENT=TRUE" +
                    $"&TIME={Uri.EscapeDataString(time)}";
+        }
+
+        private static double LonToWebMercatorX(double lon) =>
+            lon * 20037508.342789244 / 180.0;
+
+        private static double LatToWebMercatorY(double lat)
+        {
+            double clamped = Math.Max(-85.05112878, Math.Min(85.05112878, lat));
+            double rad = clamped * Math.PI / 180.0;
+            return 6378137.0 * Math.Log(Math.Tan(Math.PI / 4.0 + rad / 2.0));
         }
 
         /// <summary>
