@@ -118,7 +118,7 @@ namespace ECCC.Services
         {
             try
             {
-                var radarUrl = BuildRadarUrl(bbox, width, height, radarLayer, wmsStyle, time);
+                var radarUrl = BuildRadarUrl(bbox, width, height, radarLayer, wmsStyle, time, useWebMercator: true);
                 Console.WriteLine($"[RadarImageService] Fetching radar overlay (layer={radarLayer}, style={wmsStyle ?? "(default)"}, time={time ?? "latest"})");
                 Console.WriteLine($"[RadarImageService] URL: {radarUrl}");
 
@@ -423,15 +423,35 @@ namespace ECCC.Services
             int height,
             string radarLayer = "RADAR_1KM_RRAI",
             string? wmsStyle = "RADARURPPRECIPR14-LINEAR",
-            string? time = null)
+            string? time = null,
+            bool useWebMercator = false)
         {
-            var bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon);
+            string bboxStr;
+            string crs;
+
+            if (useWebMercator)
+            {
+                double minX = LonToWebMercatorX(bbox.MinLon);
+                double minY = LatToWebMercatorY(bbox.MinLat);
+                double maxX = LonToWebMercatorX(bbox.MaxLon);
+                double maxY = LatToWebMercatorY(bbox.MaxLat);
+
+                bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", minX, minY, maxX, maxY);
+                crs = "EPSG:3857";
+            }
+            else
+            {
+                // WMS 1.3.0 EPSG:4326 axis order is lat,lon.
+                bboxStr = string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}", bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon);
+                crs = "EPSG:4326";
+            }
+
             var url = $"{ECCC_GEOMET_WMS}?" +
                    $"SERVICE=WMS&" +
                    $"VERSION=1.3.0&" +
                    $"REQUEST=GetMap&" +
                    $"LAYERS={Uri.EscapeDataString(radarLayer)}&" +
-                   $"CRS=EPSG:4326&" +
+                   $"CRS={crs}&" +
                    $"BBOX={bboxStr}&" +
                    $"WIDTH={width}&" +
                    $"HEIGHT={height}&" +
@@ -445,6 +465,19 @@ namespace ECCC.Services
                 url += $"&TIME={Uri.EscapeDataString(time)}";
 
             return url;
+        }
+
+        private static double LonToWebMercatorX(double lon)
+        {
+            return lon * 20037508.342789244 / 180.0;
+        }
+
+        private static double LatToWebMercatorY(double lat)
+        {
+            // Clamp to valid Web Mercator latitude domain.
+            double clamped = Math.Max(-85.05112878, Math.Min(85.05112878, lat));
+            double rad = clamped * Math.PI / 180.0;
+            return 6378137.0 * Math.Log(Math.Tan(Math.PI / 4.0 + rad / 2.0));
         }
 
         /// <summary>

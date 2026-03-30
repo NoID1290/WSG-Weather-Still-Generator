@@ -989,10 +989,14 @@ namespace WeatherImageGenerator.Rendering.DirectX
             double imgW = Math.Abs(rightPx - leftPx), imgH = Math.Abs(bottomPy - topPy);
             double imgCx = (leftPx + rightPx) / 2.0, imgCy = (topPy + bottomPy) / 2.0;
             double screenCx = (imgCx - cx) + w / 2.0, screenCy = (imgCy - cy) + h / 2.0;
-            float wNdc = (float)(imgW / (w / 2.0)) * _zoom, hNdc = (float)(imgH / (h / 2.0)) * _zoom;
+            double wNdcD = (imgW / (w / 2.0)) * _zoom;
+            double hNdcD = (imgH / (h / 2.0)) * _zoom;
+            float wNdc = (float)wNdcD, hNdc = (float)hNdcD;
             float sx = wNdc / 2f, sy = hNdc / 2f;
-            float ndcX = ((float)(screenCx / (w / 2.0) - 1.0)) * _zoom + _panX;
-            float ndcY = ((float)(1.0 - screenCy / (h / 2.0))) * _zoom + _panY;
+            double ndcXD = ((screenCx / (w / 2.0)) - 1.0) * _zoom + _panX;
+            double ndcYD = (1.0 - (screenCy / (h / 2.0))) * _zoom + _panY;
+            float ndcX = (float)ndcXD;
+            float ndcY = (float)ndcYD;
 
             float[] tmat = { sx, 0f, 0f, 0f, sy, 0f, ndcX, ndcY, 1f };
             shader.SetMatrix3("uTransform", tmat);
@@ -1768,12 +1772,21 @@ namespace WeatherImageGenerator.Rendering.DirectX
 
         private void SnapTileZoom()
         {
-            int zoomDelta = (int)Math.Round(Math.Log(_zoom) / Math.Log(2));
-            if (zoomDelta == 0 && Math.Abs(_zoom - 1f) < 0.05f)
+            double logZoom = Math.Log(_zoom) / Math.Log(2);
+            int zoomDelta;
+            const double snapThreshold = 0.40;
+
+            if (Math.Abs(logZoom) < snapThreshold)
             {
                 _zoom = 1f; _panX = _panY = 0; IsSmoothZooming = false;
                 _hostPanel.Invalidate(); return;
             }
+
+            if (logZoom > 0)
+                zoomDelta = (int)Math.Ceiling(logZoom - snapThreshold);
+            else
+                zoomDelta = (int)Math.Floor(logZoom + snapThreshold);
+
             int targetZoom = Math.Clamp(_mapZoom + zoomDelta, 0, 20);
             _zoom = 1f; _panX = _panY = 0; IsSmoothZooming = false;
             if (targetZoom != _mapZoom) SetMapZoom(targetZoom); else _hostPanel.Invalidate();

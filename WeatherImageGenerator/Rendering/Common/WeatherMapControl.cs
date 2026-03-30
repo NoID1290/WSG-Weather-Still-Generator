@@ -97,6 +97,7 @@ namespace WeatherImageGenerator.Rendering.Common
         private bool _animationLoadInProgress = false;
         private System.Threading.Timer? _animationRefreshDebounce;
         private bool _animationRefreshInProgress = false;
+        private System.Threading.Timer? _overlayRefreshDebounce;
 
         // Frame interpolation (smooth animation via optical flow + bidirectional warp)
         // _displayFrames contains real + synthetic interleaved; _animationFrames are the raw real ones.
@@ -243,7 +244,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 UpdateStatusLabels();
                 // Only re-fetch overlays after smooth zoom completes (not during intermediate steps)
                 if (!_suppressOverlayUpdates && !_glControl.IsSmoothZooming)
-                    _ = UpdateOverlays();
+                    ScheduleOverlayRefresh();
                 ScheduleAnimationRefresh();
             };
             
@@ -253,7 +254,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 _currentLon = lon;
                 UpdateStatusLabels();
                 if (!_suppressOverlayUpdates)
-                    _ = UpdateOverlays();
+                    ScheduleOverlayRefresh();
                 ScheduleAnimationRefresh();
             };
             
@@ -1520,6 +1521,27 @@ namespace WeatherImageGenerator.Rendering.Common
         }
 
         /// <summary>
+        /// Schedule a debounced overlay refresh after map pan/zoom settles.
+        /// </summary>
+        private void ScheduleOverlayRefresh()
+        {
+            _overlayRefreshDebounce?.Dispose();
+            _overlayRefreshDebounce = new System.Threading.Timer(
+                _ =>
+                {
+                    try
+                    {
+                        if (!_glControl.HostControl.IsHandleCreated) return;
+                        _glControl.HostControl.BeginInvoke(new Action(() => _ = UpdateOverlays()));
+                    }
+                    catch { }
+                },
+                null,
+                220,
+                System.Threading.Timeout.Infinite);
+        }
+
+        /// <summary>
         /// Schedule a debounced re-fetch of animation frames after map pan/zoom.
         /// Waits 400ms after the last move event before re-fetching.
         /// </summary>
@@ -2247,165 +2269,204 @@ namespace WeatherImageGenerator.Rendering.Common
         }
 
         private bool _overlayUpdateInProgress = false;
+        private bool _overlayUpdatePending = false;
+
+        private bool IsOverlayRequestStale(double requestLat, double requestLon, int requestZoom, int requestWidth, int requestHeight)
+        {
+            return Math.Abs(_currentLat - requestLat) > 0.0001
+                || Math.Abs(_currentLon - requestLon) > 0.0001
+                || _currentZoom != requestZoom
+                || _glControl.HostControl.Width != requestWidth
+                || _glControl.HostControl.Height != requestHeight;
+        }
 
         private async Task UpdateOverlays()
         {
-            // Prevent concurrent overlay updates (races cause GL errors)
-            if (_overlayUpdateInProgress) return;
+            // Coalesce rapid requests; if one is already in flight, run again once it finishes.
+            if (_overlayUpdateInProgress)
+            {
+                _overlayUpdatePending = true;
+                return;
+            }
+
             _overlayUpdateInProgress = true;
 
             try
             {
-                _overlayManager.RadarEnabled = _chkRadar.Checked;
-                _overlayManager.TemperatureEnabled = _chkTemperature.Checked;
-                _overlayManager.Grib2Enabled = _chkGrib2?.Checked ?? false;
-
-                if (!_overlayManager.RadarEnabled && !_overlayManager.TemperatureEnabled && !_overlayManager.Grib2Enabled)
+                do
                 {
-                    _glControl.ClearOverlay();
-                    return;
-                }
+                    _overlayUpdatePending = false;
 
-                Console.WriteLine($"[WeatherMap] UpdateOverlays: pos=({_currentLat:F2},{_currentLon:F2}), size={_glControl.HostControl.Width}x{_glControl.HostControl.Height}, zoom={_currentZoom}");
+                    double requestLat = _currentLat;
+                    double requestLon = _currentLon;
+                    int requestZoom = _currentZoom;
+                    int requestWidth = _glControl.HostControl.Width;
+                    int requestHeight = _glControl.HostControl.Height;
 
-                // â”€â”€ GPU compositing: upload radar and temperature as separate GL textures â”€â”€
-                // Each overlay gets its own texture slot with independent opacity.
-                // Alpha blending on the GPU composites them — no CPU-side GDI+ CompositeOverlays needed.
+                    _overlayManager.RadarEnabled = _chkRadar.Checked;
+                    _overlayManager.TemperatureEnabled = _chkTemperature.Checked;
+                    _overlayManager.Grib2Enabled = _chkGrib2?.Checked ?? false;
 
-                byte[]? radarData = null;
-                byte[]? tempData = null;
-
-                if (_overlayManager.RadarEnabled)
-                {
-                    radarData = await _overlayManager.UpdateRadarOverlayAsync(
-                        _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
-                }
-
-                if (_overlayManager.TemperatureEnabled)
-                {
-                    tempData = await _overlayManager.UpdateTemperatureOverlayAsync(
-                        _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
-                }
-
-                Console.WriteLine($"[WeatherMap] Radar: {(radarData != null ? $"{radarData.Length} bytes" : "null")}, Temp: {(tempData != null ? $"{tempData.Length} bytes" : "null")}");
-
-                // Upload radar overlay to primary overlay slot
-                if (radarData != null && radarData.Length > 0)
-                {
-                    _glControl.OverlayOpacity = _overlayManager.RadarOpacity;
-                    var radarBBox = _overlayManager.LastRadarBBox;
-                    if (radarBBox.HasValue)
+                    if (!_overlayManager.RadarEnabled && !_overlayManager.TemperatureEnabled && !_overlayManager.Grib2Enabled)
                     {
-                        Console.WriteLine($"[WeatherMap] Setting radar overlay (slot 1) with bbox: ({radarBBox.Value.MinLat:F4},{radarBBox.Value.MinLon:F4}) to ({radarBBox.Value.MaxLat:F4},{radarBBox.Value.MaxLon:F4})");
-                        _glControl.SetImageBytes(radarData, radarBBox.Value.MinLat, radarBBox.Value.MinLon, radarBBox.Value.MaxLat, radarBBox.Value.MaxLon, _currentZoom);
+                        _glControl.ClearOverlay();
+                        continue;
                     }
-                    else
+
+                    Console.WriteLine($"[WeatherMap] UpdateOverlays: pos=({requestLat:F2},{requestLon:F2}), size={requestWidth}x{requestHeight}, zoom={requestZoom}");
+
+                    // â”€â”€ GPU compositing: upload radar and temperature as separate GL textures â”€â”€
+                    // Each overlay gets its own texture slot with independent opacity.
+                    // Alpha blending on the GPU composites them — no CPU-side GDI+ CompositeOverlays needed.
+
+                    byte[]? radarData = null;
+                    byte[]? tempData = null;
+
+                    if (_overlayManager.RadarEnabled)
                     {
-                        _glControl.SetImageBytes(radarData, _currentLat, _currentLon, _currentZoom);
+                        radarData = await _overlayManager.UpdateRadarOverlayAsync(
+                            requestLat, requestLon, requestWidth, requestHeight, requestZoom);
                     }
-                }
-                else if (!_overlayManager.RadarEnabled)
-                {
-                    _glControl.ClearPositionedOverlay();
-                }
 
-                // Upload temperature overlay to second overlay slot (GPU composites via alpha blend)
-                if (tempData != null && tempData.Length > 0)
-                {
-                    _glControl.Overlay2Opacity = _overlayManager.TemperatureOpacity;
-                    var tempBBox = _overlayManager.LastTemperatureBBox;
-                    if (tempBBox.HasValue)
+                    if (_overlayManager.TemperatureEnabled)
                     {
-                        Console.WriteLine($"[WeatherMap] Setting temperature overlay (slot 2) with bbox: ({tempBBox.Value.MinLat:F4},{tempBBox.Value.MinLon:F4}) to ({tempBBox.Value.MaxLat:F4},{tempBBox.Value.MaxLon:F4})");
-                        _glControl.SetOverlay2Bytes(tempData, tempBBox.Value.MinLat, tempBBox.Value.MinLon, tempBBox.Value.MaxLat, tempBBox.Value.MaxLon, _currentZoom);
+                        tempData = await _overlayManager.UpdateTemperatureOverlayAsync(
+                            requestLat, requestLon, requestWidth, requestHeight, requestZoom);
                     }
-                }
-                else if (!_overlayManager.TemperatureEnabled)
-                {
-                    _glControl.ClearPositionedOverlay2();
-                }
 
-                // Upload GRIB2 forecast overlay — try GPU data pipeline first, fall back to CPU-rendered PNG
-                byte[]? grib2Data = null;
-                if (_overlayManager.Grib2Enabled)
-                {
-                    // Try GPU pipeline: upload raw float grid + palette for shader-based rendering
-                    var gpuRenderData = await _overlayManager.GetGrib2GpuDataAsync(
-                        _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
-
-                    if (gpuRenderData != null)
+                    if (IsOverlayRequestStale(requestLat, requestLon, requestZoom, requestWidth, requestHeight))
                     {
-                        _glControl.SetGrib2GpuData(gpuRenderData);
+                        _overlayUpdatePending = true;
+                        continue;
+                    }
 
-                        if (_glControl.Grib2GpuActive)
+                    Console.WriteLine($"[WeatherMap] Radar: {(radarData != null ? $"{radarData.Length} bytes" : "null")}, Temp: {(tempData != null ? $"{tempData.Length} bytes" : "null")}");
+
+                    // Upload radar overlay to primary overlay slot
+                    if (radarData != null && radarData.Length > 0)
+                    {
+                        _glControl.OverlayOpacity = _overlayManager.RadarOpacity;
+                        var radarBBox = _overlayManager.LastRadarBBox;
+                        if (radarBBox.HasValue)
                         {
-                            Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline active: {gpuRenderData.FieldType} ({gpuRenderData.GridWidth}x{gpuRenderData.GridHeight})");
+                            Console.WriteLine($"[WeatherMap] Setting radar overlay (slot 1) with bbox: ({radarBBox.Value.MinLat:F4},{radarBBox.Value.MinLon:F4}) to ({radarBBox.Value.MaxLat:F4},{radarBBox.Value.MaxLon:F4})");
+                            _glControl.SetImageBytes(radarData, radarBBox.Value.MinLat, radarBBox.Value.MinLon, radarBBox.Value.MaxLat, radarBBox.Value.MaxLon, requestZoom);
+                        }
+                        else
+                        {
+                            _glControl.SetImageBytes(radarData, requestLat, requestLon, requestZoom);
+                        }
+                    }
+                    else if (!_overlayManager.RadarEnabled)
+                    {
+                        _glControl.ClearPositionedOverlay();
+                    }
 
-                            // Generate labels/barbs/isobars as a separate CPU overlay on top of GPU heatmap
-                            var annotationsPng = await _overlayManager.RenderGrib2AnnotationsAsync(
-                                _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
-                            if (annotationsPng != null && annotationsPng.Length > 0)
+                    // Upload temperature overlay to second overlay slot (GPU composites via alpha blend)
+                    if (tempData != null && tempData.Length > 0)
+                    {
+                        _glControl.Overlay2Opacity = _overlayManager.TemperatureOpacity;
+                        var tempBBox = _overlayManager.LastTemperatureBBox;
+                        if (tempBBox.HasValue)
+                        {
+                            Console.WriteLine($"[WeatherMap] Setting temperature overlay (slot 2) with bbox: ({tempBBox.Value.MinLat:F4},{tempBBox.Value.MinLon:F4}) to ({tempBBox.Value.MaxLat:F4},{tempBBox.Value.MaxLon:F4})");
+                            _glControl.SetOverlay2Bytes(tempData, tempBBox.Value.MinLat, tempBBox.Value.MinLon, tempBBox.Value.MaxLat, tempBBox.Value.MaxLon, requestZoom);
+                        }
+                    }
+                    else if (!_overlayManager.TemperatureEnabled)
+                    {
+                        _glControl.ClearPositionedOverlay2();
+                    }
+
+                    // Upload GRIB2 forecast overlay — try GPU data pipeline first, fall back to CPU-rendered PNG
+                    byte[]? grib2Data = null;
+                    if (_overlayManager.Grib2Enabled)
+                    {
+                        // Try GPU pipeline: upload raw float grid + palette for shader-based rendering
+                        var gpuRenderData = await _overlayManager.GetGrib2GpuDataAsync(
+                            requestLat, requestLon, requestWidth, requestHeight, requestZoom);
+
+                        if (gpuRenderData != null)
+                        {
+                            _glControl.SetGrib2GpuData(gpuRenderData);
+
+                            if (_glControl.Grib2GpuActive)
                             {
-                                var annBbox = _overlayManager.LastGrib2BBox;
-                                if (annBbox.HasValue)
+                                Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline active: {gpuRenderData.FieldType} ({gpuRenderData.GridWidth}x{gpuRenderData.GridHeight})");
+
+                                // Generate labels/barbs/isobars as a separate CPU overlay on top of GPU heatmap
+                                var annotationsPng = await _overlayManager.RenderGrib2AnnotationsAsync(
+                                    requestLat, requestLon, requestWidth, requestHeight, requestZoom);
+                                if (annotationsPng != null && annotationsPng.Length > 0)
                                 {
-                                    _glControl.Overlay3Opacity = 1.0f;
-                                    _glControl.SetOverlay3Bytes(annotationsPng, annBbox.Value.MinLat, annBbox.Value.MinLon, annBbox.Value.MaxLat, annBbox.Value.MaxLon, _currentZoom);
+                                    var annBbox = _overlayManager.LastGrib2BBox;
+                                    if (annBbox.HasValue)
+                                    {
+                                        _glControl.Overlay3Opacity = 1.0f;
+                                        _glControl.SetOverlay3Bytes(annotationsPng, annBbox.Value.MinLat, annBbox.Value.MinLon, annBbox.Value.MaxLat, annBbox.Value.MaxLon, requestZoom);
+                                    }
+                                }
+                                else
+                                {
+                                    _glControl.ClearPositionedOverlay3();
                                 }
                             }
                             else
                             {
-                                _glControl.ClearPositionedOverlay3();
+                                // GPU pipeline not supported by this renderer — fall back to CPU
+                                Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline not available, falling back to CPU rendering");
+                                grib2Data = await _overlayManager.UpdateGrib2OverlayAsync(
+                                    requestLat, requestLon, requestWidth, requestHeight, requestZoom);
                             }
                         }
                         else
                         {
-                            // GPU pipeline not supported by this renderer — fall back to CPU
-                            Console.WriteLine($"[WeatherMap] GRIB2 GPU pipeline not available, falling back to CPU rendering");
+                            // Fall back to CPU-rendered PNG path
+                            _glControl.ClearGrib2GpuData();
                             grib2Data = await _overlayManager.UpdateGrib2OverlayAsync(
-                                _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
+                                requestLat, requestLon, requestWidth, requestHeight, requestZoom);
                         }
                     }
-                    else
+
+                    if (IsOverlayRequestStale(requestLat, requestLon, requestZoom, requestWidth, requestHeight))
                     {
-                        // Fall back to CPU-rendered PNG path
+                        _overlayUpdatePending = true;
+                        continue;
+                    }
+
+                    if (grib2Data != null && grib2Data.Length > 0 && !_glControl.Grib2GpuActive)
+                    {
+                        _glControl.Overlay3Opacity = _overlayManager.Grib2Opacity;
+                        var grib2BBox = _overlayManager.LastGrib2BBox;
+                        if (grib2BBox.HasValue)
+                        {
+                            Console.WriteLine($"[WeatherMap] Setting GRIB2 overlay (slot 3) with bbox: ({grib2BBox.Value.MinLat:F4},{grib2BBox.Value.MinLon:F4}) to ({grib2BBox.Value.MaxLat:F4},{grib2BBox.Value.MaxLon:F4})");
+                            _glControl.SetOverlay3Bytes(grib2Data, grib2BBox.Value.MinLat, grib2BBox.Value.MinLon, grib2BBox.Value.MaxLat, grib2BBox.Value.MaxLon, requestZoom);
+                        }
+                    }
+                    else if (!_overlayManager.Grib2Enabled)
+                    {
                         _glControl.ClearGrib2GpuData();
-                        grib2Data = await _overlayManager.UpdateGrib2OverlayAsync(
-                            _currentLat, _currentLon, _glControl.HostControl.Width, _glControl.HostControl.Height, _currentZoom);
+                        _glControl.ClearPositionedOverlay3();
                     }
-                }
 
-                if (grib2Data != null && grib2Data.Length > 0 && !_glControl.Grib2GpuActive)
-                {
-                    _glControl.Overlay3Opacity = _overlayManager.Grib2Opacity;
-                    var grib2BBox = _overlayManager.LastGrib2BBox;
-                    if (grib2BBox.HasValue)
+                    // If only temperature (no radar), use primary slot for it instead
+                    if (!_overlayManager.RadarEnabled && _overlayManager.TemperatureEnabled && tempData != null && tempData.Length > 0)
                     {
-                        Console.WriteLine($"[WeatherMap] Setting GRIB2 overlay (slot 3) with bbox: ({grib2BBox.Value.MinLat:F4},{grib2BBox.Value.MinLon:F4}) to ({grib2BBox.Value.MaxLat:F4},{grib2BBox.Value.MaxLon:F4})");
-                        _glControl.SetOverlay3Bytes(grib2Data, grib2BBox.Value.MinLat, grib2BBox.Value.MinLon, grib2BBox.Value.MaxLat, grib2BBox.Value.MaxLon, _currentZoom);
+                        _glControl.OverlayOpacity = _overlayManager.TemperatureOpacity;
+                        var tempBBox = _overlayManager.LastTemperatureBBox;
+                        if (tempBBox.HasValue)
+                        {
+                            _glControl.SetImageBytes(tempData, tempBBox.Value.MinLat, tempBBox.Value.MinLon, tempBBox.Value.MaxLat, tempBBox.Value.MaxLon, requestZoom);
+                        }
+                        else
+                        {
+                            _glControl.SetImageBytes(tempData, requestLat, requestLon, requestZoom);
+                        }
+                        _glControl.ClearPositionedOverlay2(); // don't double-draw
                     }
                 }
-                else if (!_overlayManager.Grib2Enabled)
-                {
-                    _glControl.ClearGrib2GpuData();
-                    _glControl.ClearPositionedOverlay3();
-                }
-
-                // If only temperature (no radar), use primary slot for it instead
-                if (!_overlayManager.RadarEnabled && _overlayManager.TemperatureEnabled && tempData != null && tempData.Length > 0)
-                {
-                    _glControl.OverlayOpacity = _overlayManager.TemperatureOpacity;
-                    var tempBBox = _overlayManager.LastTemperatureBBox;
-                    if (tempBBox.HasValue)
-                    {
-                        _glControl.SetImageBytes(tempData, tempBBox.Value.MinLat, tempBBox.Value.MinLon, tempBBox.Value.MaxLat, tempBBox.Value.MaxLon, _currentZoom);
-                    }
-                    else
-                    {
-                        _glControl.SetImageBytes(tempData, _currentLat, _currentLon, _currentZoom);
-                    }
-                    _glControl.ClearPositionedOverlay2(); // don't double-draw
-                }
+                while (_overlayUpdatePending);
             }
             catch (Exception ex)
             {
@@ -2414,6 +2475,10 @@ namespace WeatherImageGenerator.Rendering.Common
             finally
             {
                 _overlayUpdateInProgress = false;
+
+                // If a new request arrived after the loop's final condition, process it now.
+                if (_overlayUpdatePending)
+                    _ = UpdateOverlays();
             }
         }
 
@@ -2804,6 +2869,7 @@ namespace WeatherImageGenerator.Rendering.Common
                 _statusUpdateTimer?.Stop();
                 _statusUpdateTimer?.Dispose();
                 _animationRefreshDebounce?.Dispose();
+                _overlayRefreshDebounce?.Dispose();
                 StopLightningPollTimer();
                 StopLightningFlashDecay();
                 _tileCache?.Dispose();

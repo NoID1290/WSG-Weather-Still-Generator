@@ -2049,12 +2049,26 @@ namespace WeatherImageGenerator.Rendering.Vulkan
         // ═══════════════════════════════════════════════════════════════════
         private void OnMouseWheel(object? sender, MouseEventArgs e)
         {
+            float oldZoom = _zoom;
+
             if (e.Delta > 0)
                 _zoom *= 1.15f;
             else
                 _zoom /= 1.15f;
 
             _zoom = Math.Clamp(_zoom, 0.25f, 8f);
+
+            // Keep the world point under the cursor fixed during smooth wheel zoom.
+            int w = _hostPanel.Width;
+            int h = _hostPanel.Height;
+            if (w > 0 && h > 0 && oldZoom > 0f)
+            {
+                double dx = e.X - (w / 2.0);
+                double dy = e.Y - (h / 2.0);
+                _panX = (float)(_panX + dx * (1.0 / _zoom - 1.0 / oldZoom));
+                _panY = (float)(_panY + dy * (1.0 / _zoom - 1.0 / oldZoom));
+            }
+
             IsSmoothZooming = true;
 
             _zoomSnapTimer?.Dispose();
@@ -2065,7 +2079,6 @@ namespace WeatherImageGenerator.Rendering.Vulkan
                     _hostPanel.BeginInvoke((Action)(() =>
                     {
                         SnapTileZoom();
-                        IsSmoothZooming = false;
                     }));
                 }
                 catch { }
@@ -2076,20 +2089,38 @@ namespace WeatherImageGenerator.Rendering.Vulkan
 
         private void SnapTileZoom()
         {
-            if (_zoom > 1.5f && _mapZoom < 18)
+            double logZoom = Math.Log(_zoom) / Math.Log(2);
+            int zoomDelta;
+            const double snapThreshold = 0.40;
+
+            if (Math.Abs(logZoom) < snapThreshold)
             {
-                _mapZoom++;
-                _zoom /= 2f;
-                _panX /= 2f; _panY /= 2f;
-                MapZoomChanged?.Invoke(_mapZoom);
+                _zoom = 1.0f;
+                _panX = 0f;
+                _panY = 0f;
+                IsSmoothZooming = false;
+                _hostPanel.Invalidate();
+                return;
             }
-            else if (_zoom < 0.6f && _mapZoom > 1)
+
+            if (logZoom > 0)
+                zoomDelta = (int)Math.Ceiling(logZoom - snapThreshold);
+            else
+                zoomDelta = (int)Math.Floor(logZoom + snapThreshold);
+
+            int targetZoom = Math.Clamp(_mapZoom + zoomDelta, 1, 18);
+
+            _zoom = 1.0f;
+            _panX = 0f;
+            _panY = 0f;
+            IsSmoothZooming = false;
+
+            if (targetZoom != _mapZoom)
             {
-                _mapZoom--;
-                _zoom *= 2f;
-                _panX *= 2f; _panY *= 2f;
-                MapZoomChanged?.Invoke(_mapZoom);
+                SetMapZoom(targetZoom);
+                return;
             }
+
             _hostPanel.Invalidate();
         }
 

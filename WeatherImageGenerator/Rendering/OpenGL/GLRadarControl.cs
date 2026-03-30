@@ -1746,7 +1746,8 @@ void main() {
             // zoom factor is just below the halfway threshold.
             double logZoom = Math.Log(_zoom) / Math.Log(2);
             int zoomDelta;
-            if (Math.Abs(logZoom) < 0.05)
+            const double snapThreshold = 0.40;
+            if (Math.Abs(logZoom) < snapThreshold)
             {
                 // Already at correct tile zoom, just reset smooth zoom
                 _zoom = 1.0f;
@@ -1757,11 +1758,11 @@ void main() {
             }
             else if (logZoom > 0)
             {
-                zoomDelta = (int)Math.Ceiling(logZoom);  // Always snap forward when zooming in
+                zoomDelta = (int)Math.Ceiling(logZoom - snapThreshold);
             }
             else
             {
-                zoomDelta = (int)Math.Floor(logZoom);    // Always snap forward when zooming out
+                zoomDelta = (int)Math.Floor(logZoom + snapThreshold);
             }
 
             int targetZoom = Math.Max(0, Math.Min(20, _mapZoom + zoomDelta));
