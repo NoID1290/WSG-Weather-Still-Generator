@@ -532,7 +532,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 Id = "radarLayer",
                 Text = "Radar Layer",
-                Options = new List<string> { "Rain (RRAI)", "Snow (RSNO)", "Combined (RDBR)", "Coverage" },
+                Options = new List<string> { "Rain (RRAI)", "Snow (RSNO)", "Precip Type", "Coverage" },
                 SelectedIndex = 0,
                 OnSelectionChanged = _ => OnRadarLayerChanged()
             };
@@ -1676,7 +1676,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 0 => "RADAR_1KM_RRAI",
                 1 => "RADAR_1KM_RSNO",
-                2 => "RADAR_1KM_RDBR",
+                2 => "Radar_1km_SfcPrecipType",
                 3 => "RADAR_COVERAGE_RRAI.INV",
                 _ => "RADAR_1KM_RRAI"
             };
@@ -1728,15 +1728,13 @@ namespace WeatherImageGenerator.Rendering.Common
                     (System.Drawing.Color.FromArgb(255,140,  0 ), "4 cm/h"),
                     (System.Drawing.Color.FromArgb(255,  0,  0 ), "8+ cm/h"),
                 },
-                "RADAR_1KM_RDBR" => new (System.Drawing.Color, string)[]
+                "Radar_1km_SfcPrecipType" => new (System.Drawing.Color, string)[]
                 {
-                    (System.Drawing.Color.FromArgb(  0,  0,200), "10 dBZ"),
-                    (System.Drawing.Color.FromArgb(  0,170,255), "20 dBZ"),
-                    (System.Drawing.Color.FromArgb(  0,220,  0), "30 dBZ"),
-                    (System.Drawing.Color.FromArgb(170,255,  0), "40 dBZ"),
-                    (System.Drawing.Color.FromArgb(255,230,  0), "50 dBZ"),
-                    (System.Drawing.Color.FromArgb(255,120,  0), "60 dBZ"),
-                    (System.Drawing.Color.FromArgb(255,  0,  0), "70+ dBZ"),
+                    (System.Drawing.Color.FromArgb(  0,200,  0), "Rain"),
+                    (System.Drawing.Color.FromArgb(  0,140,255), "Snow"),
+                    (System.Drawing.Color.FromArgb(180,  0,200), "Freezing rain"),
+                    (System.Drawing.Color.FromArgb(255,140,  0), "Ice pellets"),
+                    (System.Drawing.Color.FromArgb(255,220,  0), "Mixed"),
                 },
                 "RADAR_COVERAGE_RRAI.INV" => new (System.Drawing.Color, string)[]
                 {
@@ -1764,7 +1762,7 @@ namespace WeatherImageGenerator.Rendering.Common
         {
             "RADAR_1KM_RRAI" => "Rain \u2014 RRAI",
             "RADAR_1KM_RSNO" => "Snow \u2014 RSNO",
-            "RADAR_1KM_RDBR" => "Composite \u2014 RDBR",
+            "Radar_1km_SfcPrecipType" => "Precip Type \u2014 SfcPrecipType",
             "RADAR_COVERAGE_RRAI.INV" => "Coverage",
             _ => layer
         };

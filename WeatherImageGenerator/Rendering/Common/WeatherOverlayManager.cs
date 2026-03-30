@@ -125,7 +125,7 @@ namespace WeatherImageGenerator.Rendering.Common
             {
                 "RADAR_1KM_RRAI" => "RADARURPPRECIPR14-LINEAR",   // Rain rate
                 "RADAR_1KM_RSNO" => "RADARURPPRECIPS14-LINEAR",   // Snow rate
-                "RADAR_1KM_RDBR" => null,                          // Combined reflectivity (server default)
+                "Radar_1km_SfcPrecipType" => null,               // Surface precip type (server default)
                 "RADAR_COVERAGE_RRAI.INV" => null,                 // Coverage (server default)
                 _ => "RADARURPPRECIPR14-LINEAR"
             };
@@ -221,7 +221,7 @@ namespace WeatherImageGenerator.Rendering.Common
                         {
                             "RADAR_1KM_RRAI" => "Rain",
                             "RADAR_1KM_RSNO" => "Snow",
-                            "RADAR_1KM_RDBR" => "Rain/Snow",
+                            "Radar_1km_SfcPrecipType" => "Rain/Snow/Mixed",
                             "RADAR_COVERAGE_RRAI.INV" => "Coverage",
                             _ => "Radar"
                         };
