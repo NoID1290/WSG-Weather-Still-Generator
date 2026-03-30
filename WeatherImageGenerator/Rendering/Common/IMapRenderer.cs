@@ -157,6 +157,12 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <summary>Set the tertiary overlay (GRIB2 forecast) from raw image bytes with explicit bounding box.</summary>
         void SetOverlay3Bytes(byte[] data, double minLat, double minLon, double maxLat, double maxLon, int sourceZoom);
 
+        /// <summary>
+        /// Upload a WMS GetLegendGraphic PNG to the HUD renderer for GPU display.
+        /// Must be called on the render/UI thread.
+        /// </summary>
+        void SetLegendTexture(byte[] pngBytes);
+
         /// <summary>Clear all overlays.</summary>
         void ClearOverlay();
 

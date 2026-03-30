@@ -155,6 +155,13 @@ namespace WeatherImageGenerator.Rendering.Common
         }
 
         /// <summary>
+        /// Fetches the WMS GetLegendGraphic PNG for the active radar layer and style.
+        /// Returns raw PNG bytes, or null on failure.
+        /// </summary>
+        public async Task<byte[]?> FetchRadarLegendAsync(string layer, string? style)
+            => await _radarService.FetchLegendGraphicAsync(layer, style).ConfigureAwait(false);
+
+        /// <summary>
         /// Fetches and updates radar overlay for the given region
         /// </summary>
         public async Task<byte[]?> UpdateRadarOverlayAsync(double centerLat, double centerLon, int width, int height, int mapZoom)

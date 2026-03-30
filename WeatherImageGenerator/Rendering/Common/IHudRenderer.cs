@@ -47,5 +47,20 @@ namespace WeatherImageGenerator.Rendering.Common
         /// End the frame — flush any remaining vertices.
         /// </summary>
         void EndFrame();
+
+        /// <summary>
+        /// Upload or replace the legend texture from raw PNG bytes.
+        /// Must be called on the render thread. A null or empty array clears the texture.
+        /// </summary>
+        void SetLegendTexture(byte[] pngBytes);
+
+        /// <summary>
+        /// Draw the previously uploaded legend image at the given pixel coordinates.
+        /// No-op if no legend texture has been uploaded yet.
+        /// </summary>
+        void DrawLegendTexture(float x, float y, float w, float h, float opacity);
+
+        /// <summary>Whether a legend texture has been uploaded and is ready to draw.</summary>
+        bool HasLegendTexture { get; }
     }
 }

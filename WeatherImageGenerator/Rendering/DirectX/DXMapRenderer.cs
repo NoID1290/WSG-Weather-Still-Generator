@@ -1673,6 +1673,8 @@ namespace WeatherImageGenerator.Rendering.DirectX
             _hostPanel.Invalidate();
         }
 
+        public void SetLegendTexture(byte[] pngBytes) => _hudRenderer?.SetLegendTexture(pngBytes);
+
         public void SetStationMarkers(StationMarkerEntry[] markers)
         {
             lock (_markerLock) { _stationMarkers = markers; }

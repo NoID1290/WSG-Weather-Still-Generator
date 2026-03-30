@@ -163,6 +163,49 @@ namespace ECCC.Services
         }
 
         /// <summary>
+        /// Fetches a WMS GetLegendGraphic PNG for the specified layer and style from ECCC GeoMet.
+        /// Returns the raw PNG bytes, or null on failure.
+        /// </summary>
+        /// <param name="layer">WMS layer name (e.g. "RADAR_1KM_RRAI")</param>
+        /// <param name="style">WMS style name, or null for server default</param>
+        public async Task<byte[]?> FetchLegendGraphicAsync(string layer, string? style = null)
+        {
+            try
+            {
+                var url = ECCC.Api.UrlBuilder.BuildLegendUrl(layer, style);
+                Console.WriteLine($"[RadarImageService] Fetching legend graphic: layer={layer}, style={style ?? "(default)"}");
+                var response = await _httpClient.GetAsync(url).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[RadarImageService] Legend fetch failed: {response.StatusCode}");
+                    return null;
+                }
+
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+                if (contentType.Contains("xml") || contentType.Contains("html"))
+                {
+                    Console.WriteLine($"[RadarImageService] Legend returned non-image response ({contentType})");
+                    return null;
+                }
+
+                var data = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                if (data == null || data.Length == 0)
+                {
+                    Console.WriteLine("[RadarImageService] Legend response was empty");
+                    return null;
+                }
+
+                Console.WriteLine($"[RadarImageService] Legend graphic fetched: {data.Length} bytes");
+                return data;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RadarImageService] Error fetching legend graphic: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Validates that a byte array contains decodable image data.
         /// </summary>
         private static bool IsValidImageData(byte[] data)

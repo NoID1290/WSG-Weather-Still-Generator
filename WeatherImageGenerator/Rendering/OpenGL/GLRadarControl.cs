@@ -2038,6 +2038,18 @@ void main() {
             Invalidate();
         }
 
+        public void SetLegendTexture(byte[] pngBytes)
+        {
+            if (InvokeRequired)
+            {
+                this.BeginInvoke(new Action(() => SetLegendTexture(pngBytes)));
+                return;
+            }
+            MakeCurrent();
+            _uiRenderer?.SetLegendTexture(pngBytes);
+            Invalidate();
+        }
+
         public void SetStationMarkers(StationMarkerEntry[] markers)
         {
             lock (_markerLock) { _stationMarkers = markers; }

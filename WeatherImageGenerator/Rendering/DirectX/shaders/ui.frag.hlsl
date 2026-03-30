@@ -24,9 +24,15 @@ float4 main(PSInput input) : SV_TARGET
         float a = uFontAtlas.Sample(uSampler, input.vTex).r;
         return float4(uColor.rgb, uColor.a * a);
     }
-    else
+    else if (uMode == 1)
     {
         // Rect mode: flat color
         return uColor;
+    }
+    else
+    {
+        // Image texture mode: RGBA texture bound to the atlas slot
+        float4 texColor = uFontAtlas.Sample(uSampler, input.vTex);
+        return texColor * float4(1.0, 1.0, 1.0, uColor.a);
     }
 }

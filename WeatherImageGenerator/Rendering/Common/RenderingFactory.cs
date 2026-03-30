@@ -93,7 +93,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private static IMapRenderer CreateVulkanRenderer()
         {
-            return new Vulkan.VulkanMapRenderer();
+            throw new NotSupportedException("Vulkan backend is currently disabled.");
         }
 
         private static IMapRenderer CreateDirectXRenderer()
@@ -108,7 +108,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private static IHudRenderer CreateVulkanHudRenderer()
         {
-            return new Vulkan.VulkanHudRenderer();
+            throw new NotSupportedException("Vulkan backend is currently disabled.");
         }
 
         private static IHudRenderer CreateDirectXHudRenderer()
@@ -120,42 +120,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private static unsafe bool CheckVulkanAvailability()
         {
-            try
-            {
-                var vk = Silk.NET.Vulkan.Vk.GetApi();
-
-                // Create a minimal Vulkan instance to probe for physical devices
-                var appInfo = new Silk.NET.Vulkan.ApplicationInfo
-                {
-                    SType = Silk.NET.Vulkan.StructureType.ApplicationInfo,
-                    ApiVersion = Silk.NET.Vulkan.Vk.Version11,
-                };
-                var createInfo = new Silk.NET.Vulkan.InstanceCreateInfo
-                {
-                    SType = Silk.NET.Vulkan.StructureType.InstanceCreateInfo,
-                    PApplicationInfo = &appInfo,
-                };
-
-                Silk.NET.Vulkan.Instance instance = default;
-                var result = vk.CreateInstance(&createInfo, null, &instance);
-                if (result != Silk.NET.Vulkan.Result.Success)
-                {
-                    vk.Dispose();
-                    return false;
-                }
-
-                uint count = 0;
-                vk.EnumeratePhysicalDevices(instance, &count, null);
-
-                vk.DestroyInstance(instance, null);
-                vk.Dispose();
-
-                return count > 0;
-            }
-            catch
-            {
-                return false;
-            }
+            return false; // Vulkan backend currently disabled
         }
 
         private static unsafe bool CheckDirectXAvailability()

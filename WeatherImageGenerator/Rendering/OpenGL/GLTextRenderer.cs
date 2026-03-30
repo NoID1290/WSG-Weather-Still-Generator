@@ -25,8 +25,13 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _projectionLoc;
         private int _colorLoc;
         private int _modeLoc;
+        private int _atlasTextureSamplerLoc;
         private int _atlasWidth;
         private int _atlasHeight;
+
+        // Legend texture
+        private int _legendTexture = 0;
+        public bool HasLegendTexture => _legendTexture != 0;
 
         // Glyph metrics: per-character UV rect + advance
         private readonly Dictionary<char, GlyphInfo> _glyphs = new Dictionary<char, GlyphInfo>();
@@ -58,7 +63,6 @@ namespace WeatherImageGenerator.Rendering.OpenGL
             {
                 BuildFontAtlas("Segoe UI", 13f);
                 LoadShader();
-                SetupBuffers();
                 IsInitialized = true;
                 Console.WriteLine("[GLTextRenderer] Initialized successfully");
             }
@@ -217,8 +221,10 @@ void main() {
     if (uMode == 0) {
         float a = texture(uFontAtlas, vTex).r;
         FragColor = vec4(uColor.rgb, uColor.a * a);
-    } else {
+    } else if (uMode == 1) {
         FragColor = uColor;
+    } else {
+        FragColor = texture(uFontAtlas, vTex) * vec4(1.0, 1.0, 1.0, uColor.a);
     }
 }";
             }
@@ -236,10 +242,8 @@ void main() {
             _projectionLoc = GL.GetUniformLocation(_shader.Handle, "uProjection");
             _colorLoc = GL.GetUniformLocation(_shader.Handle, "uColor");
             _modeLoc = GL.GetUniformLocation(_shader.Handle, "uMode");
-        }
+            _atlasTextureSamplerLoc = GL.GetUniformLocation(_shader.Handle, "uFontAtlas");
 
-        private void SetupBuffers()
-        {
             _vao = GL.GenVertexArray();
             _vbo = GL.GenBuffer();
 
@@ -415,6 +419,87 @@ void main() {
             GL.BindTexture(TextureTarget.Texture2D, 0);
         }
 
+        /// <summary>
+        /// Upload or replace the legend texture from raw PNG bytes (RGBA).
+        /// </summary>
+        public void SetLegendTexture(byte[] pngBytes)
+        {
+            if (pngBytes == null || pngBytes.Length == 0)
+            {
+                if (_legendTexture != 0) { GL.DeleteTexture(_legendTexture); _legendTexture = 0; }
+                return;
+            }
+            try
+            {
+                using var ms = new MemoryStream(pngBytes);
+                using var bmp = new Bitmap(ms);
+                var rect = new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height);
+                var bmpData = bmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    if (_legendTexture != 0) GL.DeleteTexture(_legendTexture);
+                    _legendTexture = GL.GenTexture();
+                    GL.BindTexture(TextureTarget.Texture2D, _legendTexture);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)All.Linear);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)All.Linear);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)All.ClampToEdge);
+                    GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)All.ClampToEdge);
+                    // BGRA from GDI+ — upload as BGRA then let GPU read as RGBA
+                    GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8,
+                        bmp.Width, bmp.Height, 0,
+                        OpenTK.Graphics.OpenGL4.PixelFormat.Bgra,
+                        PixelType.UnsignedByte,
+                        bmpData.Scan0);
+                    GL.BindTexture(TextureTarget.Texture2D, 0);
+                    Console.WriteLine($"[GLTextRenderer] Legend texture uploaded: {bmp.Width}x{bmp.Height}");
+                }
+                finally
+                {
+                    bmp.UnlockBits(bmpData);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLTextRenderer] SetLegendTexture failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Draw the legend texture at the given pixel coordinates.
+        /// </summary>
+        public void DrawLegendTexture(float x, float y, float w, float h, float opacity)
+        {
+            if (_shader == null || _legendTexture == 0) return;
+
+            FlushText();
+
+            // Bind legend texture to unit 0 (same slot as font atlas)
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _legendTexture);
+
+            GL.Uniform1(_modeLoc, 2); // image texture mode
+            GL.Uniform4(_colorLoc, 1f, 1f, 1f, opacity);
+
+            float[] verts = new float[]
+            {
+                x,     y,     0f, 0f,
+                x + w, y,     1f, 0f,
+                x + w, y + h, 1f, 1f,
+                x,     y,     0f, 0f,
+                x + w, y + h, 1f, 1f,
+                x,     y + h, 0f, 1f
+            };
+
+            GL.BindVertexArray(_vao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
+            GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, verts.Length * sizeof(float), verts);
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+            GL.BindVertexArray(0);
+
+            // Restore font atlas on unit 0
+            GL.BindTexture(TextureTarget.Texture2D, _atlasTexture);
+        }
+
         private static float[] MakeOrtho(float left, float right, float bottom, float top, float near, float far)
         {
             float[] m = new float[16];
@@ -430,6 +515,7 @@ void main() {
 
         public void Dispose()
         {
+            if (_legendTexture != 0) { try { GL.DeleteTexture(_legendTexture); } catch { } _legendTexture = 0; }
             if (_atlasTexture != 0) { try { GL.DeleteTexture(_atlasTexture); } catch { } _atlasTexture = 0; }
             if (_vbo != 0) { try { GL.DeleteBuffer(_vbo); } catch { } _vbo = 0; }
             if (_vao != 0) { try { GL.DeleteVertexArray(_vao); } catch { } _vao = 0; }

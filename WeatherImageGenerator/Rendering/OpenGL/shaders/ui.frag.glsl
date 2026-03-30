@@ -11,8 +11,11 @@ void main() {
         // Text mode: sample font atlas alpha channel
         float a = texture(uFontAtlas, vTex).r;
         FragColor = vec4(uColor.rgb, uColor.a * a);
-    } else {
+    } else if (uMode == 1) {
         // Rect mode: flat color with optional alpha
         FragColor = uColor;
+    } else {
+        // Image texture mode: RGBA texture bound to uFontAtlas slot
+        FragColor = texture(uFontAtlas, vTex) * vec4(1.0, 1.0, 1.0, uColor.a);
     }
 }

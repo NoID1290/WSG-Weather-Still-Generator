@@ -130,6 +130,26 @@ namespace ECCC.Api
         /// <param name="service">Service type: "WMS", "WCS", "WFS"</param>
         public static string BuildCapabilitiesUrl(string service = "WMS")
             => $"{BaseGeoMetUrl}?SERVICE={service}&VERSION=1.3.0&REQUEST=GetCapabilities";
+
+        /// <summary>
+        /// Builds a WMS GetLegendGraphic URL for the given layer and optional style.
+        /// Returns a PNG legend image from GeoMet-Weather.
+        /// </summary>
+        /// <param name="layer">WMS layer name (e.g. "RADAR_1KM_RRAI")</param>
+        /// <param name="style">WMS style name, or null to use the server default</param>
+        /// <param name="lang">Language code: "en" (default) or "fr"</param>
+        public static string BuildLegendUrl(string layer, string? style = null, string lang = "en")
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append(BaseGeoMetUrl);
+            sb.Append("?version=1.3.0&service=WMS&request=GetLegendGraphic&sld_version=1.1.0");
+            sb.Append("&layer=").Append(Uri.EscapeDataString(layer));
+            sb.Append("&format=image/png");
+            if (!string.IsNullOrWhiteSpace(style))
+                sb.Append("&STYLE=").Append(Uri.EscapeDataString(style));
+            sb.Append("&lang=").Append(lang);
+            return sb.ToString();
+        }
         
         #endregion
 

@@ -59,6 +59,11 @@ namespace WeatherImageGenerator.Rendering.DirectX
         // Blend state for alpha blending
         private ID3D11BlendState* _blendState;
 
+        // Legend texture (WMS GetLegendGraphic)
+        private ID3D11Texture2D* _legendTexture;
+        private ID3D11ShaderResourceView* _legendSrv;
+        public bool HasLegendTexture => _legendSrv != null;
+
         // Current projection matrix and frame state
         private float[] _projection = new float[16];
         private int _vpWidth, _vpHeight;
@@ -490,6 +495,139 @@ namespace WeatherImageGenerator.Rendering.DirectX
             }
         }
 
+        /// <summary>
+        /// Upload or replace the legend texture from raw PNG bytes.
+        /// </summary>
+        public void SetLegendTexture(byte[] pngBytes)
+        {
+            if (_device == null) return;
+            // Release previous
+            if (_legendSrv != null) { _legendSrv->Release(); _legendSrv = null; }
+            if (_legendTexture != null) { _legendTexture->Release(); _legendTexture = null; }
+            if (pngBytes == null || pngBytes.Length == 0) return;
+            try
+            {
+                using var ms = new MemoryStream(pngBytes);
+                using var bmp = new Bitmap(ms);
+                int w = bmp.Width, h = bmp.Height;
+                var rect = new System.Drawing.Rectangle(0, 0, w, h);
+                var bmpData = bmp.LockBits(rect, ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    // Build RGBA byte array from BGRA GDI+ data
+                    int bytes = w * h * 4;
+                    var pixels = new byte[bytes];
+                    Marshal.Copy(bmpData.Scan0, pixels, 0, bytes);
+                    // Swap B and R channels (BGRA -> RGBA)
+                    for (int i = 0; i < bytes; i += 4)
+                    {
+                        byte tmp = pixels[i]; pixels[i] = pixels[i + 2]; pixels[i + 2] = tmp;
+                    }
+                    var texDesc = new Texture2DDesc
+                    {
+                        Width = (uint)w, Height = (uint)h,
+                        MipLevels = 1, ArraySize = 1,
+                        Format = Format.FormatR8G8B8A8Unorm,
+                        SampleDesc = new SampleDesc(1, 0),
+                        Usage = Usage.Immutable,
+                        BindFlags = (uint)BindFlag.ShaderResource,
+                        CPUAccessFlags = 0, MiscFlags = 0
+                    };
+                    fixed (byte* pPixels = pixels)
+                    {
+                        var initData = new SubresourceData
+                        {
+                            PSysMem = pPixels,
+                            SysMemPitch = (uint)(w * 4)
+                        };
+                        ID3D11Texture2D* tex = null;
+                        SilkMarshal.ThrowHResult(_device->CreateTexture2D(ref texDesc, ref initData, ref tex));
+                        _legendTexture = tex;
+                    }
+                    var srvDesc = new ShaderResourceViewDesc
+                    {
+                        Format = Format.FormatR8G8B8A8Unorm,
+                        ViewDimension = D3DSrvDimension.D3DSrvDimensionTexture2D,
+                    };
+                    srvDesc.Texture2D.MostDetailedMip = 0;
+                    srvDesc.Texture2D.MipLevels = 1;
+                    ID3D11ShaderResourceView* srv = null;
+                    SilkMarshal.ThrowHResult(
+                        _device->CreateShaderResourceView((ID3D11Resource*)_legendTexture, ref srvDesc, ref srv));
+                    _legendSrv = srv;
+                    Console.WriteLine($"[DXHudRenderer] Legend texture uploaded: {w}x{h}");
+                }
+                finally { bmp.UnlockBits(bmpData); }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DXHudRenderer] SetLegendTexture failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Draw the legend texture at the given pixel coordinates using mode=2.
+        /// </summary>
+        public void DrawLegendTexture(float x, float y, float w, float h, float opacity)
+        {
+            if (_legendSrv == null || _uiShader == null) return;
+
+            // Emit a quad
+            int i = 0 * FLOATS_PER_VERT;
+            int startVert = 0;
+
+            void EmitQuadVert(float px, float py, float u, float v)
+            {
+                i = startVert * FLOATS_PER_VERT;
+                _cpuVertexBuffer[i + 0] = px; _cpuVertexBuffer[i + 1] = py;
+                _cpuVertexBuffer[i + 2] = u;  _cpuVertexBuffer[i + 3] = v;
+                startVert++;
+            }
+            EmitQuadVert(x,     y,     0f, 0f);
+            EmitQuadVert(x + w, y,     1f, 0f);
+            EmitQuadVert(x + w, y + h, 1f, 1f);
+            EmitQuadVert(x,     y,     0f, 0f);
+            EmitQuadVert(x + w, y + h, 1f, 1f);
+            EmitQuadVert(x,     y + h, 0f, 1f);
+            _vertexCount = 6;
+
+            // Upload vertices
+            MappedSubresource mapped;
+            SilkMarshal.ThrowHResult(
+                _context->Map((ID3D11Resource*)_vertexBuffer, 0, Map.WriteDiscard, 0, &mapped));
+            fixed (float* pData = _cpuVertexBuffer)
+                Unsafe.CopyBlock(mapped.PData, pData, (uint)(6 * FLOATS_PER_VERT * sizeof(float)));
+            _context->Unmap((ID3D11Resource*)_vertexBuffer, 0);
+
+            _uiShader.SetMatrix4("uProjection", _projection);
+            _uiShader.SetVec4("uColor", 1f, 1f, 1f, opacity);
+            _uiShader.SetInt("uMode", 2);
+            _uiShader.Use();
+
+            float* bf = stackalloc float[4] { 0, 0, 0, 0 };
+            _context->OMSetBlendState(_blendState, bf, 0xffffffff);
+
+            uint stride = (uint)(FLOATS_PER_VERT * sizeof(float));
+            uint vbOffset = 0;
+            var vb = _vertexBuffer;
+            _context->IASetVertexBuffers(0, 1, &vb, &stride, &vbOffset);
+            _context->IASetPrimitiveTopology(D3DPrimitiveTopology.D3DPrimitiveTopologyTrianglelist);
+
+            // Bind legend SRV to slot 0
+            var srv = _legendSrv;
+            _context->PSSetShaderResources(0, 1, &srv);
+            var samp = _sampler;
+            _context->PSSetSamplers(0, 1, &samp);
+
+            _context->Draw(6, 0);
+
+            // Rebind font atlas SRV so subsequent text draws work correctly
+            var atlasSrv = _atlasSrv;
+            _context->PSSetShaderResources(0, 1, &atlasSrv);
+
+            _vertexCount = 0;
+        }
+
         private static string GetFallbackUIVS() => @"
 cbuffer ProjectionCB : register(b0) { row_major float4x4 uProjection; };
 struct VS_INPUT { float2 aPos : POSITION; float2 aTex : TEXCOORD0; };
@@ -508,7 +646,8 @@ cbuffer UIParams : register(b0) { float4 uColor; int uMode; float3 _pad; };
 struct PS_INPUT { float4 Position : SV_POSITION; float2 vTex : TEXCOORD0; };
 float4 main(PS_INPUT input) : SV_TARGET {
     if (uMode == 0) { float a = uFontAtlas.Sample(uSampler, input.vTex).r; return float4(uColor.rgb, uColor.a * a); }
-    else { return uColor; }
+    else if (uMode == 1) { return uColor; }
+    else { float4 tc = uFontAtlas.Sample(uSampler, input.vTex); return tc * float4(1.0, 1.0, 1.0, uColor.a); }
 }";
 
         public void Dispose()
@@ -517,6 +656,8 @@ float4 main(PS_INPUT input) : SV_TARGET {
             {
                 _disposed = true;
                 _uiShader?.Dispose();
+                if (_legendSrv != null) { _legendSrv->Release(); _legendSrv = null; }
+                if (_legendTexture != null) { _legendTexture->Release(); _legendTexture = null; }
                 if (_atlasSrv != null) { _atlasSrv->Release(); _atlasSrv = null; }
                 if (_atlasTexture != null) { _atlasTexture->Release(); _atlasTexture = null; }
                 if (_sampler != null) { _sampler->Release(); _sampler = null; }

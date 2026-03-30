@@ -230,6 +230,7 @@ namespace WeatherImageGenerator.Rendering.Common
             HudProgressLine => 6f,
             HudButtonGroup g => ButtonHeight,
             HudLegendRow lr => lr.IsHeader ? 22f : 20f,
+            HudImage img => img.Height + 4f,
             _ => 20f
         };
 
@@ -316,6 +317,9 @@ namespace WeatherImageGenerator.Rendering.Common
                         break;
                     case HudLegendRow lr:
                         RenderLegendRow(r, lr, contentX, ey, contentW, elH);
+                        break;
+                    case HudImage img:
+                        RenderImage(r, img, contentX, ey, contentW, elH);
                         break;
                 }
 
@@ -507,6 +511,12 @@ namespace WeatherImageGenerator.Rendering.Common
             float tx = swatchX + swatchSize + 7f;
             float ty2 = y + (h - r.LineHeight) / 2f;
             r.DrawText(lr.Label, tx, ty2, TextSecondary.R, TextSecondary.G, TextSecondary.B, TextSecondary.A);
+        }
+
+        private void RenderImage(IHudRenderer r, HudImage img, float x, float y, float w, float h)
+        {
+            if (!r.HasLegendTexture) return;
+            r.DrawLegendTexture(x + 4f, y + 2f, img.Width, img.Height, img.Opacity);
         }
 
         private void RenderDropdown(IHudRenderer r, HudDropdown dd, float x, float y, float w, float h, bool hover)
@@ -1397,5 +1407,19 @@ namespace WeatherImageGenerator.Rendering.Common
     {
         public List<HudElement> Children { get; } = new();
         public List<RectangleF> ChildBounds { get; } = new();
+    }
+
+    /// <summary>
+    /// An image element that renders the current legend texture (WMS GetLegendGraphic).
+    /// Width/Height control the draw size; the image is scaled to fit.
+    /// </summary>
+    public class HudImage : HudElement
+    {
+        /// <summary>Desired draw width in pixels.</summary>
+        public float Width { get; set; } = 200f;
+        /// <summary>Desired draw height in pixels.</summary>
+        public float Height { get; set; } = 60f;
+        /// <summary>Opacity 0.0–1.0.</summary>
+        public float Opacity { get; set; } = 1.0f;
     }
 }

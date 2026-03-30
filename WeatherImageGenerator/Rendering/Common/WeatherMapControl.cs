@@ -107,6 +107,10 @@ namespace WeatherImageGenerator.Rendering.Common
         private HudDropdown? _ddInterp;
         private System.Threading.CancellationTokenSource? _interpBuildCts;
 
+        // Radar legend panel
+        private HudLabel? _legendLayerLabel;
+        private HudPanel? _legendPanel;
+
         // Periodic status bar refresh timer (updates FPS, VRAM, cache stats even when idle)
         private Timer _statusUpdateTimer;
         private System.Threading.Timer? _hudClearTimer;
@@ -961,6 +965,25 @@ namespace WeatherImageGenerator.Rendering.Common
 
             _hudSystem.AddPanel(animPanel);
 
+            // ─── Radar Legend panel (LeftCenter) ─────────────────────────
+            _legendLayerLabel = new HudLabel { Text = "Rain \u2014 RRAI", IsDim = true };
+            var radarLegendPanel = new HudPanel
+            {
+                Id = "radarLegend",
+                Title = "Radar Legend",
+                Anchor = HudAnchor.LeftCenter,
+                Width = 200f,
+                MarginX = 10f,
+                MarginY = 0f,
+                Collapsible = true,
+                Collapsed = false,
+            };
+            _legendPanel = radarLegendPanel;
+            radarLegendPanel.Elements.Add(_legendLayerLabel);
+            foreach (var (color, label) in GetRadarPalette("RADAR_1KM_RRAI"))
+                radarLegendPanel.Elements.Add(new HudLegendRow { DotColor = color, Label = label });
+            _hudSystem.AddPanel(radarLegendPanel);
+
             UpdateStatusLabels();
         }
 
@@ -1661,6 +1684,7 @@ namespace WeatherImageGenerator.Rendering.Common
             if (_ddRadarStyle != null)
                 _ddRadarStyle.SelectedIndex = _overlayManager.RadarWmsStyle != null ? 0 : 1;
             _ = UpdateOverlays();
+            UpdateRadarLegend();
         }
 
         private void OnRadarStyleChanged()
@@ -1672,7 +1696,78 @@ namespace WeatherImageGenerator.Rendering.Common
                 _ => "RADARURPPRECIPR14-LINEAR"
             };
             _ = UpdateOverlays();
+            UpdateRadarLegend();
         }
+
+        private void UpdateRadarLegend()
+        {
+            if (_legendPanel == null) return;
+            var layer = _overlayManager.RadarLayer ?? "RADAR_1KM_RRAI";
+            if (_legendLayerLabel != null)
+                _legendLayerLabel.Text = GetRadarLayerDisplayName(layer);
+            _legendPanel.Elements.Clear();
+            if (_legendLayerLabel != null)
+                _legendPanel.Elements.Add(_legendLayerLabel);
+            foreach (var (color, label) in GetRadarPalette(layer))
+                _legendPanel.Elements.Add(new HudLegendRow { DotColor = color, Label = label });
+        }
+
+        private static IReadOnlyList<(System.Drawing.Color Color, string Label)> GetRadarPalette(string layer)
+        {
+            return layer switch
+            {
+                "RADAR_1KM_RSNO" => new (System.Drawing.Color, string)[]
+                {
+                    (System.Drawing.Color.FromArgb(107,  0, 180), "0.02 cm/h"),
+                    (System.Drawing.Color.FromArgb(  0,  0, 230), "0.05 cm/h"),
+                    (System.Drawing.Color.FromArgb(  0,140, 255), "0.1 cm/h"),
+                    (System.Drawing.Color.FromArgb(  0,215, 215), "0.2 cm/h"),
+                    (System.Drawing.Color.FromArgb(  0,220,  0 ), "0.5 cm/h"),
+                    (System.Drawing.Color.FromArgb(150,255,  0 ), "1 cm/h"),
+                    (System.Drawing.Color.FromArgb(255,230,  0 ), "2 cm/h"),
+                    (System.Drawing.Color.FromArgb(255,140,  0 ), "4 cm/h"),
+                    (System.Drawing.Color.FromArgb(255,  0,  0 ), "8+ cm/h"),
+                },
+                "RADAR_1KM_RDBR" => new (System.Drawing.Color, string)[]
+                {
+                    (System.Drawing.Color.FromArgb(  0,  0,200), "10 dBZ"),
+                    (System.Drawing.Color.FromArgb(  0,170,255), "20 dBZ"),
+                    (System.Drawing.Color.FromArgb(  0,220,  0), "30 dBZ"),
+                    (System.Drawing.Color.FromArgb(170,255,  0), "40 dBZ"),
+                    (System.Drawing.Color.FromArgb(255,230,  0), "50 dBZ"),
+                    (System.Drawing.Color.FromArgb(255,120,  0), "60 dBZ"),
+                    (System.Drawing.Color.FromArgb(255,  0,  0), "70+ dBZ"),
+                },
+                "RADAR_COVERAGE_RRAI.INV" => new (System.Drawing.Color, string)[]
+                {
+                    (System.Drawing.Color.FromArgb(  0,100,255), "In coverage"),
+                    (System.Drawing.Color.FromArgb(100,100,100), "No data"),
+                },
+                _ => new (System.Drawing.Color, string)[]
+                {
+                    // RADAR_1KM_RRAI — Rain
+                    (System.Drawing.Color.FromArgb(107,  0, 180), "0.1 mm/h"),
+                    (System.Drawing.Color.FromArgb(  0,  0, 230), "0.2 mm/h"),
+                    (System.Drawing.Color.FromArgb(  0,140, 255), "0.5 mm/h"),
+                    (System.Drawing.Color.FromArgb(  0,215, 215), "1 mm/h"),
+                    (System.Drawing.Color.FromArgb(  0,220,   0), "2 mm/h"),
+                    (System.Drawing.Color.FromArgb(150,255,   0), "4 mm/h"),
+                    (System.Drawing.Color.FromArgb(255,230,   0), "8 mm/h"),
+                    (System.Drawing.Color.FromArgb(255,140,   0), "16 mm/h"),
+                    (System.Drawing.Color.FromArgb(255,  0,   0), "32+ mm/h"),
+                },
+            };
+        }
+
+
+        private static string GetRadarLayerDisplayName(string layer) => layer switch
+        {
+            "RADAR_1KM_RRAI" => "Rain \u2014 RRAI",
+            "RADAR_1KM_RSNO" => "Snow \u2014 RSNO",
+            "RADAR_1KM_RDBR" => "Composite \u2014 RDBR",
+            "RADAR_COVERAGE_RRAI.INV" => "Coverage",
+            _ => layer
+        };
 
         // â•â•â• Public API for external control (keyboard shortcuts) â•â•â•
 
