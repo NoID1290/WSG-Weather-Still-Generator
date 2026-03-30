@@ -368,6 +368,9 @@ FodyWeavers.xsd
 # VSC - auto-generated configs
 .vscode/
 
+# Local files idea
+.idea/
+
 # Local settings for WeatherImageGenerator
 WeatherImageGenerator/Properties/launchSettings.json
 
