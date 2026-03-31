@@ -88,6 +88,15 @@ namespace WeatherImageGenerator.Rendering.Common
         /// <summary>Enable pulsing animation on the crosshair.</summary>
         bool EnableCrosshairPulse { get; set; }
 
+        /// <summary>Enable procedural cloud effect layer driven by live weather signals.</summary>
+        bool EnableProceduralClouds { get => false; set { } }
+
+        /// <summary>Enable procedural rain effect layer driven by live weather signals.</summary>
+        bool EnableProceduralRain { get => false; set { } }
+
+        /// <summary>Enable procedural lightning effect layer driven by live weather signals.</summary>
+        bool EnableProceduralLightning { get => false; set { } }
+
         /// <summary>Whether to display the bottom-right status bar.</summary>
         bool ShowStatusBar { get; set; }
 
@@ -174,6 +183,12 @@ namespace WeatherImageGenerator.Rendering.Common
 
         /// <summary>Clear only the tertiary positioned overlay (GRIB2).</summary>
         void ClearPositionedOverlay3();
+
+        /// <summary>
+        /// Sets normalized weather signals derived from WMS/lightning data.
+        /// Renderers can use this payload to drive procedural GPU effects.
+        /// </summary>
+        void SetProceduralWeatherData(ProceduralWeatherData data) { }
 
         // ═══════════════════════════════════════════════════════════════════
         // GPU GRIB2 data pipeline

@@ -188,6 +188,9 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public bool EnableTileAtmosphere { get; set; } = true;
         public bool EnableRadarGlow { get; set; } = true;
         public bool EnableCrosshairPulse { get; set; } = true;
+        public bool EnableProceduralClouds { get; set; } = true;
+        public bool EnableProceduralRain { get; set; } = true;
+        public bool EnableProceduralLightning { get; set; } = true;
 
         public bool ShowStatusBar { get; set; } = true;
         public bool ShowRuler { get; set; } = true;
@@ -1702,6 +1705,13 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public void SetLightningFlashBoost(float boost)
         {
             lock (_markerLock) { _lightningFlashBoost = boost; }
+            _hostPanel.Invalidate();
+        }
+
+        public void SetProceduralWeatherData(ProceduralWeatherData data)
+        {
+            // Data plumbing is active; shader consumption lands in the next implementation slice.
+            _ = data;
             _hostPanel.Invalidate();
         }
 

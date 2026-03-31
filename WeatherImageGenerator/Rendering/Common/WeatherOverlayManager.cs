@@ -105,6 +105,12 @@ namespace WeatherImageGenerator.Rendering.Common
         public bool ShowLightningIC { get; set; } = false;
         public int LightningTimeWindowMinutes { get; set; } = 30;
 
+        /// <summary>
+        /// Latest normalized weather signal payload used by procedural GPU effects.
+        /// Updated from radar WMS overlays and lightning strike activity.
+        /// </summary>
+        public ProceduralWeatherData CurrentProceduralWeatherData { get; private set; } = new ProceduralWeatherData();
+
         // Configurable radar layer and WMS style
         public string RadarLayer { get; set; } = "RADAR_1KM_RRAI";
         public string? RadarWmsStyle { get; set; } = "RADARURPPRECIPR14-LINEAR";
@@ -245,6 +251,7 @@ namespace WeatherImageGenerator.Rendering.Common
                     _lastRadarZoom = mapZoom;
                     _lastRadarLayer = RadarLayer;
                     _lastRadarWmsStyle = RadarWmsStyle;
+                    UpdateProceduralWeatherFromRadar(radarData, RadarLayer);
                     
                     // NOTE: Disk caching removed — radar overlay is held in RAM and
                     // re-fetched from WMS when expired. The old disk cache was write-only
@@ -1277,6 +1284,135 @@ namespace WeatherImageGenerator.Rendering.Common
             }
         }
 
+        /// <summary>
+        /// Updates procedural weather metrics from the active radar WMS image.
+        /// </summary>
+        private void UpdateProceduralWeatherFromRadar(byte[] radarData, string layer)
+        {
+            var signal = AnalyzeOverlaySignal(radarData);
+
+            var target = new ProceduralWeatherData
+            {
+                SourceTimeUtc = DateTime.UtcNow,
+                SourceLayer = layer,
+                LightningSignal01 = CurrentProceduralWeatherData.LightningSignal01
+            };
+
+            switch (layer)
+            {
+                case "RADAR_1KM_RRAI":
+                case "GPU_COMPOSITE":
+                    target.HasPrecip = signal.Coverage01 > 0.01f;
+                    target.RainCoverage01 = signal.Coverage01;
+                    target.RainIntensity01 = Math.Clamp(signal.AvgIntensity01 * 0.70f + signal.PeakIntensity01 * 0.30f, 0f, 1f);
+                    target.SnowCoverage01 = CurrentProceduralWeatherData.SnowCoverage01 * 0.85f;
+                    target.CloudCoverage01 = Math.Clamp(Math.Max(target.RainCoverage01 * 0.90f, target.RainIntensity01 * 0.60f), 0f, 1f);
+                    target.ConvectiveSignal01 = signal.Convective01;
+                    break;
+
+                case "RADAR_1KM_RSNO":
+                    target.HasPrecip = signal.Coverage01 > 0.01f;
+                    target.RainCoverage01 = 0f;
+                    target.RainIntensity01 = 0f;
+                    target.SnowCoverage01 = signal.Coverage01;
+                    target.CloudCoverage01 = Math.Clamp(Math.Max(signal.Coverage01 * 0.95f, signal.AvgIntensity01 * 0.50f), 0f, 1f);
+                    target.ConvectiveSignal01 = signal.Convective01 * 0.35f;
+                    break;
+
+                case "Radar_1km_SfcPrecipType":
+                    target.HasPrecip = signal.Coverage01 > 0.01f;
+                    target.RainCoverage01 = signal.Coverage01 * 0.50f;
+                    target.RainIntensity01 = signal.AvgIntensity01 * 0.45f;
+                    target.SnowCoverage01 = signal.Coverage01 * 0.50f;
+                    target.CloudCoverage01 = Math.Clamp(signal.Coverage01 * 0.90f, 0f, 1f);
+                    target.ConvectiveSignal01 = signal.Convective01 * 0.55f;
+                    break;
+
+                case "RADAR_COVERAGE_RRAI.INV":
+                    target.HasPrecip = signal.Coverage01 > 0.01f;
+                    target.RainCoverage01 = signal.Coverage01 * 0.35f;
+                    target.RainIntensity01 = signal.AvgIntensity01 * 0.30f;
+                    target.SnowCoverage01 = CurrentProceduralWeatherData.SnowCoverage01 * 0.90f;
+                    target.CloudCoverage01 = Math.Clamp(Math.Max(signal.Coverage01, signal.AvgIntensity01 * 0.50f), 0f, 1f);
+                    target.ConvectiveSignal01 = signal.Convective01 * 0.20f;
+                    break;
+
+                default:
+                    target.HasPrecip = signal.Coverage01 > 0.01f;
+                    target.RainCoverage01 = signal.Coverage01;
+                    target.RainIntensity01 = signal.AvgIntensity01;
+                    target.SnowCoverage01 = CurrentProceduralWeatherData.SnowCoverage01 * 0.90f;
+                    target.CloudCoverage01 = signal.Coverage01;
+                    target.ConvectiveSignal01 = signal.Convective01;
+                    break;
+            }
+
+            target.ConvectiveSignal01 = Math.Clamp(target.ConvectiveSignal01 * 0.75f + target.LightningSignal01 * 0.25f, 0f, 1f);
+            CurrentProceduralWeatherData = ProceduralWeatherData.Blend(CurrentProceduralWeatherData, target, 0.30f);
+        }
+
+        /// <summary>
+        /// Merges a snow component frame (used by GPU_COMPOSITE) into the procedural weather payload.
+        /// </summary>
+        public void MergeProceduralSnowSignal(byte[] snowPng)
+        {
+            var signal = AnalyzeOverlaySignal(snowPng);
+            var target = new ProceduralWeatherData
+            {
+                SourceTimeUtc = DateTime.UtcNow,
+                SourceLayer = "RADAR_1KM_RSNO",
+                HasPrecip = CurrentProceduralWeatherData.HasPrecip || signal.Coverage01 > 0.01f,
+                RainCoverage01 = CurrentProceduralWeatherData.RainCoverage01,
+                RainIntensity01 = CurrentProceduralWeatherData.RainIntensity01,
+                SnowCoverage01 = Math.Clamp(Math.Max(CurrentProceduralWeatherData.SnowCoverage01, signal.Coverage01), 0f, 1f),
+                CloudCoverage01 = Math.Clamp(Math.Max(CurrentProceduralWeatherData.CloudCoverage01, signal.Coverage01 * 0.80f), 0f, 1f),
+                ConvectiveSignal01 = CurrentProceduralWeatherData.ConvectiveSignal01,
+                LightningSignal01 = CurrentProceduralWeatherData.LightningSignal01
+            };
+            CurrentProceduralWeatherData = ProceduralWeatherData.Blend(CurrentProceduralWeatherData, target, 0.30f);
+        }
+
+        private void UpdateProceduralLightningSignal()
+        {
+            float lightningSignal = ComputeLightningSignal01();
+            var target = new ProceduralWeatherData
+            {
+                SourceTimeUtc = DateTime.UtcNow,
+                SourceLayer = CurrentProceduralWeatherData.SourceLayer,
+                HasPrecip = CurrentProceduralWeatherData.HasPrecip,
+                RainCoverage01 = CurrentProceduralWeatherData.RainCoverage01,
+                RainIntensity01 = CurrentProceduralWeatherData.RainIntensity01,
+                SnowCoverage01 = CurrentProceduralWeatherData.SnowCoverage01,
+                CloudCoverage01 = CurrentProceduralWeatherData.CloudCoverage01,
+                LightningSignal01 = lightningSignal,
+                ConvectiveSignal01 = Math.Clamp(Math.Max(CurrentProceduralWeatherData.ConvectiveSignal01, lightningSignal), 0f, 1f)
+            };
+
+            if (HadNewStrikesThisFetch)
+            {
+                target.LightningSignal01 = Math.Clamp(target.LightningSignal01 + 0.20f, 0f, 1f);
+                target.ConvectiveSignal01 = Math.Clamp(target.ConvectiveSignal01 + 0.15f, 0f, 1f);
+            }
+
+            CurrentProceduralWeatherData = ProceduralWeatherData.Blend(CurrentProceduralWeatherData, target, 0.25f);
+        }
+
+        private float ComputeLightningSignal01()
+        {
+            if (_allCachedStrikes.Count == 0) return 0f;
+
+            var now = DateTime.UtcNow;
+            var window = now - TimeSpan.FromMinutes(Math.Max(5, LightningTimeWindowMinutes));
+            int recent = 0;
+            foreach (var strike in _allCachedStrikes)
+            {
+                if (strike.Time >= window) recent++;
+            }
+
+            // ~40 strikes in the active window maps near full intensity.
+            return Math.Clamp(recent / 40f, 0f, 1f);
+        }
+
         public void Dispose()
         {
             _grib2DataService?.Dispose();
@@ -1319,6 +1455,68 @@ namespace WeatherImageGenerator.Rendering.Common
                 finally { bmp.UnlockBits(bits); }
             }
             catch { return false; }
+        }
+
+        private static (float Coverage01, float AvgIntensity01, float PeakIntensity01, float Convective01) AnalyzeOverlaySignal(byte[] pngData)
+        {
+            try
+            {
+                using var ms = new MemoryStream(pngData);
+                using var bmp = new Bitmap(ms);
+
+                var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+                var bits = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    int stepX = Math.Max(1, bmp.Width / 96);
+                    int stepY = Math.Max(1, bmp.Height / 96);
+                    int sampled = 0;
+                    int active = 0;
+                    int strong = 0;
+                    float sumIntensity = 0f;
+                    float peak = 0f;
+
+                    for (int y = 0; y < bmp.Height; y += stepY)
+                    {
+                        for (int x = 0; x < bmp.Width; x += stepX)
+                        {
+                            sampled++;
+                            int idx = y * bits.Stride + x * 4;
+                            byte b = System.Runtime.InteropServices.Marshal.ReadByte(bits.Scan0, idx + 0);
+                            byte g = System.Runtime.InteropServices.Marshal.ReadByte(bits.Scan0, idx + 1);
+                            byte r = System.Runtime.InteropServices.Marshal.ReadByte(bits.Scan0, idx + 2);
+                            byte a = System.Runtime.InteropServices.Marshal.ReadByte(bits.Scan0, idx + 3);
+
+                            if (a <= 12) continue;
+
+                            active++;
+                            float alphaN = a / 255f;
+                            float luma = (0.299f * r + 0.587f * g + 0.114f * b) / 255f;
+                            float intensity = Math.Clamp(alphaN * luma, 0f, 1f);
+                            sumIntensity += intensity;
+                            if (intensity > peak) peak = intensity;
+                            if (intensity > 0.70f) strong++;
+                        }
+                    }
+
+                    if (sampled == 0 || active == 0)
+                        return (0f, 0f, 0f, 0f);
+
+                    float coverage = active / (float)sampled;
+                    float avgIntensity = sumIntensity / active;
+                    float strongRatio = strong / (float)active;
+                    float convective = Math.Clamp(strongRatio * 0.75f + peak * 0.25f, 0f, 1f);
+                    return (Math.Clamp(coverage, 0f, 1f), Math.Clamp(avgIntensity, 0f, 1f), Math.Clamp(peak, 0f, 1f), convective);
+                }
+                finally
+                {
+                    bmp.UnlockBits(bits);
+                }
+            }
+            catch
+            {
+                return (0f, 0f, 0f, 0f);
+            }
         }
 
         // ═══ Lightning detection methods ═══
@@ -1369,6 +1567,8 @@ namespace WeatherImageGenerator.Rendering.Common
             _newStrikeThresholdTime = _lastSeenMaxStrikeTime; // snapshot old max for IsNew tagging
             if (maxTime > _lastSeenMaxStrikeTime)
                 _lastSeenMaxStrikeTime = maxTime;
+
+            UpdateProceduralLightningSignal();
 
             return _allCachedStrikes;
         }

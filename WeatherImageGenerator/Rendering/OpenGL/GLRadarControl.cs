@@ -334,6 +334,12 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         public bool EnableRadarGlow { get; set; } = true;
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool EnableCrosshairPulse { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableProceduralClouds { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableProceduralRain { get; set; } = true;
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public bool EnableProceduralLightning { get; set; } = true;
 
         /// <summary>Whether to display the bottom-right status bar</summary>
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -354,6 +360,19 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _tileShaderAtmosphereLoc = -1;
         private int _woShaderGlowLoc = -1;
         private int _overlayShaderPulseLoc = -1;
+
+        // Procedural weather FX shaders (fullscreen screen-space overlays)
+        private GLShader? _procCloudsShader;
+        private GLShader? _procRainShader;
+        private GLShader? _procLightningShader;
+        // Latest WMS-derived weather data driving procedural parameters
+        private ProceduralWeatherData? _latestProcWeather;
+        // Procedural clouds uniform locations
+        private int _pcTimeLoc = -1, _pcCovLoc = -1;
+        // Procedural rain uniform locations
+        private int _prTimeLoc = -1, _prIntensLoc = -1, _prCovLoc = -1, _prSnowLoc = -1;
+        // Procedural lightning uniform locations
+        private int _plTimeLoc = -1, _plSignalLoc = -1, _plConvLoc = -1;
 
         // Station/epicenter GPU vector marker shader
         private GLShader? _markerShader;
@@ -701,6 +720,137 @@ void main() {
             // Animation refresh timer â€” triggers repaints at ~60fps for crosshair pulse
             // and shader time-based effects. Low overhead (just Invalidate, no work until Paint).
             // Drain any residual GL errors from initialization so the first paint starts clean
+            // Procedural weather FX shaders – fullscreen screen-space effects driven by WMS data
+            {
+                const string procVert =
+@"#version 330 core
+layout(location=0) in vec2 aPos;
+layout(location=1) in vec2 aTex;
+out vec2 vTex;
+void main() {
+    gl_Position = vec4(aPos, 0.0, 1.0);
+    vTex = aTex;
+}";
+                const string procCloudFrag =
+@"#version 330 core
+in vec2 vTex;
+out vec4 FragColor;
+uniform float uTime;
+uniform float uCloudCoverage;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.0 + vec2(1.7, 9.2); a *= 0.5; }
+    return v;
+}
+void main() {
+    if (uCloudCoverage < 0.05) discard;
+    float c = fbm(vTex * 4.0 + vec2(uTime * 0.01, uTime * 0.004));
+    float th = 0.52 - uCloudCoverage * 0.32;
+    c = smoothstep(th, th + 0.22, c);
+    float alpha = c * min(uCloudCoverage, 1.0) * 0.40;
+    if (alpha < 0.01) discard;
+    FragColor = vec4(0.52, 0.58, 0.64, alpha);
+}";
+                const string procRainFrag =
+@"#version 330 core
+in vec2 vTex;
+out vec4 FragColor;
+uniform float uTime;
+uniform float uRainIntensity;
+uniform float uRainCoverage;
+uniform float uSnowMix;
+float rh(float n) { return fract(sin(n) * 43758.5453); }
+float rh2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float rainLayer(vec2 uv, float dens, float spd, float seed) {
+    float cw  = 1.0 / dens;
+    float col = floor(uv.x / cw);
+    float off = rh(col * 137.1 + seed);
+    float y   = fract(uv.y + uTime * spd * (0.7 + off * 0.6) + off);
+    float x   = fract(uv.x / cw);
+    float str = smoothstep(0.48, 0.50, 1.0 - abs(x - 0.5));
+    return smoothstep(0.06 + uRainIntensity * 0.04, 0.0, y) * str;
+}
+void main() {
+    float intens = uRainIntensity, cov = uRainCoverage, snow = clamp(uSnowMix, 0.0, 1.0);
+    if (intens < 0.02 && cov < 0.02) discard;
+    float spd = 0.8 + intens * 0.8;
+    float rain = 0.0;
+    if (snow < 0.85) {
+        rain  = rainLayer(vTex, 38.0, spd,        0.0);
+        rain += rainLayer(vTex, 55.0, spd * 0.85, 137.1);
+        rain += rainLayer(vTex, 72.0, spd * 1.15, 274.3);
+        rain  = clamp(rain, 0.0, 1.0) * (1.0 - snow * 0.8);
+    }
+    float flake = 0.0;
+    if (snow > 0.1) {
+        vec2 cell = floor(vTex * 60.0);
+        vec2 loc  = fract(vTex * 60.0) - 0.5;
+        if (rh2(cell) > 0.6) {
+            vec2 drift = vec2(sin(uTime * 0.4 + rh2(cell + vec2(7.3, 2.1)) * 6.28) * 0.15, 0.0);
+            flake = smoothstep(0.35, 0.1, length(loc - drift)) * 0.7;
+        }
+    }
+    float alpha = (rain * 0.30 + flake * snow * 0.40) * clamp(intens * 1.2 + cov * 0.5, 0.0, 1.0);
+    if (alpha < 0.01) discard;
+    FragColor = vec4(mix(vec3(0.72, 0.82, 0.96), vec3(0.94, 0.96, 1.0), snow), alpha);
+}";
+                const string procLightFrag =
+@"#version 330 core
+in vec2 vTex;
+out vec4 FragColor;
+uniform float uTime;
+uniform float uLightningSignal;
+uniform float uConvective;
+float lh(float n) { return fract(sin(n) * 43758.5453); }
+void main() {
+    float sig = uLightningSignal * uConvective;
+    if (sig < 0.02) discard;
+    float period = 3.5 + lh(floor(uTime / 8.0)) * 5.0;
+    float phase  = mod(uTime, max(period, 0.001));
+    float flash  = smoothstep(0.18, 0.0, phase) * sig;
+    float edge   = min(min(vTex.x, 1.0 - vTex.x), min(vTex.y, 1.0 - vTex.y));
+    float glow   = (1.0 - smoothstep(0.0, 0.30, edge)) * flash * 0.55;
+    float ambient = sig * 0.035 * (0.7 + 0.3 * sin(uTime * 1.4));
+    float alpha  = clamp(glow + ambient, 0.0, 0.32);
+    if (alpha < 0.005) discard;
+    FragColor = vec4(mix(vec3(0.35, 0.25, 0.65), vec3(0.92, 0.92, 1.0), flash), alpha);
+}";
+                try
+                {
+                    _procCloudsShader = new GLShader(procVert, procCloudFrag);
+                    int h = _procCloudsShader.Handle;
+                    _pcTimeLoc = GL.GetUniformLocation(h, "uTime");
+                    _pcCovLoc  = GL.GetUniformLocation(h, "uCloudCoverage");
+                }
+                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural clouds shader failed: {ex.Message}"); }
+                try
+                {
+                    _procRainShader = new GLShader(procVert, procRainFrag);
+                    int h = _procRainShader.Handle;
+                    _prTimeLoc   = GL.GetUniformLocation(h, "uTime");
+                    _prIntensLoc = GL.GetUniformLocation(h, "uRainIntensity");
+                    _prCovLoc    = GL.GetUniformLocation(h, "uRainCoverage");
+                    _prSnowLoc   = GL.GetUniformLocation(h, "uSnowMix");
+                }
+                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural rain shader failed: {ex.Message}"); }
+                try
+                {
+                    _procLightningShader = new GLShader(procVert, procLightFrag);
+                    int h = _procLightningShader.Handle;
+                    _plTimeLoc   = GL.GetUniformLocation(h, "uTime");
+                    _plSignalLoc = GL.GetUniformLocation(h, "uLightningSignal");
+                    _plConvLoc   = GL.GetUniformLocation(h, "uConvective");
+                }
+                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural lightning shader failed: {ex.Message}"); }
+            }
+
             while (GL.GetError() != ErrorCode.NoError) { }
 
             _animRefreshTimer = new System.Threading.Timer(_ =>
@@ -1215,6 +1365,14 @@ void main() {
                     GL.Uniform1(ov3OpacityLoc, 1.0f);
             } // positioned overlay 3 (GRIB2)
 
+            // --- Procedural weather FX (fullscreen screen-space, after WMS overlays) ---
+            if (_latestProcWeather != null)
+            {
+                RenderProceduralClouds();
+                RenderProceduralRain();
+                RenderProceduralLightning();
+            }
+
             RenderStationMarkersPass();
             RenderLightningMarkersPass();
             if (_radarFrames.Count > 0)
@@ -1695,6 +1853,58 @@ void main() {
             }
         }
 
+        private void RenderProceduralClouds()
+        {
+            if (!EnableProceduralClouds || _procCloudsShader == null || _latestProcWeather == null) return;
+            if (_latestProcWeather.CloudCoverage01 < 0.05f) return;
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            _procCloudsShader.Use();
+            float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+            if (_pcTimeLoc >= 0) GL.Uniform1(_pcTimeLoc, t);
+            if (_pcCovLoc  >= 0) GL.Uniform1(_pcCovLoc,  _latestProcWeather.CloudCoverage01);
+            GL.BindVertexArray(_vao);
+            GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+            GL.BindVertexArray(0);
+        }
+
+        private void RenderProceduralRain()
+        {
+            if (!EnableProceduralRain || _procRainShader == null || _latestProcWeather == null) return;
+            float intens = _latestProcWeather.RainIntensity01;
+            float cov    = _latestProcWeather.RainCoverage01;
+            if (intens < 0.02f && cov < 0.02f) return;
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            _procRainShader.Use();
+            float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+            if (_prTimeLoc   >= 0) GL.Uniform1(_prTimeLoc,   t);
+            if (_prIntensLoc >= 0) GL.Uniform1(_prIntensLoc, intens);
+            if (_prCovLoc    >= 0) GL.Uniform1(_prCovLoc,    cov);
+            if (_prSnowLoc   >= 0) GL.Uniform1(_prSnowLoc,   _latestProcWeather.SnowCoverage01);
+            GL.BindVertexArray(_vao);
+            GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+            GL.BindVertexArray(0);
+        }
+
+        private void RenderProceduralLightning()
+        {
+            if (!EnableProceduralLightning || _procLightningShader == null || _latestProcWeather == null) return;
+            float sig  = _latestProcWeather.LightningSignal01;
+            float conv = _latestProcWeather.ConvectiveSignal01;
+            if (sig < 0.02f && conv < 0.02f) return;
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            _procLightningShader.Use();
+            float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+            if (_plTimeLoc   >= 0) GL.Uniform1(_plTimeLoc,   t);
+            if (_plSignalLoc >= 0) GL.Uniform1(_plSignalLoc, sig);
+            if (_plConvLoc   >= 0) GL.Uniform1(_plConvLoc,   conv);
+            GL.BindVertexArray(_vao);
+            GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+            GL.BindVertexArray(0);
+        }
+
         private void GLRadarControl_MouseWheel(object? sender, MouseEventArgs e)
         {
             // Let HUD consume the event first (e.g., slider adjustments, panel scrolling)
@@ -2078,6 +2288,11 @@ void main() {
         {
             lock (_markerLock) { _lightningFlashBoost = boost; }
             Invalidate();
+        }
+
+        public void SetProceduralWeatherData(ProceduralWeatherData data)
+        {
+            _latestProcWeather = data;
         }
 
         // ═══════════════════════════════════════════════════════════════════

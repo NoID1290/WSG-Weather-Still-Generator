@@ -447,6 +447,31 @@ namespace WeatherImageGenerator.Rendering.Common
             });
 
             shadersPanel.Elements.Add(new HudSeparator());
+            shadersPanel.Elements.Add(new HudLabel { Id = "lblProcFx", Text = "Procedural FX", IsSection = true });
+
+            shadersPanel.Elements.Add(new HudCheckbox
+            {
+                Id = "procClouds",
+                Text = "Procedural Clouds",
+                Checked = true,
+                OnChanged = v => { _glControl.EnableProceduralClouds = v; _glControl.InvalidateView(); }
+            });
+            shadersPanel.Elements.Add(new HudCheckbox
+            {
+                Id = "procRain",
+                Text = "Procedural Rain",
+                Checked = true,
+                OnChanged = v => { _glControl.EnableProceduralRain = v; _glControl.InvalidateView(); }
+            });
+            shadersPanel.Elements.Add(new HudCheckbox
+            {
+                Id = "procLightning",
+                Text = "Procedural Lightning",
+                Checked = true,
+                OnChanged = v => { _glControl.EnableProceduralLightning = v; _glControl.InvalidateView(); }
+            });
+
+            shadersPanel.Elements.Add(new HudSeparator());
             shadersPanel.Elements.Add(new HudLabel { Id = "lblUITransparency", Text = "UI Transparency", IsSection = true });
 
             shadersPanel.Elements.Add(new HudSlider
@@ -1394,6 +1419,7 @@ namespace WeatherImageGenerator.Rendering.Common
                         var from = DateTime.UtcNow - TimeSpan.FromMinutes(_overlayManager.LightningTimeWindowMinutes);
                         await _overlayManager.FetchAllLightningStrikesAsync(bbox.Value, from, DateTime.UtcNow);
                     }
+                    _glControl?.SetProceduralWeatherData(_overlayManager.CurrentProceduralWeatherData);
                     _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
                     if (_overlayManager.HadNewStrikesThisFetch)
                         TriggerLightningFlash();
@@ -1420,7 +1446,10 @@ namespace WeatherImageGenerator.Rendering.Common
                     if (!this.IsDisposed && this.IsHandleCreated)
                     {
                         this.BeginInvoke(new Action(() =>
-                            _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes())));
+                        {
+                            _glControl?.SetProceduralWeatherData(_overlayManager.CurrentProceduralWeatherData);
+                            _glControl?.SetLightningMarkers(_overlayManager.GetRecentStrikes());
+                        }));
                     }
                 }
                 catch (Exception ex)
@@ -2442,8 +2471,12 @@ namespace WeatherImageGenerator.Rendering.Common
                     {
                         var snowBBox = _overlayManager.LastRadarBBox;
                         if (snowBBox.HasValue)
+                        {
                             tempData = await _overlayManager.FetchRadarSnowComponentAsync(
                                 snowBBox.Value, requestWidth, requestHeight);
+                            if (tempData != null && tempData.Length > 0)
+                                _overlayManager.MergeProceduralSnowSignal(tempData);
+                        }
                     }
                     else if (_overlayManager.TemperatureEnabled)
                     {
@@ -2458,6 +2491,8 @@ namespace WeatherImageGenerator.Rendering.Common
                     }
 
                     Console.WriteLine($"[WeatherMap] Radar: {(radarData != null ? $"{radarData.Length} bytes" : "null")}, Temp: {(tempData != null ? $"{tempData.Length} bytes" : "null")}");
+
+                    _glControl.SetProceduralWeatherData(_overlayManager.CurrentProceduralWeatherData);
 
                     // Upload radar overlay to primary overlay slot
                     if (radarData != null && radarData.Length > 0)
