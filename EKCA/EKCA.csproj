@@ -9,9 +9,9 @@
     <Company>NoID Softwork</Company>
     <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
     <Description>Library for accessing Earthquakes Canada (NRCan) seismic station data, waveforms and earthquake events via FDSN web services.</Description>
-    <Version>1.1.11.0330</Version>
-    <AssemblyVersion>1.1.11.0330</AssemblyVersion>
-    <FileVersion>1.1.11.0330</FileVersion>
+    <Version>1.1.12.0402</Version>
+    <AssemblyVersion>1.1.12.0402</AssemblyVersion>
+    <FileVersion>1.1.12.0402</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
