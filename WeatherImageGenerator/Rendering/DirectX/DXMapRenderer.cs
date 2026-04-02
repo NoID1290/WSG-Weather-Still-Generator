@@ -44,6 +44,12 @@ namespace WeatherImageGenerator.Rendering.DirectX
         private DXShader? _markerShader;
         private DXShader? _lightningShader;
 
+        // Procedural weather FX shaders
+        private DXShader? _procCloudsShader;
+        private DXShader? _procRainShader;
+        private DXShader? _procLightningShader;
+        private ProceduralWeatherData? _latestProcWeather;
+
         // GPU vector station / epicenter markers
         private StationMarkerEntry[]  _stationMarkers   = Array.Empty<StationMarkerEntry>();
         private EpicenterMarkerEntry[] _epicenterMarkers = Array.Empty<EpicenterMarkerEntry>();
@@ -191,6 +197,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public bool EnableProceduralClouds { get; set; } = true;
         public bool EnableProceduralRain { get; set; } = true;
         public bool EnableProceduralLightning { get; set; } = true;
+        private bool AnyProceduralFxEnabled => EnableProceduralClouds || EnableProceduralRain || EnableProceduralLightning;
 
         public bool ShowStatusBar { get; set; } = true;
         public bool ShowRuler { get; set; } = true;
@@ -639,6 +646,87 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 "Rendering/DirectX/shaders/lightning_marker.vs.hlsl",
                 "Rendering/DirectX/shaders/lightning_marker.ps.hlsl",
                 GetQuadInputLayout(), lightningVsUniforms, "lightning_marker");
+
+            // ── Procedural clouds shader ──
+            // PS cbuffer layout:
+            //   uTime(0,4) uCloudCoverage(4,4) uSunDir(8,8)
+            //   uCloudDensity(16,4) uCloudContrast(20,4) uCloudBrightness(24,4) uRaymarchSteps(28,4)
+            //   uRadarPresent(32,4) uStrikeCount(36,4) pad(40,8)
+            //   uRadarRow0(48,16) uRadarRow1(64,16) uRadarRow2(80,16)
+            //   uOpacityMultiplier(96,4) uRadarThreshold(100,4) uRadarMaskUpper(104,4) uRadarSpreadStep(108,4)
+            //   uRadarSpreadInfluence(112,4) uStormDarkening(116,4) pad(120,8)
+            //   uDarkCloudColor(128,12) pad(140,4) uBrightCloudColor(144,12) pad(156,4)
+            //   uStrikeNdcFlash[32](160,512) → total PS = 672
+            var procCloudsUniforms = new Dictionary<string, (bool, int, int)>
+            {
+                ["uTime"]            = (false,  0, 4),
+                ["uCloudCoverage"]   = (false,  4, 4),
+                ["uSunDir"]          = (false,  8, 8),
+                ["uCloudDensity"]    = (false, 16, 4),
+                ["uCloudContrast"]   = (false, 20, 4),
+                ["uCloudBrightness"] = (false, 24, 4),
+                ["uRaymarchSteps"]   = (false, 28, 4),
+                ["uRadarPresent"]    = (false, 32, 4),
+                ["uStrikeCount"]     = (false, 36, 4),
+                ["uRadarRow0"]       = (false, 48, 16),
+                ["uRadarRow1"]       = (false, 64, 16),
+                ["uRadarRow2"]       = (false, 80, 16),
+                ["uOpacityMultiplier"]   = (false,  96, 4),
+                ["uRadarThreshold"]      = (false, 100, 4),
+                ["uRadarMaskUpper"]      = (false, 104, 4),
+                ["uRadarSpreadStep"]     = (false, 108, 4),
+                ["uRadarSpreadInfluence"] = (false, 112, 4),
+                ["uStormDarkening"]      = (false, 116, 4),
+                ["uDarkCloudColor"]      = (false, 128, 12),
+                ["uBrightCloudColor"]    = (false, 144, 12),
+                ["uStrikeNdcFlash"]      = (false, 160, 512), // 32 × float4
+            };
+            _procCloudsShader = CreateShaderFromFiles(
+                "Rendering/DirectX/shaders/proc_clouds.vs.hlsl",
+                "Rendering/DirectX/shaders/proc_clouds.ps.hlsl",
+                GetQuadInputLayout(), procCloudsUniforms, "proc_clouds");
+
+            // ── Procedural rain shader ──
+            // PS cbuffer: uTime(0,4) uRainIntensity(4,4) uRainCoverage(8,4) uSnowMix(12,4)
+            //   uRadarPresent(16,4) pad(20,12) uRadarRow0(32,16) uRadarRow1(48,16) uRadarRow2(64,16) → total PS = 80
+            var procRainUniforms = new Dictionary<string, (bool, int, int)>
+            {
+                ["uTime"]          = (false,  0, 4),
+                ["uRainIntensity"] = (false,  4, 4),
+                ["uRainCoverage"]  = (false,  8, 4),
+                ["uSnowMix"]       = (false, 12, 4),
+                ["uRadarPresent"]  = (false, 16, 4),
+                // pad 20..31
+                ["uRadarRow0"]     = (false, 32, 16),
+                ["uRadarRow1"]     = (false, 48, 16),
+                ["uRadarRow2"]     = (false, 64, 16),
+            };
+            _procRainShader = CreateShaderFromFiles(
+                "Rendering/DirectX/shaders/proc_rain.vs.hlsl",
+                "Rendering/DirectX/shaders/proc_rain.ps.hlsl",
+                GetQuadInputLayout(), procRainUniforms, "proc_rain");
+
+            // ── Procedural lightning shader ──
+            // PS cbuffer: uTime(0,4) uLightningSignal(4,4) uConvective(8,4) uRadarPresent(12,4)
+            //   uStrikeCount(16,4) pad(20,12) uRadarRow0(32,16) uRadarRow1(48,16) uRadarRow2(64,16)
+            //   uStrikeData[32](80, 512) → total PS = 592
+            var procLightningUniforms = new Dictionary<string, (bool, int, int)>
+            {
+                ["uTime"]            = (false,  0, 4),
+                ["uLightningSignal"] = (false,  4, 4),
+                ["uConvective"]      = (false,  8, 4),
+                ["uRadarPresent"]    = (false, 12, 4),
+                ["uStrikeCount"]     = (false, 16, 4),
+                // pad 20..31
+                ["uRadarRow0"]       = (false, 32, 16),
+                ["uRadarRow1"]       = (false, 48, 16),
+                ["uRadarRow2"]       = (false, 64, 16),
+                ["uStrikeData"]      = (false, 80, 512), // 32 × float4
+            };
+            _procLightningShader = CreateShaderFromFiles(
+                "Rendering/DirectX/shaders/proc_lightning.vs.hlsl",
+                "Rendering/DirectX/shaders/proc_lightning.ps.hlsl",
+                GetQuadInputLayout(), procLightningUniforms, "proc_lightning");
         }
 
         private unsafe DXShader? CreateShaderFromFiles(
@@ -849,6 +937,9 @@ namespace WeatherImageGenerator.Rendering.DirectX
             RenderMapTiles(w, h);
 
             // â”€â”€â”€ Step 4: Positioned overlay 1 (radar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // Procedural clouds render beneath the radar overlay so they don't visually double up with it
+            if (_latestProcWeather != null) RenderProceduralClouds(w, h);
+
             if (_hasPositionedOverlay && _overlaySrv.Handle != null)
                 RenderPositionedOverlay(_overlaySrv, _overlayMinLat, _overlayMinLon, _overlayMaxLat, _overlayMaxLon, _overlayOpacity, time, w, h);
 
@@ -862,6 +953,11 @@ namespace WeatherImageGenerator.Rendering.DirectX
             // â”€â”€â”€ Step 6: Radar frames â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             RenderStationMarkersPass(w, h);
             RenderLightningMarkersPass(w, h);
+
+            // Procedural weather FX (radar-driven, rain/lightning above radar overlay)
+            RenderProceduralRain(w, h);
+            RenderProceduralLightning(w, h);
+
             RenderRadarFrames(time, w, h);
 
             // â”€â”€â”€ Step 7: Crosshair â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1128,6 +1224,177 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 _lightningShader.Use();
                 _context.Handle->DrawIndexed(6, 0, 0);
             }
+        }
+
+        // ── Procedural weather FX (radar-driven) ──
+        private unsafe void RenderProceduralClouds(int w, int h)
+        {
+            if (!EnableProceduralClouds || _procCloudsShader == null || _latestProcWeather == null) return;
+            if (_latestProcWeather.CloudCoverage01 < 0.05f) return;
+
+            BindQuadGeometry();
+            float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+            float sunAngle = t * ProceduralCloudSettings.SunSpeed;
+            float sunX = MathF.Cos(sunAngle);
+            float sunY = MathF.Sin(sunAngle) * ProceduralCloudSettings.SunYScale + ProceduralCloudSettings.SunYOffset;
+            _procCloudsShader.SetFloat("uTime", t);
+            _procCloudsShader.SetFloat("uCloudCoverage", _latestProcWeather.CloudCoverage01);
+            _procCloudsShader.SetVec2("uSunDir", sunX, sunY);
+            _procCloudsShader.SetFloat("uCloudDensity", ProceduralCloudSettings.Density);
+            _procCloudsShader.SetFloat("uCloudContrast", ProceduralCloudSettings.Contrast);
+            _procCloudsShader.SetFloat("uCloudBrightness", ProceduralCloudSettings.Brightness);
+            _procCloudsShader.SetFloat("uRaymarchSteps", ProceduralCloudSettings.RaymarchSteps);
+            _procCloudsShader.SetFloat("uOpacityMultiplier", ProceduralCloudSettings.OpacityMultiplier);
+            _procCloudsShader.SetFloat("uRadarThreshold", ProceduralCloudSettings.RadarThreshold);
+            _procCloudsShader.SetFloat("uRadarMaskUpper", ProceduralCloudSettings.RadarMaskUpper);
+            _procCloudsShader.SetFloat("uRadarSpreadStep", ProceduralCloudSettings.RadarSpreadStep);
+            _procCloudsShader.SetFloat("uRadarSpreadInfluence", ProceduralCloudSettings.RadarSpreadInfluence);
+            _procCloudsShader.SetFloat("uStormDarkening", ProceduralCloudSettings.StormDarkening);
+            _procCloudsShader.SetVec3("uDarkCloudColor",
+                ProceduralCloudSettings.DarkCloudColor.X,
+                ProceduralCloudSettings.DarkCloudColor.Y,
+                ProceduralCloudSettings.DarkCloudColor.Z);
+            _procCloudsShader.SetVec3("uBrightCloudColor",
+                ProceduralCloudSettings.BrightCloudColor.X,
+                ProceduralCloudSettings.BrightCloudColor.Y,
+                ProceduralCloudSettings.BrightCloudColor.Z);
+            SetDXProceduralRadar(_procCloudsShader);
+
+            SetDXStrikeData(_procCloudsShader, 160, true);
+
+            _procCloudsShader.Use();
+            BindRadarToSlot1();
+            _context.Handle->DrawIndexed(6, 0, 0);
+            UnbindSlot1();
+        }
+
+        private unsafe void RenderProceduralRain(int w, int h)
+        {
+            if (!EnableProceduralRain || _procRainShader == null || _latestProcWeather == null) return;
+            float intens = _latestProcWeather.RainIntensity01;
+            float cov = _latestProcWeather.RainCoverage01;
+            if (intens < 0.02f && cov < 0.02f) return;
+
+            BindQuadGeometry();
+            float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+            _procRainShader.SetFloat("uTime", t);
+            _procRainShader.SetFloat("uRainIntensity", intens);
+            _procRainShader.SetFloat("uRainCoverage", cov);
+            _procRainShader.SetFloat("uSnowMix", _latestProcWeather.SnowCoverage01);
+
+            SetDXProceduralRadar(_procRainShader);
+
+            _procRainShader.Use();
+            BindRadarToSlot1();
+            _context.Handle->DrawIndexed(6, 0, 0);
+            UnbindSlot1();
+        }
+
+        private unsafe void RenderProceduralLightning(int w, int h)
+        {
+            if (!EnableProceduralLightning || _procLightningShader == null || _latestProcWeather == null) return;
+            float sig = _latestProcWeather.LightningSignal01;
+            float conv = _latestProcWeather.ConvectiveSignal01;
+            LightningStrikeEntry[] strikes;
+            lock (_markerLock) { strikes = _lightningMarkers; }
+            if (sig < 0.02f && conv < 0.02f && strikes.Length == 0) return;
+
+            BindQuadGeometry();
+            float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+            _procLightningShader.SetFloat("uTime", t);
+            _procLightningShader.SetFloat("uLightningSignal", sig);
+            _procLightningShader.SetFloat("uConvective", conv);
+
+            SetDXProceduralRadar(_procLightningShader);
+            SetDXStrikeData(_procLightningShader, 80, false);
+
+            _procLightningShader.Use();
+            BindRadarToSlot1();
+            _context.Handle->DrawIndexed(6, 0, 0);
+            UnbindSlot1();
+        }
+
+        private unsafe void SetDXProceduralRadar(DXShader shader)
+        {
+            bool hasRadar = _hasPositionedOverlay && _overlaySrv.Handle != null;
+            shader.SetFloat("uRadarPresent", hasRadar ? 1.0f : 0.0f);
+            if (!hasRadar) return;
+
+            int z = _mapZoom;
+            int w = _hostPanel.Width, h = _hostPanel.Height;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+            double leftPx = LonToPixelX(_overlayMinLon, z);
+            double rightPx = LonToPixelX(_overlayMaxLon, z);
+            double topPy = LatToPixelY(_overlayMaxLat, z);
+            double bottomPy = LatToPixelY(_overlayMinLat, z);
+            double imgW = Math.Abs(rightPx - leftPx);
+            double imgH = Math.Abs(bottomPy - topPy);
+            double imgCx = (leftPx + rightPx) / 2.0;
+            double imgCy = (topPy + bottomPy) / 2.0;
+            double screenCx = (imgCx - cx) + w / 2.0;
+            double screenCy = (imgCy - cy) + h / 2.0;
+            float sx = (float)((imgW / (w / 2.0)) * _zoom) / 2f;
+            float sy = (float)((imgH / (h / 2.0)) * _zoom) / 2f;
+            float ndcCx = (float)(((screenCx / (w / 2.0)) - 1.0) * _zoom + _panX);
+            float ndcCy = (float)((1.0 - (screenCy / (h / 2.0))) * _zoom + _panY);
+            float invSx = (sx != 0f) ? 1.0f / (2.0f * sx) : 0f;
+            float invSy = (sy != 0f) ? 1.0f / (2.0f * sy) : 0f;
+            float tx = -ndcCx * invSx + 0.5f;
+            float ty = -ndcCy * invSy + 0.5f;
+
+            shader.SetVec4("uRadarRow0", invSx, 0f, tx, 0f);
+            shader.SetVec4("uRadarRow1", 0f, invSy, ty, 0f);
+            shader.SetVec4("uRadarRow2", 0f, 0f, 1f, 0f);
+        }
+
+        private void SetDXStrikeData(DXShader shader, int strikeArrayOffset, bool cloudMode)
+        {
+            LightningStrikeEntry[] strikes;
+            lock (_markerLock) { strikes = _lightningMarkers; }
+            int count = Math.Min(strikes.Length, 32);
+            shader.SetInt("uStrikeCount", count);
+            if (count == 0) return;
+
+            int z = _mapZoom;
+            int w = _hostPanel.Width, h = _hostPanel.Height;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+
+            byte[] strikeBytes = new byte[count * 16];
+            for (int i = 0; i < count; i++)
+            {
+                var s = strikes[i];
+                double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
+                double rawSy = LatToPixelY(s.Lat, z) - cy + h / 2.0;
+                float ndcX = ((float)(rawSx / (w / 2.0) - 1.0)) * _zoom + _panX;
+                float ndcY = ((float)(1.0 - rawSy / (h / 2.0))) * _zoom + _panY;
+                float flash = Math.Max(0f, 1.0f - s.Age) * (s.IsNew ? 1.0f : 0.4f);
+                float w4 = cloudMode ? 0f : (s.IsCG ? 1.0f : 0.0f);
+
+                int off = i * 16;
+                BitConverter.TryWriteBytes(strikeBytes.AsSpan(off), ndcX);
+                BitConverter.TryWriteBytes(strikeBytes.AsSpan(off + 4), ndcY);
+                BitConverter.TryWriteBytes(strikeBytes.AsSpan(off + 8), flash);
+                BitConverter.TryWriteBytes(strikeBytes.AsSpan(off + 12), w4);
+            }
+
+            shader.WriteRawBytes(false, strikeArrayOffset, strikeBytes, strikeBytes.Length);
+        }
+
+        private unsafe void BindRadarToSlot1()
+        {
+            if (_hasPositionedOverlay && _overlaySrv.Handle != null)
+            {
+                var srv = _overlaySrv.GetAddressOf();
+                _context.Handle->PSSetShaderResources(1, 1, (ID3D11ShaderResourceView**)srv);
+            }
+        }
+
+        private unsafe void UnbindSlot1()
+        {
+            ID3D11ShaderResourceView* nullSrv = null;
+            _context.Handle->PSSetShaderResources(1, 1, &nullSrv);
         }
 
         // â”€â”€â”€ Radar frames â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1710,8 +1977,7 @@ namespace WeatherImageGenerator.Rendering.DirectX
 
         public void SetProceduralWeatherData(ProceduralWeatherData data)
         {
-            // Data plumbing is active; shader consumption lands in the next implementation slice.
-            _ = data;
+            _latestProcWeather = data;
             _hostPanel.Invalidate();
         }
 
@@ -2030,6 +2296,11 @@ namespace WeatherImageGenerator.Rendering.DirectX
             _overlayShader?.Dispose();
             _weatherOverlayShader?.Dispose();
             _generalShader?.Dispose();
+            _markerShader?.Dispose();
+            _lightningShader?.Dispose();
+            _procCloudsShader?.Dispose();
+            _procRainShader?.Dispose();
+            _procLightningShader?.Dispose();
 
             foreach (var kv in _tileTextures) kv.Value.Dispose();
             foreach (var f in _radarFrames) f.Dispose();

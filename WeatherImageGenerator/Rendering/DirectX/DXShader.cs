@@ -107,17 +107,27 @@ namespace WeatherImageGenerator.Rendering.DirectX
             }
 
             // Store uniform layout
+            int maxVS = 256, maxPS = 256;
             if (uniformLayout != null)
             {
                 foreach (var kv in uniformLayout)
+                {
                     _uniformMap[kv.Key] = kv.Value;
+                    int end = kv.Value.offset + kv.Value.size;
+                    if (kv.Value.isVS) { if (end > maxVS) maxVS = end; }
+                    else               { if (end > maxPS) maxPS = end; }
+                }
             }
 
-            // Create constant buffers (256 bytes each, enough for most cbuffers)
-            _vsData = new byte[256];
-            _psData = new byte[256];
-            _vsCBuffer = CreateConstantBuffer(256);
-            _psCBuffer = CreateConstantBuffer(256);
+            // Align to 16-byte boundary (D3D11 requirement)
+            maxVS = (maxVS + 15) & ~15;
+            maxPS = (maxPS + 15) & ~15;
+
+            // Create constant buffers sized to fit the uniform layout
+            _vsData = new byte[maxVS];
+            _psData = new byte[maxPS];
+            _vsCBuffer = CreateConstantBuffer(maxVS);
+            _psCBuffer = CreateConstantBuffer(maxPS);
         }
 
         private ID3D11Buffer* CreateConstantBuffer(int sizeBytes)
@@ -322,6 +332,19 @@ namespace WeatherImageGenerator.Rendering.DirectX
             var target = info.isVS ? _vsData : _psData;
             System.Buffer.BlockCopy(data, 0, target, info.offset, len);
             if (info.isVS) _vsDirty = true; else _psDirty = true;
+        }
+
+        /// <summary>
+        /// Write raw bytes to the PS or VS constant buffer at a given byte offset.
+        /// Used for bulk array data (e.g., strike positions).
+        /// </summary>
+        public void WriteRawBytes(bool isVS, int offset, byte[] data, int length)
+        {
+            var target = isVS ? _vsData : _psData;
+            int safeLen = Math.Min(length, target.Length - offset);
+            if (safeLen <= 0) return;
+            System.Buffer.BlockCopy(data, 0, target, offset, safeLen);
+            if (isVS) _vsDirty = true; else _psDirty = true;
         }
 
         #endregion

@@ -340,6 +340,7 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         public bool EnableProceduralRain { get; set; } = true;
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool EnableProceduralLightning { get; set; } = true;
+        private bool AnyProceduralFxEnabled => EnableProceduralClouds || EnableProceduralRain || EnableProceduralLightning;
 
         /// <summary>Whether to display the bottom-right status bar</summary>
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -361,7 +362,7 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _woShaderGlowLoc = -1;
         private int _overlayShaderPulseLoc = -1;
 
-        // Procedural weather FX shaders (fullscreen screen-space overlays)
+        // Procedural weather FX shaders (radar-driven spatial overlays)
         private GLShader? _procCloudsShader;
         private GLShader? _procRainShader;
         private GLShader? _procLightningShader;
@@ -369,10 +370,18 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private ProceduralWeatherData? _latestProcWeather;
         // Procedural clouds uniform locations
         private int _pcTimeLoc = -1, _pcCovLoc = -1;
+        private int _pcSunDirLoc = -1, _pcDensityLoc = -1, _pcContrastLoc = -1, _pcBrightnessLoc = -1, _pcStepsLoc = -1;
+        private int _pcRadarTexLoc = -1, _pcRadarTransformLoc = -1, _pcRadarPresentLoc = -1;
+        private int _pcOpacityLoc = -1, _pcDarkColorLoc = -1, _pcBrightColorLoc = -1;
+        private int _pcRadarThresholdLoc = -1, _pcRadarMaskUpperLoc = -1, _pcRadarSpreadStepLoc = -1, _pcRadarSpreadInfLoc = -1, _pcStormDarkeningLoc = -1;
+        private int _pcStrikeNdcLoc = -1, _pcStrikeCountLoc = -1, _pcStrikeFlashLoc = -1;
         // Procedural rain uniform locations
         private int _prTimeLoc = -1, _prIntensLoc = -1, _prCovLoc = -1, _prSnowLoc = -1;
+        private int _prRadarTexLoc = -1, _prRadarTransformLoc = -1, _prRadarPresentLoc = -1;
         // Procedural lightning uniform locations
         private int _plTimeLoc = -1, _plSignalLoc = -1, _plConvLoc = -1;
+        private int _plRadarTexLoc = -1, _plRadarTransformLoc = -1, _plRadarPresentLoc = -1;
+        private int _plStrikeNdcLoc = -1, _plStrikeCountLoc = -1, _plStrikeFlashLoc = -1, _plStrikeIsCGLoc = -1;
 
         // Station/epicenter GPU vector marker shader
         private GLShader? _markerShader;
@@ -720,135 +729,82 @@ void main() {
             // Animation refresh timer â€” triggers repaints at ~60fps for crosshair pulse
             // and shader time-based effects. Low overhead (just Invalidate, no work until Paint).
             // Drain any residual GL errors from initialization so the first paint starts clean
-            // Procedural weather FX shaders – fullscreen screen-space effects driven by WMS data
+            // Procedural weather FX shaders – radar-driven spatial effects loaded from files
             {
-                const string procVert =
-@"#version 330 core
-layout(location=0) in vec2 aPos;
-layout(location=1) in vec2 aTex;
-out vec2 vTex;
-void main() {
-    gl_Position = vec4(aPos, 0.0, 1.0);
-    vTex = aTex;
-}";
-                const string procCloudFrag =
-@"#version 330 core
-in vec2 vTex;
-out vec4 FragColor;
-uniform float uTime;
-uniform float uCloudCoverage;
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float noise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-float fbm(vec2 p) {
-    float v = 0.0, a = 0.5;
-    for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.0 + vec2(1.7, 9.2); a *= 0.5; }
-    return v;
-}
-void main() {
-    if (uCloudCoverage < 0.05) discard;
-    float c = fbm(vTex * 4.0 + vec2(uTime * 0.01, uTime * 0.004));
-    float th = 0.52 - uCloudCoverage * 0.32;
-    c = smoothstep(th, th + 0.22, c);
-    float alpha = c * min(uCloudCoverage, 1.0) * 0.40;
-    if (alpha < 0.01) discard;
-    FragColor = vec4(0.52, 0.58, 0.64, alpha);
-}";
-                const string procRainFrag =
-@"#version 330 core
-in vec2 vTex;
-out vec4 FragColor;
-uniform float uTime;
-uniform float uRainIntensity;
-uniform float uRainCoverage;
-uniform float uSnowMix;
-float rh(float n) { return fract(sin(n) * 43758.5453); }
-float rh2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float rainLayer(vec2 uv, float dens, float spd, float seed) {
-    float cw  = 1.0 / dens;
-    float col = floor(uv.x / cw);
-    float off = rh(col * 137.1 + seed);
-    float y   = fract(uv.y + uTime * spd * (0.7 + off * 0.6) + off);
-    float x   = fract(uv.x / cw);
-    float str = smoothstep(0.48, 0.50, 1.0 - abs(x - 0.5));
-    return smoothstep(0.06 + uRainIntensity * 0.04, 0.0, y) * str;
-}
-void main() {
-    float intens = uRainIntensity, cov = uRainCoverage, snow = clamp(uSnowMix, 0.0, 1.0);
-    if (intens < 0.02 && cov < 0.02) discard;
-    float spd = 0.8 + intens * 0.8;
-    float rain = 0.0;
-    if (snow < 0.85) {
-        rain  = rainLayer(vTex, 38.0, spd,        0.0);
-        rain += rainLayer(vTex, 55.0, spd * 0.85, 137.1);
-        rain += rainLayer(vTex, 72.0, spd * 1.15, 274.3);
-        rain  = clamp(rain, 0.0, 1.0) * (1.0 - snow * 0.8);
-    }
-    float flake = 0.0;
-    if (snow > 0.1) {
-        vec2 cell = floor(vTex * 60.0);
-        vec2 loc  = fract(vTex * 60.0) - 0.5;
-        if (rh2(cell) > 0.6) {
-            vec2 drift = vec2(sin(uTime * 0.4 + rh2(cell + vec2(7.3, 2.1)) * 6.28) * 0.15, 0.0);
-            flake = smoothstep(0.35, 0.1, length(loc - drift)) * 0.7;
-        }
-    }
-    float alpha = (rain * 0.30 + flake * snow * 0.40) * clamp(intens * 1.2 + cov * 0.5, 0.0, 1.0);
-    if (alpha < 0.01) discard;
-    FragColor = vec4(mix(vec3(0.72, 0.82, 0.96), vec3(0.94, 0.96, 1.0), snow), alpha);
-}";
-                const string procLightFrag =
-@"#version 330 core
-in vec2 vTex;
-out vec4 FragColor;
-uniform float uTime;
-uniform float uLightningSignal;
-uniform float uConvective;
-float lh(float n) { return fract(sin(n) * 43758.5453); }
-void main() {
-    float sig = uLightningSignal * uConvective;
-    if (sig < 0.02) discard;
-    float period = 3.5 + lh(floor(uTime / 8.0)) * 5.0;
-    float phase  = mod(uTime, max(period, 0.001));
-    float flash  = smoothstep(0.18, 0.0, phase) * sig;
-    float edge   = min(min(vTex.x, 1.0 - vTex.x), min(vTex.y, 1.0 - vTex.y));
-    float glow   = (1.0 - smoothstep(0.0, 0.30, edge)) * flash * 0.55;
-    float ambient = sig * 0.035 * (0.7 + 0.3 * sin(uTime * 1.4));
-    float alpha  = clamp(glow + ambient, 0.0, 0.32);
-    if (alpha < 0.005) discard;
-    FragColor = vec4(mix(vec3(0.35, 0.25, 0.65), vec3(0.92, 0.92, 1.0), flash), alpha);
-}";
-                try
+                string procVert;
+                if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_common.vert.glsl", out procVert))
+                    procVert = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in vec2 aTex; out vec2 vTex; out vec2 vNdc; void main(){ gl_Position=vec4(aPos,0,1); vTex=aTex; vNdc=aPos; }";
+
+                string? procCloudFrag = null, procRainFrag = null, procLightFrag = null;
+                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_clouds.frag.glsl", out procCloudFrag);
+                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_rain.frag.glsl", out procRainFrag);
+                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_lightning.frag.glsl", out procLightFrag);
+
+                if (!string.IsNullOrEmpty(procCloudFrag))
                 {
-                    _procCloudsShader = new GLShader(procVert, procCloudFrag);
-                    int h = _procCloudsShader.Handle;
-                    _pcTimeLoc = GL.GetUniformLocation(h, "uTime");
-                    _pcCovLoc  = GL.GetUniformLocation(h, "uCloudCoverage");
+                    try
+                    {
+                        _procCloudsShader = new GLShader(procVert, procCloudFrag);
+                        int h = _procCloudsShader.Handle;
+                        _pcTimeLoc            = GL.GetUniformLocation(h, "uTime");
+                        _pcCovLoc             = GL.GetUniformLocation(h, "uCloudCoverage");
+                        _pcSunDirLoc          = GL.GetUniformLocation(h, "uSunDir");
+                        _pcDensityLoc         = GL.GetUniformLocation(h, "uCloudDensity");
+                        _pcContrastLoc        = GL.GetUniformLocation(h, "uCloudContrast");
+                        _pcBrightnessLoc      = GL.GetUniformLocation(h, "uCloudBrightness");
+                        _pcStepsLoc           = GL.GetUniformLocation(h, "uRaymarchSteps");
+                        _pcRadarTexLoc        = GL.GetUniformLocation(h, "uRadarTex");
+                        _pcRadarTransformLoc  = GL.GetUniformLocation(h, "uRadarTransform");
+                        _pcRadarPresentLoc    = GL.GetUniformLocation(h, "uRadarPresent");
+                        _pcOpacityLoc         = GL.GetUniformLocation(h, "uOpacityMultiplier");
+                        _pcDarkColorLoc       = GL.GetUniformLocation(h, "uDarkCloudColor");
+                        _pcBrightColorLoc     = GL.GetUniformLocation(h, "uBrightCloudColor");
+                        _pcRadarThresholdLoc  = GL.GetUniformLocation(h, "uRadarThreshold");
+                        _pcRadarMaskUpperLoc  = GL.GetUniformLocation(h, "uRadarMaskUpper");
+                        _pcRadarSpreadStepLoc = GL.GetUniformLocation(h, "uRadarSpreadStep");
+                        _pcRadarSpreadInfLoc  = GL.GetUniformLocation(h, "uRadarSpreadInfluence");
+                        _pcStormDarkeningLoc  = GL.GetUniformLocation(h, "uStormDarkening");
+                        _pcStrikeNdcLoc       = GL.GetUniformLocation(h, "uStrikeNdc");
+                        _pcStrikeCountLoc     = GL.GetUniformLocation(h, "uStrikeCount");
+                        _pcStrikeFlashLoc     = GL.GetUniformLocation(h, "uStrikeFlash");
+                    }
+                    catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural clouds shader failed: {ex.Message}"); }
                 }
-                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural clouds shader failed: {ex.Message}"); }
-                try
+                if (!string.IsNullOrEmpty(procRainFrag))
                 {
-                    _procRainShader = new GLShader(procVert, procRainFrag);
-                    int h = _procRainShader.Handle;
-                    _prTimeLoc   = GL.GetUniformLocation(h, "uTime");
-                    _prIntensLoc = GL.GetUniformLocation(h, "uRainIntensity");
-                    _prCovLoc    = GL.GetUniformLocation(h, "uRainCoverage");
-                    _prSnowLoc   = GL.GetUniformLocation(h, "uSnowMix");
+                    try
+                    {
+                        _procRainShader = new GLShader(procVert, procRainFrag);
+                        int h = _procRainShader.Handle;
+                        _prTimeLoc           = GL.GetUniformLocation(h, "uTime");
+                        _prIntensLoc         = GL.GetUniformLocation(h, "uRainIntensity");
+                        _prCovLoc            = GL.GetUniformLocation(h, "uRainCoverage");
+                        _prSnowLoc           = GL.GetUniformLocation(h, "uSnowMix");
+                        _prRadarTexLoc       = GL.GetUniformLocation(h, "uRadarTex");
+                        _prRadarTransformLoc = GL.GetUniformLocation(h, "uRadarTransform");
+                        _prRadarPresentLoc   = GL.GetUniformLocation(h, "uRadarPresent");
+                    }
+                    catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural rain shader failed: {ex.Message}"); }
                 }
-                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural rain shader failed: {ex.Message}"); }
-                try
+                if (!string.IsNullOrEmpty(procLightFrag))
                 {
-                    _procLightningShader = new GLShader(procVert, procLightFrag);
-                    int h = _procLightningShader.Handle;
-                    _plTimeLoc   = GL.GetUniformLocation(h, "uTime");
-                    _plSignalLoc = GL.GetUniformLocation(h, "uLightningSignal");
-                    _plConvLoc   = GL.GetUniformLocation(h, "uConvective");
+                    try
+                    {
+                        _procLightningShader = new GLShader(procVert, procLightFrag);
+                        int h = _procLightningShader.Handle;
+                        _plTimeLoc           = GL.GetUniformLocation(h, "uTime");
+                        _plSignalLoc         = GL.GetUniformLocation(h, "uLightningSignal");
+                        _plConvLoc           = GL.GetUniformLocation(h, "uConvective");
+                        _plRadarTexLoc       = GL.GetUniformLocation(h, "uRadarTex");
+                        _plRadarTransformLoc = GL.GetUniformLocation(h, "uRadarTransform");
+                        _plRadarPresentLoc   = GL.GetUniformLocation(h, "uRadarPresent");
+                        _plStrikeNdcLoc      = GL.GetUniformLocation(h, "uStrikeNdc");
+                        _plStrikeCountLoc    = GL.GetUniformLocation(h, "uStrikeCount");
+                        _plStrikeFlashLoc    = GL.GetUniformLocation(h, "uStrikeFlash");
+                        _plStrikeIsCGLoc     = GL.GetUniformLocation(h, "uStrikeIsCG");
+                    }
+                    catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural lightning shader failed: {ex.Message}"); }
                 }
-                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural lightning shader failed: {ex.Message}"); }
             }
 
             while (GL.GetError() != ErrorCode.NoError) { }
@@ -1113,6 +1069,9 @@ void main() {
             if (_mapLoading && _tileTextures.Count > 0)
                 _mapLoading = false;
 
+            // Procedural clouds render beneath the radar overlay so they don't visually double up with it
+            if (_latestProcWeather != null) RenderProceduralClouds();
+
             // Draw positioned overlay (anchored to geographic bbox) if present
             if (_hasPositionedOverlay && _overlayTexture != 0)
             {
@@ -1365,10 +1324,9 @@ void main() {
                     GL.Uniform1(ov3OpacityLoc, 1.0f);
             } // positioned overlay 3 (GRIB2)
 
-            // --- Procedural weather FX (fullscreen screen-space, after WMS overlays) ---
+            // --- Procedural rain/lightning FX (screen-space, above WMS overlays) ---
             if (_latestProcWeather != null)
             {
-                RenderProceduralClouds();
                 RenderProceduralRain();
                 RenderProceduralLightning();
             }
@@ -1861,11 +1819,43 @@ void main() {
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             _procCloudsShader.Use();
             float t = (float)_elapsedTimer.Elapsed.TotalSeconds;
+            float sunAngle = t * ProceduralCloudSettings.SunSpeed;
+            float sunX = MathF.Cos(sunAngle);
+            float sunY = MathF.Sin(sunAngle) * ProceduralCloudSettings.SunYScale + ProceduralCloudSettings.SunYOffset;
             if (_pcTimeLoc >= 0) GL.Uniform1(_pcTimeLoc, t);
             if (_pcCovLoc  >= 0) GL.Uniform1(_pcCovLoc,  _latestProcWeather.CloudCoverage01);
+            if (_pcSunDirLoc >= 0) GL.Uniform2(_pcSunDirLoc, sunX, sunY);
+            if (_pcDensityLoc >= 0) GL.Uniform1(_pcDensityLoc, ProceduralCloudSettings.Density);
+            if (_pcContrastLoc >= 0) GL.Uniform1(_pcContrastLoc, ProceduralCloudSettings.Contrast);
+            if (_pcBrightnessLoc >= 0) GL.Uniform1(_pcBrightnessLoc, ProceduralCloudSettings.Brightness);
+            if (_pcStepsLoc >= 0) GL.Uniform1(_pcStepsLoc, ProceduralCloudSettings.RaymarchSteps);
+            if (_pcOpacityLoc >= 0) GL.Uniform1(_pcOpacityLoc, ProceduralCloudSettings.OpacityMultiplier);
+            if (_pcRadarThresholdLoc >= 0) GL.Uniform1(_pcRadarThresholdLoc, ProceduralCloudSettings.RadarThreshold);
+            if (_pcRadarMaskUpperLoc >= 0) GL.Uniform1(_pcRadarMaskUpperLoc, ProceduralCloudSettings.RadarMaskUpper);
+            if (_pcRadarSpreadStepLoc >= 0) GL.Uniform1(_pcRadarSpreadStepLoc, ProceduralCloudSettings.RadarSpreadStep);
+            if (_pcRadarSpreadInfLoc >= 0) GL.Uniform1(_pcRadarSpreadInfLoc, ProceduralCloudSettings.RadarSpreadInfluence);
+            if (_pcStormDarkeningLoc >= 0) GL.Uniform1(_pcStormDarkeningLoc, ProceduralCloudSettings.StormDarkening);
+            if (_pcDarkColorLoc >= 0) GL.Uniform3(_pcDarkColorLoc,
+                ProceduralCloudSettings.DarkCloudColor.X,
+                ProceduralCloudSettings.DarkCloudColor.Y,
+                ProceduralCloudSettings.DarkCloudColor.Z);
+            if (_pcBrightColorLoc >= 0) GL.Uniform3(_pcBrightColorLoc,
+                ProceduralCloudSettings.BrightCloudColor.X,
+                ProceduralCloudSettings.BrightCloudColor.Y,
+                ProceduralCloudSettings.BrightCloudColor.Z);
+
+            // Bind radar texture/transform so cloud placement follows real-time weather data
+            BindProceduralRadar(_pcRadarTexLoc, _pcRadarTransformLoc, _pcRadarPresentLoc);
+
+            // Upload lightning strike positions for cloud illumination
+            UploadStrikeUniforms(_pcStrikeNdcLoc, _pcStrikeCountLoc, _pcStrikeFlashLoc, -1);
+
             GL.BindVertexArray(_vao);
             GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
             GL.BindVertexArray(0);
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.ActiveTexture(TextureUnit.Texture0);
         }
 
         private void RenderProceduralRain()
@@ -1882,9 +1872,16 @@ void main() {
             if (_prIntensLoc >= 0) GL.Uniform1(_prIntensLoc, intens);
             if (_prCovLoc    >= 0) GL.Uniform1(_prCovLoc,    cov);
             if (_prSnowLoc   >= 0) GL.Uniform1(_prSnowLoc,   _latestProcWeather.SnowCoverage01);
+
+            // Bind radar texture and transform
+            BindProceduralRadar(_prRadarTexLoc, _prRadarTransformLoc, _prRadarPresentLoc);
+
             GL.BindVertexArray(_vao);
             GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
             GL.BindVertexArray(0);
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.ActiveTexture(TextureUnit.Texture0);
         }
 
         private void RenderProceduralLightning()
@@ -1892,7 +1889,10 @@ void main() {
             if (!EnableProceduralLightning || _procLightningShader == null || _latestProcWeather == null) return;
             float sig  = _latestProcWeather.LightningSignal01;
             float conv = _latestProcWeather.ConvectiveSignal01;
-            if (sig < 0.02f && conv < 0.02f) return;
+            // Allow rendering if we have positioned strikes even with low global signal
+            LightningStrikeEntry[] strikes;
+            lock (_markerLock) { strikes = _lightningMarkers; }
+            if (sig < 0.02f && conv < 0.02f && strikes.Length == 0) return;
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             _procLightningShader.Use();
@@ -1900,9 +1900,123 @@ void main() {
             if (_plTimeLoc   >= 0) GL.Uniform1(_plTimeLoc,   t);
             if (_plSignalLoc >= 0) GL.Uniform1(_plSignalLoc, sig);
             if (_plConvLoc   >= 0) GL.Uniform1(_plConvLoc,   conv);
+
+            // Bind radar texture and transform
+            BindProceduralRadar(_plRadarTexLoc, _plRadarTransformLoc, _plRadarPresentLoc);
+
+            // Upload strike positions with IsCG flag
+            UploadStrikeUniforms(_plStrikeNdcLoc, _plStrikeCountLoc, _plStrikeFlashLoc, _plStrikeIsCGLoc);
+
             GL.BindVertexArray(_vao);
             GL.DrawElements(BeginMode.Triangles, 6, DrawElementsType.UnsignedInt, 0);
             GL.BindVertexArray(0);
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.ActiveTexture(TextureUnit.Texture0);
+        }
+
+        /// <summary>
+        /// Binds the radar overlay texture to texture unit 1 and sets the NDC→radar UV transform matrix.
+        /// </summary>
+        private void BindProceduralRadar(int radarTexLoc, int radarTransformLoc, int radarPresentLoc)
+        {
+            bool hasRadar = _hasPositionedOverlay && _overlayTexture != 0;
+            if (radarPresentLoc >= 0) GL.Uniform1(radarPresentLoc, hasRadar ? 1.0f : 0.0f);
+
+            if (!hasRadar) return;
+
+            // Bind radar texture to unit 1
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2D, _overlayTexture);
+            if (radarTexLoc >= 0) GL.Uniform1(radarTexLoc, 1); // texture unit 1
+
+            // Compute NDC → radar UV transform matrix
+            // The overlay is positioned at (_overlayMinLon, _overlayMinLat) → (_overlayMaxLon, _overlayMaxLat)
+            // We need to map screen NDC → radar texture UV [0,1]
+            if (radarTransformLoc >= 0)
+            {
+                int z = _mapZoom;
+                double cx = LonToPixelX(_centerLon, z);
+                double cy = LatToPixelY(_centerLat, z);
+                double leftPx = LonToPixelX(_overlayMinLon, z);
+                double rightPx = LonToPixelX(_overlayMaxLon, z);
+                double topPy = LatToPixelY(_overlayMaxLat, z);
+                double bottomPy = LatToPixelY(_overlayMinLat, z);
+                int w = Width, h = Height;
+
+                // Forward transform: radar UV → NDC (same math as RenderPositionedOverlay)
+                double imgW = Math.Abs(rightPx - leftPx);
+                double imgH = Math.Abs(bottomPy - topPy);
+                double imgCx = (leftPx + rightPx) / 2.0;
+                double imgCy = (topPy + bottomPy) / 2.0;
+                double screenCx = (imgCx - cx) + w / 2.0;
+                double screenCy = (imgCy - cy) + h / 2.0;
+
+                float sx = (float)((imgW / (w / 2.0)) * _zoom) / 2f;
+                float sy = (float)((imgH / (h / 2.0)) * _zoom) / 2f;
+                float ndcCx = (float)(((screenCx / (w / 2.0)) - 1.0) * _zoom + _pan.X);
+                float ndcCy = (float)((1.0 - (screenCy / (h / 2.0))) * _zoom + _pan.Y);
+
+                // Forward: texUV = mat3 * ndcPos  →  uv = (ndc - center) / (2*scale) + 0.5
+                // Inverse: given NDC, compute radar UV
+                // radarU = (ndcX - ndcCx) / (2*sx) + 0.5
+                // radarV = (ndcY - ndcCy) / (2*sy) + 0.5
+                float invSx = (sx != 0f) ? 1.0f / (2.0f * sx) : 0f;
+                float invSy = (sy != 0f) ? 1.0f / (2.0f * sy) : 0f;
+
+                // mat3 stored column-major for GL:
+                // [invSx,  0,     0    ]   [ndcX]   [radarU]
+                // [0,      invSy, 0    ] * [ndcY] = [radarV]
+                // [tx,     ty,    1    ]   [1   ]   [1     ]
+                float tx = -ndcCx * invSx + 0.5f;
+                float ty = -ndcCy * invSy + 0.5f;
+
+                float[] radarMat = new float[] {
+                    invSx, 0f,    0f,
+                    0f,    invSy, 0f,
+                    tx,    ty,    1f
+                };
+                GL.UniformMatrix3(radarTransformLoc, 1, false, radarMat);
+            }
+            GL.ActiveTexture(TextureUnit.Texture0);
+        }
+
+        /// <summary>
+        /// Uploads lightning strike NDC positions and flash intensities as uniform arrays.
+        /// </summary>
+        private void UploadStrikeUniforms(int strikeNdcLoc, int strikeCountLoc, int strikeFlashLoc, int strikeIsCGLoc)
+        {
+            LightningStrikeEntry[] strikes;
+            lock (_markerLock) { strikes = _lightningMarkers; }
+
+            int count = Math.Min(strikes.Length, 32);
+            if (strikeCountLoc >= 0) GL.Uniform1(strikeCountLoc, count);
+            if (count == 0) return;
+
+            int z = _mapZoom;
+            double cx = LonToPixelX(_centerLon, z);
+            double cy = LatToPixelY(_centerLat, z);
+            int w = Width, h = Height;
+
+            float[] ndcData = new float[count * 2];
+            float[] flashData = new float[count];
+            float[]? isCGData = strikeIsCGLoc >= 0 ? new float[count] : null;
+
+            for (int i = 0; i < count; i++)
+            {
+                var s = strikes[i];
+                double rawSx = LonToPixelX(s.Lon, z) - cx + w / 2.0;
+                double rawSy = LatToPixelY(s.Lat, z) - cy + h / 2.0;
+                ndcData[i * 2]     = ((float)(rawSx / (w / 2.0) - 1.0)) * _zoom + _pan.X;
+                ndcData[i * 2 + 1] = ((float)(1.0 - rawSy / (h / 2.0))) * _zoom + _pan.Y;
+                // Flash intensity based on age: new strikes flash bright, old ones dim
+                flashData[i] = Math.Max(0f, 1.0f - s.Age) * (s.IsNew ? 1.0f : 0.4f);
+                if (isCGData != null) isCGData[i] = s.IsCG ? 1.0f : 0.0f;
+            }
+
+            if (strikeNdcLoc >= 0)   GL.Uniform2(strikeNdcLoc, count, ndcData);
+            if (strikeFlashLoc >= 0)  GL.Uniform1(strikeFlashLoc, count, flashData);
+            if (strikeIsCGLoc >= 0 && isCGData != null) GL.Uniform1(strikeIsCGLoc, count, isCGData);
         }
 
         private void GLRadarControl_MouseWheel(object? sender, MouseEventArgs e)
