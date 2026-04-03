@@ -17,6 +17,10 @@ uniform float uRadarPresent;
 uniform float uOpacityMultiplier;
 uniform vec3  uDarkCloudColor;
 uniform vec3  uBrightCloudColor;
+uniform float uLightCloudOpacity;
+uniform float uMediumCloudOpacity;
+uniform float uHeavyCloudOpacity;
+uniform float uExtremeCloudOpacity;
 uniform float uRadarThreshold;
 uniform float uRadarMaskUpper;
 uniform float uRadarSpreadStep;
@@ -259,13 +263,13 @@ void main()
     float cloudLight = exp(-(extinction + 0.03)) * (1.0 - exp(-(extinction + 0.03) * 2.2)) * 2.2;
     cloudLight *= shape;
 
-    // Multi-stop cloud color gradient based on radar intensity
-    // Light precip (blue) = bright silver-gray, moderate (green) = medium gray,
-    // heavy (yellow/orange) = dark charcoal, extreme (red) = near-black
-    vec3 lightCol  = vec3(0.82, 0.84, 0.88);  // silver-gray for drizzle
-    vec3 medCol    = vec3(0.55, 0.56, 0.60);  // medium gray for moderate rain
-    vec3 heavyCol  = vec3(0.28, 0.28, 0.32);  // charcoal for heavy rain
-    vec3 extremeCol = uDarkCloudColor;         // near-black for extreme
+    // Multi-stop cloud color gradient based on radar intensity.
+    // The bright and dark endpoints come from ProceduralCloudSettings so edits are visible at runtime.
+    float stormDarkening = sat(uStormDarkening);
+    vec3 lightCol   = clamp(uBrightCloudColor, 0.0, 1.0);
+    vec3 medCol     = mix(lightCol, uDarkCloudColor, 0.35 + stormDarkening * 0.10);
+    vec3 heavyCol   = mix(lightCol, uDarkCloudColor, 0.72 + stormDarkening * 0.18);
+    vec3 extremeCol = uDarkCloudColor;
 
     vec3 cloudCol;
     if (stormFactor < 0.33)
@@ -297,8 +301,21 @@ void main()
     cloudCol = mix(cloudCol, glowColor, lightning * shape);
 
     // Alpha with soft edge opacity falloff for natural cloud boundaries
+    float lightOpacity   = sat(uLightCloudOpacity);
+    float medOpacity     = sat(uMediumCloudOpacity);
+    float heavyOpacity   = sat(uHeavyCloudOpacity);
+    float extremeOpacity = sat(uExtremeCloudOpacity);
+
+    float stepOpacity;
+    if (stormFactor < 0.33)
+        stepOpacity = mix(lightOpacity, medOpacity, stormFactor / 0.33);
+    else if (stormFactor < 0.66)
+        stepOpacity = mix(medOpacity, heavyOpacity, (stormFactor - 0.33) / 0.33);
+    else
+        stepOpacity = mix(heavyOpacity, extremeOpacity, (stormFactor - 0.66) / 0.34);
+
     float alpha = sat(shape * 2.0) * edgeOpacity;
-    alpha *= max(0.0, uOpacityMultiplier);
+    alpha *= stepOpacity * max(0.0, uOpacityMultiplier);
 
     if (alpha < 0.01)
     {

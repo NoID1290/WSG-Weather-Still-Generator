@@ -373,6 +373,7 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private int _pcSunDirLoc = -1, _pcDensityLoc = -1, _pcContrastLoc = -1, _pcBrightnessLoc = -1, _pcStepsLoc = -1;
         private int _pcRadarTexLoc = -1, _pcRadarTransformLoc = -1, _pcRadarPresentLoc = -1;
         private int _pcOpacityLoc = -1, _pcDarkColorLoc = -1, _pcBrightColorLoc = -1;
+        private int _pcLightOpacityLoc = -1, _pcMediumOpacityLoc = -1, _pcHeavyOpacityLoc = -1, _pcExtremeOpacityLoc = -1;
         private int _pcRadarThresholdLoc = -1, _pcRadarMaskUpperLoc = -1, _pcRadarSpreadStepLoc = -1, _pcRadarSpreadInfLoc = -1, _pcStormDarkeningLoc = -1;
         private int _pcStrikeNdcLoc = -1, _pcStrikeCountLoc = -1, _pcStrikeFlashLoc = -1;
         // Procedural rain uniform locations
@@ -759,6 +760,10 @@ void main() {
                         _pcOpacityLoc         = GL.GetUniformLocation(h, "uOpacityMultiplier");
                         _pcDarkColorLoc       = GL.GetUniformLocation(h, "uDarkCloudColor");
                         _pcBrightColorLoc     = GL.GetUniformLocation(h, "uBrightCloudColor");
+                        _pcLightOpacityLoc    = GL.GetUniformLocation(h, "uLightCloudOpacity");
+                        _pcMediumOpacityLoc   = GL.GetUniformLocation(h, "uMediumCloudOpacity");
+                        _pcHeavyOpacityLoc    = GL.GetUniformLocation(h, "uHeavyCloudOpacity");
+                        _pcExtremeOpacityLoc  = GL.GetUniformLocation(h, "uExtremeCloudOpacity");
                         _pcRadarThresholdLoc  = GL.GetUniformLocation(h, "uRadarThreshold");
                         _pcRadarMaskUpperLoc  = GL.GetUniformLocation(h, "uRadarMaskUpper");
                         _pcRadarSpreadStepLoc = GL.GetUniformLocation(h, "uRadarSpreadStep");
@@ -1830,6 +1835,10 @@ void main() {
             if (_pcBrightnessLoc >= 0) GL.Uniform1(_pcBrightnessLoc, ProceduralCloudSettings.Brightness);
             if (_pcStepsLoc >= 0) GL.Uniform1(_pcStepsLoc, ProceduralCloudSettings.RaymarchSteps);
             if (_pcOpacityLoc >= 0) GL.Uniform1(_pcOpacityLoc, ProceduralCloudSettings.OpacityMultiplier);
+            if (_pcLightOpacityLoc >= 0) GL.Uniform1(_pcLightOpacityLoc, ProceduralCloudSettings.LightCloudOpacity);
+            if (_pcMediumOpacityLoc >= 0) GL.Uniform1(_pcMediumOpacityLoc, ProceduralCloudSettings.MediumCloudOpacity);
+            if (_pcHeavyOpacityLoc >= 0) GL.Uniform1(_pcHeavyOpacityLoc, ProceduralCloudSettings.HeavyCloudOpacity);
+            if (_pcExtremeOpacityLoc >= 0) GL.Uniform1(_pcExtremeOpacityLoc, ProceduralCloudSettings.ExtremeCloudOpacity);
             if (_pcRadarThresholdLoc >= 0) GL.Uniform1(_pcRadarThresholdLoc, ProceduralCloudSettings.RadarThreshold);
             if (_pcRadarMaskUpperLoc >= 0) GL.Uniform1(_pcRadarMaskUpperLoc, ProceduralCloudSettings.RadarMaskUpper);
             if (_pcRadarSpreadStepLoc >= 0) GL.Uniform1(_pcRadarSpreadStepLoc, ProceduralCloudSettings.RadarSpreadStep);

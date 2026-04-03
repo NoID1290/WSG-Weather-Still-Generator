@@ -28,7 +28,10 @@ cbuffer ProcCloudsCB : register(b0)
     float3 uDarkCloudColor;
     float  uPad2;
     float3 uBrightCloudColor;
-    float  uPad3;
+    float  uLightCloudOpacity;
+    float  uMediumCloudOpacity;
+    float  uHeavyCloudOpacity;
+    float  uExtremeCloudOpacity;
     float4 uStrikeNdcFlash[32]; // xy = NDC pos, z = flash intensity, w = unused
 };
 
@@ -265,12 +268,12 @@ float4 main(PS_INPUT input) : SV_TARGET
     float cloudLight = exp(-(extinction + 0.03)) * (1.0 - exp(-(extinction + 0.03) * 2.2)) * 2.2;
     cloudLight *= shape;
 
-    // Multi-stop cloud color gradient based on radar intensity
-    // Light precip (blue) = bright silver-gray, moderate (green) = medium gray,
-    // heavy (yellow/orange) = dark charcoal, extreme (red) = near-black
-    float3 lightCol  = float3(0.82, 0.84, 0.88);
-    float3 medCol    = float3(0.55, 0.56, 0.60);
-    float3 heavyCol  = float3(0.28, 0.28, 0.32);
+    // Multi-stop cloud color gradient based on radar intensity.
+    // The bright and dark endpoints come from ProceduralCloudSettings so edits are visible at runtime.
+    float stormDarkening = sat(uStormDarkening);
+    float3 lightCol   = saturate(uBrightCloudColor);
+    float3 medCol     = lerp(lightCol, uDarkCloudColor, 0.35 + stormDarkening * 0.10);
+    float3 heavyCol   = lerp(lightCol, uDarkCloudColor, 0.72 + stormDarkening * 0.18);
     float3 extremeCol = uDarkCloudColor;
 
     float3 cloudCol;
@@ -303,8 +306,21 @@ float4 main(PS_INPUT input) : SV_TARGET
     cloudCol = lerp(cloudCol, glowColor, lightning * shape);
 
     // Alpha with soft edge opacity falloff for natural cloud boundaries
+    float lightOpacity   = sat(uLightCloudOpacity);
+    float medOpacity     = sat(uMediumCloudOpacity);
+    float heavyOpacity   = sat(uHeavyCloudOpacity);
+    float extremeOpacity = sat(uExtremeCloudOpacity);
+
+    float stepOpacity;
+    if (stormFactor < 0.33)
+        stepOpacity = lerp(lightOpacity, medOpacity, stormFactor / 0.33);
+    else if (stormFactor < 0.66)
+        stepOpacity = lerp(medOpacity, heavyOpacity, (stormFactor - 0.33) / 0.33);
+    else
+        stepOpacity = lerp(heavyOpacity, extremeOpacity, (stormFactor - 0.66) / 0.34);
+
     float alpha = sat(shape * 2.0) * edgeOpacity;
-    alpha *= max(0.0, uOpacityMultiplier);
+    alpha *= stepOpacity * max(0.0, uOpacityMultiplier);
     if (alpha < 0.01) discard;
 
     return float4(cloudCol, alpha);

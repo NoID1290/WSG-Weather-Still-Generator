@@ -655,8 +655,9 @@ namespace WeatherImageGenerator.Rendering.DirectX
             //   uRadarRow0(48,16) uRadarRow1(64,16) uRadarRow2(80,16)
             //   uOpacityMultiplier(96,4) uRadarThreshold(100,4) uRadarMaskUpper(104,4) uRadarSpreadStep(108,4)
             //   uRadarSpreadInfluence(112,4) uStormDarkening(116,4) pad(120,8)
-            //   uDarkCloudColor(128,12) pad(140,4) uBrightCloudColor(144,12) pad(156,4)
-            //   uStrikeNdcFlash[32](160,512) → total PS = 672
+            //   uDarkCloudColor(128,12) pad(140,4) uBrightCloudColor(144,12) uLightCloudOpacity(156,4)
+            //   uMediumCloudOpacity(160,4) uHeavyCloudOpacity(164,4) uExtremeCloudOpacity(168,4) pad(172,4)
+            //   uStrikeNdcFlash[32](176,512) → total PS = 688
             var procCloudsUniforms = new Dictionary<string, (bool, int, int)>
             {
                 ["uTime"]            = (false,  0, 4),
@@ -679,7 +680,11 @@ namespace WeatherImageGenerator.Rendering.DirectX
                 ["uStormDarkening"]      = (false, 116, 4),
                 ["uDarkCloudColor"]      = (false, 128, 12),
                 ["uBrightCloudColor"]    = (false, 144, 12),
-                ["uStrikeNdcFlash"]      = (false, 160, 512), // 32 × float4
+                ["uLightCloudOpacity"]   = (false, 156, 4),
+                ["uMediumCloudOpacity"]  = (false, 160, 4),
+                ["uHeavyCloudOpacity"]   = (false, 164, 4),
+                ["uExtremeCloudOpacity"] = (false, 168, 4),
+                ["uStrikeNdcFlash"]      = (false, 176, 512), // 32 × float4
             };
             _procCloudsShader = CreateShaderFromFiles(
                 "Rendering/DirectX/shaders/proc_clouds.vs.hlsl",
@@ -1245,6 +1250,10 @@ namespace WeatherImageGenerator.Rendering.DirectX
             _procCloudsShader.SetFloat("uCloudBrightness", ProceduralCloudSettings.Brightness);
             _procCloudsShader.SetFloat("uRaymarchSteps", ProceduralCloudSettings.RaymarchSteps);
             _procCloudsShader.SetFloat("uOpacityMultiplier", ProceduralCloudSettings.OpacityMultiplier);
+            _procCloudsShader.SetFloat("uLightCloudOpacity", ProceduralCloudSettings.LightCloudOpacity);
+            _procCloudsShader.SetFloat("uMediumCloudOpacity", ProceduralCloudSettings.MediumCloudOpacity);
+            _procCloudsShader.SetFloat("uHeavyCloudOpacity", ProceduralCloudSettings.HeavyCloudOpacity);
+            _procCloudsShader.SetFloat("uExtremeCloudOpacity", ProceduralCloudSettings.ExtremeCloudOpacity);
             _procCloudsShader.SetFloat("uRadarThreshold", ProceduralCloudSettings.RadarThreshold);
             _procCloudsShader.SetFloat("uRadarMaskUpper", ProceduralCloudSettings.RadarMaskUpper);
             _procCloudsShader.SetFloat("uRadarSpreadStep", ProceduralCloudSettings.RadarSpreadStep);

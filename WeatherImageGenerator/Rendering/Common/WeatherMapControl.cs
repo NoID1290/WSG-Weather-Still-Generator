@@ -472,6 +472,57 @@ namespace WeatherImageGenerator.Rendering.Common
             });
 
             shadersPanel.Elements.Add(new HudSeparator());
+            shadersPanel.Elements.Add(new HudLabel { Id = "lblCloudOpacity", Text = "Cloud Step Opacity", IsSection = true });
+
+            shadersPanel.Elements.Add(new HudSlider
+            {
+                Id = "cloudOpacityLight",
+                Text = "Light Clouds",
+                Value = (int)(ProceduralCloudSettings.LightCloudOpacity * 100f), Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    ProceduralCloudSettings.LightCloudOpacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            shadersPanel.Elements.Add(new HudSlider
+            {
+                Id = "cloudOpacityMedium",
+                Text = "Medium Clouds",
+                Value = (int)(ProceduralCloudSettings.MediumCloudOpacity * 100f), Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    ProceduralCloudSettings.MediumCloudOpacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            shadersPanel.Elements.Add(new HudSlider
+            {
+                Id = "cloudOpacityHeavy",
+                Text = "Heavy Clouds",
+                Value = (int)(ProceduralCloudSettings.HeavyCloudOpacity * 100f), Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    ProceduralCloudSettings.HeavyCloudOpacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            shadersPanel.Elements.Add(new HudSlider
+            {
+                Id = "cloudOpacityExtreme",
+                Text = "Extreme Clouds",
+                Value = (int)(ProceduralCloudSettings.ExtremeCloudOpacity * 100f), Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    ProceduralCloudSettings.ExtremeCloudOpacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            shadersPanel.Elements.Add(new HudSeparator());
             shadersPanel.Elements.Add(new HudLabel { Id = "lblUITransparency", Text = "UI Transparency", IsSection = true });
 
             shadersPanel.Elements.Add(new HudSlider
