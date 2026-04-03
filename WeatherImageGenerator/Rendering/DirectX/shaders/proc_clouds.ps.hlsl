@@ -41,21 +41,36 @@ struct PS_INPUT
 
 float sat(float x) { return clamp(x, 0.0, 1.0); }
 
-float3 sampleRadar(float2 ndcPos)
+float2 ndcToRadarUv(float2 ndcPos)
 {
     float3 rc3 = float3(ndcPos, 1.0);
-    float2 radarUv = float2(
+    float2 ruv = float2(
         dot(rc3, float3(uRadarTransformR0.xyz)),
         dot(rc3, float3(uRadarTransformR1.xyz))
     );
-    radarUv.y = 1.0 - radarUv.y;
+    ruv.y = 1.0 - ruv.y;
+    return ruv;
+}
+
+float3 sampleRadar(float2 ndcPos)
+{
+    float2 radarUv = ndcToRadarUv(ndcPos);
 
     if (radarUv.x < 0.0 || radarUv.x > 1.0 || radarUv.y < 0.0 || radarUv.y > 1.0)
         return float3(0.0, 0.0, 0.0);
 
     float4 rc = uRadarTex.Sample(uSampler, radarUv);
-    float luma = dot(rc.rgb, float3(0.299, 0.587, 0.114));
-    return float3(rc.a, rc.a * luma, luma);
+
+    // Map radar color to precipitation intensity (0=lightest, 1=heaviest)
+    // Radar palette: blue/purple(light) -> green(moderate) -> yellow/orange(heavy) -> red(extreme)
+    float precipIntensity = sat(
+        rc.r * 0.7
+        - rc.b * 0.5
+        + sat(rc.r - rc.g) * 0.5
+        + sat(rc.g - rc.b) * 0.15
+    );
+
+    return float3(rc.a, precipIntensity, dot(rc.rgb, float3(0.299, 0.587, 0.114)));
 }
 
 float hash12(float2 p)
@@ -203,20 +218,26 @@ float4 main(PS_INPUT input) : SV_TARGET
     spread *= 0.25;
 
     float radarMask = smoothstep(uRadarThreshold * 0.75, uRadarMaskUpper, radarAlpha + spread * uRadarSpreadInfluence);
-    float stormFactor = clamp(radarIntensity * 2.2 + radarMask * 0.4, 0.0, 1.0);
+    // precipIntensity already maps 0-1 from radar color (blue=0, red=1)
+    float stormFactor = sat(radarIntensity);
 
-    float2 uv = float2(input.vNdc.x * 1.55, input.vNdc.y * 1.05);
-    float t = fmod(uTime + 600.0, 7200.0) * 0.03;
+    // Use geo-anchored radar UV for noise so clouds move/zoom with the map
+    float2 geoUv = ndcToRadarUv(input.vNdc) * 12.0;
 
+    // Noise adds texture detail only - never creates holes in cloud coverage
+    float noiseDetail = perlinFbm(geoUv, 2.0, 0.0);
+    float worleyDetail = 1.0 - worleyNoise(geoUv, 3.0, 0.0, true);
+    float texDetail = sat(noiseDetail * 0.5 + worleyDetail * 0.5);
+    // Shape is radar-driven: wherever radar exists, clouds exist
+    // Noise only modulates between 0.65 and 1.0 for surface detail
+    float shape = radarMask * lerp(0.65, 1.0, texDetail);
+
+    // Simple raymarch for lighting using geo-anchored UVs
     float2 sun = normalize(max(length(uSunDir), 1e-4) * uSunDir + float2(1e-4, 0.0));
     float steps = clamp(uRaymarchSteps, 4.0, 16.0);
     float invSteps = 1.0 / steps;
-
-    float2 marchDist = float2(0.33, 0.33);
-    float2 sunStep = sun * marchDist * invSteps;
-    float2 marchUv = uv;
-
-    float shape = cloudShape(uv, t) * radarMask;
+    float2 sunStep = sun * float2(0.33, 0.33) * invSteps;
+    float2 marchUv = geoUv;
     float extinction = 1.0;
 
     [loop]
@@ -224,31 +245,40 @@ float4 main(PS_INPUT input) : SV_TARGET
     {
         if ((float)i >= steps) break;
         marchUv += sunStep;
-        float c = cloudShape(marchUv, t) * radarMask;
+        float mNoise = perlinFbm(marchUv, 2.0, 0.0) * 0.5 + 0.5;
+        float c = radarMask * mNoise;
         extinction *= clamp(1.0 - c, 0.0, 1.0);
     }
 
     float cloudLight = exp(-(extinction + 0.03)) * (1.0 - exp(-(extinction + 0.03) * 2.2)) * 2.2;
     cloudLight *= shape;
 
+    // Cloud color driven by radar intensity:
+    // High intensity (red pixels) = dark clouds, low intensity (green) = lighter gray
     float3 darkCol = uDarkCloudColor;
     float3 brightCol = uBrightCloudColor;
-    float3 cloudCol = lerp(darkCol, brightCol, sat(cloudLight * uCloudBrightness));
-    cloudCol = lerp(cloudCol, darkCol * 0.85, smoothstep(0.35, 1.0, stormFactor) * uStormDarkening);
+    float intensityDarken = sat(stormFactor);
+    float3 cloudCol = lerp(brightCol, darkCol, intensityDarken);
+    // Add subtle procedural lighting variation
+    cloudCol = lerp(cloudCol, brightCol, sat(cloudLight * uCloudBrightness) * 0.3);
 
+    // Lightning - subtle under-cloud illumination glow
     float lightning = 0.0;
     [loop]
-    for (int i = 0; i < uStrikeCount && i < 32; i++) {
-        float d = distance(input.vNdc, uStrikeNdcFlash[i].xy);
-        float falloff = 1.0 - smoothstep(0.0, 0.38, d);
-        lightning += falloff * uStrikeNdcFlash[i].z;
+    for (int j = 0; j < uStrikeCount && j < 32; j++) {
+        float d = distance(input.vNdc, uStrikeNdcFlash[j].xy);
+        float falloff = 1.0 - smoothstep(0.0, 0.45, d);
+        lightning += falloff * uStrikeNdcFlash[j].z;
     }
-    lightning = sat(lightning);
+    lightning = sat(lightning * 0.35);
 
-    cloudCol = lerp(cloudCol, float3(0.98, 0.97, 1.0), lightning * 0.9);
-    float alpha = sat(shape * (0.55 + uCloudCoverage * 0.50) * (0.55 + stormFactor * 0.95));
+    // Warm under-glow instead of bright white wash
+    float3 glowColor = float3(0.75, 0.70, 0.85);
+    cloudCol = lerp(cloudCol, glowColor, lightning * shape);
+
+    // Fully opaque where cloud shape exists
+    float alpha = sat(shape * 2.5) * radarMask;
     alpha *= max(0.0, uOpacityMultiplier);
-    alpha = sat(alpha + lightning * alpha * 0.3);
     if (alpha < 0.01) discard;
 
     return float4(cloudCol, alpha);
