@@ -246,10 +246,10 @@ float4 main(PS_INPUT input) : SV_TARGET
     lightning = sat(lightning);
 
     cloudCol = lerp(cloudCol, float3(0.98, 0.97, 1.0), lightning * 0.9);
-    float alpha = sat(shape * (0.35 + uCloudCoverage * 0.45) * (0.55 + stormFactor * 0.95));
+    float alpha = sat(shape * (0.55 + uCloudCoverage * 0.50) * (0.55 + stormFactor * 0.95));
     alpha *= max(0.0, uOpacityMultiplier);
     alpha = sat(alpha + lightning * alpha * 0.3);
     if (alpha < 0.01) discard;
 
-    return float4(cloudCol, min(alpha, 0.9));
+    return float4(cloudCol, alpha);
 }

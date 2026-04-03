@@ -25,10 +25,10 @@ namespace WeatherImageGenerator.Rendering.Common
         public static float RadarMaskUpper { get; set; } = 0.120f;
         public static float RadarSpreadStep { get; set; } = 0.030f;
         public static float RadarSpreadInfluence { get; set; } = 0.55f;
-        public static float StormDarkening { get; set; } = 1.00f;
+        public static float StormDarkening { get; set; } = 0.35f;
 
         // Cloud color ramp (dark -> bright)
-        public static Vector3 DarkCloudColor { get; set; } = new Vector3(0.20f, 0.22f, 0.27f);
+        public static Vector3 DarkCloudColor { get; set; } = new Vector3(0.45f, 0.48f, 0.55f);
         public static Vector3 BrightCloudColor { get; set; } = new Vector3(0.92f, 0.95f, 0.98f);
     }
 }

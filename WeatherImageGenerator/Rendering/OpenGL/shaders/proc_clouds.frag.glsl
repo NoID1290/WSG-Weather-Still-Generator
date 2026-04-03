@@ -240,7 +240,7 @@ void main()
     lightning = sat(lightning);
 
     cloudCol = mix(cloudCol, vec3(0.98, 0.97, 1.0), lightning * 0.9);
-    float alpha = sat(shape * (0.35 + uCloudCoverage * 0.45) * (0.55 + stormFactor * 0.95));
+    float alpha = sat(shape * (0.55 + uCloudCoverage * 0.50) * (0.55 + stormFactor * 0.95));
     alpha *= max(0.0, uOpacityMultiplier);
     alpha = sat(alpha + lightning * alpha * 0.3);
 
@@ -249,5 +249,5 @@ void main()
         discard;
     }
 
-    FragColor = vec4(cloudCol, min(alpha, 0.9));
+    FragColor = vec4(cloudCol, alpha);
 }
