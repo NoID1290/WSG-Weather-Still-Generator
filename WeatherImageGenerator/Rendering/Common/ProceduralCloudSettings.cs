@@ -29,6 +29,6 @@ namespace WeatherImageGenerator.Rendering.Common
 
         // Cloud color ramp (dark -> bright)
         public static Vector3 DarkCloudColor { get; set; } = new Vector3(0.10f, 0.10f, 0.12f);
-        public static Vector3 BrightCloudColor { get; set; } = new Vector3(0.78f, 0.80f, 0.84f);
+        public static Vector3 BrightCloudColor { get; set; } = new Vector3(0.48f, 0.50f, 0.54f);
     }
 }

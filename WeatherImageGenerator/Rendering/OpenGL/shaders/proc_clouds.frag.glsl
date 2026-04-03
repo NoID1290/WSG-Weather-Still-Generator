@@ -218,14 +218,26 @@ void main()
 
     // Use geo-anchored radar UV for noise so clouds move/zoom with the map
     vec2 geoUv = ndcToRadarUv(vNdc) * 12.0;
+    // Slow animated time for churning cloud detail (clouds stay in place but shift internally)
+    float t = mod(uTime, 7200.0) * 0.008;
 
     // Noise adds texture detail only - never creates holes in cloud coverage
-    float noiseDetail = perlinFbm(geoUv, 2.0, 0.0);
-    float worleyDetail = 1.0 - worleyNoise(geoUv, 3.0, 0.0, true);
-    float texture = sat(noiseDetail * 0.5 + worleyDetail * 0.5);
+    float noiseDetail = perlinFbm(geoUv, 2.0, t);
+    float worleyDetail = 1.0 - worleyNoise(geoUv, 3.0, t * 0.5, true);
+    float texVal = sat(noiseDetail * 0.5 + worleyDetail * 0.5);
     // Shape is radar-driven: wherever radar exists, clouds exist
     // Noise only modulates between 0.65 and 1.0 for surface detail
-    float shape = radarMask * mix(0.65, 1.0, texture);
+    float shape = radarMask * mix(0.65, 1.0, texVal);
+
+    // Smooth cloud edges: use noise to feather the boundary for organic look
+    float edgeNoise = perlinFbm(geoUv * 0.8, 3.0, t * 0.3) * 0.5 + 0.5;
+    float edgeMask = smoothstep(0.0, 0.55, radarMask + edgeNoise * 0.2 - 0.15);
+    shape *= edgeMask;
+
+    // Edge opacity: soft gradient from transparent at boundary to opaque in core
+    // Use wider smoothstep + noise for natural wispy cloud edge falloff
+    float edgeOpacity = smoothstep(0.0, 0.7, radarMask + edgeNoise * 0.25 - 0.12);
+    edgeOpacity = pow(edgeOpacity, 0.6);
 
     // Simple raymarch for lighting using geo-anchored UVs
     vec2 sun = normalize(max(length(uSunDir), 1e-4) * uSunDir + vec2(1e-4, 0.0));
@@ -239,7 +251,7 @@ void main()
     {
         if (float(i) >= steps) break;
         marchUv += sunStep;
-        float mNoise = perlinFbm(marchUv, 2.0, 0.0) * 0.5 + 0.5;
+        float mNoise = perlinFbm(marchUv, 2.0, t) * 0.5 + 0.5;
         float c = radarMask * mNoise;
         extinction *= clamp(1.0 - c, 0.0, 1.0);
     }
@@ -247,14 +259,28 @@ void main()
     float cloudLight = exp(-(extinction + 0.03)) * (1.0 - exp(-(extinction + 0.03) * 2.2)) * 2.2;
     cloudLight *= shape;
 
-    // Cloud color driven by radar intensity:
-    // High intensity (red pixels) = dark clouds, low intensity (green) = lighter gray
-    vec3 darkCol = uDarkCloudColor;
-    vec3 brightCol = uBrightCloudColor;
-    float intensityDarken = sat(stormFactor);
-    vec3 cloudCol = mix(brightCol, darkCol, intensityDarken);
-    // Add subtle procedural lighting variation
-    cloudCol = mix(cloudCol, brightCol, sat(cloudLight * uCloudBrightness) * 0.3);
+    // Multi-stop cloud color gradient based on radar intensity
+    // Light precip (blue) = bright silver-gray, moderate (green) = medium gray,
+    // heavy (yellow/orange) = dark charcoal, extreme (red) = near-black
+    vec3 lightCol  = vec3(0.82, 0.84, 0.88);  // silver-gray for drizzle
+    vec3 medCol    = vec3(0.55, 0.56, 0.60);  // medium gray for moderate rain
+    vec3 heavyCol  = vec3(0.28, 0.28, 0.32);  // charcoal for heavy rain
+    vec3 extremeCol = uDarkCloudColor;         // near-black for extreme
+
+    vec3 cloudCol;
+    if (stormFactor < 0.33)
+        cloudCol = mix(lightCol, medCol, stormFactor / 0.33);
+    else if (stormFactor < 0.66)
+        cloudCol = mix(medCol, heavyCol, (stormFactor - 0.33) / 0.33);
+    else
+        cloudCol = mix(heavyCol, extremeCol, (stormFactor - 0.66) / 0.34);
+
+    // Add procedural lighting variation for 3D depth
+    cloudCol = mix(cloudCol, cloudCol * 1.25, sat(cloudLight * uCloudBrightness) * 0.35);
+
+    // Subtle edge highlight for cloud rim lighting
+    float rimLight = sat(1.0 - edgeMask * 1.5) * radarMask;
+    cloudCol = mix(cloudCol, lightCol, rimLight * 0.15);
 
     // Lightning - subtle under-cloud illumination glow
     float lightning = 0.0;
@@ -270,8 +296,8 @@ void main()
     vec3 glowColor = vec3(0.75, 0.70, 0.85);
     cloudCol = mix(cloudCol, glowColor, lightning * shape);
 
-    // Fully opaque where cloud shape exists
-    float alpha = sat(shape * 2.5) * radarMask;
+    // Alpha with soft edge opacity falloff for natural cloud boundaries
+    float alpha = sat(shape * 2.0) * edgeOpacity;
     alpha *= max(0.0, uOpacityMultiplier);
 
     if (alpha < 0.01)
