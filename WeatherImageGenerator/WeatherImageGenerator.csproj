@@ -7,9 +7,9 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CA1416;CS8618;CS0169;CS0649;CS0414;CS0067;CS0618</NoWarn>
-    <Version>1.19.43.0402</Version>
-    <AssemblyVersion>1.19.43.0402</AssemblyVersion>
-    <FileVersion>1.19.43.0402</FileVersion>
+    <Version>1.19.44.0403</Version>
+    <AssemblyVersion>1.19.44.0403</AssemblyVersion>
+    <FileVersion>1.19.44.0403</FileVersion>
     <RootNamespace>WeatherImageGenerator</RootNamespace>
     <AssemblyName>WSG</AssemblyName>
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
@@ -44,7 +44,7 @@
     <EmbeddedResource Include="Rendering\OpenGL\shaders\**\*.*" />
     <EmbeddedResource Include="Rendering\Vulkan\shaders\**\*.*" />
     <EmbeddedResource Include="Rendering\DirectX\shaders\**\*.*" />
-    <!-- Vulkan backend excluded from compilation ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â code kept for future use -->
+    <!-- Vulkan backend excluded from compilation ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â code kept for future use -->
     <Compile Remove="Rendering\Vulkan\**\*.cs" />
     <!-- Embed icons into the binary -->
     <EmbeddedResource Include="WeatherImages\Icons\*.png" />
