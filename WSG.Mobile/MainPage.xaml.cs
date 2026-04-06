@@ -1,5 +1,4 @@
-﻿using WSG.Mobile.Services;
-using WSG.Mobile.ViewModels;
+﻿using WSG.Mobile.ViewModels;
 
 namespace WSG.Mobile;
 
@@ -8,10 +7,10 @@ public partial class MainPage : ContentPage
 	private readonly WeatherAppState _state;
 	private bool _hasLoaded;
 
-	public MainPage()
+	public MainPage(WeatherAppState state)
 	{
 		InitializeComponent();
-		_state = ServiceHelper.GetRequiredService<WeatherAppState>();
+		_state = state;
 		BindingContext = _state;
 	}
 

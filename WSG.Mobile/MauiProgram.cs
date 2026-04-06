@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using WSG.Mobile.Pages;
 using WSG.Mobile.Services;
 using WSG.Mobile.ViewModels;
 
@@ -20,6 +21,11 @@ public static class MauiProgram
 
 		builder.Services.AddSingleton<WeatherAggregatorService>();
 		builder.Services.AddSingleton<WeatherAppState>();
+		builder.Services.AddSingleton<MainPage>();
+		builder.Services.AddSingleton<ForecastPage>();
+		builder.Services.AddSingleton<AlertsPage>();
+		builder.Services.AddSingleton<SettingsPage>();
+		builder.Services.AddSingleton<AppShell>();
 
 #if DEBUG
 		builder.Logging.AddDebug();
