@@ -8,7 +8,8 @@
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectFilePaths = @(
     (Join-Path $repoRoot "WeatherImageGenerator\WeatherImageGenerator.csproj"),
-    (Join-Path $repoRoot "Grib2\Grib2.csproj")
+    (Join-Path $repoRoot "Grib2\Grib2.csproj"),
+    (Join-Path $repoRoot "BZTG\BZTG.csproj")
 )
 
 function Update-ProjectVersionDate {
