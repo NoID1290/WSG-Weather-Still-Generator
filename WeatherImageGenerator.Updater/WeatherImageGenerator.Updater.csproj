@@ -10,9 +10,9 @@
     <AssemblyCompany>NoID Softwork</AssemblyCompany>
     <AssemblyProduct>Weather Still Generator - Updater</AssemblyProduct>
     <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
-    <Version>1.19.45.0406</Version>
-    <AssemblyVersion>1.19.45.0406</AssemblyVersion>
-    <FileVersion>1.19.45.0406</FileVersion>
+    <Version>1.19.46.0406</Version>
+    <AssemblyVersion>1.19.46.0406</AssemblyVersion>
+    <FileVersion>1.19.46.0406</FileVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
