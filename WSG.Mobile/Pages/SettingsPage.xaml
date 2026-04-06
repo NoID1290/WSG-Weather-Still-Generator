@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="WSG.Mobile.Pages.SettingsPage"
+             Title="Settings">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="14">
+            <Label Text="WSG Mobile Settings"
+                   FontAttributes="Bold"
+                   FontSize="22" />
+
+            <Label Text="Weather and alerts are fetched directly from the provider APIs in this app."
+                   FontSize="13"
+                   TextColor="#64748B" />
+
+            <VerticalStackLayout Spacing="6">
+                <Label Text="Saved location"
+                       FontAttributes="Bold" />
+                <Entry Text="{Binding LocationQuery}"
+                       Placeholder="Montreal, QC"
+                       ClearButtonVisibility="WhileEditing" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="6">
+                <Label Text="Alert region"
+                       FontAttributes="Bold" />
+                <Picker Title="Choose a region"
+                        ItemsSource="{Binding AlertRegions}"
+                        SelectedItem="{Binding SelectedAlertRegion}" />
+            </VerticalStackLayout>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="High-risk only"
+                           FontAttributes="Bold" />
+                    <Label Text="Only show severe or extreme alerts when available."
+                           FontSize="12"
+                           TextColor="#64748B" />
+                </VerticalStackLayout>
+
+                <Switch Grid.Column="1"
+                        IsToggled="{Binding HighRiskOnly}" />
+            </Grid>
+
+            <Button Text="Save and Refresh"
+                    Clicked="OnSaveAndRefreshClicked"
+                    IsEnabled="{Binding IsNotBusy}" />
+
+            <Label Text="{Binding LastUpdatedText}"
+                   FontSize="12"
+                   TextColor="#64748B" />
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

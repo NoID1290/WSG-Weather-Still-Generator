@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="WSG.Mobile.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:local="clr-namespace:WSG.Mobile"
+    xmlns:pages="clr-namespace:WSG.Mobile.Pages"
+    Title="WSG Mobile">
+
+    <TabBar>
+        <ShellContent
+            Title="Home"
+            ContentTemplate="{DataTemplate local:MainPage}"
+            Route="home" />
+
+        <ShellContent
+            Title="Forecast"
+            ContentTemplate="{DataTemplate pages:ForecastPage}"
+            Route="forecast" />
+
+        <ShellContent
+            Title="Alerts"
+            ContentTemplate="{DataTemplate pages:AlertsPage}"
+            Route="alerts" />
+
+        <ShellContent
+            Title="Settings"
+            ContentTemplate="{DataTemplate pages:SettingsPage}"
+            Route="settings" />
+    </TabBar>
+
+</Shell>

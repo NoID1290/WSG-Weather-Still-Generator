@@ -1,0 +1,125 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="WSG.Mobile.MainPage"
+             Title="Home">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="16">
+            <VerticalStackLayout Spacing="4">
+                <Label Text="WSG Mobile"
+                       FontAttributes="Bold"
+                       FontSize="28" />
+                <Label Text="Forecast, temperature, and weather alerts in one Android app."
+                       FontSize="13"
+                       TextColor="#64748B" />
+            </VerticalStackLayout>
+
+            <Border Padding="16"
+                    BackgroundColor="#EEF6FF"
+                    Stroke="#BFDBFE"
+                    StrokeShape="RoundRectangle 16">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="{Binding LocationQuery}"
+                           FontAttributes="Bold"
+                           FontSize="20" />
+                    <Label Text="{Binding LastUpdatedText}"
+                           FontSize="12"
+                           TextColor="#64748B" />
+                    <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                       IsVisible="{Binding IsBusy}" />
+                    <Button Text="Refresh Now"
+                            Clicked="OnRefreshClicked"
+                            IsEnabled="{Binding IsNotBusy}" />
+                    <Label Text="{Binding StatusMessage}"
+                           FontSize="12"
+                           TextColor="#334155" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Padding="18"
+                    BackgroundColor="#0F172A"
+                    StrokeShape="RoundRectangle 16">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="{Binding CurrentTemperatureDisplay}"
+                           FontAttributes="Bold"
+                           FontSize="42"
+                           TextColor="White" />
+                    <Label Text="{Binding ConditionSummary}"
+                           FontSize="18"
+                           TextColor="White" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Grid ColumnDefinitions="*,*"
+                  RowDefinitions="Auto,Auto"
+                  ColumnSpacing="12"
+                  RowSpacing="12">
+                <Border Grid.Row="0"
+                        Grid.Column="0"
+                        Padding="14"
+                        BackgroundColor="#F8FAFC"
+                        Stroke="#E2E8F0"
+                        StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Feels like"
+                               FontSize="12"
+                               TextColor="#64748B" />
+                        <Label Text="{Binding FeelsLikeDisplay}"
+                               FontAttributes="Bold"
+                               FontSize="18" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Row="0"
+                        Grid.Column="1"
+                        Padding="14"
+                        BackgroundColor="#F8FAFC"
+                        Stroke="#E2E8F0"
+                        StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Humidity"
+                               FontSize="12"
+                               TextColor="#64748B" />
+                        <Label Text="{Binding HumidityDisplay}"
+                               FontAttributes="Bold"
+                               FontSize="18" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Grid.Column="0"
+                        Padding="14"
+                        BackgroundColor="#F8FAFC"
+                        Stroke="#E2E8F0"
+                        StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Wind"
+                               FontSize="12"
+                               TextColor="#64748B" />
+                        <Label Text="{Binding WindDisplay}"
+                               FontAttributes="Bold"
+                               FontSize="18" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Grid.Column="1"
+                        Padding="14"
+                        BackgroundColor="#F8FAFC"
+                        Stroke="#E2E8F0"
+                        StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Precipitation"
+                               FontSize="12"
+                               TextColor="#64748B" />
+                        <Label Text="{Binding PrecipitationDisplay}"
+                               FontAttributes="Bold"
+                               FontSize="18" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>
