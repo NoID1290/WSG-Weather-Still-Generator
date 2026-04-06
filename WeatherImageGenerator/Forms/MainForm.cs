@@ -195,7 +195,7 @@ namespace WeatherImageGenerator.Forms
         public MainForm()
         {
             this.Text = "WSG - WeatherStillGenerator";
-            this.Width = 1340;
+            this.Width = 1450;
             this.Height = 700;
             this.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
             this.StartPosition = FormStartPosition.CenterScreen;
