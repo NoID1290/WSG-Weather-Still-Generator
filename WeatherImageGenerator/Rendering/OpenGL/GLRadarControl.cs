@@ -335,11 +335,11 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool EnableCrosshairPulse { get; set; } = true;
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public bool EnableProceduralClouds { get; set; } = true;
+        public bool EnableProceduralClouds { get; set; } = false;
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public bool EnableProceduralRain { get; set; } = true;
+        public bool EnableProceduralRain { get; set; } = false;
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public bool EnableProceduralLightning { get; set; } = true;
+        public bool EnableProceduralLightning { get; set; } = false;
         private bool AnyProceduralFxEnabled => EnableProceduralClouds || EnableProceduralRain || EnableProceduralLightning;
 
         /// <summary>Whether to display the bottom-right status bar</summary>

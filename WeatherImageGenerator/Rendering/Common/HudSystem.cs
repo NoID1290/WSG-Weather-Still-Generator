@@ -631,7 +631,7 @@ namespace WeatherImageGenerator.Rendering.Common
 
         private void RenderLabel(IHudRenderer r, HudLabel lbl, float x, float y, float w, float h)
         {
-            var color = lbl.IsSection ? AccentColor : lbl.IsDim ? TextDim : TextSecondary;
+            var color = lbl.OverrideColor ?? (lbl.IsSection ? AccentColor : lbl.IsDim ? TextDim : TextSecondary);
 
             if (lbl.IsSection)
             {
@@ -1359,6 +1359,8 @@ namespace WeatherImageGenerator.Rendering.Common
         public string Text { get; set; } = "";
         public bool IsSection { get; set; } = false;
         public bool IsDim { get; set; } = false;
+        /// <summary>Optional override color. When set, overrides IsSection/IsDim color.</summary>
+        public HudColor? OverrideColor { get; set; }
         /// <summary>Allows updating label text dynamically (e.g., for status display)</summary>
         public Action<HudLabel>? OnUpdate { get; set; }
     }

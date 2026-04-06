@@ -194,9 +194,9 @@ namespace WeatherImageGenerator.Rendering.DirectX
         public bool EnableTileAtmosphere { get; set; } = true;
         public bool EnableRadarGlow { get; set; } = true;
         public bool EnableCrosshairPulse { get; set; } = true;
-        public bool EnableProceduralClouds { get; set; } = true;
-        public bool EnableProceduralRain { get; set; } = true;
-        public bool EnableProceduralLightning { get; set; } = true;
+        public bool EnableProceduralClouds { get; set; } = false;
+        public bool EnableProceduralRain { get; set; } = false;
+        public bool EnableProceduralLightning { get; set; } = false;
         private bool AnyProceduralFxEnabled => EnableProceduralClouds || EnableProceduralRain || EnableProceduralLightning;
 
         public bool ShowStatusBar { get; set; } = true;

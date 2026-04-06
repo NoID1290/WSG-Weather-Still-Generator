@@ -395,6 +395,45 @@ namespace WeatherImageGenerator.Rendering.Common
             };
             viewportPanel.Elements.Add(chkRadarAnim);
 
+            viewportPanel.Elements.Add(new HudSeparator());
+            viewportPanel.Elements.Add(new HudLabel { Id = "lblUITransparency", Text = "UI Transparency", IsSection = true });
+
+            viewportPanel.Elements.Add(new HudSlider
+            {
+                Id = "panelOpacity",
+                Text = "Panel Opacity",
+                Value = 75, Min = 20, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _hudSystem.PanelOpacityMultiplier = val / 75f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            viewportPanel.Elements.Add(new HudSlider
+            {
+                Id = "statusBarOpacity",
+                Text = "Status Bar Opacity",
+                Value = 55, Min = 0, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _glControl.StatusBarOpacity = val / 100f;
+                    _glControl.InvalidateView();
+                }
+            });
+
+            viewportPanel.Elements.Add(new HudSlider
+            {
+                Id = "animBarOpacity",
+                Text = "Animation Bar Opacity",
+                Value = 75, Min = 20, Max = 100, ShowLabel = true,
+                OnChanged = val =>
+                {
+                    _hudSystem.AnimationPanelOpacity = val / 75f;
+                    _glControl.InvalidateView();
+                }
+            });
+
             _hudSystem.AddPanel(viewportPanel);
 
             // === Shaders Panel (top-left, horizontal row) ===
@@ -448,26 +487,27 @@ namespace WeatherImageGenerator.Rendering.Common
 
             shadersPanel.Elements.Add(new HudSeparator());
             shadersPanel.Elements.Add(new HudLabel { Id = "lblProcFx", Text = "Procedural FX", IsSection = true });
+            shadersPanel.Elements.Add(new HudLabel { Id = "lblProcFxBeta", Text = "BETA TEST", OverrideColor = new HudColor(220, 50, 50, 1.0f) });
 
             shadersPanel.Elements.Add(new HudCheckbox
             {
                 Id = "procClouds",
                 Text = "Procedural Clouds",
-                Checked = true,
+                Checked = false,
                 OnChanged = v => { _glControl.EnableProceduralClouds = v; _glControl.InvalidateView(); }
             });
             shadersPanel.Elements.Add(new HudCheckbox
             {
                 Id = "procRain",
                 Text = "Procedural Rain",
-                Checked = true,
+                Checked = false,
                 OnChanged = v => { _glControl.EnableProceduralRain = v; _glControl.InvalidateView(); }
             });
             shadersPanel.Elements.Add(new HudCheckbox
             {
                 Id = "procLightning",
                 Text = "Procedural Lightning",
-                Checked = true,
+                Checked = false,
                 OnChanged = v => { _glControl.EnableProceduralLightning = v; _glControl.InvalidateView(); }
             });
 
@@ -518,45 +558,6 @@ namespace WeatherImageGenerator.Rendering.Common
                 OnChanged = val =>
                 {
                     ProceduralCloudSettings.ExtremeCloudOpacity = val / 100f;
-                    _glControl.InvalidateView();
-                }
-            });
-
-            shadersPanel.Elements.Add(new HudSeparator());
-            shadersPanel.Elements.Add(new HudLabel { Id = "lblUITransparency", Text = "UI Transparency", IsSection = true });
-
-            shadersPanel.Elements.Add(new HudSlider
-            {
-                Id = "panelOpacity",
-                Text = "Panel Opacity",
-                Value = 75, Min = 20, Max = 100, ShowLabel = true,
-                OnChanged = val =>
-                {
-                    _hudSystem.PanelOpacityMultiplier = val / 75f;
-                    _glControl.InvalidateView();
-                }
-            });
-
-            shadersPanel.Elements.Add(new HudSlider
-            {
-                Id = "statusBarOpacity",
-                Text = "Status Bar Opacity",
-                Value = 55, Min = 0, Max = 100, ShowLabel = true,
-                OnChanged = val =>
-                {
-                    _glControl.StatusBarOpacity = val / 100f;
-                    _glControl.InvalidateView();
-                }
-            });
-
-            shadersPanel.Elements.Add(new HudSlider
-            {
-                Id = "animBarOpacity",
-                Text = "Animation Bar Opacity",
-                Value = 75, Min = 20, Max = 100, ShowLabel = true,
-                OnChanged = val =>
-                {
-                    _hudSystem.AnimationPanelOpacity = val / 75f;
                     _glControl.InvalidateView();
                 }
             });
