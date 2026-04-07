@@ -10,7 +10,7 @@
 		<Nullable>enable</Nullable>
 		<ApplicationTitle>WSG Mobile</ApplicationTitle>
 		<ApplicationId>com.noidsoftwork.wsgmobile</ApplicationId>
-		<ApplicationDisplayVersion>1.1.0</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>0.0.10</ApplicationDisplayVersion>
 		<ApplicationVersion>2</ApplicationVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
 		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
