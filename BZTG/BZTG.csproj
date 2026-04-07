@@ -9,9 +9,9 @@
     <Company>NoID Softwork</Company>
     <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
     <Description>Library for accessing Blitzortung.org real-time lightning strike data for Canada and the Americas.</Description>
-    <Version>1.1.4.0407</Version>
-    <AssemblyVersion>1.1.4.0407</AssemblyVersion>
-    <FileVersion>1.1.4.0407</FileVersion>
+    <Version>1.1.5.0407</Version>
+    <AssemblyVersion>1.1.5.0407</AssemblyVersion>
+    <FileVersion>1.1.5.0407</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>

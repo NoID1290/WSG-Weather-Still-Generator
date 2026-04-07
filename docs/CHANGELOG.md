@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.50.0407] - 2026-04-07
+
+- Update application display version to 0.0.10 in project file
+- Update version label and add copyright notice in SettingsPage
+
 ## [1.20.49.0407] - 2026-04-07
 
 - Add radar functionality, weather widget, and alert services
