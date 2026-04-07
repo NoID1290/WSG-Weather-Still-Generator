@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="WSG.Mobile.Pages.SettingsPage"
@@ -6,50 +6,324 @@
 
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="14">
-            <Label Text="WSG Mobile Settings"
+            <Label Text="⚙️ WSG Mobile Settings"
                    FontAttributes="Bold"
                    FontSize="22" />
 
-            <Label Text="Weather and alerts are fetched directly from the provider APIs in this app."
-                   FontSize="13"
-                   TextColor="#64748B" />
+            <!-- ═══ LOCATION SETTINGS ═══ -->
+            <Label Text="LOCATIONS"
+                   FontSize="11"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}"
+                   Margin="0,8,0,0" />
 
-            <VerticalStackLayout Spacing="6">
-                <Label Text="Saved location"
-                       FontAttributes="Bold" />
-                <Entry Text="{Binding LocationQuery}"
-                       Placeholder="Montreal, QC"
-                       ClearButtonVisibility="WhileEditing" />
-            </VerticalStackLayout>
-
-            <VerticalStackLayout Spacing="6">
-                <Label Text="Alert region"
-                       FontAttributes="Bold" />
-                <Picker Title="Choose a region"
-                        ItemsSource="{Binding AlertRegions}"
-                        SelectedItem="{Binding SelectedAlertRegion}" />
-            </VerticalStackLayout>
-
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <VerticalStackLayout Spacing="2">
-                    <Label Text="High-risk only"
+            <Border Padding="14"
+                    BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeShape="RoundRectangle 12">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Saved locations (max 4)"
                            FontAttributes="Bold" />
-                    <Label Text="Only show severe or extreme alerts when available."
-                           FontSize="12"
-                           TextColor="#64748B" />
+                    <CollectionView x:Name="LocationList"
+                                    SelectionMode="None"
+                                    HeightRequest="200">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="10,8" Margin="0,0,0,4"
+                                        BackgroundColor="{AppThemeBinding Light=#F1F5F9, Dark=#334155}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="Transparent">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                        <VerticalStackLayout VerticalOptions="Center">
+                                            <Label Text="{Binding Name}" FontAttributes="Bold" FontSize="14" />
+                                            <Label Text="{Binding Region}" FontSize="11"
+                                                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" Text="📍" FontSize="16" VerticalOptions="Center"
+                                               IsVisible="{Binding IsFollowing}" />
+                                        <Button Grid.Column="2"
+                                                Text="✕"
+                                                FontSize="14"
+                                                Padding="8,4"
+                                                BackgroundColor="#DC2626"
+                                                TextColor="White"
+                                                CornerRadius="6"
+                                                WidthRequest="36"
+                                                HeightRequest="36"
+                                                Clicked="OnDeleteLocationClicked" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Entry x:Name="NewLocationEntry"
+                               Placeholder="Add location (e.g., Toronto, ON)"
+                               ClearButtonVisibility="WhileEditing" />
+                        <Button Grid.Column="1" Text="Add" Clicked="OnAddLocation" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="📍 GPS following location"
+                                   FontAttributes="Bold" />
+                            <Label Text="Automatically track your current position."
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                x:Name="GpsSwitch"
+                                Toggled="OnGpsToggled" />
+                    </Grid>
                 </VerticalStackLayout>
+            </Border>
 
-                <Switch Grid.Column="1"
-                        IsToggled="{Binding HighRiskOnly}" />
-            </Grid>
+            <!-- ═══ DISPLAY SETTINGS ═══ -->
+            <Label Text="DISPLAY"
+                   FontSize="11"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}"
+                   Margin="0,8,0,0" />
 
-            <Button Text="Save and Refresh"
+            <Border Padding="14"
+                    BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeShape="RoundRectangle 12">
+                <VerticalStackLayout Spacing="10">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Theme" FontAttributes="Bold" />
+                        <Picker x:Name="ThemePicker"
+                                Title="Choose theme"
+                                SelectedIndexChanged="OnThemeChanged" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Temperature unit" FontAttributes="Bold" />
+                        <Picker x:Name="TempUnitPicker"
+                                Title="Temperature">
+                            <Picker.ItemsSource>
+                                <x:Array Type="{x:Type x:String}">
+                                    <x:String>°C</x:String>
+                                    <x:String>°F</x:String>
+                                </x:Array>
+                            </Picker.ItemsSource>
+                        </Picker>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Wind speed unit" FontAttributes="Bold" />
+                        <Picker x:Name="WindUnitPicker"
+                                Title="Wind speed">
+                            <Picker.ItemsSource>
+                                <x:Array Type="{x:Type x:String}">
+                                    <x:String>km/h</x:String>
+                                    <x:String>mph</x:String>
+                                    <x:String>m/s</x:String>
+                                    <x:String>knots</x:String>
+                                </x:Array>
+                            </Picker.ItemsSource>
+                        </Picker>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Time format" FontAttributes="Bold" />
+                        <Picker x:Name="TimeFormatPicker"
+                                Title="Time format">
+                            <Picker.ItemsSource>
+                                <x:Array Type="{x:Type x:String}">
+                                    <x:String>24h</x:String>
+                                    <x:String>12h</x:String>
+                                </x:Array>
+                            </Picker.ItemsSource>
+                        </Picker>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- ═══ RADAR SETTINGS ═══ -->
+            <Label Text="RADAR"
+                   FontSize="11"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}"
+                   Margin="0,8,0,0" />
+
+            <Border Padding="14"
+                    BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeShape="RoundRectangle 12">
+                <VerticalStackLayout Spacing="10">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Animation frames" FontAttributes="Bold" />
+                        <Picker x:Name="RadarFramesPicker"
+                                Title="Frames">
+                            <Picker.ItemsSource>
+                                <x:Array Type="{x:Type x:String}">
+                                    <x:String>5</x:String>
+                                    <x:String>10</x:String>
+                                    <x:String>15</x:String>
+                                </x:Array>
+                            </Picker.ItemsSource>
+                        </Picker>
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Animation speed" FontAttributes="Bold" />
+                        <Picker x:Name="RadarSpeedPicker"
+                                Title="Speed">
+                            <Picker.ItemsSource>
+                                <x:Array Type="{x:Type x:String}">
+                                    <x:String>Slow</x:String>
+                                    <x:String>Normal</x:String>
+                                    <x:String>Fast</x:String>
+                                </x:Array>
+                            </Picker.ItemsSource>
+                        </Picker>
+                    </VerticalStackLayout>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label Text="Default radar opacity"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                        <Slider x:Name="RadarOpacitySlider"
+                                Grid.Column="1"
+                                Minimum="0" Maximum="100" Value="70"
+                                WidthRequest="150" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- ═══ ALERT SETTINGS ═══ -->
+            <Label Text="ALERTS"
+                   FontSize="11"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}"
+                   Margin="0,8,0,0" />
+
+            <Border Padding="14"
+                    BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeShape="RoundRectangle 12">
+                <VerticalStackLayout Spacing="10">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Alert region" FontAttributes="Bold" />
+                        <Picker Title="Choose a region"
+                                ItemsSource="{Binding AlertRegions}"
+                                SelectedItem="{Binding SelectedAlertRegion}" />
+                    </VerticalStackLayout>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="High-risk only" FontAttributes="Bold" />
+                            <Label Text="Only show severe or extreme alerts."
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding HighRiskOnly}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="🔔 Notifications" FontAttributes="Bold" />
+                            <Label Text="Get notified about new alerts."
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                x:Name="NotifSwitch"
+                                Toggled="OnNotificationsToggled" />
+                    </Grid>
+
+                    <VerticalStackLayout Spacing="4" x:Name="PollIntervalSection" IsVisible="False">
+                        <Label Text="Poll interval" FontAttributes="Bold" />
+                        <Picker x:Name="PollIntervalPicker"
+                                Title="Interval">
+                            <Picker.ItemsSource>
+                                <x:Array Type="{x:Type x:String}">
+                                    <x:String>15 min</x:String>
+                                    <x:String>30 min</x:String>
+                                    <x:String>60 min</x:String>
+                                </x:Array>
+                            </Picker.ItemsSource>
+                        </Picker>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- ═══ CUSTOM THRESHOLDS ═══ -->
+            <Label Text="CUSTOM THRESHOLDS"
+                   FontSize="11"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}"
+                   Margin="0,8,0,0" />
+
+            <Border Padding="14"
+                    BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeShape="RoundRectangle 12">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Receive alerts when conditions exceed your thresholds."
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label Text="🌡️ Temperature threshold" FontAttributes="Bold" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" x:Name="TempThresholdSwitch" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="8"
+                          x:Name="TempThresholdRange" IsVisible="False">
+                        <Entry x:Name="TempMinEntry" Placeholder="Min °C" Keyboard="Numeric" />
+                        <Label Grid.Column="1" Text="to" VerticalOptions="Center" />
+                        <Entry Grid.Column="2" x:Name="TempMaxEntry" Placeholder="Max °C" Keyboard="Numeric" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label Text="💨 Wind speed threshold" FontAttributes="Bold" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" x:Name="WindThresholdSwitch" />
+                    </Grid>
+                    <Entry x:Name="WindMaxEntry" Placeholder="Max wind speed (km/h)" Keyboard="Numeric"
+                           IsVisible="False" />
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <Label Text="🌧️ Precipitation threshold" FontAttributes="Bold" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" x:Name="PrecipThresholdSwitch" />
+                    </Grid>
+                    <Entry x:Name="PrecipMaxEntry" Placeholder="Max precipitation (mm)" Keyboard="Numeric"
+                           IsVisible="False" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- ═══ SAVE BUTTON ═══ -->
+            <Button Text="💾 Save All Settings"
                     Clicked="OnSaveAndRefreshClicked"
-                    IsEnabled="{Binding IsNotBusy}" />
+                    IsEnabled="{Binding IsNotBusy}"
+                    Margin="0,8,0,0" />
 
-            <Label Text="{Binding LastUpdatedText}"
-                   FontSize="12"
-                   TextColor="#64748B" />
+            <!-- ═══ ABOUT ═══ -->
+            <Label Text="ABOUT"
+                   FontSize="11"
+                   FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}"
+                   Margin="0,8,0,0" />
+
+            <Border Padding="14"
+                    BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                    Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
+                    StrokeShape="RoundRectangle 12">
+                <VerticalStackLayout Spacing="8">
+                    <Label x:Name="VersionLabel"
+                           Text="WSG Mobile v1.1.0"
+                           FontAttributes="Bold" />
+                    <Button Text="Check for Updates"
+                            Clicked="OnCheckUpdates" />
+                    <Label Text="{Binding LastUpdatedText}"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                    <Label Text="Data: Open-Meteo • ECCC • NWS • Alert Ready"
+                           FontSize="11"
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                    <Label Text="Map: © OpenStreetMap contributors"
+                           FontSize="11"
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <BoxView HeightRequest="20" Color="Transparent" />
         </VerticalStackLayout>
     </ScrollView>
 

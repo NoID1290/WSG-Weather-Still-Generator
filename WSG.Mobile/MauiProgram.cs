@@ -19,12 +19,29 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
 
+		// Core services
 		builder.Services.AddSingleton<WeatherAggregatorService>();
+		builder.Services.AddSingleton<SettingsService>();
+		builder.Services.AddSingleton<LocationStorageService>();
+		builder.Services.AddSingleton<GpsLocationService>();
+		builder.Services.AddSingleton<ThemeService>();
+		builder.Services.AddSingleton<WeatherIconService>();
+		builder.Services.AddSingleton<RadarService>();
+		builder.Services.AddSingleton<VersionService>();
+		builder.Services.AddSingleton<AlertPollingService>();
+		builder.Services.AddSingleton<ThresholdMonitorService>();
+
+		// ViewModel
 		builder.Services.AddSingleton<WeatherAppState>();
+
+		// Pages
 		builder.Services.AddSingleton<MainPage>();
 		builder.Services.AddSingleton<ForecastPage>();
 		builder.Services.AddSingleton<AlertsPage>();
+		builder.Services.AddSingleton<RadarPage>();
 		builder.Services.AddSingleton<SettingsPage>();
+
+		// Shell
 		builder.Services.AddSingleton<AppShell>();
 
 #if DEBUG

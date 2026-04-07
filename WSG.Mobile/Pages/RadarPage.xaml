@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="WSG.Mobile.Pages.RadarPage"
+             Title="Radar"
+             Shell.NavBarIsVisible="False">
+
+    <Grid>
+        <!-- Full-screen WebView for the map -->
+        <WebView x:Name="RadarWebView"
+                 HorizontalOptions="Fill"
+                 VerticalOptions="Fill" />
+
+        <!-- Floating controls overlay -->
+        <VerticalStackLayout VerticalOptions="Start"
+                             HorizontalOptions="Fill"
+                             Padding="12,48,12,0"
+                             Spacing="8">
+            <!-- Top bar -->
+            <Border Padding="10,8"
+                    BackgroundColor="{AppThemeBinding Light=#E0FFFFFFCC, Dark=#E01E293BCC}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="Transparent">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                    <Label Text="Weather Radar"
+                           FontAttributes="Bold"
+                           FontSize="16"
+                           VerticalOptions="Center" />
+                    <Button Grid.Column="1"
+                            x:Name="BtnCenterLocation"
+                            Text="📍"
+                            FontSize="18"
+                            Padding="6"
+                            WidthRequest="44"
+                            HeightRequest="40"
+                            Clicked="OnCenterClicked" />
+                    <Button Grid.Column="2"
+                            x:Name="BtnToggleRadar"
+                            Text="🛰️"
+                            FontSize="18"
+                            Padding="6"
+                            WidthRequest="44"
+                            HeightRequest="40"
+                            Clicked="OnToggleRadarClicked" />
+                    <Button Grid.Column="3"
+                            x:Name="BtnPlayPause"
+                            Text="▶️"
+                            FontSize="18"
+                            Padding="6"
+                            WidthRequest="44"
+                            HeightRequest="40"
+                            Clicked="OnPlayPauseClicked" />
+                </Grid>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- Opacity slider at bottom -->
+        <Border VerticalOptions="End"
+                HorizontalOptions="Fill"
+                Margin="12,0,12,60"
+                Padding="12,8"
+                BackgroundColor="{AppThemeBinding Light=#E0FFFFFFCC, Dark=#E01E293BCC}"
+                StrokeShape="RoundRectangle 10"
+                Stroke="Transparent"
+                IsVisible="{Binding Source={x:Reference SliderPanel}, Path=IsVisible}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <Label Text="Opacity"
+                       FontSize="12"
+                       VerticalOptions="Center" />
+                <Slider Grid.Column="1"
+                        x:Name="OpacitySlider"
+                        Minimum="0"
+                        Maximum="1"
+                        Value="0.7"
+                        ValueChanged="OnOpacityChanged" />
+                <Label Grid.Column="2"
+                       x:Name="OpacityLabel"
+                       Text="70%"
+                       FontSize="12"
+                       VerticalOptions="Center"
+                       WidthRequest="36" />
+            </Grid>
+        </Border>
+
+        <!-- Hidden reference for slider panel visibility -->
+        <BoxView x:Name="SliderPanel" IsVisible="True" WidthRequest="0" HeightRequest="0" />
+    </Grid>
+
+</ContentPage>

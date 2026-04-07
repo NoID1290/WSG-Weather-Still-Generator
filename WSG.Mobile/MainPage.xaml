@@ -12,20 +12,37 @@
                        FontSize="28" />
                 <Label Text="Forecast, temperature, and weather alerts in one Android app."
                        FontSize="13"
-                       TextColor="#64748B" />
+                       TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
             </VerticalStackLayout>
 
+            <Border Padding="12"
+                    BackgroundColor="{AppThemeBinding Light=#EEF6FF, Dark=#1E3A5F}"
+                    Stroke="{AppThemeBinding Light=#BFDBFE, Dark=#334155}"
+                    StrokeShape="RoundRectangle 12"
+                    Margin="0,0,0,0">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Location"
+                           FontSize="11"
+                           FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                    <Picker x:Name="LocationPicker"
+                            Title="Select location"
+                            SelectedIndexChanged="OnLocationChanged"
+                            FontSize="16" />
+                </VerticalStackLayout>
+            </Border>
+
             <Border Padding="16"
-                    BackgroundColor="#EEF6FF"
-                    Stroke="#BFDBFE"
+                    BackgroundColor="{AppThemeBinding Light=#EEF6FF, Dark=#1E3A5F}"
+                    Stroke="{AppThemeBinding Light=#BFDBFE, Dark=#334155}"
                     StrokeShape="RoundRectangle 16">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="{Binding LocationQuery}"
+                    <Label Text="{Binding LocationDisplay}"
                            FontAttributes="Bold"
                            FontSize="20" />
                     <Label Text="{Binding LastUpdatedText}"
                            FontSize="12"
-                           TextColor="#64748B" />
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                     <ActivityIndicator IsRunning="{Binding IsBusy}"
                                        IsVisible="{Binding IsBusy}" />
                     <Button Text="Refresh Now"
@@ -33,22 +50,30 @@
                             IsEnabled="{Binding IsNotBusy}" />
                     <Label Text="{Binding StatusMessage}"
                            FontSize="12"
-                           TextColor="#334155" />
+                           TextColor="{AppThemeBinding Light=#334155, Dark=#CBD5E1}" />
                 </VerticalStackLayout>
             </Border>
 
             <Border Padding="18"
-                    BackgroundColor="#0F172A"
-                    StrokeShape="RoundRectangle 16">
-                <VerticalStackLayout Spacing="6">
+                    BackgroundColor="{AppThemeBinding Light=#0F172A, Dark=#0B1120}"
+                    StrokeShape="RoundRectangle 16"
+                    Stroke="Transparent">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                     <Label Text="{Binding CurrentTemperatureDisplay}"
                            FontAttributes="Bold"
                            FontSize="42"
                            TextColor="White" />
-                    <Label Text="{Binding ConditionSummary}"
+                    <Label Grid.Row="1"
+                           Text="{Binding ConditionSummary}"
                            FontSize="18"
-                           TextColor="White" />
-                </VerticalStackLayout>
+                           TextColor="#CBD5E1" />
+                    <Label Grid.Column="1"
+                           Grid.RowSpan="2"
+                           Text="{Binding WeatherIcon}"
+                           FontSize="48"
+                           VerticalOptions="Center"
+                           HorizontalOptions="End" />
+                </Grid>
             </Border>
 
             <Grid ColumnDefinitions="*,*"
@@ -58,13 +83,13 @@
                 <Border Grid.Row="0"
                         Grid.Column="0"
                         Padding="14"
-                        BackgroundColor="#F8FAFC"
-                        Stroke="#E2E8F0"
+                        BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                        Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
                         StrokeShape="RoundRectangle 12">
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="Feels like"
+                        <Label Text="🌡️ Feels like"
                                FontSize="12"
-                               TextColor="#64748B" />
+                               TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                         <Label Text="{Binding FeelsLikeDisplay}"
                                FontAttributes="Bold"
                                FontSize="18" />
@@ -74,13 +99,13 @@
                 <Border Grid.Row="0"
                         Grid.Column="1"
                         Padding="14"
-                        BackgroundColor="#F8FAFC"
-                        Stroke="#E2E8F0"
+                        BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                        Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
                         StrokeShape="RoundRectangle 12">
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="Humidity"
+                        <Label Text="💧 Humidity"
                                FontSize="12"
-                               TextColor="#64748B" />
+                               TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                         <Label Text="{Binding HumidityDisplay}"
                                FontAttributes="Bold"
                                FontSize="18" />
@@ -90,13 +115,13 @@
                 <Border Grid.Row="1"
                         Grid.Column="0"
                         Padding="14"
-                        BackgroundColor="#F8FAFC"
-                        Stroke="#E2E8F0"
+                        BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                        Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
                         StrokeShape="RoundRectangle 12">
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="Wind"
+                        <Label Text="💨 Wind"
                                FontSize="12"
-                               TextColor="#64748B" />
+                               TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                         <Label Text="{Binding WindDisplay}"
                                FontAttributes="Bold"
                                FontSize="18" />
@@ -106,13 +131,13 @@
                 <Border Grid.Row="1"
                         Grid.Column="1"
                         Padding="14"
-                        BackgroundColor="#F8FAFC"
-                        Stroke="#E2E8F0"
+                        BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                        Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
                         StrokeShape="RoundRectangle 12">
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="Precipitation"
+                        <Label Text="🌧️ Precipitation"
                                FontSize="12"
-                               TextColor="#64748B" />
+                               TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                         <Label Text="{Binding PrecipitationDisplay}"
                                FontAttributes="Bold"
                                FontSize="18" />

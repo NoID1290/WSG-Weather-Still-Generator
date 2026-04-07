@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>WSG Radar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #map { width: 100%; height: 100%; overflow: hidden; }
+  #timeline {
+    position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 1000;
+    background: rgba(0,0,0,0.75); border-radius: 10px; padding: 8px 12px;
+    color: #fff; font-family: -apple-system, sans-serif; font-size: 13px;
+    display: none;
+  }
+  #timeline .time-label { text-align: center; margin-bottom: 4px; font-weight: 600; }
+  #timeline .progress-bar { width: 100%; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; }
+  #timeline .progress-fill { height: 100%; background: #60A5FA; border-radius: 2px; transition: width 0.3s; }
+  .radar-legend {
+    position: absolute; top: 10px; right: 10px; z-index: 1000;
+    background: rgba(0,0,0,0.75); border-radius: 8px; padding: 6px 10px;
+    color: #fff; font-size: 11px; font-family: -apple-system, sans-serif;
+  }
+  .radar-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="timeline">
+  <div class="time-label" id="timeLabel">--:--</div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+<div class="radar-legend">
+  <span class="dot" style="background:#00ff00"></span>Light
+  <span class="dot" style="background:#ffff00;margin-left:6px"></span>Mod
+  <span class="dot" style="background:#ff8800;margin-left:6px"></span>Heavy
+  <span class="dot" style="background:#ff0000;margin-left:6px"></span>Extreme
+</div>
+
+<script>
+var map = L.map('map', {
+  zoomControl: false,
+  attributionControl: true
+}).setView([45.5, -73.5], 7);
+
+// Base map layer
+var baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 18
+}).addTo(map);
+
+// ECCC WMS radar layer
+var radarLayer = null;
+var radarLayers = [];
+var animationTimer = null;
+var currentFrame = 0;
+var isPlaying = false;
+var radarOpacity = 0.7;
+var timestamps = [];
+
+function createRadarLayer(timeStr) {
+  var params = {
+    layers: 'RADAR_1KM_RRAI',
+    format: 'image/png',
+    transparent: true,
+    version: '1.3.0',
+    crs: L.CRS.EPSG3857,
+    opacity: radarOpacity
+  };
+  if (timeStr) {
+    params.time = timeStr;
+  }
+  return L.tileLayer.wms('https://geo.weather.gc.ca/geomet', params);
+}
+
+// Show the latest radar by default
+radarLayer = createRadarLayer(null);
+radarLayer.addTo(map);
+
+// ===== C# interop API =====
+
+function setCenter(lat, lon, zoom) {
+  map.setView([lat, lon], zoom || 7);
+}
+
+function setRadarVisible(visible) {
+  if (visible && !map.hasLayer(radarLayer)) {
+    radarLayer.addTo(map);
+  } else if (!visible && map.hasLayer(radarLayer)) {
+    map.removeLayer(radarLayer);
+  }
+}
+
+function setRadarOpacity(opacity) {
+  radarOpacity = opacity;
+  if (radarLayer) radarLayer.setOpacity(opacity);
+  radarLayers.forEach(function(l) { if (l) l.setOpacity(opacity); });
+}
+
+function loadFrames(timestampJson) {
+  // timestampJson is a JSON array of ISO 8601 strings
+  try {
+    timestamps = JSON.parse(timestampJson);
+  } catch(e) {
+    timestamps = [];
+    return;
+  }
+
+  // Remove existing animation layers
+  stopAnimation();
+  radarLayers.forEach(function(l) { if (l && map.hasLayer(l)) map.removeLayer(l); });
+  radarLayers = [];
+
+  // Hide the static radar layer
+  if (radarLayer && map.hasLayer(radarLayer)) {
+    map.removeLayer(radarLayer);
+  }
+
+  // Pre-create all frame layers
+  for (var i = 0; i < timestamps.length; i++) {
+    radarLayers.push(createRadarLayer(timestamps[i]));
+  }
+
+  // Show first frame
+  if (radarLayers.length > 0) {
+    currentFrame = 0;
+    radarLayers[0].addTo(map);
+    updateTimeline();
+    document.getElementById('timeline').style.display = 'block';
+  }
+}
+
+function animateRadar(speed) {
+  if (radarLayers.length === 0) return;
+  isPlaying = true;
+  var interval = speed || 500;
+
+  animationTimer = setInterval(function() {
+    // Remove current frame
+    if (radarLayers[currentFrame] && map.hasLayer(radarLayers[currentFrame])) {
+      map.removeLayer(radarLayers[currentFrame]);
+    }
+    // Advance
+    currentFrame = (currentFrame + 1) % radarLayers.length;
+    // Show next frame
+    radarLayers[currentFrame].addTo(map);
+    updateTimeline();
+  }, interval);
+}
+
+function stopAnimation() {
+  isPlaying = false;
+  if (animationTimer) {
+    clearInterval(animationTimer);
+    animationTimer = null;
+  }
+}
+
+function toggleAnimation(speed) {
+  if (isPlaying) {
+    stopAnimation();
+  } else {
+    animateRadar(speed || 500);
+  }
+  return isPlaying;
+}
+
+function goToFrame(index) {
+  if (index < 0 || index >= radarLayers.length) return;
+  // Remove current
+  if (radarLayers[currentFrame] && map.hasLayer(radarLayers[currentFrame])) {
+    map.removeLayer(radarLayers[currentFrame]);
+  }
+  currentFrame = index;
+  radarLayers[currentFrame].addTo(map);
+  updateTimeline();
+}
+
+function resetToLive() {
+  stopAnimation();
+  radarLayers.forEach(function(l) { if (l && map.hasLayer(l)) map.removeLayer(l); });
+  radarLayers = [];
+  timestamps = [];
+  document.getElementById('timeline').style.display = 'none';
+  // Re-add live radar
+  if (!map.hasLayer(radarLayer)) {
+    radarLayer.addTo(map);
+  }
+}
+
+function getState() {
+  return JSON.stringify({
+    isPlaying: isPlaying,
+    currentFrame: currentFrame,
+    totalFrames: radarLayers.length,
+    timestamp: timestamps[currentFrame] || null
+  });
+}
+
+function updateTimeline() {
+  var label = document.getElementById('timeLabel');
+  var fill = document.getElementById('progressFill');
+  if (timestamps[currentFrame]) {
+    var d = new Date(timestamps[currentFrame]);
+    label.textContent = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) +
+      ' (' + (currentFrame+1) + '/' + radarLayers.length + ')';
+  }
+  var pct = radarLayers.length > 1 ? (currentFrame / (radarLayers.length - 1)) * 100 : 100;
+  fill.style.width = pct + '%';
+}
+
+// Dark mode support
+function setDarkMode(dark) {
+  if (dark) {
+    baseLayer.setUrl('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+  } else {
+    baseLayer.setUrl('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+  }
+}
+</script>
+</body>
+</html>

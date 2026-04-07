@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="WSG.Mobile.Pages.AlertsPage"
@@ -7,12 +7,12 @@
     <Grid Padding="16" RowDefinitions="Auto,Auto,*" RowSpacing="12">
         <HorizontalStackLayout Spacing="12">
             <VerticalStackLayout HorizontalOptions="StartAndExpand" Spacing="2">
-                <Label Text="Weather Alerts"
+                <Label Text="⚠️ Weather Alerts"
                        FontAttributes="Bold"
                        FontSize="22" />
                 <Label Text="{Binding AlertSummary}"
                        FontSize="14"
-                       TextColor="#475569" />
+                       TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
             </VerticalStackLayout>
 
             <Button Text="Refresh"
@@ -23,7 +23,7 @@
         <Label Grid.Row="1"
                Text="{Binding StatusMessage}"
                FontSize="12"
-               TextColor="#64748B" />
+               TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
 
         <CollectionView Grid.Row="2"
                         ItemsSource="{Binding Alerts}"
@@ -34,7 +34,7 @@
                            FontAttributes="Bold" />
                     <Label Text="WSG Mobile will show severe watches, warnings, and advisories here."
                            FontSize="13"
-                           TextColor="#64748B" />
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                 </VerticalStackLayout>
             </CollectionView.EmptyView>
 
@@ -42,7 +42,7 @@
                 <DataTemplate>
                     <Border Margin="0,0,0,10"
                             Padding="14"
-                            BackgroundColor="#FFF7ED"
+                            BackgroundColor="{AppThemeBinding Light=#FFF7ED, Dark=#292524}"
                             Stroke="{Binding AccentColor}"
                             StrokeThickness="1.5"
                             StrokeShape="RoundRectangle 12">
@@ -57,12 +57,12 @@
                                        TextColor="{Binding AccentColor}" />
                                 <Label Text="{Binding Provider}"
                                        FontSize="12"
-                                       TextColor="#64748B" />
+                                       TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                             </HorizontalStackLayout>
                             <Label Text="{Binding Region}"
                                    FontSize="13"
                                    FontAttributes="Italic"
-                                   TextColor="#334155" />
+                                   TextColor="{AppThemeBinding Light=#334155, Dark=#CBD5E1}" />
                             <Label Text="{Binding Summary}"
                                    FontSize="13"
                                    LineBreakMode="WordWrap" />

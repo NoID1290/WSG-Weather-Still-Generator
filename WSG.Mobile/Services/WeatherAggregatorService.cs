@@ -26,8 +26,36 @@ public sealed class WeatherAggregatorService
         bool highRiskOnly,
         CancellationToken cancellationToken = default)
     {
+        return await GetSnapshotAsync(location, null, null, alertRegion, highRiskOnly, cancellationToken);
+    }
+
+    public async Task<WeatherSnapshot> GetSnapshotAsync(
+        string location,
+        double? latitude,
+        double? longitude,
+        string alertRegion,
+        bool highRiskOnly,
+        CancellationToken cancellationToken = default)
+    {
         var normalizedLocation = string.IsNullOrWhiteSpace(location) ? "Montreal, QC" : location.Trim();
-        var forecast = await _weatherClient.QueryAsync(normalizedLocation);
+
+        WeatherForecast? forecast;
+        if (latitude.HasValue && longitude.HasValue && latitude.Value != 0 && longitude.Value != 0)
+        {
+            var options = new WeatherForecastOptions
+            {
+                Latitude = (float)latitude.Value,
+                Longitude = (float)longitude.Value,
+                Current = CurrentOptions.All,
+                Hourly = HourlyOptions.All,
+                Daily = DailyOptions.All
+            };
+            forecast = await _weatherClient.QueryAsync(options);
+        }
+        else
+        {
+            forecast = await _weatherClient.QueryAsync(normalizedLocation);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -41,6 +69,7 @@ public sealed class WeatherAggregatorService
         var current = forecast.Current;
         var currentUnits = forecast.CurrentUnits;
         var condition = _weatherClient.WeathercodeToString(current.Weathercode ?? 0);
+        var weatherCode = (int)(current.Weathercode ?? 0);
 
         return new WeatherSnapshot
         {
@@ -54,6 +83,7 @@ public sealed class WeatherAggregatorService
             ForecastDays = forecastDays,
             Alerts = alerts,
             RefreshedAt = DateTimeOffset.Now,
+            WeatherCode = weatherCode,
             StatusMessage = alerts.Count == 0
                 ? $"Updated {forecastDays.Count}-day forecast. No active alerts right now."
                 : $"Updated {forecastDays.Count}-day forecast with {alerts.Count} active alert(s)."
@@ -143,12 +173,15 @@ public sealed class WeatherAggregatorService
             var precipitation = daily.Precipitation_sum?.ElementAtOrDefault(index);
             var windSpeed = daily.Windspeed_10m_max?.ElementAtOrDefault(index);
 
+            var iconService = new WeatherIconService();
             items.Add(new ForecastDayItem
             {
                 DayLabel = index == 0 ? "Today" : day.ToString("ddd, MMM d"),
                 Summary = _weatherClient.WeathercodeToString(weatherCode),
                 TemperatureRange = $"{FormatValue(daily.Temperature_2m_max?.ElementAtOrDefault(index), tempUnit)} / {FormatValue(daily.Temperature_2m_min?.ElementAtOrDefault(index), tempUnit)}",
-                Extras = $"Precip: {FormatValue(precipitation, "mm")} • Wind: {FormatValue(windSpeed, windUnit)}"
+                Extras = $"Precip: {FormatValue(precipitation, "mm")} • Wind: {FormatValue(windSpeed, windUnit)}",
+                WeatherCode = weatherCode,
+                WeatherIcon = iconService.GetWeatherIcon(weatherCode)
             });
         }
 
@@ -217,6 +250,7 @@ public sealed class WeatherSnapshot
     public string WindDisplay { get; init; } = "—";
     public string PrecipitationDisplay { get; init; } = "—";
     public DateTimeOffset RefreshedAt { get; init; } = DateTimeOffset.Now;
+    public int WeatherCode { get; init; }
     public List<ForecastDayItem> ForecastDays { get; init; } = new();
     public List<WeatherAlertItem> Alerts { get; init; } = new();
     public string StatusMessage { get; init; } = "Ready";
@@ -236,6 +270,8 @@ public sealed class ForecastDayItem
     public string Summary { get; init; } = string.Empty;
     public string TemperatureRange { get; init; } = string.Empty;
     public string Extras { get; init; } = string.Empty;
+    public int WeatherCode { get; init; }
+    public string WeatherIcon { get; init; } = "🌡️";
 }
 
 public sealed class WeatherAlertItem

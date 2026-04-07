@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="WSG.Mobile.Pages.ForecastPage"
@@ -10,9 +10,9 @@
                 <Label Text="7-Day Forecast"
                        FontAttributes="Bold"
                        FontSize="22" />
-                <Label Text="{Binding LocationQuery}"
+                <Label Text="{Binding LocationDisplay}"
                        FontSize="14"
-                       TextColor="#475569" />
+                       TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
             </VerticalStackLayout>
 
             <Button Text="Refresh"
@@ -29,7 +29,7 @@
                            FontAttributes="Bold" />
                     <Label Text="Use Refresh to load the latest forecast for your saved location."
                            FontSize="13"
-                           TextColor="#64748B" />
+                           TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
                 </VerticalStackLayout>
             </CollectionView.EmptyView>
 
@@ -37,23 +37,27 @@
                 <DataTemplate>
                     <Border Margin="0,0,0,10"
                             Padding="14"
-                            BackgroundColor="#F8FAFC"
-                            Stroke="#E2E8F0"
+                            BackgroundColor="{AppThemeBinding Light=#F8FAFC, Dark=#1E293B}"
+                            Stroke="{AppThemeBinding Light=#E2E8F0, Dark=#334155}"
                             StrokeShape="RoundRectangle 12">
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="{Binding DayLabel}"
-                                   FontAttributes="Bold"
-                                   FontSize="16" />
-                            <Label Text="{Binding Summary}"
-                                   FontSize="14" />
-                            <Label Text="{Binding TemperatureRange}"
-                                   FontSize="14"
-                                   FontAttributes="Bold"
-                                   TextColor="#0F172A" />
-                            <Label Text="{Binding Extras}"
-                                   FontSize="12"
-                                   TextColor="#64748B" />
-                        </VerticalStackLayout>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                            <Label Text="{Binding WeatherIcon}"
+                                   FontSize="28"
+                                   VerticalOptions="Center" />
+                            <VerticalStackLayout Grid.Column="1" Spacing="4">
+                                <Label Text="{Binding DayLabel}"
+                                       FontAttributes="Bold"
+                                       FontSize="16" />
+                                <Label Text="{Binding Summary}"
+                                       FontSize="14" />
+                                <Label Text="{Binding TemperatureRange}"
+                                       FontSize="14"
+                                       FontAttributes="Bold" />
+                                <Label Text="{Binding Extras}"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#64748B, Dark=#94A3B8}" />
+                            </VerticalStackLayout>
+                        </Grid>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
