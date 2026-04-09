@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using WSG.Mobile.Controls;
 using WSG.Mobile.Pages;
+using WSG.Mobile.Platforms.Android;
 using WSG.Mobile.Services;
 using WSG.Mobile.ViewModels;
 
@@ -17,6 +19,10 @@ public static class MauiProgram
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+			})
+			.ConfigureMauiHandlers(handlers =>
+			{
+				handlers.AddHandler<RadarGLView, RadarGLViewHandler>();
 			});
 
 		// Core services
@@ -30,6 +36,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<VersionService>();
 		builder.Services.AddSingleton<AlertPollingService>();
 		builder.Services.AddSingleton<ThresholdMonitorService>();
+		builder.Services.AddSingleton<TileCacheService>();
 
 		// ViewModel
 		builder.Services.AddSingleton<WeatherAppState>();

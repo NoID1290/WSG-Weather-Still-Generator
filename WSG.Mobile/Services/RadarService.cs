@@ -33,12 +33,22 @@ public sealed class RadarService
     }
 
     /// <summary>
-    /// Builds a WMS tile URL for Leaflet's L.TileLayer.WMS.
-    /// The tile layer handles BBOX automatically, so we return the base params.
+    /// Builds a WMS GetMap URL for a specific bbox, time, and image size.
+    /// Used by the OpenGL renderer to fetch geo-registered radar PNG images.
     /// </summary>
-    public static string GetWmsTileUrl()
+    public static string BuildWmsImageUrl(
+        (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
+        string isoTime,
+        int width = 512,
+        int height = 512)
     {
-        return $"{BaseGeoMetUrl}";
+        // ECCC GeoMet uses EPSG:4326 with lat-lon axis order: BBOX=minLat,minLon,maxLat,maxLon
+        return $"{BaseGeoMetUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap" +
+               $"&LAYERS={RadarLayer}&STYLES={RadarStyle}" +
+               $"&CRS=EPSG:4326" +
+               $"&BBOX={bbox.MinLat:F6},{bbox.MinLon:F6},{bbox.MaxLat:F6},{bbox.MaxLon:F6}" +
+               $"&WIDTH={width}&HEIGHT={height}" +
+               $"&FORMAT=image/png&TRANSPARENT=true&time={isoTime}";
     }
 
     public static string GetWmsLayer() => RadarLayer;

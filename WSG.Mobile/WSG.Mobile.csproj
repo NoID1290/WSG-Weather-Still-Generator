@@ -35,6 +35,7 @@
 		<ProjectReference Include="..\OpenMeteo\OpenMeteo.csproj" />
 		<ProjectReference Include="..\EAS\EAS.csproj" />
 		<ProjectReference Include="..\WeatherShared\WeatherShared.csproj" />
+		<ProjectReference Include="..\BZTG\BZTG.csproj" />
 	</ItemGroup>
 
 </Project>

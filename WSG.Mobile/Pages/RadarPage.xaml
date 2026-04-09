@@ -1,89 +1,212 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:WSG.Mobile.Controls"
              x:Class="WSG.Mobile.Pages.RadarPage"
              Title="Radar"
              Shell.NavBarIsVisible="False">
 
-    <Grid>
-        <!-- Full-screen WebView for the map -->
-        <WebView x:Name="RadarWebView"
-                 HorizontalOptions="Fill"
-                 VerticalOptions="Fill" />
+    <Grid x:Name="RootGrid">
 
-        <!-- Floating controls overlay -->
-        <VerticalStackLayout VerticalOptions="Start"
-                             HorizontalOptions="Fill"
-                             Padding="12,48,12,0"
-                             Spacing="8">
-            <!-- Top bar -->
-            <Border Padding="10,8"
-                    BackgroundColor="{AppThemeBinding Light=#E0FFFFFFCC, Dark=#E01E293BCC}"
-                    StrokeShape="RoundRectangle 12"
-                    Stroke="Transparent">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
-                    <Label Text="Weather Radar"
-                           FontAttributes="Bold"
-                           FontSize="16"
-                           VerticalOptions="Center" />
-                    <Button Grid.Column="1"
-                            x:Name="BtnCenterLocation"
-                            Text="📍"
-                            FontSize="18"
-                            Padding="6"
-                            WidthRequest="44"
-                            HeightRequest="40"
-                            Clicked="OnCenterClicked" />
-                    <Button Grid.Column="2"
-                            x:Name="BtnToggleRadar"
-                            Text="🛰️"
-                            FontSize="18"
-                            Padding="6"
-                            WidthRequest="44"
-                            HeightRequest="40"
-                            Clicked="OnToggleRadarClicked" />
-                    <Button Grid.Column="3"
-                            x:Name="BtnPlayPause"
-                            Text="▶️"
-                            FontSize="18"
-                            Padding="6"
-                            WidthRequest="44"
-                            HeightRequest="40"
-                            Clicked="OnPlayPauseClicked" />
-                </Grid>
-            </Border>
-        </VerticalStackLayout>
+        <!-- ── Full-screen OpenGL ES radar map ───────────────────────────── -->
+        <controls:RadarGLView x:Name="RadarView"
+                              HorizontalOptions="Fill"
+                              VerticalOptions="Fill"
+                              RadarOpacity="0.7" />
 
-        <!-- Opacity slider at bottom -->
-        <Border VerticalOptions="End"
+        <!-- ── Top floating toolbar ──────────────────────────────────────── -->
+        <Border VerticalOptions="Start"
                 HorizontalOptions="Fill"
-                Margin="12,0,12,60"
-                Padding="12,8"
-                BackgroundColor="{AppThemeBinding Light=#E0FFFFFFCC, Dark=#E01E293BCC}"
-                StrokeShape="RoundRectangle 10"
-                Stroke="Transparent"
-                IsVisible="{Binding Source={x:Reference SliderPanel}, Path=IsVisible}">
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                <Label Text="Opacity"
-                       FontSize="12"
-                       VerticalOptions="Center" />
-                <Slider Grid.Column="1"
-                        x:Name="OpacitySlider"
-                        Minimum="0"
-                        Maximum="1"
-                        Value="0.7"
-                        ValueChanged="OnOpacityChanged" />
-                <Label Grid.Column="2"
-                       x:Name="OpacityLabel"
-                       Text="70%"
-                       FontSize="12"
+                Margin="10,44,10,0"
+                Padding="10,8"
+                BackgroundColor="{AppThemeBinding Light=#DDFFFFFF, Dark=#DD1E293B}"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#22000000, Dark=#33FFFFFF}">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="4">
+
+                <!-- Title -->
+                <Label Text="Weather Radar"
+                       FontAttributes="Bold"
+                       FontSize="15"
+                       TextColor="{AppThemeBinding Light=#1E293B, Dark=#F1F5F9}"
                        VerticalOptions="Center"
-                       WidthRequest="36" />
+                       Margin="4,0" />
+
+                <!-- Re-center -->
+                <Button Grid.Column="1"
+                        x:Name="BtnCenterLocation"
+                        Text="📍"
+                        FontSize="17"
+                        BackgroundColor="Transparent"
+                        Padding="4"
+                        WidthRequest="42" HeightRequest="38"
+                        Clicked="OnCenterClicked"
+                        ToolTipProperties.Text="Re-center" />
+
+                <!-- Toggle radar overlay -->
+                <Button Grid.Column="2"
+                        x:Name="BtnToggleRadar"
+                        Text="🛰️"
+                        FontSize="17"
+                        BackgroundColor="Transparent"
+                        Padding="4"
+                        WidthRequest="42" HeightRequest="38"
+                        Clicked="OnToggleRadarClicked"
+                        ToolTipProperties.Text="Toggle radar" />
+
+                <!-- Play / Pause animation -->
+                <Button Grid.Column="3"
+                        x:Name="BtnPlayPause"
+                        Text="▶️"
+                        FontSize="17"
+                        BackgroundColor="Transparent"
+                        Padding="4"
+                        WidthRequest="42" HeightRequest="38"
+                        Clicked="OnPlayPauseClicked"
+                        ToolTipProperties.Text="Play / Pause" />
+
+                <!-- Settings (opacity) -->
+                <Button Grid.Column="4"
+                        x:Name="BtnSettings"
+                        Text="⚙️"
+                        FontSize="17"
+                        BackgroundColor="Transparent"
+                        Padding="4"
+                        WidthRequest="42" HeightRequest="38"
+                        Clicked="OnSettingsClicked"
+                        ToolTipProperties.Text="Opacity &amp; speed" />
             </Grid>
         </Border>
 
-        <!-- Hidden reference for slider panel visibility -->
-        <BoxView x:Name="SliderPanel" IsVisible="True" WidthRequest="0" HeightRequest="0" />
+        <!-- ── Coordinates badge (shows briefly while panning) ───────────── -->
+        <Border x:Name="CoordBadge"
+                VerticalOptions="Start"
+                HorizontalOptions="Center"
+                Margin="0,106,0,0"
+                Padding="10,4"
+                BackgroundColor="#CC000000"
+                StrokeShape="RoundRectangle 10"
+                Stroke="Transparent"
+                Opacity="0">
+            <Label x:Name="CoordLabel"
+                   Text="0.0000°, 0.0000°"
+                   TextColor="White"
+                   FontSize="11"
+                   FontFamily="OpenSansRegular" />
+        </Border>
+
+        <!-- ── Frame timeline scrubber ────────────────────────────────────── -->
+        <Border x:Name="ScrubberPanel"
+                VerticalOptions="End"
+                HorizontalOptions="Fill"
+                Margin="8,0,8,34"
+                Padding="6,6"
+                BackgroundColor="{AppThemeBinding Light=#DDFFFFFF, Dark=#DD1E293B}"
+                StrokeShape="RoundRectangle 12"
+                Stroke="{AppThemeBinding Light=#22000000, Dark=#33FFFFFF}"
+                IsVisible="False">
+            <CollectionView x:Name="FrameScrubber"
+                            HeightRequest="40"
+                            SelectionMode="Single"
+                            SelectionChanged="OnFrameSelected">
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout Orientation="Horizontal" ItemSpacing="4" />
+                </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="6,4"
+                                StrokeShape="RoundRectangle 6"
+                                Stroke="Transparent">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup Name="CommonStates">
+                                    <VisualState Name="Normal">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor"
+                                                    Value="{AppThemeBinding Light=#18000000, Dark=#22FFFFFF}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState Name="Selected">
+                                        <VisualState.Setters>
+                                            <Setter Property="BackgroundColor" Value="#2563EB" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <Label Text="{Binding Label}"
+                                   FontSize="10"
+                                   TextColor="{AppThemeBinding Light=#1E293B, Dark=#F1F5F9}"
+                                   VerticalOptions="Center"
+                                   HorizontalOptions="Center" />
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Border>
+
+        <!-- ── Settings sheet (opacity + speed) ──────────────────────────── -->
+        <Border x:Name="SettingsPanel"
+                VerticalOptions="End"
+                HorizontalOptions="Fill"
+                Margin="8,0,8,90"
+                Padding="14,10"
+                BackgroundColor="{AppThemeBinding Light=#DDFFFFFF, Dark=#DD1E293B}"
+                StrokeShape="RoundRectangle 14"
+                Stroke="{AppThemeBinding Light=#22000000, Dark=#33FFFFFF}"
+                IsVisible="False">
+            <VerticalStackLayout Spacing="10">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <Label Text="Opacity"
+                           FontSize="13"
+                           TextColor="{AppThemeBinding Light=#475569, Dark=#94A3B8}"
+                           VerticalOptions="Center" />
+                    <Slider Grid.Column="1"
+                            x:Name="OpacitySlider"
+                            Minimum="0" Maximum="1" Value="0.7"
+                            ValueChanged="OnOpacityChanged" />
+                    <Label Grid.Column="2"
+                           x:Name="OpacityLabel"
+                           Text="70%"
+                           FontSize="13"
+                           WidthRequest="34"
+                           VerticalOptions="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <Label Text="Speed"
+                           FontSize="13"
+                           TextColor="{AppThemeBinding Light=#475569, Dark=#94A3B8}"
+                           VerticalOptions="Center" />
+                    <Slider Grid.Column="1"
+                            x:Name="SpeedSlider"
+                            Minimum="150" Maximum="1000" Value="500"
+                            ValueChanged="OnSpeedChanged" />
+                    <Label Grid.Column="2"
+                           x:Name="SpeedLabel"
+                           Text="500ms"
+                           FontSize="13"
+                           WidthRequest="46"
+                           VerticalOptions="Center" />
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- ── OSM attribution ────────────────────────────────────────────── -->
+        <Label Text="© OpenStreetMap contributors"
+               VerticalOptions="End"
+               HorizontalOptions="Start"
+               Margin="6,0,0,18"
+               FontSize="9"
+               Opacity="0.55"
+               TextColor="White" />
+
+        <!-- ── Loading indicator ──────────────────────────────────────────── -->
+        <ActivityIndicator x:Name="LoadingIndicator"
+                           IsRunning="False"
+                           IsVisible="False"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           Color="{AppThemeBinding Light=#2563EB, Dark=#60A5FA}"
+                           WidthRequest="40" HeightRequest="40" />
+
     </Grid>
 
 </ContentPage>
