@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.51.0408] - 2026-04-08
+
+- Add RadarFrameBuffer and TileCacheService for efficient texture management and tile caching
+- Update MauiSplashScreen BaseSize to 512x512 for improved resolution
+- Increases splash screen size for better resolution
+
 ## [1.20.50.0407] - 2026-04-07
 
 - Update application display version to 0.0.10 in project file
