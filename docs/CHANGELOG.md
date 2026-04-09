@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.20.52.0409] - 2026-04-09
 
-- # Android dev build - Added radar layer selector and map style switcher to the RadarPage. - Implemented lightning controls with options for enabling/disabling and selecting types. - Introduced a timeline scrubber with a smooth slider for frame navigation. - Enhanced settings persistence for radar opacity, animation speed, layer, and map style. - Updated the GLRadarRenderer to support new lightning settings and map style changes. - Improved TileCacheService to handle multiple map styles and clear memory cache on style change. - Refactored WMS URL generation in RadarService to accommodate dynamic layer and style parameters. - Redesigned splash screen SVG for better visual representation.
+- ## Android dev build
+- Added radar layer selector and map style switcher to the RadarPage.
+- Implemented lightning controls with options for enabling/disabling and selecting types.
+- Introduced a timeline scrubber with a smooth slider for frame navigation.
+- Enhanced settings persistence for radar opacity, animation speed, layer, and map style.
+- Updated the GLRadarRenderer to support new lightning settings and map style changes.
+- Improved TileCacheService to handle multiple map styles and clear memory cache on style change.
+- Refactored WMS URL generation in RadarService to accommodate dynamic layer and style parameters.
+- Redesigned splash screen SVG for better visual representation.
 
 ## [1.20.51.0408] - 2026-04-08
 
