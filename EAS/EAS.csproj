@@ -9,9 +9,9 @@
     <Company>NoID Softwork</Company>
     <Copyright>Copyright (c) NoID Softwork 2020-2026</Copyright>
     <Description>Library for handling Emergency Alert System (EAS) alerts and text-to-speech functionality.</Description>
-    <Version>1.18.51.0408</Version>
-    <AssemblyVersion>1.18.51.0408</AssemblyVersion>
-    <FileVersion>1.18.51.0408</FileVersion>
+    <Version>1.18.52.0409</Version>
+    <AssemblyVersion>1.18.52.0409</AssemblyVersion>
+    <FileVersion>1.18.52.0409</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
