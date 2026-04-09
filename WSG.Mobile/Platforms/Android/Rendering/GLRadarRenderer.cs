@@ -98,6 +98,13 @@ internal sealed class GLRadarRenderer : Java.Lang.Object, GLSurfaceView.IRendere
     private System.Threading.Timer? _lightningTimer;
     private float _elapsedSeconds;
 
+    // ── Lightning settings ─────────────────────────────────────────────────
+    private bool _lightningEnabled = false;
+    private bool _lightningCgEnabled = true;
+    private bool _lightningIcEnabled = true;
+    private int  _lightningWindowMinutes = 30;
+    private int  _lightningPollSeconds   = 60;
+
     // ── GLSurfaceView reference (for QueueEvent) ────────────────────────────
     private GLSurfaceView? _surface;
 
@@ -381,6 +388,7 @@ internal sealed class GLRadarRenderer : Java.Lang.Object, GLSurfaceView.IRendere
     private void DrawLightningMarkers()
     {
         if (_lightningShader == null) return;
+        if (!_lightningEnabled) return;
 
         List<LightningFlash> flashes;
         HashSet<string> newIds;
@@ -399,10 +407,15 @@ internal sealed class GLRadarRenderer : Java.Lang.Object, GLSurfaceView.IRendere
         float halfY = markerHalfPx / (_viewH / 2f);
 
         var now = DateTime.UtcNow;
+        double windowMin = Math.Max(5, _lightningWindowMinutes);
 
         foreach (var flash in flashes)
         {
-            double age = (now - flash.Time).TotalMinutes / 30.0; // 0 = new, 1 = 30 min old
+            // Respect CG/IC filter
+            if (!_lightningCgEnabled && flash.StrikeType == LightningStrikeType.CloudToGround) continue;
+            if (!_lightningIcEnabled && flash.StrikeType == LightningStrikeType.InCloud) continue;
+
+            double age = (now - flash.Time).TotalMinutes / windowMin; // 0 = new, 1 = outside window
             if (age > 1.0) continue;
 
             (float ndcX, float ndcY) = GeoToNdc(flash.Latitude, flash.Longitude);
@@ -548,11 +561,13 @@ internal sealed class GLRadarRenderer : Java.Lang.Object, GLSurfaceView.IRendere
 
     private async void PollLightningAsync()
     {
+        if (!_lightningEnabled) return; // skip if disabled to save battery/network
+
         try
         {
             var bbox = CurrentBbox();
-            var from = DateTime.UtcNow.AddMinutes(-30);
-            var to = DateTime.UtcNow;
+            var from = DateTime.UtcNow.AddMinutes(-Math.Max(5, _lightningWindowMinutes));
+            var to   = DateTime.UtcNow;
             var flashes = await BZTGApi.GetLightningStrikesAsync(_radarHttp, bbox, from, to, 2000)
                                        .ConfigureAwait(false);
 
@@ -568,11 +583,12 @@ internal sealed class GLRadarRenderer : Java.Lang.Object, GLSurfaceView.IRendere
                         _newFlashIds.Add(id);
                     }
                 }
-                // Evict IDs older than 35 min to avoid unbounded growth
+                // Evict IDs older than window+5 min to avoid unbounded growth
+                double evictMins = _lightningWindowMinutes + 5;
                 _seenFlashIds.RemoveWhere(id =>
                 {
                     if (id.Length > 0 && long.TryParse(id.Split('_')[0], out long ticks))
-                        return (DateTime.UtcNow - new DateTime(ticks)).TotalMinutes > 35;
+                        return (DateTime.UtcNow - new DateTime(ticks)).TotalMinutes > evictMins;
                     return false;
                 });
                 _lightningFlashes = flashes;
@@ -800,6 +816,78 @@ internal sealed class GLRadarRenderer : Java.Lang.Object, GLSurfaceView.IRendere
             _radMaxLat = maxLat; _radMaxLon = maxLon;
             _hasRadarBbox = true;
         });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Map style
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public void SetMapStyle(string style)
+    {
+        // Tile cache style change is thread-safe; no GL work required.
+        _tileCache.SetMapStyle(style);
+        // Flush existing tile textures so the new style is fetched on next draw.
+        QueueGl(() =>
+        {
+            foreach (var kv in _tileTextures)
+                GLES30.GlDeleteTextures(1, new[] { kv.Value }, 0);
+            _tileTextures.Clear();
+            _tileLruTick.Clear();
+            TriggerTilePrefetch();
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lightning controls
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public void SetLightningEnabled(bool enabled)
+    {
+        _lightningEnabled = enabled;
+        if (!enabled)
+        {
+            lock (_lightningLock) { _lightningFlashes = []; _newFlashIds.Clear(); }
+        }
+        else
+        {
+            // Kick off an immediate poll when the user enables lightning.
+            PollLightningAsync();
+        }
+    }
+
+    public void SetLightningCg(bool enabled)
+        => _lightningCgEnabled = enabled;
+
+    public void SetLightningIc(bool enabled)
+        => _lightningIcEnabled = enabled;
+
+    public void SetLightningWindowMinutes(int minutes)
+        => _lightningWindowMinutes = Math.Clamp(minutes, 5, 60);
+
+    public void SetLightningPollIntervalSeconds(int seconds)
+    {
+        _lightningPollSeconds = Math.Max(15, seconds);
+        // Restart the timer with the new interval.
+        _lightningTimer?.Dispose();
+        _lightningTimer = new System.Threading.Timer(
+            _ => PollLightningAsync(), null,
+            TimeSpan.Zero, TimeSpan.FromSeconds(_lightningPollSeconds));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Reload (force re-fetch all frames — used when layer changes)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public void ReloadRadarFrames(IReadOnlyList<RadarFrameSource> frames)
+    {
+        QueueGl(() =>
+        {
+            // Dispose existing frame buffer so textures are freed.
+            _frameBuffer = null;
+            _activeFrame = 0;
+            _hasRadarBbox = false;
+        });
+        LoadFrames(frames);
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Embedded shader sources — GLSL ES 300

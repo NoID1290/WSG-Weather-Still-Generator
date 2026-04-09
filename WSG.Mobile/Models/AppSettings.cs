@@ -14,6 +14,15 @@ public sealed class AppSettings
     public string RadarAnimationSpeed { get; set; } = "Normal";
     public int RadarOpacityPercent { get; set; } = 70;
     public bool RadarAutoCenter { get; set; } = true;
+    public string RadarLayer { get; set; } = "RADAR_1KM_RRAI"; // RADAR_1KM_RRAI | RADAR_1KM_RSNO | Radar_1km_SfcPrecipType | RADAR_COVERAGE_RRAI.INV
+    public string MapStyle { get; set; } = "Dark"; // Dark | Standard | Terrain | Satellite
+
+    // Lightning
+    public bool LightningEnabled { get; set; } = false;
+    public bool LightningCgEnabled { get; set; } = true;
+    public bool LightningIcEnabled { get; set; } = true;
+    public int LightningTimeWindowMinutes { get; set; } = 30; // 5 | 10 | 20 | 30 | 60
+    public int LightningPollIntervalSeconds { get; set; } = 60; // 15 | 30 | 60 | 120
 
     // Alerts
     public string AlertRegion { get; set; } = "Canada";

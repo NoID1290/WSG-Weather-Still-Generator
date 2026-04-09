@@ -7,23 +7,38 @@ namespace WSG.Mobile.Services;
 /// Three-tier OSM tile cache: in-memory LRU → file on CacheDir → HTTP download.
 /// Thread-safe; designed to be called from background tasks in the GL renderer.
 /// TTL matches the Windows BinaryTileCache: 7 days.
+/// Supports multiple map styles via <see cref="SetMapStyle"/>.
 /// </summary>
 public sealed class TileCacheService : IDisposable
 {
     private const int MaxMemoryTiles = 300;
     private const int MaxConcurrentDownloads = 6;
     private static readonly TimeSpan TileTtl = TimeSpan.FromDays(7);
-    private const string OsmUrlTemplate = "https://tile.openstreetmap.org/{0}/{1}/{2}.png";
     private const string UserAgent = "WSGMobile/1.0 (weather radar app; contact@noidsoftwork.com)";
+
+    // ── Map style URL templates ────────────────────────────────────────────
+    private static readonly Dictionary<string, string> StyleUrls = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Standard"] = "https://tile.openstreetmap.org/{0}/{1}/{2}.png",
+        ["Dark"]      = "https://{s}.basemaps.cartocdn.com/dark_all/{0}/{1}/{2}.png",
+        ["Terrain"]   = "https://tile.opentopomap.org/{0}/{1}/{2}.png",
+        ["Satellite"] = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{0}/{1}/{2}",
+    };
+    private string _currentStyle = "Dark";
+    private string _urlTemplate  = "https://{s}.basemaps.cartocdn.com/dark_all/{0}/{1}/{2}.png";
+    // CartoDB is a multi-host CDN — cycle through a/b/c/d for distribution
+    private int _cdnHostIndex;
+    private static readonly string[] CartoHosts = ["a", "b", "c", "d"];
 
     private readonly HttpClient _http;
     private readonly SemaphoreSlim _sem = new(MaxConcurrentDownloads, MaxConcurrentDownloads);
     private readonly string _cacheRoot;
 
     // LRU in-memory cache: key → (pngBytes, accessTicks)
-    private readonly ConcurrentDictionary<(int z, int x, int y), (byte[] Data, long Ticks)> _memCache = new();
+    // Key includes style so a style change does not serve stale tiles from a different provider.
+    private readonly ConcurrentDictionary<(int z, int x, int y, string style), (byte[] Data, long Ticks)> _memCache = new();
     // Pending downloads — deduplicate concurrent requests for the same tile
-    private readonly ConcurrentDictionary<(int z, int x, int y), Task<byte[]?>> _pending = new();
+    private readonly ConcurrentDictionary<(int z, int x, int y, string style), Task<byte[]?>> _pending = new();
 
     public TileCacheService()
     {
@@ -36,13 +51,41 @@ public sealed class TileCacheService : IDisposable
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // Map style
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Available style names for display in the UI ("Dark", "Standard", "Terrain", "Satellite").
+    /// </summary>
+    public static IReadOnlyList<string> AvailableStyles => [.. StyleUrls.Keys];
+
+    /// <summary>Currently active map style name.</summary>
+    public string CurrentStyle => _currentStyle;
+
+    /// <summary>
+    /// Switch the tile source.  In-memory cache is cleared immediately; disk cache entries
+    /// for the new style are served if present (each style writes to its own sub-folder).
+    /// </summary>
+    public void SetMapStyle(string style)
+    {
+        if (!StyleUrls.TryGetValue(style, out string? template)) return;
+        if (string.Equals(_currentStyle, style, StringComparison.OrdinalIgnoreCase)) return;
+
+        _currentStyle = style;
+        _urlTemplate  = template;
+        // Clear only memory cache; disk cache is keyed per style so it stays valid.
+        _memCache.Clear();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // Public API
     // ─────────────────────────────────────────────────────────────────────
 
     /// <summary>Returns PNG bytes for the tile, fetching from cache or network as needed.</summary>
     public Task<byte[]?> GetTileAsync(int z, int x, int y)
     {
-        var key = (z, x, y);
+        var style = _currentStyle;
+        var key   = (z, x, y, style);
 
         // 1. Hot path — memory cache
         if (_memCache.TryGetValue(key, out var cached))
@@ -52,7 +95,7 @@ public sealed class TileCacheService : IDisposable
         }
 
         // 2. Deduplicate in-flight downloads
-        return _pending.GetOrAdd(key, _ => FetchAsync(z, x, y))
+        return _pending.GetOrAdd(key, _ => FetchAsync(z, x, y, style))
                        .ContinueWith(t => { _pending.TryRemove(key, out _); return t.Result; },
                                      TaskScheduler.Default);
     }
@@ -61,10 +104,10 @@ public sealed class TileCacheService : IDisposable
     // Internal fetch (disk → network)
     // ─────────────────────────────────────────────────────────────────────
 
-    private async Task<byte[]?> FetchAsync(int z, int x, int y)
+    private async Task<byte[]?> FetchAsync(int z, int x, int y, string style)
     {
-        // 1. Disk cache
-        string path = TilePath(z, x, y);
+        // 1. Disk cache (style-namespaced)
+        string path = TilePath(style, z, x, y);
         if (File.Exists(path))
         {
             var info = new FileInfo(path);
@@ -75,7 +118,7 @@ public sealed class TileCacheService : IDisposable
                     byte[] disk = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
                     if (disk.Length > 0)
                     {
-                        AddToMemory((z, x, y), disk);
+                        AddToMemory((z, x, y, style), disk);
                         return disk;
                     }
                 }
@@ -87,7 +130,7 @@ public sealed class TileCacheService : IDisposable
         await _sem.WaitAsync().ConfigureAwait(false);
         try
         {
-            string url = string.Format(OsmUrlTemplate, z, x, y);
+            string url = BuildUrl(style, z, x, y);
             byte[] data = await _http.GetByteArrayAsync(url).ConfigureAwait(false);
             if (data.Length == 0) return null;
 
@@ -99,7 +142,7 @@ public sealed class TileCacheService : IDisposable
             }
             catch { /* non-fatal */ }
 
-            AddToMemory((z, x, y), data);
+            AddToMemory((z, x, y, style), data);
             return data;
         }
         catch
@@ -116,10 +159,22 @@ public sealed class TileCacheService : IDisposable
     // Helpers
     // ─────────────────────────────────────────────────────────────────────
 
-    private string TilePath(int z, int x, int y)
-        => Path.Combine(_cacheRoot, z.ToString(), x.ToString(), $"{y}.png");
+    private string BuildUrl(string style, int z, int x, int y)
+    {
+        string template = StyleUrls.GetValueOrDefault(style, StyleUrls["Dark"]);
+        if (template.Contains("{s}"))
+        {
+            // CDN host rotation
+            string host = CartoHosts[Interlocked.Increment(ref _cdnHostIndex) & 3];
+            return string.Format(template.Replace("{s}", host), z, x, y);
+        }
+        return string.Format(template, z, x, y);
+    }
 
-    private void AddToMemory((int z, int x, int y) key, byte[] data)
+    private string TilePath(string style, int z, int x, int y)
+        => Path.Combine(_cacheRoot, style.ToLowerInvariant(), z.ToString(), x.ToString(), $"{y}.png");
+
+    private void AddToMemory((int z, int x, int y, string style) key, byte[] data)
     {
         _memCache[key] = (data, DateTime.UtcNow.Ticks);
         if (_memCache.Count <= MaxMemoryTiles) return;

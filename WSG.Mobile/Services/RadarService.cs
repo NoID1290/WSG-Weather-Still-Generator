@@ -5,8 +5,25 @@ namespace WSG.Mobile.Services;
 public sealed class RadarService
 {
     private const string BaseGeoMetUrl = "https://geo.weather.gc.ca/geomet";
-    private const string RadarLayer = "RADAR_1KM_RRAI";
-    private const string RadarStyle = "RADARURPPRECIPR14-LINEAR";
+
+    // ── Radar layer options (mirrors desktop WeatherOverlayManager) ────────
+    public static readonly IReadOnlyList<(string Id, string DisplayName)> RadarLayers =
+    [
+        ("RADAR_1KM_RRAI",              "Rain (RRAI)"),
+        ("RADAR_1KM_RSNO",              "Snow (RSNO)"),
+        ("Radar_1km_SfcPrecipType",     "Precip Type"),
+        ("RADAR_COVERAGE_RRAI.INV",     "Coverage"),
+    ];
+
+    // ── Style for each layer ───────────────────────────────────────────────
+    private static string StyleForLayer(string layer) => layer switch
+    {
+        "RADAR_1KM_RRAI"          => "RADARURPPRECIPR14-LINEAR",
+        "RADAR_1KM_RSNO"          => "RADARURPPRECIPS14-LINEAR",
+        "Radar_1km_SfcPrecipType" => "",
+        "RADAR_COVERAGE_RRAI.INV" => "",
+        _                         => "RADARURPPRECIPR14-LINEAR"
+    };
 
     /// <summary>
     /// Generates timestamped WMS URLs for radar animation frames.
@@ -33,26 +50,36 @@ public sealed class RadarService
     }
 
     /// <summary>
-    /// Builds a WMS GetMap URL for a specific bbox, time, and image size.
+    /// Builds a WMS GetMap URL for a specific bbox, time, layer and image size.
     /// Used by the OpenGL renderer to fetch geo-registered radar PNG images.
     /// </summary>
     public static string BuildWmsImageUrl(
         (double MinLat, double MinLon, double MaxLat, double MaxLon) bbox,
         string isoTime,
         int width = 512,
-        int height = 512)
+        int height = 512,
+        string? layer = null,
+        string? style = null)
     {
+        layer ??= "RADAR_1KM_RRAI";
+        style ??= StyleForLayer(layer);
+
         // ECCC GeoMet uses EPSG:4326 with lat-lon axis order: BBOX=minLat,minLon,maxLat,maxLon
-        return $"{BaseGeoMetUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap" +
-               $"&LAYERS={RadarLayer}&STYLES={RadarStyle}" +
-               $"&CRS=EPSG:4326" +
-               $"&BBOX={bbox.MinLat:F6},{bbox.MinLon:F6},{bbox.MaxLat:F6},{bbox.MaxLon:F6}" +
-               $"&WIDTH={width}&HEIGHT={height}" +
-               $"&FORMAT=image/png&TRANSPARENT=true&time={isoTime}";
+        var url = $"{BaseGeoMetUrl}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap" +
+                  $"&LAYERS={layer}" +
+                  $"&CRS=EPSG:4326" +
+                  $"&BBOX={bbox.MinLat:F6},{bbox.MinLon:F6},{bbox.MaxLat:F6},{bbox.MaxLon:F6}" +
+                  $"&WIDTH={width}&HEIGHT={height}" +
+                  $"&FORMAT=image/png&TRANSPARENT=true&time={isoTime}";
+
+        if (!string.IsNullOrEmpty(style))
+            url += $"&STYLES={style}";
+
+        return url;
     }
 
-    public static string GetWmsLayer() => RadarLayer;
-    public static string GetWmsStyle() => RadarStyle;
+    public static string GetWmsLayer() => "RADAR_1KM_RRAI";
+    public static string GetWmsStyle() => "RADARURPPRECIPR14-LINEAR";
 
     /// <summary>
     /// Calculates a bounding box centered on lat/lon with a radius in km.

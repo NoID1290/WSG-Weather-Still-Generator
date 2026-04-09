@@ -47,6 +47,14 @@ internal interface IRadarGLRenderer
     void SetAnimationSpeed(int millisPerFrame);
     void SetFrameIndex(int index);
     void SetRadarBbox(double minLat, double minLon, double maxLat, double maxLon);
+    // ── New in v0.0.11 ────────────────────────────────────
+    void SetMapStyle(string style);
+    void SetLightningEnabled(bool enabled);
+    void SetLightningCg(bool enabled);
+    void SetLightningIc(bool enabled);
+    void SetLightningWindowMinutes(int minutes);
+    void SetLightningPollIntervalSeconds(int seconds);
+    void ReloadRadarFrames(IReadOnlyList<RadarFrameSource> frames);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -202,6 +210,27 @@ public sealed class RadarGLView : View
 
     public void SetRadarBbox(double minLat, double minLon, double maxLat, double maxLon)
         => PlatformRenderer?.SetRadarBbox(minLat, minLon, maxLat, maxLon);
+
+    public void SetMapStyle(string style)
+        => PlatformRenderer?.SetMapStyle(style);
+
+    public void SetLightningEnabled(bool enabled)
+        => PlatformRenderer?.SetLightningEnabled(enabled);
+
+    public void SetLightningCg(bool enabled)
+        => PlatformRenderer?.SetLightningCg(enabled);
+
+    public void SetLightningIc(bool enabled)
+        => PlatformRenderer?.SetLightningIc(enabled);
+
+    public void SetLightningWindowMinutes(int minutes)
+        => PlatformRenderer?.SetLightningWindowMinutes(minutes);
+
+    public void SetLightningPollIntervalSeconds(int seconds)
+        => PlatformRenderer?.SetLightningPollIntervalSeconds(seconds);
+
+    public void ReloadRadarFrames(IReadOnlyList<RadarFrameSource> frames)
+        => PlatformRenderer?.ReloadRadarFrames(frames);
 
     // ── Internal callbacks from renderer → MAUI (posted to main thread) ──
 
