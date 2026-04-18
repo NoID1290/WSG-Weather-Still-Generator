@@ -366,6 +366,23 @@ namespace WeatherImageGenerator.Rendering.OpenGL
         private GLShader? _procCloudsShader;
         private GLShader? _procRainShader;
         private GLShader? _procLightningShader;
+        private bool _procShadersInitialized; // true once TryInitProcShaders() has run
+
+        [System.Runtime.InteropServices.DllImport("opengl32.dll", EntryPoint = "wglGetProcAddress")]
+        private static extern IntPtr WglGetProcAddress(string lpszProc);
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.Winapi)]
+        private delegate int WglSwapIntervalEXTDelegate(int interval);
+        private static void TryDisableVSync()
+        {
+            try
+            {
+                var ptr = WglGetProcAddress("wglSwapIntervalEXT");
+                if (ptr == IntPtr.Zero) return;
+                var fn = System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer<WglSwapIntervalEXTDelegate>(ptr);
+                fn(0);
+            }
+            catch { }
+        }
         // Latest WMS-derived weather data driving procedural parameters
         private ProceduralWeatherData? _latestProcWeather;
         // Procedural clouds uniform locations
@@ -461,6 +478,9 @@ void main() {
         private void GLRadarControl_Load(object? sender, EventArgs e)
         {
             MakeCurrent();
+            // Disable VSync so SwapBuffers() does not block the UI thread each frame.
+            // Without this the UI thread stalls ~16ms per swap, preventing event processing.
+            TryDisableVSync();
             GL.ClearColor(0.12f, 0.12f, 0.12f, 1.0f);
 
             // Build simple quad
@@ -489,196 +509,25 @@ void main() {
             GL.EnableVertexAttribArray(1);
             GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
 
-            // Load shader from embedded resources with fallback
-            string vSrc, fSrc;
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/vertex.glsl", out vSrc)) vSrc = _vertexSourceFallback;
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/fragment.glsl", out fSrc)) fSrc = _fragmentSourceFallback;
-
-            try
-            {
-                _shader = new GLShader(vSrc, fSrc);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GLRadarControl] Primary shader compile failed: {ex.Message} â€” using fallback");
-                _shader = new GLShader(_vertexSourceFallback, _fragmentSourceFallback);
-            }
-            _shader.Use();
-            _shader.SetInt("uTexture", 0);
-            _shader.SetFloat("uOpacity", 1.0f);
+            // All shader compilation deferred to first Paint via CompileCoreShaders()
+            // so the window becomes visible immediately without blocking on GLSL compilation.
 
             // create fallback tile texture (neutral background) used when tiles are missing/blocked
             _fallbackTexture = CreateFallbackTexture(256, 256);
-
-            // Tile shader (simple texture copy)
-            string tileV, tileF;
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/tile.vert.glsl", out tileV)) tileV = _vertexSourceFallback;
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/tile.frag.glsl", out tileF)) tileF = "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }";
-            try
-            {
-                _tileShader = new GLShader(tileV, tileF);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GLRadarControl] Tile shader compile failed: {ex.Message} â€” using fallback");
-                _tileShader = new GLShader(_vertexSourceFallback, "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }");
-            }
 
             // Enable alpha blending for radar overlays
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
-            // Prepare overlay (crosshair/markers)
-            string ovSrcV, ovSrcF;
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/overlay.vert.glsl", out ovSrcV)) ovSrcV = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }";
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/overlay.frag.glsl", out ovSrcF)) ovSrcF = "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }";
-
-            try
-            {
-                _overlayShader = new GLShader(ovSrcV, ovSrcF);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GLRadarControl] Overlay shader compile failed: {ex.Message} â€” using fallback");
-                _overlayShader = new GLShader(
-                    "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }",
-                    "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }");
-            }
-
-            // Initialize tile provider, preserving any style set before GL was ready (e.g. from LoadMapSettings)
+            // Initialize tile provider, preserving any style set before GL was ready
             var pendingStyle = _tileProvider?.CurrentStyle ?? OpenMap.MapStyle.Standard;
             _tileProvider = new TileProvider();
             _tileProvider.CurrentStyle = pendingStyle;
-
-            // If caller set a local tile folder earlier, pass it through
             if (!string.IsNullOrEmpty(_localTileFolder)) _tileProvider.LocalTilesRoot = _localTileFolder;
-
-            // Ensure tile shader has texture unit set
-            _tileShader!.Use();
-            _tileShader!.SetInt("uTexture", 0);
-            _tileShader!.SetFloat("uOpacity", 1.0f);
-
-            // Build dedicated weather overlay shader (pass-through, no tile effects)
-            string woV, woF;
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/weather_overlay.vert.glsl", out woV)) woV = _vertexSourceFallback;
-            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/weather_overlay.frag.glsl", out woF)) {
-                // Inline fallback: clean pass-through with opacity and edge blend
-                woF = @"#version 330 core
-in vec2 vTex;
-in vec2 vScreenPos;
-out vec4 FragColor;
-uniform sampler2D uTexture;
-uniform float uOpacity;
-uniform float uTime;
-void main() {
-    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
-    vec4 c = texture(uTexture, uv);
-    float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
-    float edgeFade = smoothstep(0.0, 0.015, uv.x) * smoothstep(0.0, 0.015, 1.0 - uv.x) * smoothstep(0.0, 0.015, uv.y) * smoothstep(0.0, 0.015, 1.0 - uv.y);
-    FragColor = vec4(c.rgb, c.a * opacity * edgeFade);
-}";
-            }
-            try
-            {
-                _weatherOverlayShader = new GLShader(woV, woF);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GLRadarControl] Weather overlay shader compile failed: {ex.Message} â€” using fallback");
-                _weatherOverlayShader = new GLShader(_vertexSourceFallback, @"#version 330 core
-in vec2 vTex;
-out vec4 FragColor;
-uniform sampler2D uTexture;
-uniform float uOpacity;
-void main() {
-    vec2 uv = vec2(vTex.x, 1.0 - vTex.y);
-    vec4 c = texture(uTexture, uv);
-    float opacity = uOpacity > 0.0 ? uOpacity : 1.0;
-    float edgeFade = smoothstep(0.0, 0.015, uv.x) * smoothstep(0.0, 0.015, 1.0 - uv.x) * smoothstep(0.0, 0.015, uv.y) * smoothstep(0.0, 0.015, 1.0 - uv.y);
-    FragColor = vec4(c.rgb, c.a * opacity * edgeFade);
-}");
-            }
-            _weatherOverlayShader.Use();
-            _weatherOverlayShader.SetInt("uTexture", 0);
-            _weatherOverlayShader.SetFloat("uOpacity", 1.0f);
-
-            // Cache uniform locations for optimization
-            _tileShaderTransformLoc = GL.GetUniformLocation(_tileShader.Handle, "uTransform");
-            _tileShaderOpacityLoc = GL.GetUniformLocation(_tileShader.Handle, "uOpacity");
-            _tileShaderTextureLoc = GL.GetUniformLocation(_tileShader.Handle, "uTexture");
-            _tileShaderZoomNormLoc = GL.GetUniformLocation(_tileShader.Handle, "uZoomNorm");
-            _overlayShaderColorLoc = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
-            _overlayShaderAlphaLoc = GL.GetUniformLocation(_overlayShader.Handle, "uAlpha");
-            _overlayShaderTimeLoc = GL.GetUniformLocation(_overlayShader.Handle, "uTime");
-            _overlayShaderOffsetLoc = GL.GetUniformLocation(_overlayShader.Handle, "uOffset");
-
-            // Cache weather overlay shader uniforms
-            _woShaderTransformLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTransform");
-            _woShaderOpacityLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uOpacity");
-            _woShaderTimeLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTime");
-
-            // Cache tile shader zoom blur uniform
-            _tileShaderZoomBlurLoc = GL.GetUniformLocation(_tileShader.Handle, "uZoomBlur");
-
-            // Cache shader toggle uniform locations
-            _tileShaderSaturationLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableSaturation");
-            _tileShaderContrastLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableContrast");
-            _tileShaderVignetteLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableVignette");
-            _tileShaderAtmosphereLoc = GL.GetUniformLocation(_tileShader.Handle, "uEnableAtmosphere");
-            _woShaderGlowLoc = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uEnableGlow");
-            _overlayShaderPulseLoc = GL.GetUniformLocation(_overlayShader.Handle, "uEnablePulse");
-
-            // Station/epicenter marker shader
-            if (EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/station_marker.vert.glsl", out var smVert) &&
-                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/station_marker.frag.glsl", out var smFrag))
-            {
-                try
-                {
-                    _markerShader = new GLShader(smVert, smFrag);
-                    int h = _markerShader.Handle;
-                    _smNdcXLoc        = GL.GetUniformLocation(h, "uNdcX");
-                    _smNdcYLoc        = GL.GetUniformLocation(h, "uNdcY");
-                    _smHalfSizeXLoc   = GL.GetUniformLocation(h, "uHalfSizeX");
-                    _smHalfSizeYLoc   = GL.GetUniformLocation(h, "uHalfSizeY");
-                    _smMarkerTypeLoc  = GL.GetUniformLocation(h, "uMarkerType");
-                    _smColorRLoc      = GL.GetUniformLocation(h, "uColorR");
-                    _smColorGLoc      = GL.GetUniformLocation(h, "uColorG");
-                    _smColorBLoc      = GL.GetUniformLocation(h, "uColorB");
-                    _smColorALoc      = GL.GetUniformLocation(h, "uColorA");
-                    _smRingPhaseLoc   = GL.GetUniformLocation(h, "uRingPhase");
-                    _smSelectedLoc    = GL.GetUniformLocation(h, "uSelected");
-                    _smGlowStrengthLoc = GL.GetUniformLocation(h, "uGlowStrength");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[GLRadarControl] station_marker shader compile failed: {ex.Message}");
-                }
-            }
-
-            // Lightning strike marker shader
-            if (EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/lightning_marker.vert.glsl", out var lmVert) &&
-                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/lightning_marker.frag.glsl", out var lmFrag))
-            {
-                try
-                {
-                    _lightningShader = new GLShader(lmVert, lmFrag);
-                    int lh = _lightningShader.Handle;
-                    _lmNdcXLoc      = GL.GetUniformLocation(lh, "uNdcX");
-                    _lmNdcYLoc      = GL.GetUniformLocation(lh, "uNdcY");
-                    _lmHalfSizeXLoc = GL.GetUniformLocation(lh, "uHalfSizeX");
-                    _lmHalfSizeYLoc = GL.GetUniformLocation(lh, "uHalfSizeY");
-                    _lmAgeLoc       = GL.GetUniformLocation(lh, "uAge");
-                    _lmIsCGLoc      = GL.GetUniformLocation(lh, "uIsCG");
-                    _lmFlashBoostLoc = GL.GetUniformLocation(lh, "uFlashBoost");
-                    _lmIsNewLoc       = GL.GetUniformLocation(lh, "uIsNew");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[GLRadarControl] lightning_marker shader compile failed: {ex.Message}");
-                }
-            }
+            // Station/epicenter marker shader – compiled on first use (see TryInitMarkerShader)
+            // Lightning strike marker shader – compiled on first use (see TryInitLightningShader)
+            // GRIB2 GPU pipeline – self-inits lazily inside Render() on first SetGrib2GpuData call
             _grib2GpuPipeline = new Grib2GpuPipelineGL();
-            _grib2GpuPipeline.Initialize();
 
             // Setup overlay buffers (we'll fill data on resize)\n            // Format: [x, y, lineEdge] per vertex â€” lineEdge is 0 at center, 1 at edge (for AA)
             _overlayVao = GL.GenVertexArray();
@@ -696,15 +545,14 @@ void main() {
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
 
-            // Initialize GL-native HUD text renderer
+            // Initialize GL-native HUD text renderer – actual Initialize() deferred to first paint
             try
             {
                 _uiRenderer = new GLTextRenderer();
-                _uiRenderer.Initialize();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[GLRadarControl] GLTextRenderer init failed: {ex.Message}");
+                Console.WriteLine($"[GLRadarControl] GLTextRenderer create failed: {ex.Message}");
                 _uiRenderer = null;
             }
 
@@ -731,87 +579,6 @@ void main() {
             // and shader time-based effects. Low overhead (just Invalidate, no work until Paint).
             // Drain any residual GL errors from initialization so the first paint starts clean
             // Procedural weather FX shaders – radar-driven spatial effects loaded from files
-            {
-                string procVert;
-                if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_common.vert.glsl", out procVert))
-                    procVert = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in vec2 aTex; out vec2 vTex; out vec2 vNdc; void main(){ gl_Position=vec4(aPos,0,1); vTex=aTex; vNdc=aPos; }";
-
-                string? procCloudFrag = null, procRainFrag = null, procLightFrag = null;
-                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_clouds.frag.glsl", out procCloudFrag);
-                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_rain.frag.glsl", out procRainFrag);
-                EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_lightning.frag.glsl", out procLightFrag);
-
-                if (!string.IsNullOrEmpty(procCloudFrag))
-                {
-                    try
-                    {
-                        _procCloudsShader = new GLShader(procVert, procCloudFrag);
-                        int h = _procCloudsShader.Handle;
-                        _pcTimeLoc            = GL.GetUniformLocation(h, "uTime");
-                        _pcCovLoc             = GL.GetUniformLocation(h, "uCloudCoverage");
-                        _pcSunDirLoc          = GL.GetUniformLocation(h, "uSunDir");
-                        _pcDensityLoc         = GL.GetUniformLocation(h, "uCloudDensity");
-                        _pcContrastLoc        = GL.GetUniformLocation(h, "uCloudContrast");
-                        _pcBrightnessLoc      = GL.GetUniformLocation(h, "uCloudBrightness");
-                        _pcStepsLoc           = GL.GetUniformLocation(h, "uRaymarchSteps");
-                        _pcRadarTexLoc        = GL.GetUniformLocation(h, "uRadarTex");
-                        _pcRadarTransformLoc  = GL.GetUniformLocation(h, "uRadarTransform");
-                        _pcRadarPresentLoc    = GL.GetUniformLocation(h, "uRadarPresent");
-                        _pcOpacityLoc         = GL.GetUniformLocation(h, "uOpacityMultiplier");
-                        _pcDarkColorLoc       = GL.GetUniformLocation(h, "uDarkCloudColor");
-                        _pcBrightColorLoc     = GL.GetUniformLocation(h, "uBrightCloudColor");
-                        _pcLightOpacityLoc    = GL.GetUniformLocation(h, "uLightCloudOpacity");
-                        _pcMediumOpacityLoc   = GL.GetUniformLocation(h, "uMediumCloudOpacity");
-                        _pcHeavyOpacityLoc    = GL.GetUniformLocation(h, "uHeavyCloudOpacity");
-                        _pcExtremeOpacityLoc  = GL.GetUniformLocation(h, "uExtremeCloudOpacity");
-                        _pcRadarThresholdLoc  = GL.GetUniformLocation(h, "uRadarThreshold");
-                        _pcRadarMaskUpperLoc  = GL.GetUniformLocation(h, "uRadarMaskUpper");
-                        _pcRadarSpreadStepLoc = GL.GetUniformLocation(h, "uRadarSpreadStep");
-                        _pcRadarSpreadInfLoc  = GL.GetUniformLocation(h, "uRadarSpreadInfluence");
-                        _pcStormDarkeningLoc  = GL.GetUniformLocation(h, "uStormDarkening");
-                        _pcStrikeNdcLoc       = GL.GetUniformLocation(h, "uStrikeNdc");
-                        _pcStrikeCountLoc     = GL.GetUniformLocation(h, "uStrikeCount");
-                        _pcStrikeFlashLoc     = GL.GetUniformLocation(h, "uStrikeFlash");
-                    }
-                    catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural clouds shader failed: {ex.Message}"); }
-                }
-                if (!string.IsNullOrEmpty(procRainFrag))
-                {
-                    try
-                    {
-                        _procRainShader = new GLShader(procVert, procRainFrag);
-                        int h = _procRainShader.Handle;
-                        _prTimeLoc           = GL.GetUniformLocation(h, "uTime");
-                        _prIntensLoc         = GL.GetUniformLocation(h, "uRainIntensity");
-                        _prCovLoc            = GL.GetUniformLocation(h, "uRainCoverage");
-                        _prSnowLoc           = GL.GetUniformLocation(h, "uSnowMix");
-                        _prRadarTexLoc       = GL.GetUniformLocation(h, "uRadarTex");
-                        _prRadarTransformLoc = GL.GetUniformLocation(h, "uRadarTransform");
-                        _prRadarPresentLoc   = GL.GetUniformLocation(h, "uRadarPresent");
-                    }
-                    catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural rain shader failed: {ex.Message}"); }
-                }
-                if (!string.IsNullOrEmpty(procLightFrag))
-                {
-                    try
-                    {
-                        _procLightningShader = new GLShader(procVert, procLightFrag);
-                        int h = _procLightningShader.Handle;
-                        _plTimeLoc           = GL.GetUniformLocation(h, "uTime");
-                        _plSignalLoc         = GL.GetUniformLocation(h, "uLightningSignal");
-                        _plConvLoc           = GL.GetUniformLocation(h, "uConvective");
-                        _plRadarTexLoc       = GL.GetUniformLocation(h, "uRadarTex");
-                        _plRadarTransformLoc = GL.GetUniformLocation(h, "uRadarTransform");
-                        _plRadarPresentLoc   = GL.GetUniformLocation(h, "uRadarPresent");
-                        _plStrikeNdcLoc      = GL.GetUniformLocation(h, "uStrikeNdc");
-                        _plStrikeCountLoc    = GL.GetUniformLocation(h, "uStrikeCount");
-                        _plStrikeFlashLoc    = GL.GetUniformLocation(h, "uStrikeFlash");
-                        _plStrikeIsCGLoc     = GL.GetUniformLocation(h, "uStrikeIsCG");
-                    }
-                    catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural lightning shader failed: {ex.Message}"); }
-                }
-            }
-
             while (GL.GetError() != ErrorCode.NoError) { }
 
             _animRefreshTimer = new System.Threading.Timer(_ =>
@@ -890,6 +657,12 @@ void main() {
         {
             if (DesignMode) return;
             MakeCurrent();
+
+            // Lazy-init deferred subsystems that are safe to create after the GL context is current
+            // but too expensive to block the Load event with.
+            if (_uiRenderer != null && !_uiRenderer.IsInitialized)
+                _uiRenderer.Initialize();
+            CompileCoreShaders();
 
             // FPS tracking
             _frameCount++;
@@ -1681,6 +1454,7 @@ void main() {
 
         private void RenderStationMarkersPass()
         {
+            if (_markerShader == null) TryInitMarkerShader();
             if (_markerShader == null) return;
 
             StationMarkerEntry[]   stations;
@@ -1768,6 +1542,7 @@ void main() {
 
         private void RenderLightningMarkersPass()
         {
+            if (_lightningShader == null) TryInitLightningShader();
             if (_lightningShader == null) return;
 
             LightningStrikeEntry[] strikes;
@@ -1816,9 +1591,240 @@ void main() {
             }
         }
 
+        private bool _coreShadersCompiled;
+        private void CompileCoreShaders()
+        {
+            if (_coreShadersCompiled) return;
+            _coreShadersCompiled = true;
+
+            // Primary textured-quad shader
+            string vSrc, fSrc;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/vertex.glsl", out vSrc)) vSrc = _vertexSourceFallback;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/fragment.glsl", out fSrc)) fSrc = _fragmentSourceFallback;
+            try { _shader = new GLShader(vSrc, fSrc); }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Primary shader failed: {ex.Message} – fallback");
+                _shader = new GLShader(_vertexSourceFallback, _fragmentSourceFallback);
+            }
+            _shader.Use();
+            _shader.SetInt("uTexture", 0);
+            _shader.SetFloat("uOpacity", 1.0f);
+
+            // Tile shader
+            string tileV, tileF;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/tile.vert.glsl", out tileV)) tileV = _vertexSourceFallback;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/tile.frag.glsl", out tileF))
+                tileF = "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }";
+            try { _tileShader = new GLShader(tileV, tileF); }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Tile shader failed: {ex.Message} – fallback");
+                _tileShader = new GLShader(_vertexSourceFallback, "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; void main(){ FragColor = texture(uTexture, vTex); }");
+            }
+            _tileShader.Use();
+            _tileShader.SetInt("uTexture", 0);
+            _tileShader.SetFloat("uOpacity", 1.0f);
+
+            // Overlay (crosshair) shader
+            string ovV, ovF;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/overlay.vert.glsl", out ovV))
+                ovV = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }";
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/overlay.frag.glsl", out ovF))
+                ovF = "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }";
+            try { _overlayShader = new GLShader(ovV, ovF); }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Overlay shader failed: {ex.Message} – fallback");
+                _overlayShader = new GLShader(
+                    "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in float aLineEdge; out vec2 vLineCoord; void main(){ gl_Position = vec4(aPos,0,1); vLineCoord = vec2(aLineEdge, 0.0); }",
+                    "#version 330 core\nin vec2 vLineCoord; out vec4 FragColor; uniform vec3 uColor; uniform float uAlpha; uniform float uTime; void main(){ float pulse = 0.85 + 0.15 * sin(uTime * 2.5); float aa = 1.0 - smoothstep(0.4, 1.0, abs(vLineCoord.x)); FragColor = vec4(uColor, uAlpha * pulse * aa); }");
+            }
+
+            // Weather overlay shader
+            string woV, woF;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/weather_overlay.vert.glsl", out woV)) woV = _vertexSourceFallback;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/weather_overlay.frag.glsl", out woF))
+                woF = "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; uniform float uOpacity; void main(){ vec2 uv = vec2(vTex.x, 1.0 - vTex.y); vec4 c = texture(uTexture, uv); float op = uOpacity > 0.0 ? uOpacity : 1.0; float e = smoothstep(0.0,0.015,uv.x)*smoothstep(0.0,0.015,1.0-uv.x)*smoothstep(0.0,0.015,uv.y)*smoothstep(0.0,0.015,1.0-uv.y); FragColor = vec4(c.rgb, c.a*op*e); }";
+            try { _weatherOverlayShader = new GLShader(woV, woF); }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GLRadarControl] Weather overlay shader failed: {ex.Message} – fallback");
+                _weatherOverlayShader = new GLShader(_vertexSourceFallback,
+                    "#version 330 core\nin vec2 vTex; out vec4 FragColor; uniform sampler2D uTexture; uniform float uOpacity; void main(){ vec2 uv=vec2(vTex.x,1.0-vTex.y); vec4 c=texture(uTexture,uv); float op=uOpacity>0.0?uOpacity:1.0; FragColor=vec4(c.rgb,c.a*op); }");
+            }
+            _weatherOverlayShader.Use();
+            _weatherOverlayShader.SetInt("uTexture", 0);
+            _weatherOverlayShader.SetFloat("uOpacity", 1.0f);
+
+            // Cache uniform locations
+            _tileShaderTransformLoc    = GL.GetUniformLocation(_tileShader.Handle, "uTransform");
+            _tileShaderOpacityLoc      = GL.GetUniformLocation(_tileShader.Handle, "uOpacity");
+            _tileShaderTextureLoc      = GL.GetUniformLocation(_tileShader.Handle, "uTexture");
+            _tileShaderZoomNormLoc     = GL.GetUniformLocation(_tileShader.Handle, "uZoomNorm");
+            _tileShaderZoomBlurLoc     = GL.GetUniformLocation(_tileShader.Handle, "uZoomBlur");
+            _tileShaderSaturationLoc   = GL.GetUniformLocation(_tileShader.Handle, "uEnableSaturation");
+            _tileShaderContrastLoc     = GL.GetUniformLocation(_tileShader.Handle, "uEnableContrast");
+            _tileShaderVignetteLoc     = GL.GetUniformLocation(_tileShader.Handle, "uEnableVignette");
+            _tileShaderAtmosphereLoc   = GL.GetUniformLocation(_tileShader.Handle, "uEnableAtmosphere");
+            _overlayShaderColorLoc     = GL.GetUniformLocation(_overlayShader.Handle, "uColor");
+            _overlayShaderAlphaLoc     = GL.GetUniformLocation(_overlayShader.Handle, "uAlpha");
+            _overlayShaderTimeLoc      = GL.GetUniformLocation(_overlayShader.Handle, "uTime");
+            _overlayShaderOffsetLoc    = GL.GetUniformLocation(_overlayShader.Handle, "uOffset");
+            _overlayShaderPulseLoc     = GL.GetUniformLocation(_overlayShader.Handle, "uEnablePulse");
+            _woShaderTransformLoc      = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTransform");
+            _woShaderOpacityLoc        = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uOpacity");
+            _woShaderTimeLoc           = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uTime");
+            _woShaderGlowLoc           = GL.GetUniformLocation(_weatherOverlayShader.Handle, "uEnableGlow");
+
+            Console.WriteLine("[GLRadarControl] Core shaders compiled");
+        }
+
+        private bool _markerShaderInitialized;
+        private void TryInitMarkerShader()
+        {
+            if (_markerShaderInitialized) return;
+            _markerShaderInitialized = true;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/station_marker.vert.glsl", out var smVert) ||
+                !EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/station_marker.frag.glsl", out var smFrag))
+                return;
+            try
+            {
+                _markerShader = new GLShader(smVert, smFrag);
+                int h = _markerShader.Handle;
+                _smNdcXLoc         = GL.GetUniformLocation(h, "uNdcX");
+                _smNdcYLoc         = GL.GetUniformLocation(h, "uNdcY");
+                _smHalfSizeXLoc    = GL.GetUniformLocation(h, "uHalfSizeX");
+                _smHalfSizeYLoc    = GL.GetUniformLocation(h, "uHalfSizeY");
+                _smMarkerTypeLoc   = GL.GetUniformLocation(h, "uMarkerType");
+                _smColorRLoc       = GL.GetUniformLocation(h, "uColorR");
+                _smColorGLoc       = GL.GetUniformLocation(h, "uColorG");
+                _smColorBLoc       = GL.GetUniformLocation(h, "uColorB");
+                _smColorALoc       = GL.GetUniformLocation(h, "uColorA");
+                _smRingPhaseLoc    = GL.GetUniformLocation(h, "uRingPhase");
+                _smSelectedLoc     = GL.GetUniformLocation(h, "uSelected");
+                _smGlowStrengthLoc = GL.GetUniformLocation(h, "uGlowStrength");
+            }
+            catch (Exception ex) { Console.WriteLine($"[GLRadarControl] station_marker shader compile failed: {ex.Message}"); }
+        }
+
+        private bool _lightningShaderInitialized;
+        private void TryInitLightningShader()
+        {
+            if (_lightningShaderInitialized) return;
+            _lightningShaderInitialized = true;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/lightning_marker.vert.glsl", out var lmVert) ||
+                !EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/lightning_marker.frag.glsl", out var lmFrag))
+                return;
+            try
+            {
+                _lightningShader = new GLShader(lmVert, lmFrag);
+                int lh = _lightningShader.Handle;
+                _lmNdcXLoc       = GL.GetUniformLocation(lh, "uNdcX");
+                _lmNdcYLoc       = GL.GetUniformLocation(lh, "uNdcY");
+                _lmHalfSizeXLoc  = GL.GetUniformLocation(lh, "uHalfSizeX");
+                _lmHalfSizeYLoc  = GL.GetUniformLocation(lh, "uHalfSizeY");
+                _lmAgeLoc        = GL.GetUniformLocation(lh, "uAge");
+                _lmIsCGLoc       = GL.GetUniformLocation(lh, "uIsCG");
+                _lmFlashBoostLoc = GL.GetUniformLocation(lh, "uFlashBoost");
+                _lmIsNewLoc      = GL.GetUniformLocation(lh, "uIsNew");
+            }
+            catch (Exception ex) { Console.WriteLine($"[GLRadarControl] lightning_marker shader compile failed: {ex.Message}"); }
+        }
+
+        // Compile procedural shaders on first actual use rather than at startup.
+        // These are expensive (volumetric raymarching GLSL) and stalling the UI thread during
+        // Load caused the app to appear frozen before the window was even interactive.
+        private void TryInitProcShaders()
+        {
+            if (_procShadersInitialized) return;
+            _procShadersInitialized = true;
+
+            string procVert;
+            if (!EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_common.vert.glsl", out procVert))
+                procVert = "#version 330 core\nlayout(location=0) in vec2 aPos; layout(location=1) in vec2 aTex; out vec2 vTex; out vec2 vNdc; void main(){ gl_Position=vec4(aPos,0,1); vTex=aTex; vNdc=aPos; }";
+
+            string? procCloudFrag = null, procRainFrag = null, procLightFrag = null;
+            EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_clouds.frag.glsl", out procCloudFrag);
+            EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_rain.frag.glsl", out procRainFrag);
+            EmbeddedResourceLoader.TryReadText("Rendering/OpenGL/shaders/proc_lightning.frag.glsl", out procLightFrag);
+
+            if (!string.IsNullOrEmpty(procCloudFrag))
+            {
+                try
+                {
+                    _procCloudsShader = new GLShader(procVert, procCloudFrag);
+                    int h = _procCloudsShader.Handle;
+                    _pcTimeLoc            = GL.GetUniformLocation(h, "uTime");
+                    _pcCovLoc             = GL.GetUniformLocation(h, "uCloudCoverage");
+                    _pcSunDirLoc          = GL.GetUniformLocation(h, "uSunDir");
+                    _pcDensityLoc         = GL.GetUniformLocation(h, "uCloudDensity");
+                    _pcContrastLoc        = GL.GetUniformLocation(h, "uCloudContrast");
+                    _pcBrightnessLoc      = GL.GetUniformLocation(h, "uCloudBrightness");
+                    _pcStepsLoc           = GL.GetUniformLocation(h, "uRaymarchSteps");
+                    _pcRadarTexLoc        = GL.GetUniformLocation(h, "uRadarTex");
+                    _pcRadarTransformLoc  = GL.GetUniformLocation(h, "uRadarTransform");
+                    _pcRadarPresentLoc    = GL.GetUniformLocation(h, "uRadarPresent");
+                    _pcOpacityLoc         = GL.GetUniformLocation(h, "uOpacityMultiplier");
+                    _pcDarkColorLoc       = GL.GetUniformLocation(h, "uDarkCloudColor");
+                    _pcBrightColorLoc     = GL.GetUniformLocation(h, "uBrightCloudColor");
+                    _pcLightOpacityLoc    = GL.GetUniformLocation(h, "uLightCloudOpacity");
+                    _pcMediumOpacityLoc   = GL.GetUniformLocation(h, "uMediumCloudOpacity");
+                    _pcHeavyOpacityLoc    = GL.GetUniformLocation(h, "uHeavyCloudOpacity");
+                    _pcExtremeOpacityLoc  = GL.GetUniformLocation(h, "uExtremeCloudOpacity");
+                    _pcRadarThresholdLoc  = GL.GetUniformLocation(h, "uRadarThreshold");
+                    _pcRadarMaskUpperLoc  = GL.GetUniformLocation(h, "uRadarMaskUpper");
+                    _pcRadarSpreadStepLoc = GL.GetUniformLocation(h, "uRadarSpreadStep");
+                    _pcRadarSpreadInfLoc  = GL.GetUniformLocation(h, "uRadarSpreadInfluence");
+                    _pcStormDarkeningLoc  = GL.GetUniformLocation(h, "uStormDarkening");
+                    _pcStrikeNdcLoc       = GL.GetUniformLocation(h, "uStrikeNdc");
+                    _pcStrikeCountLoc     = GL.GetUniformLocation(h, "uStrikeCount");
+                    _pcStrikeFlashLoc     = GL.GetUniformLocation(h, "uStrikeFlash");
+                }
+                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural clouds shader failed: {ex.Message}"); }
+            }
+            if (!string.IsNullOrEmpty(procRainFrag))
+            {
+                try
+                {
+                    _procRainShader = new GLShader(procVert, procRainFrag);
+                    int h = _procRainShader.Handle;
+                    _prTimeLoc           = GL.GetUniformLocation(h, "uTime");
+                    _prIntensLoc         = GL.GetUniformLocation(h, "uRainIntensity");
+                    _prCovLoc            = GL.GetUniformLocation(h, "uRainCoverage");
+                    _prSnowLoc           = GL.GetUniformLocation(h, "uSnowMix");
+                    _prRadarTexLoc       = GL.GetUniformLocation(h, "uRadarTex");
+                    _prRadarTransformLoc = GL.GetUniformLocation(h, "uRadarTransform");
+                    _prRadarPresentLoc   = GL.GetUniformLocation(h, "uRadarPresent");
+                }
+                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural rain shader failed: {ex.Message}"); }
+            }
+            if (!string.IsNullOrEmpty(procLightFrag))
+            {
+                try
+                {
+                    _procLightningShader = new GLShader(procVert, procLightFrag);
+                    int h = _procLightningShader.Handle;
+                    _plTimeLoc           = GL.GetUniformLocation(h, "uTime");
+                    _plSignalLoc         = GL.GetUniformLocation(h, "uLightningSignal");
+                    _plConvLoc           = GL.GetUniformLocation(h, "uConvective");
+                    _plRadarTexLoc       = GL.GetUniformLocation(h, "uRadarTex");
+                    _plRadarTransformLoc = GL.GetUniformLocation(h, "uRadarTransform");
+                    _plRadarPresentLoc   = GL.GetUniformLocation(h, "uRadarPresent");
+                    _plStrikeNdcLoc      = GL.GetUniformLocation(h, "uStrikeNdc");
+                    _plStrikeCountLoc    = GL.GetUniformLocation(h, "uStrikeCount");
+                    _plStrikeFlashLoc    = GL.GetUniformLocation(h, "uStrikeFlash");
+                    _plStrikeIsCGLoc     = GL.GetUniformLocation(h, "uStrikeIsCG");
+                }
+                catch (Exception ex) { Console.WriteLine($"[GLRadarControl] Procedural lightning shader failed: {ex.Message}"); }
+            }
+        }
+
         private void RenderProceduralClouds()
         {
-            if (!EnableProceduralClouds || _procCloudsShader == null || _latestProcWeather == null) return;
+            if (!EnableProceduralClouds || _latestProcWeather == null) return;
+            if (_procCloudsShader == null) TryInitProcShaders();
+            if (_procCloudsShader == null) return;
             if (_latestProcWeather.CloudCoverage01 < 0.05f) return;
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -1869,7 +1875,9 @@ void main() {
 
         private void RenderProceduralRain()
         {
-            if (!EnableProceduralRain || _procRainShader == null || _latestProcWeather == null) return;
+            if (!EnableProceduralRain || _latestProcWeather == null) return;
+            if (_procRainShader == null) TryInitProcShaders();
+            if (_procRainShader == null) return;
             float intens = _latestProcWeather.RainIntensity01;
             float cov    = _latestProcWeather.RainCoverage01;
             if (intens < 0.02f && cov < 0.02f) return;
@@ -1895,7 +1903,9 @@ void main() {
 
         private void RenderProceduralLightning()
         {
-            if (!EnableProceduralLightning || _procLightningShader == null || _latestProcWeather == null) return;
+            if (!EnableProceduralLightning || _latestProcWeather == null) return;
+            if (_procLightningShader == null) TryInitProcShaders();
+            if (_procLightningShader == null) return;
             float sig  = _latestProcWeather.LightningSignal01;
             float conv = _latestProcWeather.ConvectiveSignal01;
             // Allow rendering if we have positioned strikes even with low global signal
