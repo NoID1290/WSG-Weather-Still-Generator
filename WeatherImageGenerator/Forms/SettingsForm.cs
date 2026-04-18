@@ -81,6 +81,7 @@ namespace WeatherImageGenerator.Forms
         ComboBox cmbCodec;
         ComboBox cmbBitrate;
         CheckBox chkEnableHardwareEncoding;
+        ComboBox cmbHardwareEncoder;
         Label lblHwStatus;
         Button btnCheckHw;
         CheckBox chkVerbose;
@@ -829,7 +830,7 @@ namespace WeatherImageGenerator.Forms
                 chkUseTotalDuration, lblFade, numFade, chkFade
             });
 
-            var grpEncoding = CreateGroupBox("🎬 Encoding", rightCol, y, colWidth, 155);
+            var grpEncoding = CreateGroupBox("🎬 Encoding", rightCol, y, colWidth, 210);
             int eY = 25;
 
             var lblCodec = CreateLabel("Codec:", innerPad, eY);
@@ -846,20 +847,29 @@ namespace WeatherImageGenerator.Forms
             cmbBitrate.SelectedIndex = 2;
             eY += 30;
 
-            chkEnableHardwareEncoding = CreateCheckBox("⚡ Hardware Encoding (NVENC)", innerPad, eY, 220);
+            chkEnableHardwareEncoding = CreateCheckBox("⚡ Hardware Encoding", innerPad, eY, 160);
             chkEnableHardwareEncoding.Font = SmallFont;
-            btnCheckHw = CreateSecondaryButton("Check", innerPad + 225, eY - 3, 60, 24);
+            btnCheckHw = CreateSecondaryButton("Check", innerPad + 165, eY - 3, 60, 24);
             btnCheckHw.Font = SmallFont;
+            eY += 28;
+
+            var lblEncoder = CreateLabel("Encoder:", innerPad + 20, eY);
+            lblEncoder.Width = 65; lblEncoder.Font = SmallFont;
+            cmbHardwareEncoder = CreateComboBox(innerPad + 85, eY - 2, 200);
+            cmbHardwareEncoder.Items.Add("Auto (detect best)");
+            cmbHardwareEncoder.SelectedIndex = 0;
+            cmbHardwareEncoder.Enabled = false;
             eY += 28;
 
             lblHwStatus = CreateHelpLabel("Click Check to verify GPU support", innerPad + 20, eY, 280);
 
             grpEncoding.Controls.AddRange(new Control[] {
                 lblCodec, cmbCodec, lblBitrate, cmbBitrate,
-                chkEnableHardwareEncoding, btnCheckHw, lblHwStatus
+                chkEnableHardwareEncoding, btnCheckHw,
+                lblEncoder, cmbHardwareEncoder, lblHwStatus
             });
 
-            y += 165;
+            y += 220;
 
             // Row 3: Debug & Advanced
             var grpDebug = CreateGroupBox("🔧 Debug & Advanced", leftCol, y, colWidth * 2 + 20, 85);
@@ -1945,27 +1955,59 @@ namespace WeatherImageGenerator.Forms
                     numAlertDisplayDurationSeconds.Value = numStatic.Value;
             };
 
-            // Hardware encoding check
+            // Hardware encoding checkbox — enable/disable encoder dropdown
+            chkEnableHardwareEncoding.CheckedChanged += (s, e) =>
+            {
+                cmbHardwareEncoder.Enabled = chkEnableHardwareEncoding.Checked;
+            };
+
+            // Hardware encoding check — probe all available hardware encoders
             btnCheckHw.Click += (s, e) =>
             {
                 btnCheckHw.Enabled = false;
                 lblHwStatus.Text = "Checking...";
+                // Remember current selection so we can restore it after repopulating
+                var prevSelection = cmbHardwareEncoder.SelectedItem?.ToString();
                 Task.Run(() =>
                 {
-                    bool ok = VideoGenerator.IsHardwareEncodingSupported(out var msg);
+                    var encoders = VideoGenerator.GetAllHardwareEncoderTypes(out var msg);
                     this.Invoke((Action)(() =>
                     {
                         lblHwStatus.Text = msg;
-                        lblHwStatus.ForeColor = ok ? SuccessColor : DangerColor;
+                        lblHwStatus.ForeColor = encoders.Count > 0 ? SuccessColor : DangerColor;
                         btnCheckHw.Enabled = true;
-                        if (!ok)
+
+                        // Repopulate encoder dropdown
+                        cmbHardwareEncoder.Items.Clear();
+                        cmbHardwareEncoder.Items.Add("Auto (detect best)");
+                        foreach (var enc in encoders)
+                        {
+                            var display = enc switch
+                            {
+                                HardwareEncoderType.Nvenc => "NVENC (NVIDIA)",
+                                HardwareEncoderType.Amf => "AMF (AMD)",
+                                HardwareEncoderType.Qsv => "QSV (Intel)",
+                                _ => enc.ToString()
+                            };
+                            cmbHardwareEncoder.Items.Add(display);
+                        }
+
+                        // Restore previous selection if still available, otherwise default to Auto
+                        if (prevSelection != null && cmbHardwareEncoder.Items.Contains(prevSelection))
+                            cmbHardwareEncoder.SelectedItem = prevSelection;
+                        else
+                            cmbHardwareEncoder.SelectedIndex = 0;
+
+                        if (encoders.Count == 0)
                         {
                             chkEnableHardwareEncoding.Checked = false;
                             chkEnableHardwareEncoding.Enabled = false;
+                            cmbHardwareEncoder.Enabled = false;
                         }
                         else
                         {
                             chkEnableHardwareEncoding.Enabled = true;
+                            cmbHardwareEncoder.Enabled = chkEnableHardwareEncoding.Checked;
                         }
                     }));
                 });
@@ -2278,6 +2320,35 @@ namespace WeatherImageGenerator.Forms
                 chkVerbose.Checked = cfg.Video?.VerboseFfmpeg ?? false;
                 chkShowFfmpeg.Checked = cfg.Video?.ShowFfmpegOutputInGui ?? true;
                 chkEnableHardwareEncoding.Checked = cfg.Video?.EnableHardwareEncoding ?? false;
+
+                // Restore preferred hardware encoder selection
+                var preferredHw = cfg.Video?.PreferredHardwareEncoder;
+                if (!string.IsNullOrWhiteSpace(preferredHw) && preferredHw != "Auto")
+                {
+                    var display = preferredHw switch
+                    {
+                        "Nvenc" => "NVENC (NVIDIA)",
+                        "Amf" => "AMF (AMD)",
+                        "Qsv" => "QSV (Intel)",
+                        _ => null
+                    };
+                    if (display != null)
+                    {
+                        if (!cmbHardwareEncoder.Items.Contains(display))
+                            cmbHardwareEncoder.Items.Add(display);
+                        cmbHardwareEncoder.SelectedItem = display;
+                    }
+                    else
+                    {
+                        cmbHardwareEncoder.SelectedIndex = 0;
+                    }
+                }
+                else
+                {
+                    cmbHardwareEncoder.SelectedIndex = 0;
+                }
+                cmbHardwareEncoder.Enabled = chkEnableHardwareEncoding.Checked;
+
                 chkEnableExperimental.Checked = cfg.Video?.ExperimentalEnabled ?? false;
                 if (_experimentalSection != null) _experimentalSection.Enabled = chkEnableExperimental.Checked;
 
@@ -2643,6 +2714,16 @@ namespace WeatherImageGenerator.Forms
                     }
                 }
                 v.EnableHardwareEncoding = chkEnableHardwareEncoding.Checked;
+
+                // Save preferred hardware encoder selection
+                var hwEncoderDisplay = cmbHardwareEncoder.SelectedItem?.ToString() ?? "Auto (detect best)";
+                v.PreferredHardwareEncoder = hwEncoderDisplay switch
+                {
+                    "NVENC (NVIDIA)" => "Nvenc",
+                    "AMF (AMD)" => "Amf",
+                    "QSV (Intel)" => "Qsv",
+                    _ => null // Auto
+                };
 
                 v.UseCrfEncoding = chkUseCrfEncoding.Checked;
                 v.CrfValue = (int)numCrf.Value;

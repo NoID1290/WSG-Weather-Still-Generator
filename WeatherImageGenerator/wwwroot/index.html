@@ -233,7 +233,16 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label><input type="checkbox" id="video-hardware"> Use Hardware Encoding (NVENC)</label>
+                                <label><input type="checkbox" id="video-hardware"> Use Hardware Encoding</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="video-hw-encoder">Hardware Encoder:</label>
+                                <select id="video-hw-encoder" disabled>
+                                    <option value="" selected>Auto (detect best)</option>
+                                    <option value="Nvenc">NVENC (NVIDIA)</option>
+                                    <option value="Amf">AMF (AMD)</option>
+                                    <option value="Qsv">QSV (Intel)</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label for="video-bitrate">Bitrate:</label>

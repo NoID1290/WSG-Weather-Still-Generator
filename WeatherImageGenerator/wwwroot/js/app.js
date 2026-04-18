@@ -644,6 +644,17 @@ async function loadAllSettings() {
             if (videoFps) videoFps.value = video.FrameRate || 30;
             if (videoCodec) videoCodec.value = video.VideoCodec || 'libx264';
             if (videoHardware) videoHardware.checked = video.EnableHardwareEncoding || false;
+            const videoHwEncoder = document.getElementById('video-hw-encoder');
+            if (videoHwEncoder) {
+                videoHwEncoder.value = video.PreferredHardwareEncoder || '';
+                videoHwEncoder.disabled = !video.EnableHardwareEncoding;
+            }
+            if (videoHardware) {
+                videoHardware.addEventListener('change', () => {
+                    const hwEncoderSel = document.getElementById('video-hw-encoder');
+                    if (hwEncoderSel) hwEncoderSel.disabled = !videoHardware.checked;
+                });
+            }
             if (videoBitrate) videoBitrate.value = video.VideoBitrate || '4M';
             if (videoStatic) videoStatic.value = video.StaticDurationSeconds || 6;
             if (videoTotalDuration) videoTotalDuration.checked = video.UseTotalDuration || false;
@@ -763,6 +774,7 @@ async function saveVideoSettings() {
         frameRate: parseInt(document.getElementById('video-fps').value),
         videoCodec: document.getElementById('video-codec').value,
         enableHardwareEncoding: document.getElementById('video-hardware').checked,
+        preferredHardwareEncoder: document.getElementById('video-hw-encoder').value || null,
         videoBitrate: document.getElementById('video-bitrate').value,
         staticDurationSeconds: parseFloat(document.getElementById('video-static').value),
         useTotalDuration: document.getElementById('video-total-duration').checked,

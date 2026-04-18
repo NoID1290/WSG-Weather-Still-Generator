@@ -1023,6 +1023,8 @@ namespace WeatherImageGenerator.Services
                     config.Video.VideoCodec = updates["videoCodec"]?.ToString();
                 if (updates != null && updates.ContainsKey("enableHardwareEncoding") && bool.TryParse(updates["enableHardwareEncoding"]?.ToString() ?? "", out bool hwenc))
                     config.Video.EnableHardwareEncoding = hwenc;
+                if (updates != null && updates.ContainsKey("preferredHardwareEncoder"))
+                    config.Video.PreferredHardwareEncoder = updates["preferredHardwareEncoder"]?.ToString();
                 if (updates != null && updates.ContainsKey("videoBitrate"))
                     config.Video.VideoBitrate = updates["videoBitrate"]?.ToString();
                 if (updates != null && updates.ContainsKey("staticDurationSeconds") && double.TryParse(updates["staticDurationSeconds"]?.ToString() ?? "", out double staticDuration))

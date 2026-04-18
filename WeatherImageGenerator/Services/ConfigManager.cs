@@ -512,6 +512,9 @@ namespace WeatherImageGenerator.Services
         [JsonPropertyName("EnableHardwareEncoding")]
         public bool EnableHardwareEncoding { get; set; } = false;
 
+        [JsonPropertyName("PreferredHardwareEncoder")]
+        public string? PreferredHardwareEncoder { get; set; }
+
         [JsonPropertyName("doVideoGeneration")]
         public bool doVideoGeneration { get; set; } = true;
 

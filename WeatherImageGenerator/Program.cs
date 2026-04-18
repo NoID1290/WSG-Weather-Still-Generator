@@ -1521,6 +1521,11 @@ namespace WeatherImageGenerator
                     FfmpegVerbose = videoConfig.VerboseFfmpeg,
                     ShowFfmpegOutputInGui = videoConfig.ShowFfmpegOutputInGui,
                     EnableHardwareEncoding = videoConfig.EnableHardwareEncoding,
+                    PreferredHardwareEncoder = string.IsNullOrWhiteSpace(videoConfig.PreferredHardwareEncoder)
+                        ? null
+                        : Enum.TryParse<HardwareEncoderType>(videoConfig.PreferredHardwareEncoder, true, out var parsedHw)
+                            ? parsedHw
+                            : null,
                     UseCrfEncoding = videoConfig.UseCrfEncoding,
                     CrfValue = videoConfig.CrfValue,
                     MaxBitrate = videoConfig.MaxBitrate,

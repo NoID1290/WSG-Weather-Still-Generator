@@ -52,6 +52,10 @@ namespace WeatherImageGenerator.Services
         // When true, attempt hardware accelerated encoding (NVENC) if available
         public bool EnableHardwareEncoding { get; set; } = false;
 
+        // When set, use this specific hardware encoder instead of auto-detecting the first available one.
+        // Null or None means auto-detect (current behavior).
+        public HardwareEncoderType? PreferredHardwareEncoder { get; set; }
+
         // CRF and advanced encoder controls
         public bool UseCrfEncoding { get; set; } = true;      // When true, use -crf instead of bitrate when appropriate
         public int CrfValue { get; set; } = 23;               // CRF value to use for quality-based encoding
@@ -706,7 +710,9 @@ namespace WeatherImageGenerator.Services
             // If hardware encoding is requested, pick a hardware codec that matches the desired family and add friendly flags.
             if (EnableHardwareEncoding)
             {
-                var hwType = GetHardwareEncoderType(out _);
+                var hwType = (PreferredHardwareEncoder.HasValue && PreferredHardwareEncoder.Value != HardwareEncoderType.None)
+                    ? PreferredHardwareEncoder.Value
+                    : GetHardwareEncoderType(out _);
                 var lower = codec.ToLowerInvariant();
                 bool isHevc = lower.Contains("hevc") || lower.Contains("x265") || lower.Contains("libx265");
 
@@ -1324,6 +1330,76 @@ namespace WeatherImageGenerator.Services
                 message = ex.Message;
                 return HardwareEncoderType.None;
             }
+        }
+
+        /// <summary>
+        /// Enumerates all working hardware encoders (NVENC, AMF, QSV) available on the system.
+        /// Unlike GetHardwareEncoderType which returns only the first found, this probes all of them.
+        /// </summary>
+        public static List<HardwareEncoderType> GetAllHardwareEncoderTypes(out string message, string? ffmpegExe = null, int timeoutMs = 10000)
+        {
+            var result = new List<HardwareEncoderType>();
+            try
+            {
+                string ffmpegPath = ffmpegExe ?? FFmpegLocator.GetFFmpegPath();
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = "-hide_banner -encoders",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var p = Process.Start(psi))
+                {
+                    if (p == null)
+                    {
+                        message = "Failed to start ffmpeg";
+                        return result;
+                    }
+
+                    var outText = p.StandardOutput.ReadToEnd();
+                    if (string.IsNullOrWhiteSpace(outText)) outText = p.StandardError.ReadToEnd();
+                    p.WaitForExit(timeoutMs);
+
+                    // Check NVENC
+                    if ((outText.IndexOf("h264_nvenc", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         outText.IndexOf("hevc_nvenc", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                        ProbeEncoder("h264_nvenc", ffmpegPath, timeoutMs))
+                    {
+                        result.Add(HardwareEncoderType.Nvenc);
+                    }
+
+                    // Check AMF
+                    if ((outText.IndexOf("h264_amf", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         outText.IndexOf("hevc_amf", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                        ProbeEncoder("h264_amf", ffmpegPath, timeoutMs))
+                    {
+                        result.Add(HardwareEncoderType.Amf);
+                    }
+
+                    // Check QSV
+                    if ((outText.IndexOf("h264_qsv", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         outText.IndexOf("hevc_qsv", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                        ProbeEncoder("h264_qsv", ffmpegPath, timeoutMs))
+                    {
+                        result.Add(HardwareEncoderType.Qsv);
+                    }
+
+                    if (result.Count == 0)
+                        message = "No working hardware encoders (NVENC/AMF/QSV) found";
+                    else
+                        message = $"{result.Count} hardware encoder(s) found: {string.Join(", ", result)}";
+                }
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+            }
+            return result;
         }
 
         private static bool ProbeEncoder(string encoderName, string ffmpegExe, int timeoutMs)
