@@ -40,19 +40,19 @@ namespace WeatherImageGenerator.Rendering.Common
 
         /// <summary>
         /// Parse a rendering API from its display/config string.
-        /// Returns OpenGL as default for unrecognized values.
+        /// Returns DirectX11 as default for unrecognized values.
         /// </summary>
         public static RenderingApi ParseFromString(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
-                return RenderingApi.OpenGL;
+                return RenderingApi.DirectX11;
 
             return value.Trim().ToLowerInvariant() switch
             {
                 "opengl" => RenderingApi.OpenGL,
                 "vulkan" => RenderingApi.Vulkan,
                 "directx11" or "directx" or "dx11" or "d3d11" => RenderingApi.DirectX11,
-                _ => RenderingApi.OpenGL
+                _ => RenderingApi.DirectX11
             };
         }
 

@@ -5,13 +5,13 @@ namespace WeatherImageGenerator.Rendering.Common
     /// </summary>
     public enum RenderingApi
     {
-        /// <summary>OpenGL 3.3+ via OpenTK (default, most compatible).</summary>
+        /// <summary>OpenGL 3.3+ via OpenTK (most compatible).</summary>
         OpenGL = 0,
 
         /// <summary>Vulkan via Silk.NET (modern, high-performance).</summary>
         Vulkan = 1,
 
-        /// <summary>DirectX 11 via Silk.NET (Windows-native).</summary>
+        /// <summary>DirectX 11 via Silk.NET (Windows-native, default).</summary>
         DirectX11 = 2
     }
 }

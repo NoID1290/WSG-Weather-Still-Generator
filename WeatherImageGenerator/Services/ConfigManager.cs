@@ -936,7 +936,7 @@ namespace WeatherImageGenerator.Services
         /// Rendering API for the Weather Interactive Map: OpenGL, Vulkan, or DirectX11
         /// </summary>
         [JsonPropertyName("RenderingApi")]
-        public string RenderingApi { get; set; } = "OpenGL";
+        public string RenderingApi { get; set; } = "DirectX11";
 
         /// <summary>
         /// Map style presets for different visualization types
