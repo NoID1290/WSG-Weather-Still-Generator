@@ -1,129 +1,215 @@
-﻿# 🌦️ WSG — Weather Still Generator
+# WSG - Weather Still Generator
 
-<div align="center">
+WSG is a Windows weather graphics generator for digital signage, live streams, information displays, and local weather channels. It builds still images, radar/map scenes, alert graphics, and MP4 slideshow videos from live weather feeds.
 
-**Automated weather image and video generation for digital signage, streaming overlays, and weather displays**
+## What it does
 
-[![Version](https://img.shields.io/badge/version-1.20.53-blue?style=for-the-badge)](docs/CHANGELOG.md)
-[![.NET](https://img.shields.io/badge/.NET-10.0-purple?style=for-the-badge&logo=dotnet)](https://dotnet.microsoft.com/)
-[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
+- Generates current conditions, forecast, detailed weather, and alert images
+- Builds MP4 slideshows with music, fade transitions, and multiple output resolutions
+- Pulls data from Open-Meteo and Environment Canada sources
+- Supports Canadian alert feeds plus NOAA/NWS-related alert tooling in the repo
+- Renders radar and weather maps with OpenStreetMap-based layers
+- Includes a built-in Web UI for monitoring and control
+- Supports headless runs for unattended automation
 
----
-
-[🚀 Quick Start](#-quick-start) • [📖 Documentation](#-documentation) • [📦 Downloads](#-downloads)
-
-</div>
-
----
-
-## 📋 Overview
-
-**WSG (Weather Still Generator)** is a Windows application that generates weather images and MP4 slideshow videos from real-time data. It supports multiple weather APIs, emergency alert systems, radar map overlays, and GPU-accelerated video encoding.
-
-`Digital Signage` · `Streaming Overlays` · `Weather Stations` · `Information Displays`
-
----
-
-## 🎯 Features
-
-- **Image Generation** — Current conditions, daily forecasts, detailed analysis, weather maps, and alert graphics
-- **Video Generation** — MP4 slideshows with fade transitions, background music, 1080p/4K/vertical, NVIDIA GPU encoding
-- **Alert Systems** — Environment Canada (ECCC), NAAD/Alert Ready, color-coded severity levels, multi-city aggregation
-- **Data Sources** — OpenMeteo API (global), ECCC Official API (Canada), GeoMet WMS radar, automatic geocoding
-- **Web UI** — Built-in browser-based interface for monitoring and control
-- **Weather Maps** — Animated radar overlays with OpenStreetMap base layers and city markers
-
----
-
-## 🖼️ Screenshots
-
-<!-- Add screenshots here -->
-*Screenshots coming soon.*
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Windows 10/11
-- [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
-- [FFmpeg](https://ffmpeg.org/download.html) *(bundled or in PATH)*
-
-### Install & Run
+## Quick start
 
 ```powershell
 git clone https://github.com/NoID1290/WSG-Weather-Still-Generator.git
 cd WSG-Weather-Still-Generator
 .\build.ps1
-.\WeatherImageGenerator\bin\Debug\net10.0-windows\WSG.exe
+.\WeatherImageGenerator\bin\Release\net10.0-windows10.0.17763.0\WSG.exe
 ```
 
-Run headless with `WSG.exe --nogui` for continuous generation without the GUI.
+For unattended operation:
 
-All settings live in `WeatherImageGenerator/appsettings.json` — no recompile needed. See the [Configuration Guide](docs/CONFIG_README.md) for details.
+```powershell
+.\WeatherImageGenerator\bin\Release\net10.0-windows10.0.17763.0\WSG.exe --nogui
+```
 
----
+## Solution structure
 
-## 📦 Downloads
+The repository is a multi-project .NET solution centered on `WSG.sln`.
 
-Download the latest portable release from [GitHub Releases](https://github.com/NoID1290/WSG-Weather-Still-Generator/releases/latest).
+| Project | Purpose |
+|---|---|
+| `WeatherImageGenerator` | Main Windows Forms desktop app (`WSG.exe`) |
+| `OpenMeteo` | Open-Meteo client and weather data integration |
+| `ECCC` | Environment Canada feeds, radar, and related weather data |
+| `EAS` | Emergency alert support, including Alert Ready and NWS-related components |
+| `EKCA` | Additional weather/alert integration used by the app |
+| `OpenMap` | Map tile and overlay support |
+| `grib2` | GRIB2 data handling and overlays |
+| `WeatherShared` | Shared models and helpers |
+| `WeatherImageGenerator.Updater` | Update helper executable |
+| `BZTG` | Additional supporting library in the solution |
+| `WSG.Mobile` | Mobile companion project |
 
-| Asset | Description |
-|-------|-------------|
-| `WSG-Weather-Still-Generator-x.x.x.zip` | Portable release (ready to run) |
+## Main features
 
----
+### Weather graphics
 
-## 📖 Documentation
+- Current weather panels
+- Multi-location forecasts
+- Detailed weather graphics
+- Alert summary graphics
+- Weather map and radar output
 
-| Document | Description |
-|----------|-------------|
-| [Changelog](docs/CHANGELOG.md) | Version history and release notes |
-| [Configuration Guide](docs/CONFIG_README.md) | Complete `appsettings.json` reference |
-| [Weather Maps & Radar](docs/WEATHER_MAP_GUIDE.md) | Map architecture, radar overlays, and rendering |
-| [OpenMap Integration](docs/OPENMAP_USAGE.md) | OpenStreetMap layers and settings |
-| [Web UI Guide](docs/WEB_UI_GUIDE.md) | Browser-based interface usage |
-| [ECCC API](docs/ECCC_API_UPGRADE.md) | Environment Canada integration |
-| [Push Script & Releases](docs/PUSH_SCRIPT_GUIDE.md) | Automated versioning and deployment |
+### Video output
 
----
+- MP4 slideshow generation
+- Fade transitions
+- Optional background music
+- 1080p, 4K, and vertical output modes
+- FFmpeg-based encoding with hardware-encoding options in config
 
-## 🤝 Contributing
+### Mapping and radar
 
-Contributions are welcome — feel free to open issues and pull requests.
+- OpenStreetMap-backed map rendering
+- Environment Canada radar integration
+- Province radar and city radar options
+- Global weather map support
 
----
+### Web UI
 
-## 📄 License
+- Local or remote browser access
+- Status and weather endpoints
+- Image listing/download endpoints
+- Configurable port and remote-access toggle
 
-[MIT License](LICENSE) — © 2020-2026 [NoID Softwork](https://github.com/noidsoftwork)
+### Operating modes
 
+- Normal desktop GUI
+- `--nogui` unattended mode
+- Utility and smoke-test command-line switches for specific tasks
 
+## Requirements
 
+- Windows 10 or Windows 11
+- .NET 10 SDK to build from source
+- FFmpeg available to the app for video generation
 
+The main app targets `net10.0-windows10.0.17763.0` and uses Windows Forms.
 
+## Build
 
+From the repository root:
 
+```powershell
+.\build.ps1
+```
 
+Build the full solution instead of only the main app:
 
+```powershell
+.\build.ps1 -All
+```
 
+### Baseline validation note
 
+The existing build script was run in this task's Linux sandbox and failed with `NETSDK1100` because this repository targets Windows desktop frameworks. Build and runtime validation should be done on Windows or with Windows targeting explicitly enabled.
 
+## Run
 
+Typical executable location after the default release build:
 
+```powershell
+.\WeatherImageGenerator\bin\Debug\net10.0-windows10.0.17763.0\WSG.exe
+```
 
+Useful command-line switches found in `Program.cs`:
 
+```powershell
+WSG.exe --nogui
+WSG.exe --create-test-images
+WSG.exe --generate-icons
+WSG.exe --make-video-now
+WSG.exe --generate-province-animation
+WSG.exe --test-emergency-alerts
+WSG.exe --smoke-gui
+WSG.exe --smoke-make-video
+WSG.exe --smoke-save-config
+WSG.exe --test-weather-map
+```
 
+## Configuration
 
+WSG uses `appsettings.json` for editable runtime settings.
 
+- The app loads the file from the executable directory
+- If the file is missing or invalid, the app can regenerate it with defaults
+- Settings are written back by the app and Web UI
 
+Important configuration areas documented in the codebase include:
 
+- Locations and refresh interval
+- Image output dimensions and directories
+- Video output, codecs, durations, and music
+- Environment Canada radar options
+- Weather map toggles
+- Web UI port and remote access
+- Alert-related display settings
 
+See [`docs/CONFIG_README.md`](docs/CONFIG_README.md) for the full settings reference.
 
+## Web UI
 
+The desktop app includes a built-in Web UI served by `WeatherImageGenerator/Services/WebUIService.cs`.
 
+Documented endpoints and capabilities include:
 
+- `/api/status`
+- `/api/weather/current`
+- `/api/weather/forecast`
+- `/api/images/list`
+- `/api/images/{filename}`
+- `/api/settings/web`
 
+Default settings in code include:
 
+- Port `5000`
+- Remote access disabled by default
+- CORS enabled
+
+See:
+
+- [`docs/WEB_UI_GUIDE.md`](docs/WEB_UI_GUIDE.md)
+- [`WEB_UI_SUMMARY.md`](WEB_UI_SUMMARY.md)
+
+## Assets and output
+
+Notable app assets:
+
+- `WeatherImageGenerator/Music/` - bundled music/readme for slideshow audio
+- `WeatherImageGenerator/wwwroot/` - static files for the Web UI
+- `WeatherImageGenerator/Rendering/` - rendering backends and shaders
+
+Generated files are typically written to the configured output directory, such as weather images and slideshow videos.
+
+## Releases
+
+Portable builds are published through GitHub Releases:
+
+- <https://github.com/NoID1290/WSG-Weather-Still-Generator/releases/latest>
+
+## Repository documentation
+
+- `docs/CONFIG_README.md` - configuration reference
+- `docs/WEATHER_MAP_GUIDE.md` - weather-map and radar documentation
+- `docs/WEATHER_MAP_ARCHITECTURE.md` - map internals
+- `docs/OPENMAP_USAGE.md` - map integration details
+- `docs/WEB_UI_GUIDE.md` - Web UI usage
+- `docs/ECCC_API_UPGRADE.md` - Environment Canada notes
+- `docs/PUSH_SCRIPT_GUIDE.md` - release/versioning workflow
+- `docs/CHANGELOG.md` - version history
+
+## Development notes
+
+- The build script defaults to building only `WeatherImageGenerator`
+- The repo contains Windows desktop, web-serving, map, alert, and updater code in one solution
+- `WeatherImageGenerator.csproj` references the supporting projects directly
+- `appsettings.json` is treated as a runtime-generated/user-managed file rather than a committed release artifact
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
