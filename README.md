@@ -114,7 +114,7 @@ The existing build script was run in this task's Linux sandbox and failed with `
 Typical executable location after the default release build:
 
 ```powershell
-.\WeatherImageGenerator\bin\Debug\net10.0-windows10.0.17763.0\WSG.exe
+.\WeatherImageGenerator\bin\Release\net10.0-windows10.0.17763.0\WSG.exe
 ```
 
 Useful command-line switches found in `Program.cs`:
